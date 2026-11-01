@@ -18,14 +18,16 @@ def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let node := Node.boot fam (← (dumpOps (F := SF)).run db) 0
   let cfg : RunConfig := { queue := 1 }
   let ch ← eventChannel cfg
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
+  let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
     while !(← consume.get) do IO.sleep 1
-    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots }
+    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots, ingress } turnCounters
   return {
-    events := ch, writes, port := 0, done, slots
-    stopped := ← IO.mkRef false, listening := Task.pure (.ok ()),
+    events := ch, writes, port := 0, done, slots, turnCounters, ingress
+    stopped := ← StopFlag.new, listening := Task.pure (.ok ()),
     listener := ← listener, closing := ← Std.Mutex.new false }
 
 def stored (s : St) : IO Nat := do
@@ -68,11 +70,11 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     ck.ok "chaos parks while netBoot is pending" parked
     let issued := (← get).toNode.toList.flatten
     ck.ok "pending boot has not written chaos to the store" ((← stored (← get)) == 1)
-    boot.set true
+    boot.modify (fun _ => true)
     discard <| advance 5000 fun s => pure s.net.isSome
     discard <| reactTo message "👋"
     ck.ok "full node channel retains unoffered writes" (!(← get).toNode.isEmpty)
-    consume.set true
+    consume.modify (fun _ => true)
     let delivered ← advance 5000 fun s => return (← stored s) == 31 && s.toNode.isEmpty
     ck.ok "chaos reaches the actual node store after boot and backpressure" delivered
     let mut allStored := !issued.isEmpty
@@ -107,7 +109,7 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let old ← node path consume
     discard <| old.writes.trySend []
     modify fun s => { s with net := some old }
-    let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.set true
+    let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.modify (fun _ => true)
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "suspend returns within its deadline with a full stop channel" ((← IO.monoMsNow) ≤ begin + 150)
@@ -144,16 +146,21 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let (_, revoked) ← (Reader.read (Q.op first.id)).run { rd := before.rd, enabled := pure false }
     ck.ok "revoked reader issues no query" (revoked.live.reads == 0 && revoked.live.entries.isEmpty)
     let sh ← Reader.Shared.new (← IO.mkRef 0)
-    -- Three distinct, committed ops make the exact query boundary explicit:
-    -- allow the pass and its first two reads, then revoke before the third.
+    -- Revoke after the actual second query, independent of how often the
+    -- pass checks its lease before querying. A new early guard must not
+    -- silently move this fixture's cancellation point.
     let want := Reader.Want.slices [first.id, second.id, third.id]
     sh.setWants #[want]
-    let checks ← IO.mkRef (0 : Nat)
-    let enabled : IO Bool := checks.modifyGet fun n => (decide (n < 3), n + 1)
-    let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled }
+    let enabled ← IO.mkRef true
+    let queries ← IO.mkRef (#[] : Array Q)
+    let afterQuery (q : Q) : IO Unit := do
+      queries.modify (·.push q)
+      if q == .op second.id then enabled.modify (fun _ => false)
+    let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled := enabled.get, afterQuery }
     ck.ok "revocation during a real pass prevents later queries" (cancelled.live.reads == 2 &&
       cancelled.live.entries.contains (.op first.id) && cancelled.live.entries.contains (.op second.id) &&
-      !cancelled.live.entries.contains (.op third.id) && (← checks.get) > 3)
+      !cancelled.live.entries.contains (.op third.id) &&
+      (← queries.get) == #[.op first.id, .op second.id] && !(← enabled.get))
     ck.ok "revoked pass cannot publish its answer" (((← sh.board.get).get? want).isNone)
     ck.ok "old runner rejects offers after teardown" (!(← old.writes.trySend []))
     discard <| step [.background]
@@ -328,7 +335,7 @@ def writerRetry (dir : String) (ck : Checks) : IO Unit := do
     attempts.modify (· + 1)
     db.exec "PRAGMA busy_timeout=1"
     Lifecycle.save db bytes
-  w.paused.set true
+  w.setPaused true
   let lock ← openDb path
   lock.exec "BEGIN IMMEDIATE"
   let cp : Lifecycle.Checkpoint := (1, 0, .empty, .empty, 0, [])
@@ -336,7 +343,7 @@ def writerRetry (dir : String) (ck : Checks) : IO Unit := do
   try
     w.save (Codec.encode cp)
     w.submit ⟨[op], true⟩
-    w.paused.set false
+    w.setPaused false
     let deadline := (← IO.monoMsNow) + 3000
     while (← attempts.get) < 3 && (← IO.monoMsNow) < deadline do IO.sleep 2
     ck.ok "the held SQLite write lock forces checkpoint retries" ((← attempts.get) ≥ 3)

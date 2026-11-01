@@ -19,5 +19,6 @@ bad=$(grep "depends on axioms" <<<"$out" | sed 's/.*\[\(.*\)\]/\1/' | tr ',' '\n
 echo "desktop: all $want laws rest on standard axioms only"
 .lake/build/bin/desktop out/desktop
 mise run host:hover-proofs
+mise run host:desktop-presentation
 # Full pixel comparison against pinned libquiet renders is visual:compare,
 # invoked by local CI. No hand-maintained CSS screenshot stand-in here.

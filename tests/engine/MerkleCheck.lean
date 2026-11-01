@@ -1,5 +1,5 @@
 /-
-Community.Merkle with the hash that runs (SHA-256), on files of 0, 1,
+Merkle with the hash that runs (SHA-256), on files of 0, 1,
 65535, 65536, 65537, 3×65536+5 and 1 MiB + 1000 bytes: the slices put
 together are the file, every chunk verifies against the file's root with
 its proof, and the chunks that verify put together are the file again.
@@ -43,9 +43,9 @@ by rfl), on the same forgeries; the run prints what each lets through.
   another size changes the node's input); an early refusal.
 -/
 import tests.engine.Lib
-import ops.community.Merkle
+import engine.core.Merkle
 
-open Engine Tests Community.Merkle
+open Engine Tests Merkle
 
 def H : B → B := sha256
 

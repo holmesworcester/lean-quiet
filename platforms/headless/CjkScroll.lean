@@ -17,7 +17,7 @@ private def blanks (s : St) : Nat := Id.run do
       if (s.rows[id]? >>= (·.shown)).isNone then n := n + 1
   return n
 
-def main (args : List String) : IO Unit := do
+private def suite (args : List String) : IO Unit := do
   let dir := args.headD "out/cjk-scroll"
   let corpus := args[1]?.getD "out/cjk/corpus.txt"
   IO.FS.createDirAll dir
@@ -27,6 +27,10 @@ def main (args : List String) : IO Unit := do
   let messages := ((← IO.FS.readFile corpus).splitOn "\n").filter (!·.isEmpty)
   let sm ← Sim.new
   let s ← App.start sm.io #[1080,2400,128,63,420] (dir ++ "/quiet.db")
+  -- Exercise failure while the real writer/pruner tasks are alive. Letting
+  -- an exception escape main waits forever for those permanent tasks.
+  if args.contains "--fail-after-writer-start" then
+    throw (IO.userError "injected CJK failure after writer startup")
   let ((), s) ← (show M Unit from do
     steps 3
     sm.cmds.modify (·.push "found CJK")
@@ -73,3 +77,13 @@ def main (args : List String) : IO Unit := do
   IO.println s!"CJK cache: {hits} hits, {misses} misses, {bytes} charged bytes, peak {peak}, {entries} entries"
   (← IO.getStdout).flush
   IO.Process.exit 0
+
+def main (args : List String) : IO UInt32 := do
+  try
+    suite args
+    IO.Process.exit 0
+  catch e =>
+    IO.eprintln s!"CJK scroll: {e}"
+    (← IO.getStdout).flush
+    (← IO.getStderr).flush
+    IO.Process.exit 1

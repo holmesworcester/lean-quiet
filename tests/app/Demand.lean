@@ -1,8 +1,9 @@
 /- Real worker/reader races with barriers, not timing-dependent sleeps.
 The pool executes the same queue, ticket and publication code as App. -/
+import app.community.channel.message.attachment.Screen
+import app.Screen
 import platforms.headless.Sim
-import ops.app.RowPaint
-import ops.app.ReaderLife
+import tests.app.Presentation
 import tests.engine.Checks
 
 open Engine Community Data Tests
@@ -153,6 +154,35 @@ def reader (ck : Checks) : IO Unit := do
   discard <| (Reader.pass sh).run state
   ck.ok "unmount and remount between passes refills the revoked board answer"
     (((← sh.board.get).get? newest).map (·.1) == some (.people 40 true))
+
+  -- A repeated read failure must not restore an earlier scheduling position
+  -- on every worker pass. Inject after a real query; the transaction still
+  -- takes the production rollback/retry path, with no sleeps deciding order.
+  let bad := Reader.Want.people "failing-query".toUTF8
+  let (_, probe) ← (Reader.evalLogged bad).run { rd := db }
+  let some badQuery := probe.log[0]? | throw (IO.userError "failure probe made no query")
+  let retry ← Reader.Shared.new (← IO.mkRef 1)
+  retry.setWants #[bad, newest]
+  let failures ← IO.mkRef 0
+  let stopped ← IO.mkRef false
+  let enabled : IO Bool := do return !(← stopped.get)
+  let initial : Reader.St := {
+    rd := db
+    enabled
+    afterQuery := fun q => do
+      if q == badQuery then
+        failures.modify (· + 1)
+        if (← failures.get) == 3 then stopped.modify (fun _ => true)
+        throw (IO.userError "injected repeatable failure after real SQLite read") }
+  let worker ← IO.asTask (prio := .dedicated) (Reader.work retry stopped initial)
+  await "three failed reader attempts" (IO.hasFinished worker)
+  match ← IO.wait worker with
+  | .error e => throw e
+  | .ok _ => pure ()
+  ck.ok "repeatable read failure cannot starve a retained later query across transaction rollback"
+    (((← retry.board.get).get? newest).map (·.1) == some (.people 40 true))
+  ck.ok "failed query publishes no invented answer and retries after yielding its position"
+    ((← failures.get) == 3 && ((← retry.board.get).get? bad).isNone)
 
 /-- Diagnostic counterexample, not a fix: actual worker completes every
 paint, yet presentation's version reconciliation rejects each older result.
@@ -357,7 +387,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
     App.openPage .chat
     waitIdle sm
     let writer := (← get).wr
-    writer.paused.set true
+    writer.setPaused true
     discard <| App.sendText "My committed body survives reaction churn"
     let mut optimistic : Option (Id × App.RowSt) := none
     for _ in [0:400] do
@@ -380,7 +410,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
       await "finite app paint barrier" release.get
       return pending.shown
     await "app paint barrier entered" entered.get
-    writer.paused.set false
+    writer.setPaused false
     let mut committedFound : Option App.RowSt := none
     for _ in [0:400] do
       steps 1
@@ -531,6 +561,7 @@ def main : IO UInt32 := do
     DemandTest.paintInvalidation ck
     DemandTest.appPaintChurn ck
     DemandTest.appWorkerProgress ck
+    PresentationTests.run ck
     ck.finish "component-demand"
   catch e => IO.eprintln s!"component-demand: {e}"; pure 1
   (← IO.getStdout).flush

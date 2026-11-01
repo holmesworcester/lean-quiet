@@ -103,13 +103,11 @@ Noise suite still has a kernel proof of its contract, separate from native crypt
 
 **Remaining assumption work.** The [explicit assumptions](#what-is-assumed)
 distinguish standard computational security from the exact Lean predicates.
-`Unforgeable` currently quantifies all possible accepted signatures, so it
-cannot describe a finite independent signing history under ordinary signature
-correctness. It needs execution/attacker scoping and an explicit trace
-assumption or computational argument. SHA-256 second-preimage resistance also
-does not prove the stronger exact `NoSecondPreimage` idealization. Native
-attachment claims retain that assumption and remain conditional; the kernel
-witness for `NoSecondPreimage` is for a constructed model hash. The
+`Unforgeable` and the attachment laws' `NoCollision` are stated over the
+signatures and hashed bytes at hand, so each fails only if a real forgery or
+SHA-256 collision is among them; both remain computational assumptions.
+Native attachment checks decide `NoCollision` on real SHA-256 for their file;
+the attachment laws stay conditional on SHA-256's 32-byte outputs. The
 [bootstrap evidence](#bootstrap-witnesses-and-running-app-checks) now includes
 finite native scene certificates, a kernel-proved infinite fair/ideal model
 run, and a successful production Node/hooks execution with a fair continuation.

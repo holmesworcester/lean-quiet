@@ -109,15 +109,15 @@ theorem lineOf_ctop (g : Grid) (ok : g.Ok) (i k : Nat) (h1 : g.ctop i ≤ k) (h2
   simp only
   rw [Nat.mod_eq_sub_mul_div, hd, Nat.mul_comm]
 
-theorem div_eq {m d k : Nat} (_hd : 0 < d) (lo : k * d ≤ m) (hi : m < k * d + d) : m / d = k := by
+theorem div_eq {m d k : Nat} (lo : k * d ≤ m) (hi : m < k * d + d) : m / d = k := by
   apply Nat.div_eq_of_lt_le
   · exact lo
   · rw [Nat.succ_mul]; exact hi
 
-theorem mod_eq {m d k : Nat} (hd : 0 < d) (lo : k * d ≤ m) (hi : m < k * d + d) :
+theorem mod_eq {m d k : Nat} (lo : k * d ≤ m) (hi : m < k * d + d) :
     m % d = m - k * d := by
   have h := Nat.div_add_mod m d
-  rw [div_eq hd lo hi] at h
+  rw [div_eq lo hi] at h
   rw [Nat.mul_comm] at h
   omega
 
@@ -164,10 +164,10 @@ theorem hit_iff (g : Grid) (ok : g.Ok) (s x y i : Nat) :
     have hj := Nat.mod_lt i hc
     -- the finger's column is i's
     have hx0' : g.x0 ≤ x := by omega
-    have hdx : (x - g.x0) / g.pitch = i % g.cols := div_eq hp (by omega) (by omega)
+    have hdx : (x - g.x0) / g.pitch = i % g.cols := div_eq (by omega) (by omega)
     have hmx : (x - g.x0) % g.pitch < g.key := by
-      rw [mod_eq hp (k := i % g.cols) (by omega) (by omega)]; omega
-    have hdy : (y - g.y0 + s) / g.key = i / g.cols := div_eq hk hr0 (by omega)
+      rw [mod_eq (k := i % g.cols) (by omega) (by omega)]; omega
+    have hdy : (y - g.y0 + s) / g.key = i / g.cols := div_eq hr0 (by omega)
     have hi : i / g.cols * g.cols + i % g.cols = i := by
       rw [Nat.mul_comm]; exact Nat.div_add_mod i g.cols
     simp only [hx0', hy0, hy1, and_self, ite_true, hdx, hj, hmx, hdy, hi, hn]

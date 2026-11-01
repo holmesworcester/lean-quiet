@@ -723,6 +723,36 @@ theorem encInto_tag {α} [Codec α] (buf : ByteArray) (t : UInt8) (a : α) :
     (encInto (buf.push t) a).data.toList = buf.data.toList ++ t :: enc a := by
   simp [encInto_eq]
 
+/-- Nothing: no bytes. An op type with no fields writes only its tag. -/
+instance : Codec Unit where
+  enc _ := []
+  dec bs := some ((), bs)
+  round _ _ := rfl
+  encInto buf _ := buf
+  encInto_eq _ _ := by simp
+  decFrom _ i := some ((), i)
+  decFrom_at _ _ := by simp
+
+/-- An op type's codec: its tag, then its fields as another type (a
+tuple, or `()`), read back through `of`. Every op type's body and fact
+write this way, so these laws are proven once, here, for all of them. -/
+def tagged {α β} [Codec β] (t : UInt8) (to : α → β) (of : β → α) (h : ∀ a, of (to a) = a) :
+    Codec α where
+  enc a := t :: enc (to a)
+  dec
+    | x :: r => if x = t then (dec r : Option (β × List UInt8)).map fun p => (of p.1, p.2) else none
+    | [] => none
+  round a rest := by simp [Codec.round, h]
+  encInto buf a := encInto (buf.push t) (to a)
+  encInto_eq buf a := encInto_tag buf t (to a)
+  decFrom b i := if b[i]? = some t then decFromAs of b (i + 1) else none
+  decFrom_at a hat := by
+    simp only [if_pos hat.tag]
+    rw [decFromAs_tag of hat, h]
+
+theorem tagged_enc {α β} [Codec β] (t : UInt8) (to : α → β) (of : β → α) (h : ∀ a, of (to a) = a)
+    (a : α) : (tagged t to of h).enc a = t :: enc (to a) := rfl
+
 /-! ## Whole values -/
 
 /-- The bytes of a value. -/

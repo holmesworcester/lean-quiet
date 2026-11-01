@@ -20,11 +20,11 @@ def initiatorEstablished (s : IdentityConnection.Session) := Established.op s.re
 -- contract remains a universal native-crypto assumption, not a finite test result.
 def establishedAgrees (s : IdentityConnection.Session) :=
   if hn : pkA ≠ pkB then
-    if hr : Established.check sodium (established s)
+    if hr : check sodium (established s) .established
       [.inr (.connection s.req.id s.m2), .inr (.request pkA pkB s.m1),
        .inr (.eph s.reply.id (sodium.suite.pub eA) eA), .inl (.endpoint pkA staticA)] =
       some (.established s.reply.id c pkB s.hash s.sendKey s.recvKey false) then
-      if hi : Established.check sodium (initiatorEstablished s)
+      if hi : check sodium (initiatorEstablished s) .established
         [.inr (.connection s.req.id s.m2), .inr (.request pkA pkB s.m1),
          .inr (.eph s.req.id (sodium.suite.pub eB) eB), .inl (.endpoint pkB staticB)] =
         some (.established s.reply.id c pkA s.hash s.recvKey s.sendKey true) then

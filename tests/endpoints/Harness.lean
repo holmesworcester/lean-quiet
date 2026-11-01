@@ -1,6 +1,6 @@
 /- Actual TCP/Noise/SQLite sessions discovered in separate OS processes.
 Fixed public fixture identities are exclusively for tests. -/
-import ops.connection.DiscoveryNet
+import app.Commands
 import tests.engine.Lib
 
 namespace EndpointNetwork
@@ -89,8 +89,8 @@ def main (args : List String) : IO UInt32 := do
     if mode == "op" then
       let hs := [remote.toUTF8]
       let reqs := [c, adm other]
-      let body : Community.Body := .addresses hs [] wall (wall + Endpoint.maxAge) .empty
-      r.write [Community.mkOp reqs (.addresses hs [] wall (wall + Endpoint.maxAge)
+      let body : Community.Body := .addresses hs [] wall (wall + Hints.maxAge) .empty
+      r.write [Community.mkOp reqs (.addresses hs [] wall (wall + Hints.maxAge)
         (Community.sig (dev other).sk reqs body))]
     if mode == "simultaneous" then
       -- Both OS processes wait for the same externally written barrier.
@@ -118,7 +118,7 @@ def main (args : List String) : IO UInt32 := do
         let published ← look path ((Discovery.advertised c (key other) now).run : SqlM F _)
         let sighting ← look path ((Discovery.latest Community.sighting.byReporter [c, key other, key name]).run : SqlM F _)
         endpointsReady := !published.isEmpty && (match sighting with
-          | some (.sighting _ _ _ addr _) => (Endpoint.parse addr).any (fun a => a.2.toNat == port)
+          | some (.sighting _ _ _ addr _) => (Hints.parse addr).any (fun a => a.2.toNat == port)
           | _ => false)
       let nativeCount ← r.slots.atomically do return (← getThe (List String)).length
       let socketReady := mode != "simultaneous" || nativeCount == 1

@@ -6,7 +6,7 @@ budget its law states. Each negative control, run the same way,
 computes the same thing and is over the budget: that is the law's
 teeth.
 
-- Merkle (ops/community/MerkleCost.lean): files of 0 to 33 chunks under
+- Merkle (engine/core/MerkleCost.lean): files of 0 to 33 chunks under
   SHA-256. `rootAndProofsM` hashes 2·2^d times and its bytes are within
   the file's size + 112·2^d; `rootAndProofsSlowM`, the way before the
   levels, hashes 2^(d+1) + n·(2^(d+1) − 2 − d) times.
@@ -15,7 +15,7 @@ teeth.
   byte at a time, over L·(log₂ L + 2) from 16 bytes on. Byte strings of
   0 to 64 KiB: their length's bytes read, their bytes copied once; the
   list codec's way reads every byte.
-- A frame's pictures (ops/app/Pics.lean), over 240 frames of a world as
+- A frame's pictures (app/app/Pics.lean), over 240 frames of a world as
   data with real tasks: a picture costs its spawns and reads in its
   first frame, then nothing; a file whose chunk ops are missing reads
   them again every 120 frames and at no other frame. The old `decoded`
@@ -41,9 +41,9 @@ teeth.
   at most 4·201 + 1 steps, its starts the walk's.
 -/
 import tests.engine.Lib
-import ops.community.MerkleCost
+import engine.core.MerkleCost
 import engine.core.CodecCost
-import ops.app.Pics
+import app.community.channel.message.attachment.Screen
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.Heights
@@ -61,7 +61,7 @@ def randomBytes (seed n : Nat) : ByteArray := Id.run do
   return b
 
 section Merkle
-open Community.Merkle
+open Merkle
 
 def merkle (t : Checks) : IO Unit := do
   for len in [0, 1, 65535, 65536, 65537, 3 * 65536 + 5, 1048576 + 1000, 33 * 65536] do

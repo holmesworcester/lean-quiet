@@ -196,3 +196,23 @@ retains the system theme at word 5; side/keyboard/cutout fields start at 6.
 The suite mounts a real chat before opening its reaction sheet and checks
 the visible toast edge, including over backgrounds with the same fill.
 These generated images are fixtures, not physical-device screenshots.
+
+## Non-vacuous keyboard Send control
+
+The broad app continuation on `c469371` caught a stale modal fixture: earlier
+geometry checks left it on onboarding, where the newer non-chat Send guard
+refused the action even when modal protection was removed. That mutation
+survived, so the suite correctly failed rather than accepting it as evidence.
+
+The fixture now opens its actual seeded conversation and first proves that an
+uncovered keyboard Send clears its draft and stores the exact signed bytes in
+SQLite. It then opens the modal and checks both the retained draft and unchanged
+write admission. The compiled missing-modal-guard control must fail exactly
+those two assertions, with its uncovered-send control still passing. The
+positive and restored suites pass 343 checks, and all 26 controls in the named
+`host:safe-negative` task pass. The task now executes the restored suite after
+restoring and rebuilding source. No production send policy is changed here.
+
+The original failure remains in `out/ci/app-c469371-failed-modal-control.log`.
+New logs are `out/ci/safe-chat-{fixture-fixed,controls,restored,readme}.log`;
+compiled-control logs and databases are retained in `out/safe-chat-controls`.

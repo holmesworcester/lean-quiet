@@ -32,7 +32,7 @@
     "theorem": "Engine.Sync.offer_shared",
     "witness": "Vacuity.Network.shared",
     "module": "tests.vacuity.Network",
-    "detail": "Store Alice: hello Bob with a real write turn, prove a nonempty filed advertisement and id membership, then apply offer_shared. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+    "detail": "Store Alice: hello Bob with a real write turn, prove a nonempty filed advertisement and id membership, then apply offer_shared: the advertised op is stored and its room is one of the connection's rooms. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
   },
   "offer_stored": {
     "status": "kernel-witness",
@@ -88,7 +88,7 @@
     "theorem": "Engine.Sync.serveOwed_hot",
     "witness": "Vacuity.Network.servesFresh",
     "module": "tests.vacuity.Network",
-    "detail": "A stored shown op in both the wanted and fresh-write sets is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+    "detail": "A stored shown op is the one selected hot id from the wanted and fresh-write sets, so it is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
   },
   "serveOwed_head": {
     "status": "kernel-witness",

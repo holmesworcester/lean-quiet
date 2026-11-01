@@ -2,7 +2,7 @@
 DNS-SD. Reachability is learned by a successful authenticated handshake. -/
 import Std.Net.Addr
 
-namespace Endpoint
+namespace Hints
 
 def cap : Nat := 8
 def dialCap : Nat := 3 * cap
@@ -46,4 +46,4 @@ theorem fresh_expires (now issued expires : Nat) (h : fresh now issued expires =
   simp only [fresh, Bool.and_eq_true, decide_eq_true_eq] at h
   exact ⟨h.1.2, h.2⟩
 
-end Endpoint
+end Hints

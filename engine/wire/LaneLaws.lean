@@ -124,9 +124,9 @@ theorem pushAll_bytes (q : Lanes) (ps : List (Lane × ByteArray)) :
   simp only [Lanes.bytes, hu, hs, bytesOf_append]
   omega
 
-/-- **A push keeps a socket's lanes within its cap**, or is refused (and
-the runner closes the socket): what `Sock.push` does with every step's
-frames, whatever the peer sent. -/
+/-- **An admitted component push stays within its cap.** `Outbox.push`
+uses this byte admission for both normal and protected-control queues,
+then adds a frame-count check and the appropriate refusal policy. -/
 theorem push_capped (cap : Nat) (q q' : Lanes) (ps : List (Lane × ByteArray)) (h : q.admit cap ps = some q') :
     q' = q.pushAll ps ∧ q'.bytes ≤ cap := by
   simp only [Lanes.admit] at h
@@ -251,19 +251,6 @@ theorem framesFor_only (sockOf : ByteArray → Option Nat) (s : Nat) (fs : List 
   · simp [ha] at he
 
 /-! ## The run loop's inbox -/
-
-/-- The loop's two channels as queues: local writes, and everything else. -/
-abbrev Queues (W E : Type) := StateM (List W × List E)
-
-def popW {W E : Type} : Queues W E (Option W) :=
-  modifyGet fun (ws, es) => match ws with
-    | [] => (none, ([], es))
-    | w :: ws => (some w, (ws, es))
-
-def popE {W E : Type} : Queues W E (Option E) :=
-  modifyGet fun (ws, es) => match es with
-    | [] => (none, (ws, []))
-    | e :: es => (some e, (ws, es))
 
 /-- The initial write-preferred turn takes a waiting local write. -/
 theorem write_first {W E : Type} (w : W) (ws : List W) (es : List E) :

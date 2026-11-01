@@ -20,7 +20,7 @@ selected() { index=$((index + 1)); (( index > start )); }
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ux-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer ops platforms/headless App.lean AppTypes.lean AppLife.lean Quiet.lean assets
+snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app platforms/headless Quiet.lean assets
 build() {  # build ux in $tmp/w; 0 when it builds
   local code=0
   (cd "$tmp/w" && lake build ux >"$tmp/build.log" 2>&1) || code=$?
@@ -66,8 +66,13 @@ suite() {  # what seam expected file old new: ux must fail its check
   local what=$1 seam=$2 expected=$3
   mutate "$4" "$5" "$6"
   build || { echo "FAIL: mutant $what does not build"; tail -20 "$tmp/build.log"; exit 1; }
-  if run "$seam"; then echo "FAIL: mutant survived ux: $what"; exit 1; fi
-  grep -q "FAIL $expected" "$tmp/run.log" ||
+  local status=0
+  run "$seam" || status=$?
+  [ "$status" -eq 1 ] || { echo "FAIL: mutant $what exited $status instead of an assertion failure"; exit 1; }
+  if grep -qiE 'panic|uncaught exception|segmentation fault|assertion violation' "$tmp/run.log"; then
+    echo "FAIL: mutant $what crashed instead of failing its assertion"; exit 1
+  fi
+  grep -qF "FAIL $expected" "$tmp/run.log" ||
     { echo "FAIL: mutant $what failed for another reason"; grep -v '^slow frame' "$tmp/run.log"; exit 1; }
   echo "refused by ux: $what"
 }
@@ -76,31 +81,33 @@ law "copy appends to the label" engine/renderer/Label.lean \
   "def copied (text : String) : String := text" "def copied (text : String) : String := text ++ \"?\""
 law "each label page starts a line late" engine/renderer/Label.lean \
   "ls.extract (page * count)" "ls.extract (page * count + 1)"
-law "the window may be the newest away from it" ops/app/Lifecycle.lean \
+law "the window may be the newest away from it" app/Screen.lean \
   "  else if near || cur.isNone then" "  else if near then"
-suite "a session dot on home's avatars" "" "home avatars have no connection dots" ops/app/Pages.lean \
+suite "a session dot on home's avatars" "" "home avatars have no connection dots" app/Screen.lean \
   "    let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])" \
   "    b := b.round (px 38) (y + px 30) (px 46) (y + px 38) (px 4) 0x2EB67D
     let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])"
-suite "the header's long press opens nothing" "" "long press on the header opens its complete label" App.lean \
+suite "the header's long press opens nothing" "" "long press on the header opens its complete label" app/Screen.lean \
   "| .header => pure (if s.page == .home || s.page == .chat then some s.me.name else none)" "| .header => pure none"
-suite "a page row's long press opens nothing" "" "switcher long press discloses without switching" App.lean \
+suite "a page row's long press opens nothing" "" "switcher long press discloses without switching" app/Screen.lean \
   "pure (Pages.fullLabel (pg.hit x (vh - 1 - y))" "pure (Pages.fullLabel Pages.Act.none"
 # the window's old rule: "the newest" until an edge comes near
-suite "the window stays the newest away from it" "" "a burst larger than the reader's window" App.lean \
+suite "the window stays the newest away from it" "" "a burst larger than the reader's window" app/Screen.lean \
   "let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near" \
   "let next := if s.newer == 0 && lo ≤ winLo then none else if !near then s.anchor else Lifecycle.follow s.anchor s.newer (bv ≤ 4) near"
-suite "the shift is clamped to the old range" "" "pending burst preserves the visible anchor in App.b and native Sim.b on its first frame" App.lean \
-  "let cur ← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32" "let cur := b.toFloat"
-suite "the frame keeps no anchor" "" "pending arrival keeps the visible row at the same pixel" App.lean \
-  "  -- 5. keep the anchor still (unless pinned to the newest)
-  if b > 4 || s.restoreAnchor then" \
-  "  -- 5. keep the anchor still (unless pinned to the newest)
+suite "the shift is clamped to the old range" "" "pending burst preserves the visible anchor in App.b and native Sim.b on its first frame" app/Screen.lean \
+  "let cur ← s.io.scroll (bottoms s).2.toUInt32 (geom s).viewNow.toUInt32" "let cur := b.toFloat"
+suite "the frame keeps no anchor" "" "pending arrival keeps the visible row at the same pixel" app/Screen.lean \
+  "  if let some e := s.ownSends.head then
+    anchor := some (e.message.2, presentationOffset s e.message.2)
+  if b > 4 || s.restoreAnchor || s.ownSends.head.isSome then" \
+  "  if let some e := s.ownSends.head then
+    anchor := some (e.message.2, presentationOffset s e.message.2)
   if false then"
 # a shell that shifts at vsync: the frame must paint at the shifted offset
-suite "the frame paints the offset before its shift lands" queued "pending arrival keeps the visible row at the same pixel" App.lean \
-  "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32).toInt64.toInt.toNat"
-suite "the anchor clump collapses before its new coordinate is known" "" "pending burst preserves the visible anchor" App.lean \
+suite "the frame paints the offset before its shift lands" queued "pending arrival keeps the visible row at the same pixel" app/Screen.lean \
+  "          b := b'" "          b := (← s.io.scroll (bottoms s).2.toUInt32 (geom s).viewNow.toUInt32).toInt64.toInt.toNat"
+suite "the anchor clump collapses before its new coordinate is known" "" "pending burst preserves the visible anchor" app/Screen.lean \
   "    let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2" \
   "    let near := Raster.near bottom span offset viewport (over + viewport)"
 echo "ux negative controls: $ran selected controls refused; logs in $logs"

@@ -73,7 +73,7 @@ are its relations' (`keysOf`). Laws, proven once for every relation:
 - `filed_rel`, `mem_rows_rel`, `total_rel`: at rest, a list of r reads
   exactly the Valid facts in it.
 
-### A device's own state, and intents (`Facts.lean`, `Intents.lean`)
+### A device's own state, and intents (`app/community/`: each op's `Op.lean`; its intents in its `Commands.lean`, those over several ops in `community/Commands.lean`)
 
 Everything about joining and bootstrapping is op state. A device's own
 state is local ops: its secret seed (`secret.byKey`, refused unless the
@@ -91,7 +91,7 @@ name and the founder's profile, may travel), `local_fact_mine` (every Valid secr
 or pending join a node holds is its own write, whatever peers send).
 `tests/engine/Lifecycle.lean` runs it on two SQLite nodes.
 
-### The invite link (`Link.lean`)
+### The invite link (`app/community/member/invite/Commands.lean`)
 
 The join page `https://holmesworcester.github.io/lean-quiet/join#` and
 the fields in base62: community, invitation, the inviter's node key,
@@ -138,10 +138,16 @@ purged.
   rest hold with purges anywhere; `purge_settles`: after a purge,
   draining with the budget empties the queue, and every verdict is the
   spec's over the remaining ops.
+- `run_purge`: these are laws of the purge that runs. The purge is one
+  code over `Store`, `purge` (`Core.lean`), as `drain` is: it walks
+  from `ids` through each op's dependents, un-decides what it found,
+  deletes the conn and local ops and queues the shared ones. Run on the
+  model's tables it is `purgeS`, and it returns `purgeSet`.
 
-On SQLite, `purgeSql` finds dependents through a `reqs` table (each
-op's requirements), deletes and re-judges in one transaction, then runs
-`VACUUM` and a TRUNCATE checkpoint of the WAL. `secure_delete` is on
+On SQLite, `purgeSql` runs `purge` and re-judges in one transaction
+(dependents are read from a `reqs` table of each op's requirements),
+then runs `VACUUM` and a TRUNCATE checkpoint of the WAL (`scrubSql`),
+which change no row. `secure_delete` is on
 for every connection, but alone it leaves copies of moved cells in the
 gaps of pages a b-tree split rebuilt, which `VACUUM` removes. `purge`
 (`tests/engine/Purge.lean`) runs random purges on SQLite against the model,
@@ -172,7 +178,7 @@ watches are the keys of the lists it read: nothing is recorded.
 - `matching_nodup`: a list's rows name distinct ops, so its `total`
   counts ops (`perm_sortPos`: sorting only reorders).
 
-## The community (`ops/community/`)
+## The community (`app/community/`)
 
 Root (founder, admin), invite (with an approval threshold), request,
 approve, admit (member or linked device), admin grant, removal, post,
@@ -194,7 +200,7 @@ live while none of them is removed, and removing any of them cuts it
 what its devices' roots and requests name as their X25519 key, under
 their signatures, so admissions tie devices to the node they live on.
 
-Laws (`Laws.lean`, `Connect.lean`):
+Laws (each in the folder of the deepest ops it names: `channel/message/Proofs.lean`, `member/…/Proofs.lean`, and across the family `community/Proofs.lean`):
 
 | question | law |
 |---|---|
@@ -214,7 +220,7 @@ Laws (`Laws.lean`, `Connect.lean`):
 
 The connection, dialing and sealing laws are about the views
 themselves (`allowPeer`, `members`, `recipients`, `deviceLive`, in
-`Query.lean`), lists read over the persisted tables: `admission.byKey`,
+`community/Commands.lean`), lists read over the persisted tables: `admission.byKey`,
 `admission.all`, each device's `admission.byDevice`, and each named
 user's `removal.byUser`.
 
@@ -226,9 +232,11 @@ user's `removal.byUser`.
   checks the disk holds whole batches.
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
-- SQLite's purge is the model's (`differential` for purge in `purge`),
-  and it leaves no byte of a purged op in the database's files: tested
-  by reading them raw, not proven. The filesystem below is out of
+- SQLite's purge store reads and deletes (`dependents`, `undecide`,
+  `deleteOp`) answer as the model's (`differential` for purge in
+  `purge`, which also checks that `VACUUM` and the checkpoint change no
+  row), and a purge leaves no byte of a purged op in the database's
+  files: tested by reading them raw, not proven. The filesystem below is out of
   scope: blocks a file gave up, and an SSD's remapped ones, may still
   hold old bytes.
 - SHA-256 has no collision on the ops a node holds (`CollisionFree`,
@@ -264,9 +272,9 @@ follow-ups in [SYNC.md](SYNC.md).
 Connecting is ops the engine judges, as in poc-17 and tiny (poc-13).
 The daemon only moves bytes. Everything else is engine code
 (engine/wire/Node.lean, engine/core/Purge.lean, engine/core/Families.lean)
-or op code (ops/connection/, one file per op type).
+or op code (app/connection/, one file per op type).
 
-- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`ops/connection/Noise.lean`,
+- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`engine/wire/Noise.lean`,
   checked against cacophony's vector). Its two messages are two
   conn-scope ops on the bare wire, `request` and `connection`, and the
   connection op's id is the connection id. A joiner's request rides in
@@ -284,7 +292,7 @@ or op code (ops/connection/, one file per op type).
   `endpoint`. `established` is each side's session: its validator re-runs
   that side's half of the handshake with the endpoint's secret. A close
   purges them, which makes sessions forward secret (the purge branch).
-- **Frames** (`ops/connection/Frame.lean`, not an op) are as poc-17's: the
+- **Frames** (`app/connection/Commands.lean`, not an op) are as poc-17's: the
   connection id, a random nonce, and XChaCha20-Poly1305 with the id as
   associated data. They carry no counters and need no replay tracking,
   because ops are idempotent.
@@ -299,7 +307,7 @@ or op code (ops/connection/, one file per op type).
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
   established, couriers, arrivals), so purge takes it along.
-- **Reactions** (`ops/connection/Intents.lean`). `react` opens, delivers
+- **Reactions** (`app/Commands.lean`). `react` opens, delivers
   only a hello's join request of its community (`bare_takes_only_join`),
   answers only peers the trust rule admits (`answer_trusted`), and
   establishes. `onArrival` re-sends an answer only to a trusted peer
@@ -310,14 +318,14 @@ or op code (ops/connection/, one file per op type).
   returning ops, generic in the monad (`Lists`, `Store`, `Fresh`), so
   they run on SQLite and on the model.
 
-Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
-`ops/connection/NoiseSymbolic.lean`, `ops/connection/Frame.lean`,
+Laws (`app/connection/Proofs.lean`, `engine/wire/Noise.lean`,
+`engine/wire/NoiseSymbolic.lean`, `app/connection/Commands.lean`,
 `engine/core/Families.lean`):
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
 - `opened_endpoint`, `established_endpoint` (the statics are node keys),
   `meV_node`, `bare_takes_only_join`, `answer_trusted`, `resend_trusted`
-  (`ops/connection/RemovalLaws.lean`);
+  (`app/connection/Proofs.lean`);
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
@@ -326,7 +334,7 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
   its AEAD check passes under its session's receive key);
 - `sum_left`.
 
-**The handshake in a symbolic model** (`ops/connection/NoiseSymbolic.lean`,
+**The handshake in a symbolic model** (`engine/wire/NoiseSymbolic.lean`,
 namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
 `write2` and `read2` are the functions the validators run, at a term
 algebra `T` instead of bytes. Cryptography is perfect (free hashes,

@@ -9,6 +9,7 @@ at that size (`settleFrame`): a resize never flashes rows to placeholders
 (Desktop.settled_no_hold).
 -/
 import platforms.desktop.View
+import platforms.desktop.Publication
 
 namespace Desktop
 
@@ -35,8 +36,14 @@ structure Driver where
   layers : IO.Ref Layers
   screen : IO.Ref (Array UInt32)
   hoverCache : IO.Ref (Option (HoverPaintKey × Paint.Bitmap))
+  /-- One actually accepted desktop publication awaiting completion. -/
+  presenting : Option App.PresentationCandidate := none
   /-- The app's size (W, Hs) in the frame last settled. -/
   settled : Nat × Nat := (0, 0)
+
+/-- Explicit navigation/scroll revokes presentation demand, not stored writes. -/
+def cancelPresentation (d : Driver) : Driver :=
+  { d with presenting := none, app := { d.app with ownSends := {}, presenting := none } }
 
 /-- The OS updates only transient pointer state. Community/query/cache state
 is deliberately outside this transition. -/
@@ -83,14 +90,18 @@ def start (base : App.Io) (w h : Nat) (path : String)
     (net : Option (Nat × Bool) := none) (nativeDpi : Nat := 160) : IO Driver := do
   let ls ← IO.mkRef ({} : Layers)
   let hoverCache ← IO.mkRef none
+  let publication ← IO.mkRef (0 : UInt64)
   let dpi := max 80 (min 1280 nativeDpi)
   let g := Desktop.zoomLayout w false dpi
   let sc ← IO.mkRef #[g.main.w.toUInt32, h.toUInt32, 0, 0, dpi.toUInt32, (← base.screen)[5]?.getD 0]
   let io := { base with
     screen := do return (← sc.get).set! 5 ((← base.screen)[5]?.getD 0)
     frame := fun fr _ o top bot _ placement hold => do
-      ls.set ⟨fr, top, bot, o.toNat, placement, hold⟩
-      return #[] }
+      let id ← publication.modifyGet fun id =>
+        if id == (18446744073709551615 : UInt64) then (none, id) else (some (id + 1), id + 1)
+      let some id := id | return Publication.rejected
+      ls.set ⟨fr, top, bot, o.toNat, placement, hold, id⟩
+      return Publication.staged id }
   let s ← App.start io (← sc.get) path net
   -- Use the app's density-scaled font, including Noto and colour emoji.
   -- Replacing it with the old reduced bitmap discards the shared renderer.
@@ -156,7 +167,7 @@ def act (d : Driver) (a : Action) : IO Driver := do
     | a => a
   let blurs := match a with | .switcher | .settings | .threads | .page _ | .drawerAct _ => true | _ => false
   if blurs then d.app.io.ime false
-  let d := if blurs then { d with app := { d.app with editorFocused := false, chromeKey := "" } } else d
+  let d := if blurs then cancelPresentation { d with app := { d.app with editorFocused := false, chromeKey := "" } } else d
   match a with
   | .settings => return { d with ui := { d.ui with context := .settings, drawer := .you, parents := [], offset := 0, switching := false } }
   | .threads => return { d with ui := { d.ui with context := .threads, drawer := .stub, stubTitle := "Threads", parents := [], offset := 0 } }
@@ -256,6 +267,7 @@ def wheel (d : Driver) (x y : Nat) (delta : Int) : IO Driver := do
   if x ≥ g.main.x && x < g.main.x + g.main.w && y ≥ App.topH d.app &&
       y < d.height - App.botH d.app && (d.app.page == .chat || d.app.page.drawer) then
     d.app.io.scrollBy (-delta).toFloat
+    return { cancelPresentation d with hoverStarted := 0, ui := { d.ui with hoverRow := none, moreFor := none, tooltip := false, grace := false, hoverFrom := none } }
   return { d with hoverStarted := 0, ui := { d.ui with hoverRow := none, moreFor := none, tooltip := false, grace := false, hoverFrom := none } }
 
 /-- Sidebar and drawer are independent mounted query roots. They declare
@@ -324,7 +336,11 @@ def tick (d : Driver) (events : List App.Event := []) : IO Driver := do
   let d ← if (d.app.W, d.app.Hs) != d.settled then settleFrame d else pure d
   return hoverTime d ((← d.app.io.nowUs).toNat / 1000)
 
-def picture (d : Driver) (nativeScroll : Bool := false) : IO Paint.Bitmap := do
+/-- Return the exact hovered row used in the final desktop image as well as
+its composition, so presentation checks do not mistake hover styling for
+missing committed content. No second paint or query is performed. -/
+def pictureWithRow (d : Driver) (nativeScroll : Bool := false) :
+    IO (Paint.Bitmap × Option (Engine.Id × Paint.Bitmap)) := do
   let mut rendered := none
   if let some (id, x, _, ry) := hoveredRow d.layout d.height d.ui d.app then
     if let some row := d.app.rows[id]? then
@@ -332,14 +348,17 @@ def picture (d : Driver) (nativeScroll : Bool := false) : IO Paint.Bitmap := do
         let pill := inputs.lay.pills.findIdx? fun (b, _, _, _) => b.has x ry
         let key : HoverPaintKey := ⟨id, inputs.version, inputs.ready, d.app.W, d.dpi, d.app.dim.theme, pill⟩
         match ← d.hoverCache.get with
-        | some (old, bmp) => if old == key then rendered := some bmp
+        | some (old, bmp) => if old == key then rendered := some (id, bmp)
         | none => pure ()
         if rendered.isNone then
           let dm := { d.app.dim with hover := some (x, ry) }
           let bmp := Row.paint d.app.font dm d.app.W d.app.bgRow inputs.data inputs.lay none inputs.images
           d.hoverCache.set (some (key, bmp))
-          rendered := some bmp
+          rendered := some (id, bmp)
   if rendered.isNone then d.hoverCache.set none
-  return paint d.layout d.height d.ui d.app (← d.layers.get) rendered nativeScroll
+  return (paint d.layout d.height d.ui d.app (← d.layers.get) (rendered.map Prod.snd) nativeScroll, rendered)
+
+def picture (d : Driver) (nativeScroll : Bool := false) : IO Paint.Bitmap :=
+  return (← pictureWithRow d nativeScroll).1
 
 end Desktop

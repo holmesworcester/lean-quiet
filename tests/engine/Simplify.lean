@@ -173,7 +173,8 @@ def purges (t : Checks) : IO Unit := do
   let seen ← IO.mkRef ([] : List Id)
   let ch ← eventChannel {}
   let slots ← Std.Mutex.new []
-  let st : RunState := { db, node := Node.boot fam [] 0, slots }
+  let (ingress, _) ← Ingress.Hub.new ({} : RunConfig).maxSocks
+  let st : RunState := { db, node := Node.boot fam [] 0, slots, ingress }
   discard <| st.apply x ch (fun ids => seen.modify (· ++ ids)) {} { purged := e.purged } 1
   t.ok "TCP apply notifies purges without a store write" ((← seen.get) == e.purged)
 

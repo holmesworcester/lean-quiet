@@ -14,9 +14,8 @@ trap 'rm -rf -- "$tmp"' EXIT
 # what every mutant starts from (tests/snapshot.sh): the engine, the
 # Community family and what its views import, and their built tree
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer ops/sync ops/community ops/connection ops/app
-targets=(engine.core.Query engine.core.Union ops.community.Compose ops.community.Laws
-  ops.community.message.Order)
+snapshot "$tmp/base" engine/core engine/wire engine/renderer engine/sync app
+targets=(engine.core.Query engine.core.Union app.community.Proofs)
 # the copy itself must build, or every mutant would look refused
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build "${targets[@]}" >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
@@ -25,19 +24,21 @@ cp -a "$tmp/base" "$tmp/w"
 # inside that law's declaration (law: file:name; for NoDerive, its
 # command), not merely somewhere: a proof script that breaks around a
 # law still true is not a refusal.
-mutant() {  # what target law file old new [old new ...]: each old occurs once
-  local what=$1 target=$2 law=$3 file=$4
+mutant() {  # what target law files old new [old new ...]: files a,b; each old occurs once in them
+  local what=$1 target=$2 law=$3 files=$4
   shift 4
   rm -rf -- "$tmp/w"
   cp -a "$tmp/base" "$tmp/w"
-  python3 - "$tmp/w/$file" "$@" <<'PY'
+  python3 - "$tmp/w" "$files" "$@" <<'PY'
 import sys
-p, *pairs = sys.argv[1:]
-s = open(p).read()
+w, files, *pairs = sys.argv[1:]
+src = {f: open(f"{w}/{f}").read() for f in files.split(",")}
 for old, new in zip(pairs[::2], pairs[1::2]):
-    assert s.count(old) == 1, f"mutant target not found once: {old!r}"
-    s = s.replace(old, new)
-open(p, 'w').write(s)
+    hits = [f for f, s in src.items() if old in s]
+    assert len(hits) == 1 and src[hits[0]].count(old) == 1, f"mutant target not found once: {old!r}"
+    src[hits[0]] = src[hits[0]].replace(old, new)
+for f, s in src.items():
+    open(f"{w}/{f}", "w").write(s)
 PY
   if (cd "$tmp/w" && lake build "$target" > "$tmp/log" 2>&1); then
     echo "FAIL: mutant survived: $what"; exit 1
@@ -81,14 +82,15 @@ mutant "a list that reads in the wrong direction" engine.core.Union engine/core/
   ⟨q.cut ordered"
 # order_total is false: readable merges its receipt lists read the other way.
 # (its unfolding, eval_readable, restated to match, as a change would)
-mutant "readable reads its receipts in the other direction" ops.community.message.Order ops/community/message/Order.lean:order_total ops/community/Intents.lean \
+mutant "readable reads its receipts in the other direction" app.community.Proofs app/community/Proofs.lean:order_total app/community/Commands.lean,app/community/Proofs.lean \
   "received.byKey.query [c, kid] limit desc (after.map" "received.byKey.query [c, kid] limit (!desc) (after.map" \
-  "(received.byKey.query [c, kid] lim desc (after.map" "(received.byKey.query [c, kid] lim (!desc) (after.map"
+  "          let a := Engine.eval s (received.byKey.query [c, kid] lim desc (after.map" \
+  "          let a := Engine.eval s (received.byKey.query [c, kid] lim (!desc) (after.map"
 # anchor_read (and count_partition) is false: a receipt list is bounded
 # as it was, by sort key against the least id (before) and the greatest
 # (after), so a window anchored on a saturated message drops the anchor.
-mutant "readable's receipt bounds as they were" ops.community.message.Order \
-  ops/community/message/Order.lean:anchor_read ops/community/Intents.lean \
+mutant "readable's receipt bounds as they were" app.community.Proofs \
+  app/community/Proofs.lean:anchor_read app/community/Family.lean \
   "  (if bcmp (recMsg a.1) a.2 == .gt then a.1 else a.1.push 0, .empty)" \
   "  (a.1, ⟨Array.replicate 33 0xFF⟩)" \
   "  (if bcmp (recMsg b.1) b.2 == .lt then b.1.push 0 else b.1, ByteArray.empty.push 0)" \

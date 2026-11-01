@@ -1,21 +1,21 @@
 {
   "Winner.choose_comm": {
     "status": "runtime-witness",
-    "theorem": "Connection.Winner.choose_comm",
+    "theorem": "Engine.Winner.choose_comm",
     "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "Winner.choose_stable": {
     "status": "runtime-witness",
-    "theorem": "Connection.Winner.choose_stable",
+    "theorem": "Engine.Winner.choose_stable",
     "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "Winner.exactly_one": {
     "status": "runtime-witness",
-    "theorem": "Connection.Winner.exactly_one",
+    "theorem": "Engine.Winner.exactly_one",
     "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
@@ -76,23 +76,23 @@
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
-  "Endpoint.bounded_cap": {
+  "Hints.bounded_cap": {
     "status": "runtime-witness",
-    "theorem": "Endpoint.bounded_cap",
+    "theorem": "Hints.bounded_cap",
     "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
-  "Endpoint.delay_bounded": {
+  "Hints.delay_bounded": {
     "status": "runtime-witness",
-    "theorem": "Endpoint.delay_bounded",
+    "theorem": "Hints.delay_bounded",
     "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
-  "Endpoint.fresh_expires": {
+  "Hints.fresh_expires": {
     "status": "runtime-witness",
-    "theorem": "Endpoint.fresh_expires",
+    "theorem": "Hints.fresh_expires",
     "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."

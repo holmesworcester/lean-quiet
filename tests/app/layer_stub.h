@@ -3,6 +3,8 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <stdarg.h>
+#include <stdio.h>
 
 struct ANativeWindow { int unused; };
 typedef struct { int32_t left, top, right, bottom; } ARect;
@@ -30,7 +32,7 @@ static bool stub_lock_fails;
 
 enum { AHARDWAREBUFFER_FORMAT_R8G8B8X8_UNORM, AHARDWAREBUFFER_USAGE_CPU_WRITE_OFTEN = 1,
   AHARDWAREBUFFER_USAGE_GPU_SAMPLED_IMAGE = 2, AHARDWAREBUFFER_USAGE_COMPOSER_OVERLAY = 4,
-  ASURFACE_TRANSACTION_VISIBILITY_HIDE, ASURFACE_TRANSACTION_VISIBILITY_SHOW, ANDROID_LOG_ERROR };
+  ASURFACE_TRANSACTION_VISIBILITY_HIDE, ASURFACE_TRANSACTION_VISIBILITY_SHOW, ANDROID_LOG_ERROR, ANDROID_LOG_INFO };
 static int AHardwareBuffer_allocate(const AHardwareBuffer_Desc* d, AHardwareBuffer** b) {
   *b = calloc(1, sizeof **b); (*b)->desc = *d; (*b)->desc.stride = d->width;
   (*b)->pixels = calloc(d->width * d->height, 4); return 0;
@@ -88,7 +90,23 @@ static void* AChoreographer_getInstance(void) { return NULL; }
 static void AChoreographer_postFrameCallback64(void* c, AChoreographer_frameCallback64 cb, void* data) {}
 static void ALooper_prepare(int opts) {}
 static void ALooper_pollOnce(int ms, int* fd, int* evs, void** data) {}
-static int __android_log_print(int level, const char* tag, const char* fmt, ...) { return 0; }
+#define PROP_VALUE_MAX 92
+static bool stub_debug_trace;
+static unsigned stub_trace_count;
+static char stub_trace_last[128];
+static int __system_property_get(const char* key, char* value) {
+  strcpy(value, stub_debug_trace && strcmp(key, "debug.lean.trace") == 0 ? "1" : "0");
+  return 1;
+}
+static int __android_log_print(int level, const char* tag, const char* fmt, ...) {
+  if (strcmp(tag, "leantrace") == 0) {
+    va_list args; va_start(args, fmt);
+    vsnprintf(stub_trace_last, sizeof stub_trace_last, fmt, args);
+    va_end(args);
+    stub_trace_count++;
+  }
+  return 0;
+}
 static float stub_offset;
 static bool stub_sample;
 static bool bs_vsync(uint32_t content, uint32_t view, int64_t ns, uint32_t* y, float* yf) { *yf = stub_offset; *y = stub_offset; return stub_sample; }

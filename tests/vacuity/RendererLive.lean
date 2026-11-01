@@ -1,4 +1,4 @@
-import engine.renderer.LiveLaws
+import app.Commands
 
 /-! A nonempty two-query live cache. The snapshot is synthetic, and the
 production cache laws say nothing here about native SQLite transactions. -/
@@ -20,9 +20,12 @@ theorem empty : LiveLaws.Agrees {} snapshot := LiveLaws.agrees_empty snapshot
 theorem store : LiveLaws.Agrees cache snapshot :=
   LiveLaws.agrees_store agreesA queryB
 
-theorem cachedAnswer : snapshot queryA = snapshot queryA :=
-  LiveLaws.answer_agrees agreesA (q := queryA) (by
-    simp [cacheA, Live.store, Live.answer])
+-- The two-entry cache answers queryB, and whatever it answers is the
+-- moment's: no bytes (queryA's are "hello").
+theorem cachedAnswer : cache.answer queryB = some (.bytes none) ∧
+    ∀ a, cache.answer queryB = some a → a = .bytes none :=
+  ⟨by simp [cache, cacheA, Live.store, Live.answer, snapshot, queryA, queryB],
+   fun _ h => (LiveLaws.answer_agrees store h).trans (by simp [snapshot, queryA, queryB])⟩
 
 -- A cache hit and a cache miss both produce the same synthetic moment.
 theorem oneMoment :

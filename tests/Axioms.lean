@@ -1,99 +1,107 @@
-import ops.connection.DiscoveryStorage
-import ops.connection.DiscoveryProgress
-import engine.renderer.SafeLaws
+import app.connection.NodeUnique
+import engine.wire.JobOwnersLaws
+import engine.wire.IngressFreezeLaws
+import engine.wire.RetryOrderLaws
+import engine.renderer.HoldCacheLaws
+import engine.renderer.DemandRank
+import engine.wire.ExpiryGraceLaws
+import engine.renderer.WriteQueueLaws
+import app.Screen
+import engine.wire.IngressLaws
+import engine.wire.IngressPriorityLaws
+import engine.wire.IngressChurnLaws
+import app.Proofs
 import engine.renderer.Demand
 
 
-import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
-import ops.sync.TreeLaws
-import ops.app.LifecycleLaws
-import ops.sync.StateLaws
-import ops.sync.ClosureComplete
-import ops.sync.ClosureDelivery
-import ops.sync.RoundRun
-import ops.sync.TimeLaws
-import ops.sync.SessionLaws
-import ops.sync.SecrecyLaws
-import ops.sync.Witnesses
-import ops.sync.RetryLaws
-import ops.sync.BoundsLaws
-import ops.sync.ServeLaws
-import ops.sync.SimLaws
+import engine.sync.TreeLaws
+import engine.sync.StateLaws
+import engine.sync.ClosureComplete
+import engine.sync.TimeLaws
+import engine.sync.SessionLaws
+import engine.sync.SecrecyLaws
+import engine.sync.Witnesses
+import engine.sync.RetryLaws
+import engine.sync.BoundsLaws
+import engine.sync.ServeLaws
+import engine.sync.ClosureDelivery
+import engine.sync.RoundRun
+import engine.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
 import engine.wire.LoopLaws
 import engine.wire.PriorityLaws
-import ops.connection.StorageEffects
-import ops.connection.WriteProgress
-import ops.connection.CatalogEvolution
-import ops.sync.SweepLaws
-import ops.sync.SweepRun
-import ops.sync.SharedLog
+import engine.wire.OutboxLaws
+import engine.sync.SweepLaws
+import engine.sync.SweepRun
+import engine.sync.SharedLog
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
 import engine.core.IdemLaws
-import ops.community.Community
-import ops.connection.All
-import ops.connection.ExecutionLaws
-import ops.connection.Progress
-import ops.connection.ProgressTape
-import ops.connection.bootstrap.FairExecution
+import app.community.Proofs
+import app.connection.Proofs
 import engine.renderer.Geometry
 import engine.renderer.Cover
 import engine.renderer.ImageLaws
-import engine.renderer.LiveLaws
+import app.Commands
 import engine.renderer.SheetGeom
-import ops.community.link.View
+import app.community.member.invite.View
 import engine.renderer.Camera
-import ops.app.Switch
+import app.community.Screen
 import engine.renderer.Nav
-import ops.app.NavLaws
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import engine.renderer.Label
-import ops.community.reaction.RowLaws
-import ops.community.message.ViewLaws
-import ops.community.profile.NamesakeLaws
-import ops.community.message.Order
-import ops.app.PeopleLaws
-import ops.app.Remove
-import ops.community.membership.RemovedLaws
-import App
+import app.community.channel.message.reaction.View
+import app.community.channel.message.View
+import app.community.key.View
+import app.community.profile.View
+import app.community.member.remove.View
 import engine.renderer.Ttf.Laws
 import engine.renderer.Ttf.Cache
-import ops.community.attachment.ArrivalLaws
+import app.community.channel.message.attachment.Screen
+import app.community.channel.message.attachment.View
 import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
-import ops.connection.bootstrap.Net
 import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
 import engine.renderer.Screen
 import engine.core.CodecCost
-import ops.community.MerkleCost
-import ops.app.Pics
+import engine.core.MerkleCost
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
 import engine.renderer.Heights
-import ops.community.WrapLaws
 import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
-import ops.connection.NodeLaws
-import ops.connection.HooksRead
-import ops.connection.EgressLaws
+import app.connection.Family
 import engine.wire.EgressLaws
+import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
 audit, with its `open`s. -/
+
+/- The write turn's meter (`Engine.instTurnCostT`, engine/core/CostStore.lean)
+charges a turn and a purge one write per op, not what they do: no law
+may state a budget over it. None names it, in its statement or its proof. -/
+#eval show Lean.CoreM Unit from do
+  let env ← Lean.getEnv
+  let short := ``Engine.instTurnCostT
+  let named := env.constants.toList.filterMap fun (n, ci) =>
+    if ci.type.getUsedConstants.contains short ||
+        (ci.value?.map (·.getUsedConstants.contains short)).getD false then some n else none
+  unless named.isEmpty do
+    throwError m!"rests on the write turn's short count (Engine.instTurnCostT): {named}"
+  IO.println "the write turn's short count: no law names it"
 
 section engine
 open Engine Community
@@ -102,6 +110,7 @@ open Engine Community
 #print axioms Engine.status_iff_spec
 #print axioms Engine.order_free
 #print axioms Engine.reach_drain
+#print axioms Engine.reach_inv
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
@@ -112,6 +121,8 @@ open Engine Community
 #print axioms Engine.distinct_of_collisionFree
 #print axioms Engine.Sync.num_inj
 #print axioms Engine.Sync.lbl_inj
+#print axioms Engine.Sync.top_perm
+#print axioms Engine.Sync.lbl_perm
 #print axioms Engine.Sync.exchange_complete
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
@@ -137,6 +148,7 @@ open Engine Community
 #print axioms Community.profile_authorized
 #print axioms Community.no_renaming
 #print axioms Community.admission_consented
+#print axioms Community.unscoped_signs_all
 #print axioms Community.admission_approved
 #print axioms Community.request_invited
 #print axioms Community.approval_signed
@@ -207,6 +219,7 @@ open Engine Community
 #print axioms Engine.purge_undecides
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
+#print axioms Engine.run_purge
 #print axioms Engine.perm_sortPos
 #print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
@@ -240,18 +253,18 @@ open Engine Community
 #print axioms Community.send_after
 #print axioms Community.order_local
 #print axioms Community.display_agrees
-#print axioms Community.Merkle.encode_verify
-#print axioms Community.Merkle.verify_sound
-#print axioms Community.Merkle.index_bound
-#print axioms Community.Merkle.complete_assembles
-#print axioms Community.Merkle.assemble_slices
-#print axioms Community.Merkle.climb_path
-#print axioms Community.Merkle.climb_sub
-#print axioms Community.Merkle.no_injective_hash
-#print axioms Community.Merkle.assumptions_hold
-#print axioms Community.Merkle.fileRoot_eq_fast
-#print axioms Community.Merkle.proof_eq_fast
-#print axioms Community.Merkle.rootAndProofs_eq_fast
+#print axioms Merkle.encode_verify
+#print axioms Merkle.verify_sound
+#print axioms Merkle.index_bound
+#print axioms Merkle.complete_assembles
+#print axioms Merkle.assemble_slices
+#print axioms Merkle.climb_path
+#print axioms Merkle.climb_sub
+#print axioms Merkle.no_injective_hash
+#print axioms Merkle.assumptions_hold
+#print axioms Merkle.fileRoot_eq_fast
+#print axioms Merkle.proof_eq_fast
+#print axioms Merkle.rootAndProofs_eq_fast
 #print axioms Community.op_of_valid
 #print axioms Community.chunk_id
 #print axioms Community.chunk_unique
@@ -481,8 +494,13 @@ section app
 #print axioms Nav.back_inv
 #print axioms Nav.reset_inv
 #print axioms Nav.swap_inv
+#print axioms Nav.back_stack
+#print axioms Nav.backs_stack
 #print axioms Nav.depth
 #print axioms NavLaws.back_open
+#print axioms NavLaws.back_open_all
+#print axioms NavLaws.open_keeps_backdrop
+#print axioms NavLaws.shipped_back_open_fails
 #print axioms NavLaws.back_root
 #print axioms NavLaws.back_switch
 #print axioms NavLaws.draft_open
@@ -490,6 +508,7 @@ section app
 #print axioms NavLaws.inv_open
 #print axioms NavLaws.inv_back
 #print axioms NavLaws.inv_switch
+#print axioms NavLaws.backs_nav
 #print axioms NavLaws.depth
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
@@ -633,7 +652,6 @@ open Net
 #print axioms Net.Scene.sessions_trusted
 #print axioms Net.Scene.bootstrap_possible
 #print axioms Net.Scene.bootstrap
-#print axioms Net.Scene.bootstrap_ideal
 #print axioms Net.Scene.reachable_inv
 #print axioms Net.Scene.admitted_inv
 #print axioms Net.Scene.allowedA
@@ -648,6 +666,7 @@ end net
 #print axioms Community.endpoint_signed
 #print axioms Community.cut_stays
 #print axioms Community.cut_consented
+#print axioms Community.signed_eq
 #print axioms Community.endpoint_derives
 #print axioms Community.new_device_trusted
 #print axioms Community.removals_at
@@ -748,14 +767,14 @@ end windows
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative
 -- controls they catch.
-#print axioms Community.Merkle.val_rootAndProofsM
-#print axioms Community.Merkle.rootAndProofs_hashes
-#print axioms Community.Merkle.rootAndProofs_hashes_lt
-#print axioms Community.Merkle.rootAndProofs_hashed
-#print axioms Community.Merkle.rootAndProofs_hashed_lt
-#print axioms Community.Merkle.val_rootAndProofsSlowM
-#print axioms Community.Merkle.slow_hashes
-#print axioms Community.Merkle.slow_over_budget
+#print axioms Merkle.val_rootAndProofsM
+#print axioms Merkle.rootAndProofs_hashes
+#print axioms Merkle.rootAndProofs_hashes_lt
+#print axioms Merkle.rootAndProofs_hashed
+#print axioms Merkle.rootAndProofs_hashed_lt
+#print axioms Merkle.val_rootAndProofsSlowM
+#print axioms Merkle.slow_hashes
+#print axioms Merkle.slow_over_budget
 #print axioms Engine.Codec.val_decNatFromM
 #print axioms Engine.Codec.work_digitsM
 #print axioms Engine.Codec.work_decNatFromM
@@ -1304,9 +1323,9 @@ end cost
 #print axioms Engine.Sync.conn_runs_exchange
 
 -- Endpoint publication, dialing policy and deterministic simultaneous selection.
-#print axioms Connection.Winner.choose_comm
-#print axioms Connection.Winner.choose_stable
-#print axioms Connection.Winner.exactly_one
+#print axioms Engine.Winner.choose_comm
+#print axioms Engine.Winner.choose_stable
+#print axioms Engine.Winner.exactly_one
 #print axioms Connection.DiscoveryLaws.kept_pair
 #print axioms Connection.DiscoveryLaws.both_choose_same
 #print axioms Connection.DiscoveryLaws.single_survivor
@@ -1315,9 +1334,9 @@ end cost
 #print axioms Connection.DiscoveryLaws.candidate_cap
 #print axioms Connection.DiscoveryLaws.retry_eventually_due
 #print axioms Connection.DiscoveryLaws.candidate_visited
-#print axioms Endpoint.bounded_cap
-#print axioms Endpoint.delay_bounded
-#print axioms Endpoint.fresh_expires
+#print axioms Hints.bounded_cap
+#print axioms Hints.delay_bounded
+#print axioms Hints.fresh_expires
 
 #print axioms Connection.DiscoveryProgress.plan_ready
 #print axioms Connection.DiscoveryProgress.plan_backoff
@@ -1328,6 +1347,14 @@ end cost
 #print axioms Connection.DiscoveryStorage.step_moves
 #print axioms Connection.DiscoveryStorage.step_retains
 #print axioms Connection.DiscoveryStorage.step_settled
+
+#print axioms Connection.secret_unfiled
+#print axioms Connection.purge_forgets
+#print axioms Connection.forget_stays
+#print axioms Connection.close_forgets
+#print axioms Connection.retired_complete
+#print axioms Connection.retired_open
+#print axioms Connection.shipped_retired_misses
 
 #print axioms App.WriteAdmission.admitted_frames
 #print axioms App.WriteAdmission.admitted_count
@@ -1393,3 +1420,149 @@ end cost
 #print axioms Connection.Execution.Run.history
 
 #print axioms Connection.DiscoveryStorage.setup_readOnly
+
+-- Exact admitted socket queues and native writer batches, including retries.
+#print axioms Engine.Sync.Reserved.push_bounded
+#print axioms Engine.Sync.Reserved.offer_bounded
+#print axioms Engine.Sync.Reserved.take_bounded
+#print axioms Engine.Sync.Reserved.normal_flood_does_not_starve_retry
+#print axioms Engine.Sync.Outbox.push_bounded
+#print axioms Engine.Sync.Outbox.take_bounded
+#print axioms Engine.Sync.Outbox.native_batch_bounded
+#print axioms Engine.Sync.Outbox.push_preserves_reserved
+#print axioms Engine.Sync.Outbox.urgent_then_retry
+#print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.serveOwed_hot_count
+
+#print axioms Engine.Sync.Ingress.distance_lt
+#print axioms Engine.Sync.Ingress.distance_zero
+#print axioms Engine.Sync.Ingress.advance_distance
+#print axioms Engine.Sync.Ingress.scan_ready
+#print axioms Engine.Sync.Ingress.scan_selected
+#print axioms Engine.Sync.Ingress.offer_preserves
+#print axioms Engine.Sync.Ingress.poll_progress
+#print axioms Engine.Sync.Ingress.arrivals_preserve
+#print axioms Engine.Sync.Ingress.served
+#print axioms Engine.Sync.Ingress.source_within
+#print axioms Engine.Sync.Ingress.flooded_prefix
+#print axioms Engine.Sync.Ingress.Prioritized.step_write
+#print axioms Engine.Sync.Ingress.Prioritized.step_event
+#print axioms Engine.Sync.Ingress.Prioritized.step_only_event
+#print axioms Engine.Sync.Ingress.Prioritized.poll_exists
+#print axioms Engine.Sync.Ingress.Prioritized.step_progress
+#print axioms Engine.Sync.Ingress.Prioritized.served
+#print axioms Engine.Sync.Ingress.Prioritized.source_within
+#print axioms Engine.Sync.Ingress.Prioritized.step_empty_event
+#print axioms Engine.Sync.Ingress.Prioritized.write_progress
+#print axioms Engine.Sync.Ingress.Prioritized.write_served
+#print axioms Engine.Sync.Ingress.Prioritized.write_within
+#print axioms Engine.Sync.Ingress.cancel_other
+#print axioms Engine.Sync.Ingress.cancelAll_preserves
+#print axioms Engine.Sync.Ingress.Prioritized.changes_preserve
+#print axioms Engine.Sync.Ingress.Prioritized.served_or_cancelled
+#print axioms Engine.Sync.Ingress.Prioritized.source_or_cancelled_within
+#print axioms Engine.Sync.Ingress.Prioritized.Waiting.same_inputs
+#print axioms Engine.Sync.Ingress.Prioritized.write_served_churn
+#print axioms Engine.Sync.Ingress.Prioritized.write_within_churn
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_source
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_write
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_exact
+
+#print axioms App.Presentation.bounded
+#print axioms App.Presentation.offer_append
+#print axioms App.Presentation.offer_full
+#print axioms App.Presentation.acknowledge_matches
+#print axioms App.Presentation.transition_prior
+#print axioms App.Presentation.transition_rejected
+#print axioms App.Presentation.transition_sound
+
+#print axioms Data.WriterQueue.push_local
+#print axioms Data.WriterQueue.push_background
+#print axioms Data.WriterQueue.push_keeps_phase
+#print axioms Data.WriterQueue.local_fifo
+#print axioms Data.WriterQueue.background_fifo
+#print axioms Data.WriterQueue.local_first
+#print axioms Data.WriterQueue.background_slot
+#print axioms Data.WriterQueue.take_state
+#print axioms Data.WriterQueue.local_within
+#print axioms Data.WriterQueue.background_within
+#print axioms Data.WriterQueue.local_share
+
+#print axioms Engine.Sync.ExpiryGrace.same_generation
+#print axioms Engine.Sync.ExpiryGrace.no_rearm
+#print axioms Engine.Sync.ExpiryGrace.exhausted
+#print axioms Engine.Sync.ExpiryGrace.empty_no_delay
+#print axioms Engine.Sync.ExpiryGrace.fresh_clears
+#print axioms Engine.Sync.ExpiryGrace.consume_keeps_generation
+#print axioms Engine.Sync.ExpiryGrace.consume_decreases
+#print axioms Engine.Sync.ExpiryGrace.consume_saturates
+#print axioms Engine.Sync.ExpiryGrace.consumed_left
+#print axioms Engine.Sync.ExpiryGrace.budget_exhausted
+#print axioms Engine.Sync.ExpiryGrace.source_before_exhaustion
+
+#print axioms Demand.next_map
+#print axioms Demand.takeBy_map
+#print axioms Demand.filter_rank
+#print axioms Demand.take_progress
+#print axioms Demand.take_changes
+#print axioms Demand.selected_or_retired
+#print axioms Demand.selected_within
+
+#print axioms Hold.messageLine_key
+#print axioms Hold.prepare_key
+#print axioms Hold.prepare_reuses
+#print axioms Hold.prepare_rows
+#print axioms Hold.cachedMessagePlane_exact
+#print axioms Hold.cachedMessagePlane_reuses
+
+-- Actual multiplex retry admission core (candidate/vacancy opportunities).
+#print axioms Engine.Sync.RetryOrder.claim_false
+#print axioms Engine.Sync.RetryOrder.claim_ready
+#print axioms Engine.Sync.RetryOrder.claim_busy
+#print axioms Engine.Sync.RetryOrder.scan_append
+#print axioms Engine.Sync.RetryOrder.scan_members
+#print axioms Engine.Sync.RetryOrder.offered_perm
+#print axioms Engine.Sync.RetryOrder.offered_members
+#print axioms Engine.Sync.RetryOrder.offered_length
+#print axioms Engine.Sync.RetryOrder.offered_nodup
+#print axioms Engine.Sync.RetryOrder.offered_none
+#print axioms Engine.Sync.RetryOrder.reconcile_members
+#print axioms Engine.Sync.RetryOrder.reconcile_prefix
+#print axioms Engine.Sync.RetryOrder.reconcile_nodup
+#print axioms Engine.Sync.RetryOrder.filter_rank
+#print axioms Engine.Sync.RetryOrder.offered_rank
+#print axioms Engine.Sync.RetryOrder.scan_progress
+#print axioms Engine.Sync.RetryOrder.reconcile_rank
+#print axioms Engine.Sync.RetryOrder.eligible_spec
+#print axioms Engine.Sync.RetryOrder.Run.nodup
+#print axioms Engine.Sync.RetryOrder.waiting_rank
+#print axioms Engine.Sync.RetryOrder.offered_or_retired
+#print axioms Engine.Sync.sweepAll_ok
+#print axioms Engine.Sync.onTickDirect_fresh
+#print axioms Engine.Sync.onTickReserved_fresh
+
+
+-- Atomic admission freeze preserves one source frame across transport close.
+#print axioms Engine.Sync.Ingress.Registry.freeze_input
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_state
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_owner
+#print axioms Engine.Sync.Ingress.Registry.frozen_refuses
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_poll
+#print axioms Engine.Sync.Ingress.Registry.freeze_idempotent
+
+-- Original native job ownership admission; no IO trace/completion claim.
+#print axioms Engine.Sync.JobOwners.admitted_bounded
+#print axioms Engine.Sync.JobOwners.full_refuses
+#print axioms Engine.Sync.JobOwners.available_creates
+
+-- Actual Node session-ID and retry-order preservation.
+#print axioms Engine.Sync.NodeUnique.boot_valid
+#print axioms Engine.Sync.NodeUnique.open_valid
+#print axioms Engine.Sync.NodeUnique.sweepAll_valid
+#print axioms Engine.Sync.NodeUnique.step_valid
+#print axioms Engine.Sync.NodeUnique.sql_step_valid
+#print axioms Connection.Execution.production_step_unique
+#print axioms Connection.Execution.world_step_unique
+#print axioms Connection.Execution.world_trace_unique
+#print axioms Connection.Execution.empty_trace_unique
+#print axioms Connection.Execution.Run.unique

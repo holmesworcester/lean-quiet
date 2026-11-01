@@ -55,7 +55,7 @@ Ubuntu:
 ## Checking it again
 
 The measurement above predates the joined repository; its modules are
-now `ops/community/Connect`, `ops/community/Link`, `engine/core/Sqlite`,
+now `app/community/Connect`, `app/community/Link`, `engine/core/Sqlite`,
 `engine/renderer/qr/SegLaws` and `engine/renderer/qr/Segment`, and the
 build now links the engine's Rust crypto. Export one commit at two
 roots, build both, then compare: by the measurement, only the `.olean`

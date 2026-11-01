@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # The executable suites: the SQLite the phones ship, as built
 # (sqlite_build), the codec that runs against its specification on random
-# values and their mutants (codecdiff), the scenario (real Ed25519,
+# values and their mutants (codecdiff), the community family's bytes, ids
+# and verdicts against main's before the op split (wiregolden), the scenario (real Ed25519,
 # SQLite), the SQLite-vs-model differential, list queries against their
 # meaning (querydiff), ops as wire bytes against a lying peer (wire), two
 # nodes syncing through the driver (syncpair), in the pure world the
@@ -28,13 +29,15 @@ if [ "${1:-}" = --phone-runtime ]; then
   bin=$PWD/out/phone-runtime/bin
   out=out/phone-runtime/tests
 else
-  lake build sqlite_build codecdiff poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check
+  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check
   bin=$PWD/.lake/build/bin
   out=out
 fi
 mkdir -p "$out"
 "$bin"/sqlite_build
 "$bin"/codecdiff "${CODEC_VALUES:-200}"
+# The community family's bytes, ids and verdicts are main's before the op split.
+if [ -x "$bin"/wiregolden ]; then "$bin"/wiregolden | diff - tests/engine/wire-golden.txt && echo "wiregolden: identical"; fi
 if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve (TCP sandbox)"; fi
 "$bin"/scenario "$out"/scenario
 "$bin"/differential "$out"/differential "${SEEDS:-12}"
@@ -69,6 +72,24 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:claim-tree
   mise run test:fairness
   mise run test:catalog-retry
+  mise run test:reserved-retry
+  mise run test:retry-admission
+  mise run test:node-uniqueness
+  mise run test:ingress
+  mise run test:native-lifetimes
+  mise run test:ref-publications
+  mise run test:reader-prune
+  mise run test:reader-claim
+  mise run test:writer-fairness
+  mise run test:writer-checkpoint
+  mise run test:writer-job-retry
+  mise run test:app-runner-failure
+  mise run test:app-suspend-journal
+  mise run test:app-boot-admission
+  mise run test:expiry-grace
+  mise run test:close-ingress
+  mise run test:runner-ownership
+  mise run test:demand-rank
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi

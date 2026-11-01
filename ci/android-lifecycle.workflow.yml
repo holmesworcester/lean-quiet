@@ -1,0 +1,41 @@
+# Ready to activate as .github/workflows/android-lifecycle.yml on a provisioned
+# runner. See docs/ANDROID-LIFECYCLE.md; this file alone is not an active workflow.
+name: Android lifecycle
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '31 7 * * 1'
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-lifecycle
+  cancel-in-progress: false
+
+jobs:
+  lifecycle:
+    runs-on: [self-hosted, linux, x64, quiet-android]
+    timeout-minutes: 45
+    env:
+      TMPDIR: /mnt/storage/holmes-tmp
+      ELAN_HOME: /mnt/storage/elan
+      ANDROID_AVD_HOME: /mnt/storage/holmes-avd
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+        with:
+          install: false
+      - name: Run the named Android lifecycle suite and controls
+        run: mise trust && mise run android:lifecycle-e2e
+      - name: Retain build, UI, process, IME and control evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-lifecycle-${{ github.run_id }}
+          path: out/lifecycle
+          if-no-files-found: error
+          retention-days: 14

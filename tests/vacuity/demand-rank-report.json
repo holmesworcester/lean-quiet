@@ -1,0 +1,51 @@
+{
+  "Demand.next_map": {
+    "status": "kernel-witness",
+    "theorem": "Demand.next_map",
+    "witness": "Vacuity.DemandRank.mapped_choice",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.takeBy_map": {
+    "status": "kernel-witness",
+    "theorem": "Demand.takeBy_map",
+    "witness": "Vacuity.DemandRank.mapped_take",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.filter_rank": {
+    "status": "kernel-witness",
+    "theorem": "Demand.filter_rank",
+    "witness": "Vacuity.DemandRank.filter_preserves_rank",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.take_progress": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_progress",
+    "witness": "Vacuity.DemandRank.one_selection",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.take_changes": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_changes",
+    "witness": "Vacuity.DemandRank.changing_selection",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.selected_or_retired": {
+    "status": "kernel-witness",
+    "theorem": "Demand.selected_or_retired",
+    "witness": "Vacuity.DemandRank.target_bound",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  },
+  "Demand.selected_within": {
+    "status": "kernel-witness",
+    "theorem": "Demand.selected_within",
+    "witness": "Vacuity.DemandRank.selected_bound",
+    "module": "tests.vacuity.DemandRank",
+    "detail": "Universal helper-transition traces over actual Demand.take/takeBy selection used by Work and Reader; not a whole-IO refinement theorem. The nonempty execution keeps admitting fresh entries forever, promotes an earlier background entry, and retires another predecessor; the target remains visible and owned. Rank counts all preceding entries. The bound is on attempted selections, not wall time, query success, queue capacity, or whole Reader liveness. Reader exception rollback and native completion remain separate boundaries."
+  }
+}

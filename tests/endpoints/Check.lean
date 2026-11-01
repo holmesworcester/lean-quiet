@@ -1,6 +1,5 @@
 import tests.endpoints.Harness
-import ops.connection.DiscoveryStorage
-import ops.connection.DiscoveryProgress
+import app.Proofs
 
 open Engine Community Connection EndpointNetwork
 
@@ -30,7 +29,7 @@ def readyWitness (s : Execution.Memory) (invite pub found : List ByteArray)
       Discovery.canTry now old = true ∧
       (Discovery.advertised c (key "A") now).eval s.held.db = pub ∧
       (Discovery.discovered (key "A") now).eval s.held.db = found ∧
-      Endpoint.pick (Discovery.candidates invite pub found) (Discovery.nextAttempt old) = some addr then
+      Hints.pick (Discovery.candidates invite pub found) (Discovery.nextAttempt old) = some addr then
     some (PLift.up (DiscoveryProgress.plan_ready s c (key "A") invite pub found now old addr
       h.1 h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2))
   else none
@@ -46,7 +45,7 @@ def laterWitness (s : Execution.Memory) (pub : List ByteArray) (addr : ByteArray
       1000 + 60000 ≤ 61000 ∧
       (Discovery.advertised c (key "A") 61000).eval s.held.db = pub ∧
       (Discovery.discovered (key "A") 61000).eval s.held.db = [] ∧
-      Endpoint.pick (Discovery.candidates [] pub []) (Discovery.nextAttempt (some (1000, 0))) = some addr then
+      Hints.pick (Discovery.candidates [] pub []) (Discovery.nextAttempt (some (1000, 0))) = some addr then
     some (PLift.up (DiscoveryProgress.plan_after_backoff s c (key "A") [] pub [] 1000 0 61000 addr
       h.1 h.2.1 h.2.2.1 h.2.2.2.1 h.2.2.2.2))
   else none
@@ -99,14 +98,14 @@ def arbitrationWitness (a b peer : ByteArray) :=
 /-- Concrete successful premises and applications for the bounded policy laws. -/
 def policyWitness (lan tail : ByteArray) :=
   let xs := [lan, tail]
-  if h : 1 < (xs.take Endpoint.dialCap).length ∧
-      Endpoint.fresh 1000 900 1100 = true ∧ 1000 + 60000 ≤ 61000 then
+  if h : 1 < (xs.take Hints.dialCap).length ∧
+      Hints.fresh 1000 900 1100 = true ∧ 1000 + 60000 ≤ 61000 then
     some (PLift.up (DiscoveryLaws.candidate_cap xs xs xs),
       PLift.up (DiscoveryLaws.retry_eventually_due 1000 200 61000 h.2.2),
       PLift.up (DiscoveryLaws.candidate_visited xs 1 h.1),
-      PLift.up (Endpoint.bounded_cap xs),
-      PLift.up (Endpoint.delay_bounded 200),
-      PLift.up (Endpoint.fresh_expires 1000 900 1100 h.2.1))
+      PLift.up (Hints.bounded_cap xs),
+      PLift.up (Hints.delay_bounded 200),
+      PLift.up (Hints.fresh_expires 1000 900 1100 h.2.1))
   else none
 
 def main : IO Unit := do
@@ -141,8 +140,8 @@ def main : IO Unit := do
   require "zero lifetime is rejected" (!accepted (ad [lan] [] 1000 1000))
   require "multicast destinations are rejected" (!accepted (ad ["224.0.0.251:5353".toUTF8] [] 1000 2000))
   require "zero TCP port is rejected" (!accepted (ad ["100.67.2.56:0".toUTF8] [] 1000 2000))
-  require "expiry is strict" (!Endpoint.fresh 2000 1000 2000)
-  require "future publication is not dialable" (!Endpoint.fresh 900 1000 2000)
+  require "expiry is strict" (!Hints.fresh 2000 1000 2000)
+  require "future publication is not dialable" (!Hints.fresh 900 1000 2000)
   require "updated endpoint data does not reset retry clock"
     (!Discovery.canTry 1200 (some (1000, 5)))
   require "backoff releases by 60 seconds" (Discovery.canTry 61000 (some (1000, 500)))

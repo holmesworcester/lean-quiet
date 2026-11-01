@@ -1,0 +1,51 @@
+{
+  "Presentation.bounded": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.bounded",
+    "witness": "PresentationTests.boundWitness",
+    "module": "tests.app.Presentation",
+    "detail": "A concrete nonempty two-entry queue satisfies the runtime representation's capacity bound of eight. Synthetic distinct message positions; no crypto or native premise."
+  },
+  "Presentation.offer_append": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.offer_append",
+    "witness": "PresentationTests.appendWitness",
+    "module": "tests.app.Presentation",
+    "detail": "Kernel evaluation discharges successful actual Queue.offer from two concrete entries to three. Applying the theorem proves the prior entries remain in order and the new entry is appended."
+  },
+  "Presentation.offer_full": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.offer_full",
+    "witness": "PresentationTests.fullWitness",
+    "module": "tests.app.Presentation",
+    "detail": "Eight concrete distinct entries inhabit the full-queue premise. Applying the actual theorem proves refusal of a ninth entry. Actual composer tests separately exercise draft preservation and visible committed FIFO release."
+  },
+  "Presentation.acknowledge_matches": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.acknowledge_matches",
+    "witness": "PresentationTests.completionWitness",
+    "module": "tests.app.Presentation",
+    "detail": "Concrete nonempty message candidate and successful actual acknowledgement use native publication ticket 4294967297, beyond UInt32 frame range. Kernel theorem proves exact candidate/completion identity. Native callback validity and physical display are outside this theorem; runtime controls separately reject staging-only, wrong ticket, and shifted completion."
+  },
+  "Presentation.transition_prior": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.transition_prior",
+    "witness": "PresentationTests.priorReceiptWitness",
+    "module": "tests.app.Presentation",
+    "detail": "A nonempty prior candidate has exact completion ticket 4294967299, a distinct newer candidate exists, and new staging is refused. Kernel evaluation discharges the receipt premise, then applies the actual App transition law: one receipt-handling transition releases the obligation. Ownership/body/lifetime validation and native callback progress remain separate caller/native boundaries."
+  },
+  "Presentation.transition_rejected": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.transition_rejected",
+    "witness": "PresentationTests.refusedReceiptWitness",
+    "module": "tests.app.Presentation",
+    "detail": "Both candidates are nonempty; only the refused fresh candidate matches ticket 4294967299. Kernel evaluation establishes that the prior receipt is unresolved. Applying the running transition law preserves that prior candidate and does not release the obligation."
+  },
+  "Presentation.transition_sound": {
+    "status": "kernel-witness",
+    "theorem": "App.Presentation.transition_sound",
+    "witness": "PresentationTests.receiptSoundWitness",
+    "module": "tests.app.Presentation",
+    "detail": "The concrete prior-receipt transition succeeds with refused new staging. The certificate applies the runtime transition soundness theorem to that success, proving a prior receipt or an accepted matching fresh candidate was required. This is receipt-core evidence, not a complete UI-stage composition."
+  }
+}

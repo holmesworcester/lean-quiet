@@ -31,12 +31,62 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:retry-admission && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness && mise run test:expiry-grace && mise run test:close-ingress && mise run test:runner-ownership && mise run test:demand-rank"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
 depends = ["crypto"]
 run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:close-ingress"]
+description = "Real TCP/Noise admitted notice survives transport close/reap; frozen source and immediate retirement controls"
+depends = ["crypto"]
+run = "bash tests/engine/close_ingress.sh"
+
+[tasks."test:expiry-grace"]
+description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
+depends = ["crypto"]
+run = "bash tests/engine/expiry_grace.sh"
+
+[tasks."test:writer-fairness"]
+description = "Actual writer loop FIFO/local-priority fairness with SQLite, reused kernel service bounds and four compiling starvation/copy controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_fairness.sh"
+
+[tasks."test:reader-claim"]
+description = "Actual Reader/SQLite transaction failure retains queued actions and notices; five compiling loss/cancellation controls"
+depends = ["crypto"]
+run = "bash tests/engine/reader_claim.sh"
+
+[tasks."test:reader-prune"]
+description = "Actual reader rollback and SQLite journal pruning retain the notice needed by a healthy retry; compiling early-ack control"
+depends = ["crypto"]
+run = "bash tests/engine/reader_prune.sh"
+
+[tasks."test:ref-publications"]
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/ref_publications.sh"
+
+[tasks."test:native-lifetimes"]
+description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/native_lifetime.sh"
+
+[tasks."test:ingress"]
+description = "Real per-peer TCP mailbox bounds, UI priority, quota reuse and cancellation; reject eight compiling mutations"
+depends = ["crypto"]
+run = "bash tests/engine/ingress.sh"
+
+[tasks."test:retry-admission"]
+description = "Actual Node/SQLite/TCP multiplex retry service, authenticated reachability, continuing arrivals and six strict controls"
+depends = ["crypto"]
+run = "bash tests/engine/retry_admission.sh"
+
+[tasks."test:reserved-retry"]
+description = "Real Runner/TCP retry under zero ordinary window, oversized hot batches and continuing posts; delayed cursor and transport mutations"
+depends = ["crypto"]
+run = "bash tests/engine/reserved_retry.sh"
 
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
@@ -80,6 +130,10 @@ run = "tests/net/check.sh"
 [tasks."readme:links"]
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
+
+[tasks."layout:check"]
+description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
+run = "python3 ci/layout.py --self-test"
 
 [tasks."reorg:test"]
 description = "The reorg's import rewriter (ci/reorg-imports.py) on a copy of every Lean file of f1bfd62: each gets its new path's imports"
@@ -215,6 +269,10 @@ description = "Build/setup a private Android emulator; drive system photo picker
 depends = ["android:apk"]
 run = "platforms/android/test/photo_e2e.sh"
 
+[tasks."android:photo-lifecycle-e2e"]
+description = "Build/setup owned Android; actual picker/decoder recreation cancellation and stale owner controls against Main and SQLite"
+run = "bash platforms/android/test/photo_lifecycle/run.sh"
+
 [tasks."android:scan-e2e"]
 description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
 depends = ["android:apk"]
@@ -228,6 +286,10 @@ run = "platforms/android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquie
 [tasks."android:twin-demo-e2e"]
 description = "Build the runtime and APK, then test a provisioned x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket; retains failure artifacts"
 run = "tests/app/mobile.sh android"
+
+[tasks."android:lifecycle-e2e"]
+description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME startup/focus/hide and clean process finish, with eight compiling controls"
+run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]
 description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
@@ -385,7 +447,7 @@ run = "tests/app/appearance.sh live"
 
 [tasks."host:theme-negative"]
 description = "Reject faults in appearance persistence, contrast and cache invalidation"
-run = "lake build appearance engine.renderer.ThemeLaws && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"
+run = "lake build appearance app.Proofs && python3 tests/app/theme-negative.py && python3 tests/app/theme-paint-negative.py"
 
 [tasks."linux:demo-video"]
 description = "Record the real Linux app resizing from desktop to mobile and changing appearance (Xvfb, xdotool, ImageMagick, ffmpeg)"
@@ -455,6 +517,11 @@ run = "platforms/macos/ship.sh run"
 description = "Build/setup the Mac app, drive OS typing/send, zoom and resize, and verify restart persistence and snapshots"
 run = "platforms/macos/ship.sh e2e"
 
+[tasks."test:hold-cache"]
+description = "Exact placeholder cache pixels and laws, 32 actual App publication cases, and six compiling cache controls"
+depends = ["crypto"]
+run = "bash tests/engine/hold_cache.sh"
+
 [tasks."host:skeleton"]
 description = "Shared message skeleton pixels, density/theme/clipping and actual app/native publication parity"
 depends = ["crypto"]
@@ -493,7 +560,7 @@ run = "site/publish.sh"
 
 [tasks."android:links-e2e"]
 description = "Invite links on a suite-owned AVD: leanquiet://join/ cold and warm into the development APK, malformed links ignored, quiet:// not claimed; RELEASE_APK=out/release/lean-quiet-android.apk adds the release APK"
-depends = ["android:runtime"]
+depends = ["android:runtime", "crypto"]
 run = "bash platforms/android/test/links_e2e.sh"
 
 [tasks."release:android"]
@@ -555,3 +622,108 @@ run = "bash tests/endpoints/check.sh"
 [tasks."test:endpoints-late"]
 description = "Real TCP: a late higher-id simultaneous attempt closes despite never being selected"
 run = "bash tests/endpoints/run.sh simultaneous --late"
+
+# The development workspace (tools/workspace): the op tree on disk with its
+# planned entries, live component previews, and Lean compiled to WASM.
+[tasks."workspace:setup"]
+description = "Install the workspace's locked npm dependencies"
+run = "npm ci --prefix tools/workspace"
+
+[tasks."workspace:layout"]
+description = "Regenerate docs/OP_TREE.txt: the op tree on disk under app/, with the planned entries of tools/workspace/layout/tree.json and LAYOUT02"
+run = "python3 tools/workspace/tools/plan.py --write-tree docs/OP_TREE.txt"
+
+[tasks."workspace:build"]
+description = "Read the op tree on disk (rejects a stale docs/OP_TREE.txt), check the kernel's Lean proofs, compile it to WASM, and bundle the page"
+depends = ["workspace:setup"]
+run = "python3 tools/workspace/tools/build.py"
+
+[tasks."workspace:test"]
+description = "The tree is the files on disk under app/, each once with its contents, and every planned entry is absent and required; WASM matches native Lean"
+depends = ["workspace:build"]
+run = "npm test --prefix tools/workspace"
+
+[tasks."workspace:browser-setup"]
+description = "Install Playwright's Chromium unless PLAYWRIGHT_CHROMIUM_EXECUTABLE or CHROME names one"
+depends = ["workspace:setup"]
+run = "if [ -z \"${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}}\" ]; then cd tools/workspace && npx playwright install chromium; fi"
+
+[tasks."workspace:e2e"]
+description = "Every folder and file of the tree opens to its real contents; links, shared preview state, network delivery and phone layout in headless Chromium"
+depends = ["workspace:test", "workspace:browser-setup"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} WORKSPACE_PORT=${WORKSPACE_PORT:-4175} npx playwright test"
+
+[tasks."workspace:runtime"]
+description = "Provision the optional browser Lean runtime with pinned checksums (~310 MiB)"
+run = "python3 tools/workspace/tools/runtime.py"
+
+[tasks."workspace:prover"]
+description = "Real in-browser proof acceptance and rejection (needs workspace:runtime)"
+depends = ["workspace:build", "workspace:browser-setup", "workspace:runtime"]
+run = "cd tools/workspace && PLAYWRIGHT_CHROMIUM_EXECUTABLE=${PLAYWRIGHT_CHROMIUM_EXECUTABLE:-${CHROME:-}} QUIET_TEST_PROVER=1 npx playwright test tests/browser/prover.spec.js"
+
+[tasks."workspace:serve"]
+description = "Build and serve the workspace on 127.0.0.1:4173 with browser isolation headers"
+depends = ["workspace:build"]
+run = "python3 tools/workspace/tools/serve.py"
+
+[tasks."host:desktop-presentation"]
+description = "Build the actual desktop publication step; delay/reject native completion through real composer/SQLite frames, then reject nine compiled controls"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation.sh"
+
+[tasks."linux:presentation"]
+description = "Build and run actual desktop publication under private Xvfb with MIT-SHM and PutImage; exact receipts, hidden/resize/input-pressure controls and real composer"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation_native.sh"
+
+[tasks."ci:driver-test"]
+description = "Exercise actual CI dispatch, both Android photo gates and failure propagation without device provisioning"
+run = "python3 ci/local-test.py"
+
+[tasks."test:demand-rank"]
+description = "Actual Reader/Work selector rank, nonempty infinite arrivals, real worker counters and strict compiling controls"
+run = "python3 tests/renderer/rank.py"
+
+[tasks."test:owned-input"]
+description = "Actual immutable-action C core and Lean input decoder, with exact compiling failure controls"
+run = "bash tests/engine/owned_input.sh"
+
+[tasks."android:owned-input-e2e"]
+description = "Build/setup actual Main JNI action ownership, touch/Enter/Continue, lifecycle/drafts/photos/SQLite and strict compiling APK controls"
+run = "bash platforms/android/test/owned_input/run.sh"
+
+[tasks."test:app-runner-failure"]
+description = "Actual failed Runner recovery, ordered local replay, and strict controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_runner_failure.sh"
+
+[tasks."test:app-suspend-journal"]
+description = "Actual App normal suspend preserves channel-admitted signed writes through loop completion and journal replay; three compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_suspend_journal.sh"
+
+[tasks."test:app-boot-admission"]
+description = "Actual retained network boot isolates earlier Writer work from continuing App submissions; two compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_boot_admission.sh"
+
+[tasks."test:writer-checkpoint"]
+description = "One real checkpoint attempt per writer turn, selected signed write service, and recursive control"
+depends = ["crypto"]
+run = "bash tests/engine/writer_checkpoint.sh"
+
+[tasks."test:writer-job-retry"]
+description = "Real SQLite retry ownership, empty maintenance admission and OS diagnostic errors; nine compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_job_retry.sh"
+
+[tasks."test:runner-ownership"]
+description = "Actual Runner exception ownership, retained native handoff and notices, ten compiling controls and kernel witness"
+depends = ["crypto"]
+run = "bash tests/engine/runner_ownership.sh"
+
+[tasks."test:node-uniqueness"]
+description = "Actual Node ID/retry invariants, kernel witnesses and native mutation controls"
+depends = ["crypto"]
+run = "tests/engine/node_uniqueness.sh"

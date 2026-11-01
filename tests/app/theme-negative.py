@@ -8,7 +8,7 @@ cases=[
  ('system','engine/renderer/Theme.lean','| .system => s.system','| .system => .light','Theme.follows'),
  ('forced','engine/renderer/Theme.lean','| .light => .light','| .light => .dark','Theme.forced'),
  ('roundtrip','engine/renderer/Theme.lean','| "light" => .light','| "light" => .dark','Theme.roundtrip'),
- ('selection','engine/renderer/Appearance.lean','def chosen (current choice : Theme.Setting) : Bool := current == choice','def chosen (_current _choice : Theme.Setting) : Bool := false','Appearance.selected_check'),
+ ('selection','app/Screen.lean','def chosen (current choice : Theme.Setting) : Bool := current == choice','def chosen (_current _choice : Theme.Setting) : Bool := false','Appearance.selected_check'),
  ('srgb','engine/renderer/Contrast.lean','0, 303, 607','0, 0, 607','Contrast.channel_bounds'),
  ('contrast','engine/renderer/Contrast.lean','else if luminance ground ≥ 1800000000 then Palette.color .light .black','else if luminance ground ≥ 1800000000 then ground','Contrast.ink_meets / ink_control'),
  ('palette-ink','engine/renderer/Contrast.lean','if meets wanted ground then wanted','if meets wanted ground then ground','Contrast.ink_kept'),
@@ -28,16 +28,16 @@ for name,file,old,new,law in cases:
 
 # Rebuild the actual dependency so the laws cannot accidentally read an old .olean.
 for name,old,new,law in [
- ('caches','rows := {}, imgs := {},','rows := s.rows, imgs := s.imgs,','ThemeLaws.cleared'),
+ ('caches','rows := {}, imgs := {}, imgWaiting := {}, gridRows := {},','rows := s.rows, imgs := s.imgs, imgWaiting := {}, gridRows := {},','ThemeLaws.cleared'),
  ('theme-palette','let dm := { dm with theme := Theme.effective theme }','let dm := { dm with theme := Theme.Value.dark }','ThemeLaws.palette'),
  ('content','theme := theme\n    dim := dm','theme := theme\n    text := ""\n    dim := dm','ThemeLaws.content'),
 ]:
- p=Path('App.lean');original=p.read_text();assert old in original
+ p=Path('app/Screen.lean');original=p.read_text();assert original.count(old)==1,(name,old)
  try:
   p.write_text(original.replace(old,new,1))
-  got=subprocess.run(['lake','build','engine.renderer.ThemeLaws'],capture_output=True,text=True,timeout=120)
+  got=subprocess.run(['lake','build','app.Proofs'],capture_output=True,text=True,timeout=120)
   (out/(name+'.log')).write_text(got.stdout+got.stderr)
-  assert got.returncode != 0 and 'ThemeLaws.lean:' in got.stdout+got.stderr, f'{name}: law did not reject'
+  assert got.returncode != 0 and 'app/Proofs.lean:' in got.stdout+got.stderr, f'{name}: law did not reject'
   print(f'negative {name}: rejected ({law})',flush=True)
  finally:p.write_text(original)
 

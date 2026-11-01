@@ -1,5 +1,5 @@
 /-
-The reader's pass as it runs (ops/app/Reader.lean, holmes-1e's): its
+The reader's pass as it runs (app/app/Reader.lean, holmes-1e's): its
 cache's stale reads, each held want's reads, its dirty wants, and the
 board. `RWorld` is the world of engine/renderer/BoardLaws.lean with the
 reader's own state in place of an abstract `touch`: a commit stales the
@@ -127,6 +127,7 @@ theorem mem_eraseAll : ∀ (p : List W) (d : Std.HashSet W) (x : W),
     · rintro ⟨⟨h1, h2⟩, h3⟩; exact ⟨h2, fun e => h1 e.symm, h3⟩
     · rintro ⟨h2, h1, h3⟩; exact ⟨⟨fun e => h1 e.symm, h2⟩, h3⟩
 
+omit [LawfulBEq W] in
 open Engine Engine.Counted in
 /-- **Marking costs a step per want.** -/
 theorem markM_cost (stale : W → Bool) : ∀ (ws : List W) (d : Std.HashSet W),

@@ -1,0 +1,45 @@
+# Template for a provisioned runner; activate separately under .github/workflows.
+name: Android photo lifetime
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '48 8 * * 1'
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-photo-lifetime
+  cancel-in-progress: false
+
+jobs:
+  photos:
+    runs-on: [self-hosted, linux, x64, quiet-android]
+    timeout-minutes: 60
+    env:
+      TMPDIR: /mnt/storage/holmes-tmp
+      ELAN_HOME: /mnt/storage/elan
+      ANDROID_AVD_HOME: /mnt/storage/holmes-avd
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+        with:
+          install: false
+      - name: Run the existing picker suite and actual recreation controls
+        run: |
+          mise trust
+          systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh driver android-photo
+      - name: Retain builds, UI, process and mutation evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: android-photo-lifetime-${{ github.run_id }}
+          path: |
+            out/ci-driver
+            out/photo/android
+            out/photo-lifecycle
+          if-no-files-found: error
+          retention-days: 14

@@ -5,7 +5,7 @@ open Lake DSL System
 from here (`engine/core/Codec.lean` is `engine.core.Codec`), and each
 library is a directory of the tree. A library inside another's directory
 (mdns in engine/wire, qr in engine/renderer, the bootstrap in
-ops/connection) is the outer one's too: `lake build Wire` builds mdns.
+app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
   -- Native C uses the host's headers. Lean's bundled older glibc linker
@@ -43,31 +43,30 @@ lean_lib Pic where
 
 /-! ## Ops: everything that names a kind -/
 
--- rounds, fingerprints, the connection's sync messages
+-- sync, generic over op types: rounds, fingerprints, the connection's
+-- sync messages (engine/sync; the op tree has no sync folder until its
+-- rounds are ephemeral ops)
 @[default_target] lean_lib Sync where
-  globs := #[.submodules `ops.sync]
+  globs := #[.submodules `engine.sync]
 
--- the handshake and sessions, and the bootstrap's model
+-- the handshake and sessions
 @[default_target] lean_lib Connection where
-  globs := #[.submodules `ops.connection]
+  globs := #[.submodules `app.connection]
 
--- the bootstrap model and its laws
-lean_lib Net where
-  globs := #[.submodules `ops.connection.bootstrap]
-
--- the Community family, and each domain's view
+-- the Community family, each domain's view, and the bootstrap's model
+-- (in community/Proofs: it names only community ops)
 @[default_target] lean_lib Community where
-  globs := #[.submodules `ops.community]
+  globs := #[.submodules `app.community]
 
--- the app's own state: pages, composer, switcher, removal
-@[default_target] lean_lib AppState where
-  globs := #[.submodules `ops.app]
+-- the op tree's root: commands over the node, which spans both families
+@[default_target] lean_lib Node where
+  roots := #[`app.Commands]
 
 /-! ## The app -/
 
--- the root component
+-- the root screen, and the laws about the whole app
 @[default_target] lean_lib App where
-  roots := #[`App, `AppTypes, `AppLife]
+  roots := #[`app.Screen, `app.Proofs]
 
 -- every module of the app, for its executables
 @[default_target] lean_lib Quiet
@@ -155,7 +154,8 @@ target host.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "headless" / "host.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   -- C11: in C23 mode the system's glibc headers bind sscanf to a symbol
   -- the glibc Lean links against lacks.
@@ -245,6 +245,10 @@ lean_exe costcheck where
 lean_exe codecdiff where
   root := `tests.engine.CodecDiff
 
+-- the community family's bytes, ids and verdicts against main's before the op split
+lean_exe wiregolden where
+  root := `tests.engine.WireGolden
+
 lean_exe bench where
   root := `tests.engine.Bench
 
@@ -296,6 +300,15 @@ lean_exe vacuity_storage_effects where
 
 lean_exe catalog_retry where
   root := `tests.engine.CatalogRetry
+
+lean_exe reserved_retry where
+  root := `tests.engine.ReservedRetry
+
+lean_exe retry_multiplex where
+  root := `tests.engine.RetryMultiplex
+
+lean_exe ingress_tcp where
+  root := `tests.engine.IngressTcp
 
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
@@ -367,7 +380,8 @@ target linux.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
 
@@ -527,3 +541,94 @@ lean_lib EndpointTests where
 
 lean_exe endpoint_check where
   root := `tests.endpoints.Check
+
+target stop_probe.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "engine" / "stop_probe.c"
+  buildO (pkg.buildDir / "native" / "stop_probe.o") src
+    #["-I", (← getLeanIncludeDir).toString] #["-fPIC", "-O2", "-g"] "cc"
+
+lean_exe stop_flag where
+  root := `tests.engine.StopFlag
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe native_lifetime where
+  root := `tests.engine.NativeLifetime
+
+lean_exe reader_stop where
+  root := `tests.engine.ReaderStop
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe checkpoint_ack where
+  root := `tests.engine.CheckpointAck
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_resume where
+  root := `tests.engine.WriterResume
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe hold_cache where
+  root := `tests.engine.HoldCache
+
+lean_exe reader_claim_rollback where
+  root := `tests.engine.ReaderClaimRollback
+
+lean_exe reader_prune_rollback where
+  root := `tests.engine.ReaderPruneRollback
+
+lean_exe prune_ack where
+  root := `tests.engine.PruneAck
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_fairness where
+  root := `tests.engine.WriterFairness
+
+lean_exe desktop_presentation where
+  root := `tests.app.DesktopPresentationMain
+
+target desktop_presentation_native.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "app" / "desktop_presentation_native.c"
+  let shell ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let metadata ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
+  let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
+  let job := (((src.zipWith (fun s _ => s) shell).zipWith (fun s _ => s) metadata).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) translate
+  buildO (pkg.buildDir / "native" / "desktop_presentation_native.o") job
+    #["-I", (← getLeanIncludeDir).toString] #["-O2", "-fPIC", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
+
+lean_exe desktop_native_presentation where
+  root := `tests.app.DesktopNativePresentation
+  moreLinkObjs := #[desktop_presentation_native.o]
+  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0", "/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1"]
+
+lean_exe epoch_ingress where
+  root := `tests.engine.EpochIngress
+
+lean_exe close_ingress where
+  root := `tests.engine.CloseIngress
+
+lean_exe app_runner_failure where
+  root := `tests.engine.AppRunnerFailure
+
+lean_exe app_suspend_journal where
+  root := `tests.engine.AppSuspendJournal
+
+lean_exe app_boot_admission where
+  root := `tests.engine.AppBootAdmission
+
+lean_exe empty_jobs where
+  root := `tests.engine.EmptyJobs
+
+lean_exe writer_job_retry where
+  root := `tests.engine.WriterJobRetry
+
+lean_exe writer_checkpoint where
+  root := `tests.engine.WriterCheckpoint
+
+lean_exe writer_diagnostics where
+  root := `tests.engine.WriterDiagnostics
+
+lean_exe runner_ownership where
+  root := `tests.engine.RunnerOwnership
+
+lean_exe node_uniqueness where
+  root := `tests.engine.NodeUnique

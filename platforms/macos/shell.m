@@ -3,6 +3,8 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 #include "../native/thread.h"
+#include "../native/frame_completion.h"
+#include "../native/desktop_publication.h"
 #include <stdatomic.h>
 #include <lean/lean.h>
 #include <pthread.h>
@@ -11,6 +13,9 @@
 #include <unistd.h>
 
 static NSWindow *window;
+// AppKit main-thread owned. A callback retains its slot across surface reset.
+static LqFrameCompletion frameCompletion;
+static uint64_t trackedPublication;
 static NSImage *picture;
 static NSMutableArray<NSNumber *> *events, *rawEvents;
 // Links (leanquiet://join/…) LaunchServices delivers, cold or warm, as text.
@@ -327,6 +332,7 @@ static void translateNative(void) {
   // The cached full desktop crop retains hover/actions at rest. During
   // movement the raw overscan and hold planes slide independently of Lean.
   double shift=(double)sample-scrollPlacement[15];
+  if (fabs(shift)>.5) { frameCompletion.valid=false; frameCompletion.revoked=true; }
   overlayLayer.frame=CGRectMake(0,origin+shift/backingScale,scrollMeta[3]/backingScale,scrollMeta[4]/backingScale);
   overlayLayer.hidden=fabs(shift)>.5;
   [CATransaction commit];
@@ -391,6 +397,7 @@ static void writeScrollStats(void) {
 }
 - (BOOL)windowShouldClose:(NSWindow*)w { event(1,0,0,0); return NO; }
 - (void)windowDidResize:(NSNotification*)n {
+  lq_frame_reset(&frameCompletion);
   CGFloat scale=window.backingScaleFactor;
   bool densityChanged=scale!=backingScale;
   backingScale=scale;
@@ -413,7 +420,8 @@ static void writeScrollStats(void) {
   writeScrollStats();
 }
 - (void)windowDidChangeBackingProperties:(NSNotification*)n { [self windowDidResize:n]; }
-- (void)windowDidResignKey:(NSNotification*)n { event(16,0,0,1); }
+- (void)windowDidResignKey:(NSNotification*)n { lq_frame_reset(&frameCompletion); event(16,0,0,1); }
+- (void)windowDidMiniaturize:(NSNotification*)n { lq_frame_reset(&frameCompletion); }
 - (void)application:(NSApplication*)app openURLs:(NSArray<NSURL*>*)urls {
   @synchronized(links) { for (NSURL *u in urls) if (links.count<32) [links addObject:u.absoluteString]; }
   if (window.miniaturized) [window deminiaturize:nil];
@@ -561,9 +569,22 @@ static void publishNativeLayers(void) {
   synchronizing=false;
 }
 
-lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
-  bool changed=capturePlane(&rootPlane,rows);
+lean_obj_res lq_desktop_frame(b_lean_obj_arg rows, uint64_t publication) {
+  __block bool accepted=false;
   onMain(^{
+    size_t h=lean_array_size(rows);
+    bool exact=h==height && h>0;
+    for (size_t y=0;y<h;y++) exact=exact && lean_sarray_size(lean_array_get_core(rows,y))==width*4;
+    if (!exact || !window.visible || window.miniaturized || !window.keyWindow ||
+        publication==0 || publication<=frameCompletion.accepted) return;
+    LqFrameTicket ticket;
+    // Redraw every accepted frame. Only the completion callback is capped;
+    // its exact selected publication remains reported until it returns.
+    bool track=lq_frame_begin(&frameCompletion,&ticket);
+    if (track) trackedPublication=publication;
+    frameCompletion.accepted=publication;
+    accepted=true;
+    bool changed=capturePlane(&rootPlane,rows);
     presentations++;
     [CATransaction begin]; [CATransaction setDisableActions:YES];
     publishNativeLayers();
@@ -585,6 +606,10 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
       }
       translateNative();
     }
+    int32_t shift=nativeActive?(int32_t)llround(atomic_load(&offset))-(int32_t)scrollPlacement[15]:0;
+    if (track) [CATransaction setCompletionBlock:^{
+      onMain(^{ lq_frame_complete(&frameCompletion,ticket,publication,0,shift); });
+    }];
     if (changed) [canvas displayIfNeeded];
     [CATransaction commit];
     if (snapshot) {
@@ -596,10 +621,18 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
   const char *delay=getenv("QUIET_LEAN_FRAME_DELAY_MS");
   usleep(delay?MIN(1000,MAX(0,atoi(delay)))*1000:16000);
   __block NSArray<NSNumber*> *batch;
-  onMain(^{ batch=[events copy]; [events removeAllObjects]; });
+  __block uint64_t completed=0, tracking=0;
+  __block int32_t shift=0;
+  onMain(^{
+    batch=[events copy]; [events removeAllObjects];
+    tracking=trackedPublication;
+    if (frameCompletion.valid && window.visible && !window.miniaturized && window.keyWindow) {
+      completed=frameCompletion.publication; shift=frameCompletion.shift;
+    }
+  });
   size_t n=batch.count; uint32_t *v=malloc(n*sizeof(uint32_t));
   for (size_t i=0;i<n;i++) v[i]=batch[i].unsignedIntValue;
-  lean_obj_res out=words(v,n); free(v); return out;
+  lean_obj_res out=lq_desktop_result(v,n,accepted,tracking,completed,shift); free(v); return out;
 }
 lean_obj_res lq_desktop_cursor(uint32_t kind) {
   onMain(^{ if (cursor!=kind) { cursor=kind; [window invalidateCursorRectsForView:canvas]; [(kind==2?NSCursor.IBeamCursor:kind==1?NSCursor.pointingHandCursor:NSCursor.arrowCursor) set]; } });
@@ -683,3 +716,5 @@ lean_obj_res lq_bars(uint32_t top,uint32_t bottom,uint8_t lightTop,uint8_t light
 lean_obj_res lq_now_us(void) { struct timespec t;clock_gettime(CLOCK_MONOTONIC,&t);return lean_io_result_mk_ok(lean_box_uint64((uint64_t)t.tv_sec*1000000+t.tv_nsec/1000)); }
 lean_obj_res lq_tz_min(void) { time_t t=time(NULL);struct tm tm;localtime_r(&t,&tm);return lean_io_result_mk_ok(lean_box_uint32((uint32_t)(int32_t)(tm.tm_gmtoff/60))); }
 lean_obj_res lq_log(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s));return unit(); }
+
+#include "../native/editor_legacy.h"

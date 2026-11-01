@@ -1,6 +1,5 @@
 import platforms.headless.Sim
-import ops.app.NavLaws
-import ops.app.LifecycleLaws
+import app.Proofs
 import engine.renderer.Ttf.Laws
 import tests.vacuity.RendererImages
 import tests.vacuity.RendererLive
@@ -24,15 +23,27 @@ def backOpen (s : St) :=
 def backRoot (s : St) := if h : s.backStack = [] then
   some (PLift.up (NavLaws.back_root s h)) else none
 
-def switchBack (s : St) := PLift.up (NavLaws.back_switch 5 (ByteArray.mk #[0x22]) s)
-def draftBack (s : St) := PLift.up (NavLaws.draft_back s)
+-- Laws with no premise: there is nothing to certify, so each check runs
+-- the compiled code the law is about on the real App.start state and
+-- tests the law's conclusion there (the proof itself is erased).
+def switchBack (s : St) : Bool :=
+  have := NavLaws.back_switch 5 (ByteArray.mk #[0x22]) s
+  let n := (Nat.repeat backSt 5 (switchSt (ByteArray.mk #[0x22]) s)).nav
+  n.page == .home && n.stack.isEmpty
+def draftBack (s : St) : Bool :=
+  have := NavLaws.draft_back s
+  (backSt s).text == s.text && (backSt s).sel == s.sel && (backSt s).chips.size == s.chips.size
 def stackDepth (s : St) := if h : (s.nav.page :: s.nav.stack).Nodup then
   some (PLift.up (NavLaws.depth .profile s h)) else none
 
 def nativeInput (s : St) := if h : textTarget s ≠ .none then
   some (PLift.up (into_native s "A typed message אב" #[3, 3, 0, 0] h)) else none
 
-def savedAnchor (s : St) := PLift.up (LifecycleLaws.restore_page_anchor s)
+def savedAnchor (s : St) : Bool :=
+  have := LifecycleLaws.restore_page_anchor s
+  (Lifecycle.restore (Codec.encode (checkpoint s))).map (fun cp =>
+      (PageId.ofCode cp.2.1, cp.2.2.2.1, cp.2.2.2.2.1)) ==
+    some (s.page, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2)
 def restoredAnchor (s target : St) :=
   match ha : checkpointAnchor s with
   | none => some (PLift.up (LifecycleLaws.apply_page_anchor s target (by
@@ -43,12 +54,30 @@ def restoredAnchor (s target : St) :=
         intro y above hy; rw [ha] at hy; cases hy; exact good)))
     else none
 
-def unmountedRead (s : St) := PLift.up (LifecycleLaws.unmount_read s ⟨[ByteArray.mk #[0x61]], true⟩ .comms)
-def unmountedWrite (s : St) := PLift.up (LifecycleLaws.unmount_write s { ops := [Op.make 239 [] (ByteArray.mk #[1])] })
-def oldCallback (s : St) := PLift.up (LifecycleLaws.old_callback s (modify fun st => { st with text := "stale callback" }))
+def unmountedRead (s : St) : IO Bool := do
+  have := LifecycleLaws.unmount_read s ⟨[ByteArray.mk #[0x61]], true⟩ .comms
+  let (answer, _) ← (App.query ⟨[ByteArray.mk #[0x61]], true⟩ .comms).run (unmountState s)
+  return answer.isNone
+def unmountedWrite (s : St) : IO Bool := do
+  have := LifecycleLaws.unmount_write s { ops := [Op.make 239 [] (ByteArray.mk #[1])] }
+  let (sent, _) ← (App.writeAll { ops := [Op.make 239 [] (ByteArray.mk #[1])] }).run (unmountState s)
+  return !sent
+def oldCallback (s : St) : IO Bool := do
+  have := LifecycleLaws.old_callback s (modify fun st => { st with text := "stale callback" })
+  let (ran, after) ← (App.owned s.life.lease (modify fun st => { st with text := "stale callback" })).run
+    { unmountState s with life := s.life.unmount.mount }
+  return ran.isNone && after.text == s.text
 
-def sameKey (s : St) := PLift.up (App.drawPage_key s.font s.bgRow s.camView (k := pageIn s) (k' := pageIn s) rfl)
-def keyAcceptance (s : St) := PLift.up (App.pageIn_acc (k := pageIn s) (k' := pageIn s) rfl)
+-- Two different states, a minute apart, share a page key (the clock is not
+-- on a page), so they draw the same page: not one key compared with itself.
+theorem sameKey : ∀ s : St, drawPage s.font s.bgRow s.camView (pageIn { s with nowMs := s.nowMs + 60000 }) =
+    drawPage s.font s.bgRow s.camView (pageIn s) :=
+  fun s => App.drawPage_key s.font s.bgRow s.camView rfl
+-- A state on another acceptance has another key, whatever else it shares:
+-- so a switch always redraws.
+theorem keyAcceptance : ∀ (s : St) (a : Id), a ≠ s.me.acc →
+    pageIn { s with me := { s.me with acc := a } } ≠ pageIn s :=
+  fun _ _ ha h => ha (App.pageIn_acc h)
 
 -- Native float calculations cannot be reduced by Lean's kernel. Successful
 -- runtime matches provide the exact raster-success premise to each theorem.
@@ -124,27 +153,12 @@ def main : IO UInt32 := do
   t.ok "checkpoint restoration satisfies the no-anchor branch" (restoredAnchor s s).isSome
   t.ok "nonempty concrete message anchor also satisfies restoration premises"
     (restoredAnchor { s with mark := some (ByteArray.mk #[0xAB, 0xCD], 180) } s).isSome
-  let (readResult, _) ← (App.query ⟨[ByteArray.mk #[0x61]], true⟩ .comms).run (unmountState s)
-  t.ok "unmounted real app query executes without returning an answer" readResult.isNone
-  let (writeResult, _) ← (App.writeAll { ops := [Op.make 239 [] (ByteArray.mk #[1])] }).run (unmountState s)
-  t.ok "unmounted real app write is declined" (!writeResult)
-  let (_, callbackState) ← (App.owned s.life.lease (modify fun st => { st with text := "stale callback" })).run
-    { unmountState s with life := s.life.unmount.mount }
-  t.ok "remounted real app rejects the old callback" (callbackState.text == "Draft message")
-  t.ok "restored draft text is preserved by back" ((backSt s).text == "Draft message")
-  t.ok "five backs after switch stay on new home"
-    ((Nat.repeat backSt 5 (switchSt (ByteArray.mk #[0x22]) s)).page == .home)
-  t.ok "nonempty checkpoint roundtrip uses actual app page and text"
-    ((Lifecycle.restore (Codec.encode (checkpoint s))).isSome)
-  -- Evaluate each bridge with this concrete resource-backed app state.
-  let _ := switchBack s
-  let _ := draftBack s
-  let _ := savedAnchor s
-  let _ := unmountedRead s
-  let _ := unmountedWrite s
-  let _ := oldCallback s
-  let _ := sameKey s
-  let _ := keyAcceptance s
+  t.ok "unmounted real app query executes without returning an answer" (← unmountedRead s)
+  t.ok "unmounted real app write is declined" (← unmountedWrite s)
+  t.ok "remounted real app rejects the old callback" (← oldCallback s)
+  t.ok "back keeps the draft (Draft message), selection and photos" (s.text == "Draft message" && draftBack s)
+  t.ok "five backs after switch stay on new home, with nothing under it" (switchBack s)
+  t.ok "checkpoint roundtrip restores the actual app page and anchor" (savedAnchor s)
   s.raster.reconcile []
   return ← t.finish "renderer/app vacuity (runtime premises)"
 

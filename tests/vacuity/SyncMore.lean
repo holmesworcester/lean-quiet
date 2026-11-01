@@ -1,9 +1,9 @@
 import tests.vacuity.FairScheduler
 import tests.vacuity.Network
-import ops.sync.RetryLaws
-import ops.sync.StateLaws
-import ops.sync.ClosureComplete
-import ops.sync.TreeLaws
+import engine.sync.RetryLaws
+import engine.sync.StateLaws
+import engine.sync.ClosureComplete
+import engine.sync.TreeLaws
 import engine.wire.Slots
 import engine.wire.Frame
 import engine.wire.CloseLaws
@@ -31,8 +31,11 @@ example : (((lanes.push .urgent urgentFrame).pushAll pushes).take 12).1 =
 theorem burstBound : bytesOf (cut 12 [bulkFrame, bulkFrame]).1 ≤ max 12 bulkFrame.size :=
   cut_bytes 12 [bulkFrame, bulkFrame]
 
-theorem pushBound : lanes.pushAll pushes = lanes.pushAll pushes ∧ (lanes.pushAll pushes).bytes ≤ 64 :=
-  push_capped 64 lanes (lanes.pushAll pushes) pushes (by unfold Lanes.admit; rw [if_pos (by decide)])
+-- The push is admitted under 64 bytes, and whatever admission returns is
+-- the lanes with both pushes, within the cap.
+theorem pushBound : (lanes.admit 64 pushes).isSome ∧
+    ∀ q', lanes.admit 64 pushes = some q' → q' = lanes.pushAll pushes ∧ q'.bytes ≤ 64 :=
+  ⟨by decide, fun q' h => push_capped 64 lanes q' pushes h⟩
 
 example : lanes.admit 20 pushes = none := by decide
 

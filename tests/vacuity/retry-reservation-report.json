@@ -1,0 +1,86 @@
+{
+  "Outbox.native_batch_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.native_batch_bounded",
+    "witness": "Vacuity.RetryReservation.nativeBatch",
+    "detail": "The nonempty outbox satisfies both byte/frame caps and the retry size bound. Applying the production batch theorem bounds the length-prefixed native payload by 2*sockCap+maxFrame+4*(2*sockFrames+1). A one-byte cap is explicitly rejected. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem."
+  },
+  "Outbox.retry_next_batch": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.retry_next_batch",
+    "witness": "Vacuity.RetryReservation.retryNext",
+    "detail": "The admitted retry is in the very next batch while local urgent output remains first and ordinary sync is present. No quiet period or ordinary-queue capacity is assumed. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem."
+  },
+  "Outbox.push_preserves_reserved": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.push_preserves_reserved",
+    "witness": "Vacuity.RetryReservation.normalOverflowKept",
+    "detail": "A normal batch overflowing a zero-byte ordinary cap cannot erase the already queued retry or protected control; the actual push returns without closing this transport. Closed kernel fixture uses the actual Outbox operations with a local urgent frame, protected handshake, ordinary backlog and reserved retry. Native transport and per-session admission are separate; this is not a whole-app delivery theorem."
+  },
+  "take_append": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.take_append",
+    "witness": "Vacuity.RetryReservation.laneAppend",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "take_bytes": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.take_bytes",
+    "witness": "Vacuity.RetryReservation.laneBytes",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "lanes_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.lanes_bounded",
+    "witness": "Vacuity.RetryReservation.laneBound",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "offer_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Reserved.offer_bounded",
+    "witness": "Vacuity.RetryReservation.offerBound",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "Reserved.push_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Reserved.push_bounded",
+    "witness": "Vacuity.RetryReservation.pushBound",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "Reserved.take_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Reserved.take_bounded",
+    "witness": "Vacuity.RetryReservation.takeBound",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "Outbox.push_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.push_bounded",
+    "witness": "Vacuity.RetryReservation.outboxPush",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "Outbox.take_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.take_bounded",
+    "witness": "Vacuity.RetryReservation.outboxTake",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  },
+  "native_batch_bounded": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.RetryReservation",
+    "theorem": "Engine.Sync.Outbox.native_batch_bounded",
+    "witness": "Vacuity.RetryReservation.nativeBatch",
+    "detail": "Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence."
+  }
+}

@@ -7,11 +7,12 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
-lake build Net
+lake build +app.community.Proofs
 python3 - <<'PY'
 import re, glob, sys
 bad = []
-for p in sorted(glob.glob("ops/connection/bootstrap/*.lean")):
+# the model is community/Proofs' sections from bootstrap/ (and FIFO)
+for p in ["app/community/Proofs.lean", "engine/core/FIFO.lean"]:
     s = re.sub(r"/-.*?-/", "", open(p).read(), flags=re.S)
     s = re.sub(r"--.*", "", s)
     # (an admit tactic elaborates to sorryAx, which the axiom audit refuses)

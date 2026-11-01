@@ -8,7 +8,7 @@ if [[ ${LQ_ENDPOINT_SCOPE:-0} != 1 ]]; then
 fi
 mkdir -p out/endpoints
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
-lake build endpoint_network +ops.connection.DiscoveryLaws >out/endpoints/build.log 2>&1 || {
+lake build endpoint_network +app.Proofs >out/endpoints/build.log 2>&1 || {
   tail -80 out/endpoints/build.log; exit 1;
 }
 python3 tests/endpoints/network.py "${1:-lan}" "${@:2}"

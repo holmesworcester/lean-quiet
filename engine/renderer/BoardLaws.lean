@@ -60,6 +60,7 @@ theorem put_cases (b : Board W V) (w : W) (v : V) :
     · exact Or.inr rfl
   · exact Or.inr rfl
 
+omit [BEq V] in
 theorem bump_vals (b : Board W V) (w x : W) (v : V) :
     (b.bump w v).vals[x]? = if w == x then some (v, b.next) else b.vals[x]? := by
   simp only [bump, HashMap.getElem?_insert]
@@ -68,6 +69,7 @@ theorem bump_other (b : Board W V) {w x : W} (v : V) (hx : w ≠ x) :
     (b.bump w v).vals[x]? = b.vals[x]? := by
   rw [bump_vals, ite_eq_right (by simpa using hx)]
 
+omit [BEq V] in
 theorem bump_moved (b : Board W V) (w x : W) (v : V) :
     (b.bump w v).moved.contains x = (w == x || b.moved.contains x) := by
   simp [bump, HashSet.contains_insert]

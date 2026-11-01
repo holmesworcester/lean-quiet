@@ -5,7 +5,7 @@ import platforms.desktop.Driver
 private def check (label : String) (ok : Bool) : IO Unit := do
   unless ok do throw (IO.userError s!"FAIL skeleton: {label}")
 
-private def suite (args : List String) : IO Unit := do
+private unsafe def suite (args : List String) : IO Unit := do
   let out := args[0]?.getD "out/skeleton"
   IO.FS.createDirAll out
   let sm ← Sim.new
@@ -59,11 +59,20 @@ private def suite (args : List String) : IO Unit := do
               let line := ((offset + bottom - 1 - y) % n).toNat
               check "native fill has the same message pixels at every signed offset"
                 (index < plane.size && plane[index]! == rows[n - 1 - line]!)
+          -- Keep both planes alive: a released address could be recycled.
+          -- Background rows already share s.bgRow without any tile cache.
+          if logicalWidth ≥ 320 then
+            let row := plane[dim.px 34]!
+            check "reuse probe selects actual skeleton ink" (row != bg)
+            let (_, _) ← (App.present #[] 117 false).run s
+            let nextPlane ← sm.hold.get
+            check "actual App.present reuses cached skeleton pixel objects"
+              (ptrEq row nextPlane[dim.px 34]!)
           let _ := s
         cases := cases + 1
   IO.println s!"skeleton: {cases} density/theme/width cases, desktop/mobile publication and signed native offsets passed"
 
-def main (args : List String) : IO UInt32 := do
+unsafe def main (args : List String) : IO UInt32 := do
   try
     suite args
     (← IO.getStdout).flush

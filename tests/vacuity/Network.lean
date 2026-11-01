@@ -1,5 +1,5 @@
-import ops.sync.Witnesses
-import ops.sync.ConnLaws
+import engine.sync.Witnesses
+import engine.sync.ConnLaws
 
 /-! Concrete sync fixtures. The payload and room are synthetic. The running
 Conn/Node functions are exercised on the one-room Unit family, not the
@@ -31,7 +31,8 @@ theorem filedWitness : ∃ ids,
 
 theorem shared : ∃ ids,
     (Msg.hold room ids).op ∈ ((conn.filed fam cfg [msg.id] : HeldM Unit Step) held).1.send ∧
-    msg.id ∈ ids ∧ ∃ o, held.db.ops msg.id = some o ∧ (fam.room o).isSome = true := by
+    msg.id ∈ ids ∧ ∃ o r, held.db.ops msg.id = some o ∧ fam.room o = some r ∧
+      has conn.rooms r = true := by
   obtain ⟨ids, hm, hi⟩ := filedWitness
   exact ⟨ids, hm, hi, offer_shared fam cfg conn [msg.id] held room msg.id ids
     (List.mem_append_left _ hm) hi⟩
@@ -54,8 +55,8 @@ theorem servedShown : queued.shows fam msg = true ∧
   serveOwed_shown fam cfg queued 1024 [] held msg (Or.inr servesHead)
 
 theorem servesFresh : msg ∈ ((queued.serveOwed fam cfg 0 [msg.id] : HeldM Unit _) held).1.2.1 :=
-  serveOwed_hot fam cfg queued 0 [msg.id] held msg.id msg (by simp)
-    (by simp [queued]) stored shown
+  serveOwed_hot fam cfg queued 0 [msg.id] held msg.id msg
+    (by simp [Conn.hotOf, queued, List.eraseDups_cons, List.take_succ_cons]) stored shown
 
 theorem drains : (Nat.repeat (fun c => ((c.serveOwed fam cfg 1024 [] : HeldM Unit _) held).1.1)
     queued.owed.length queued).owed = [] := owed_within fam cfg 1024 held (by decide) queued

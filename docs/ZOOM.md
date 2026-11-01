@@ -62,7 +62,10 @@ all possible content.
 function called by the running driver: identity at 100%, disjoint navigation
 and conversation, every track contained, emitted controls contained at any
 minimum target size, monotone body size with increasing density, and unchanged main geometry when the drawer opens on a
-wide viewport. Settings intentionally overlay the conversation. Existing
+wide viewport. Settings intentionally overlay the conversation. The desktop
+layout laws (`engine/renderer/desktop/Laws.lean`: width coverage, adjacency,
+the drawer, minimum widths, monotone pane count, on-screen controls) are
+stated over `zoomLayout` at every density too, not over the 160-dpi `layout`. Existing
 `Text.wrap_keeps`, `Text.wrap_fits`, `Text.oneLine_prefix` and composer separation
 laws apply to the running wrapping/label/chip functions. The zoom gate audits
 all eleven proofs against standard Lean axioms. Font bearings, native event order,

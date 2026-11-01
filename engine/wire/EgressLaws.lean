@@ -17,11 +17,11 @@ sends is a bare op, or a bundle of such sends sealed for that session
 
 So a law of one connection step, read at the store the step ran at, is
 a law of everything the node sends: a removal stored before a step
-reaches that step (ops/connection/EgressLaws.lean).
+reaches that step (app/Proofs.lean).
 -/
 import engine.wire.WorldLaws
-import ops.sync.OfferLaws
-import ops.sync.SweepLaws
+import engine.sync.OfferLaws
+import engine.sync.SweepLaws
 
 namespace Engine.Sync
 
@@ -353,7 +353,8 @@ theorem sweep_ok (hr : ReadOnly x) (n : Node) (cid : Id) : Egress x (n.sweep x c
           simp only [HeldM.run_bind, HeldM.run_pure]
           have he := sweep_reads cat hc hrd (((n.sweeps.find? (fun p => p.1 == cid)).map Prod.snd).getD {})
             ((c.carry (((x.hooks.rooms cid).run h).1)).shows x.fam)
-            (((n.addr? cid).bind x.room).getD maxFrame) h
+            (if x.deferredRetries then ((n.addr? cid).bind x.retryRoom).getD 0
+              else ((n.addr? cid).bind x.room).getD maxFrame) h
           generalize hs : HeldM.run (Sweep.run cat _ _ _) h = result at he ⊢
           obtain ⟨⟨cursor, offered⟩, h'⟩ := result
           dsimp only at he
@@ -369,19 +370,22 @@ theorem sweep_ok (hr : ReadOnly x) (n : Node) (cid : Id) : Egress x (n.sweep x c
           simp only [HeldM.run_bind, HeldM.run_pure, (hr.retryStore store hstore).1 peer h]
           have he := sweep_reads cat hc hrd ((store.load peer).run h).1
             ((c.carry (((x.hooks.rooms cid).run h).1)).shows x.fam)
-            (((n.addr? cid).bind x.room).getD maxFrame) h
+            (if x.deferredRetries then ((n.addr? cid).bind x.retryRoom).getD 0
+              else ((n.addr? cid).bind x.room).getD maxFrame) h
           generalize hs : HeldM.run (Sweep.run cat _ _ _) h = result at he ⊢
           obtain ⟨⟨cursor, offered⟩, h'⟩ := result
           dsimp only at he
           subst he
-          simp only [HeldM.run_bind, HeldM.run_pure, (hr.retryStore store hstore).2 peer cursor h']
-          refine ⟨.refl _, ?_⟩
-          intro other b hb
-          simp only [HeldM.run_pure, List.mem_map, Prod.mk.injEq, Route.conn.injEq] at hb
-          rcases hb with hb | ⟨o, ho, rfl, rfl⟩
-          · exact absurd hb List.not_mem_nil
-          · exact ⟨o, h', rfl, .refl _, .refl _, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
-              ⟨c, cat, _, _, hcat, by rw [hs]; exact ho⟩))))⟩
+          split
+          all_goals
+            simp only [HeldM.run_bind, HeldM.run_pure, (hr.retryStore store hstore).2 peer cursor h']
+            refine ⟨.refl _, ?_⟩
+            intro other b hb
+            simp only [HeldM.run_pure, List.mem_map, Prod.mk.injEq, Route.conn.injEq] at hb
+            rcases hb with hb | ⟨o, ho, rfl, rfl⟩
+            · exact absurd hb List.not_mem_nil
+            · exact ⟨o, h', rfl, .refl _, .refl _, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+                ⟨c, cat, _, _, hcat, by rw [hs]; exact ho⟩))))⟩
 
 theorem fanout_ok (hr : ReadOnly x) (n : Node) (ids : List Id) : Egress x (n.fanout x ids) := by
   intro h
@@ -535,6 +539,13 @@ def SealedOk (x : Sync F (HeldM F)) (h : Held F) (out : Acts) (e : ByteArray × 
   ∃ (cid : Id) (g : List ByteArray) (f : ByteArray), e.2 = tagged sealedTag f ∧
     ((x.hooks.sealFor cid (Codec.encode g)).run h).1 = some f ∧ ∀ q ∈ g, (Route.conn cid, q) ∈ out.send
 
+/-- Changing grouping or transport lanes cannot authorize new payloads. -/
+theorem SealedOk.mono {h : Held F} {a b : Acts} {e : ByteArray × ByteArray}
+    (ok : SealedOk x h a e) (subset : ∀ p ∈ a.send, p ∈ b.send) : SealedOk x h b e := by
+  rcases ok with ⟨p, hp, he⟩ | ⟨cid, g, f, he, hf, hg⟩
+  · exact Or.inl ⟨p, subset _ hp, he⟩
+  · exact Or.inr ⟨cid, g, f, he, hf, fun q hq => subset _ (hg q hq)⟩
+
 theorem seal_ok (hr : ReadOnly x) (n : Node) (out : Acts) (h : Held F) :
     ((n.seal x out).run h).2 = h ∧ ∀ e ∈ ((n.seal x out).run h).1, SealedOk x h out e := by
   unfold Node.seal
@@ -591,6 +602,36 @@ theorem seal_ok (hr : ReadOnly x) (n : Node) (out : Acts) (h : Held F) :
   simp only [HeldM.run_pure]
   rw [e2]
   exact ⟨rfl, fun e he => ok2 e (List.mem_reverse.1 he)⟩
+
+/-- The reserved lane seals only supplied, already authorized payloads.
+Ticket bookkeeping leaves Held unchanged and adds no alternate emitter. -/
+theorem sealRetries_ok (hr : ReadOnly x) (n : Node) (retries : List RetryOffer)
+    (out : Acts) (h : Held F)
+    (authorized : ∀ r ∈ retries, (Route.conn r.cid, r.payload) ∈ out.send) :
+    ((n.sealRetries x retries).run h).2 = h ∧
+      ∀ e ∈ ((n.sealRetries x retries).run h).1.1, SealedOk x h out e := by
+  unfold Node.sealRetries
+  simp only [HeldM.run_bind]
+  generalize hR : HeldM.run (forIn (m := HeldM F) retries
+    (([], []) : List (ByteArray × ByteArray) × List RetryTicket) _) h = R
+  have pR := forIn_inv hR (fun h' (st : List (ByteArray × ByteArray) × List RetryTicket) =>
+      h' = h ∧ ∀ e ∈ st.1, SealedOk x h out e)
+    ⟨rfl, fun _ he => False.elim (List.not_mem_nil he)⟩
+    (fun r hr' st h' ⟨he, prior⟩ => by
+      subst he
+      simp only [HeldM.run_bind, HeldM.run_pure]
+      obtain ⟨hs, fresh⟩ := seal_ok hr n { send := [(.conn r.cid, r.payload)] } h'
+      rw [hs]
+      refine ⟨rfl, fun e hm => ?_⟩
+      rcases List.mem_append.1 hm with old | new
+      · exact prior e old
+      · exact (fresh e new).mono (by
+          intro p hp
+          have eq : p = (.conn r.cid, r.payload) := List.mem_singleton.mp hp
+          rw [eq]
+          exact authorized r hr'))
+  simp only [HeldM.run_pure]
+  exact pR
 
 theorem effectsPurge_goes (ids : List Id) (scrub : Bool) : Goes x.fam (Effects.purge x ids scrub) := by
   unfold Effects.purge
@@ -664,23 +705,38 @@ theorem finish_ok (hr : ReadOnly x) (n : Node) (out : Acts) (now : Nat) {h0 h : 
     intro cid b hb
     obtain ⟨o, h', e, m1, m2, hs⟩ := hok cid b (g2 cid b hb)
     exact ⟨o, h', e, m1, m2.trans mB, hs⟩
-  obtain ⟨s1, t1⟩ := seal_ok hr N
-    { send := (B.1.2 ++ A.1.2).send, drop := (B.1.2 ++ A.1.2).drop ++ ret, serve := (B.1.2 ++ A.1.2).serve } B.2
+  let merged := B.1.2 ++ A.1.2
+  let out' := { merged with drop := merged.drop ++ ret }
+  let retries := merged.retry.filter fun r => merged.serve.contains (.conn r.cid, r.payload)
+  let ordinary := merged.serve.filter fun p => !retries.any fun r => p == (.conn r.cid, r.payload)
+  obtain ⟨s1, t1⟩ := seal_ok hr N out' B.2
   rw [s1]
-  obtain ⟨s2, t2⟩ := seal_ok hr N { send := (B.1.2 ++ A.1.2).serve } B.2
+  obtain ⟨s2, t2⟩ := seal_ok hr N { send := ordinary } B.2
   rw [s2]
+  have authorized : ∀ r ∈ retries, (Route.conn r.cid, r.payload) ∈ merged.serve := by
+    letI : LawfulBEq ByteArray := byteArray_lawfulBEq
+    intro r hr'
+    exact List.contains_iff_mem.mp (List.mem_filter.1 hr').2
+  obtain ⟨s3, t3⟩ := sealRetries_ok hr N retries { send := merged.serve } B.2 authorized
+  rw [s3]
   generalize hR : HeldM.run (forIn (m := HeldM F) ((B.1.2 ++ A.1.2).drop ++ ret) (_ : List Id) _) B.2 = R
   have pR := forIn_inv hR (fun h' (_ : List Id) => Moves x.fam B.2 h') (.refl _) (fun cid _ l h' hm => by
     simp only [HeldM.run_bind, HeldM.run_pure]; exact hm.trans (endSession_goes hr cid h'))
   simp only [HeldM.run_pure]
   refine ⟨mB.trans pR, fun a p hp => ?_⟩
   rcases List.mem_append.1 hp with hp | hp
-  · rcases t1 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
-    · exact Or.inl ⟨b, e⟩
-    · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
-      obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inl (hq q hq'))
-      exact ⟨o, h', e', m1, m2.trans pR, hs⟩
-  · rcases t2 (a, p) hp with ⟨b, hb, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+  · rcases List.mem_append.1 hp with hp | hp
+    · rcases t1 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+      · exact Or.inl ⟨b, e⟩
+      · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
+        obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inl (hq q hq'))
+        exact ⟨o, h', e', m1, m2.trans pR, hs⟩
+    · rcases t2 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+      · exact Or.inl ⟨b, e⟩
+      · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
+        obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inr (List.mem_filter.1 (hq q hq')).1)
+        exact ⟨o, h', e', m1, m2.trans pR, hs⟩
+  · rcases t3 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
     · exact Or.inl ⟨b, e⟩
     · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
       obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inr (hq q hq'))
@@ -711,10 +767,10 @@ theorem onClose_fresh (hr : ReadOnly x) (n : Node) (addr : ByteArray) (now : Nat
     (ActsOk.noConn (fun _ _ hb => List.not_mem_nil hb) (fun _ _ hb => List.not_mem_nil hb))
 
 /-- **The clock.** -/
-theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
-    Moves x.fam h ((n.onTick x now).run h).2 ∧
-      FramesOk x h ((n.onTick x now).run h).2 ((n.onTick x now).run h).1.2 := by
-  unfold Node.onTick
+theorem onTickDirect_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTickDirect x now).run h).2 ∧
+      FramesOk x h ((n.onTickDirect x now).run h).2 ((n.onTickDirect x now).run h).1.2 := by
+  unfold Node.onTickDirect
   simp only [HeldM.run_bind, hr.dial now h]
   obtain ⟨m1, ok1⟩ := store_ok hr n ((x.hooks.dial now).run h).1 true h
   generalize HeldM.run (Node.store x n ((x.hooks.dial now).run h).1 true) h = A at m1 ok1 ⊢
@@ -725,28 +781,112 @@ theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
       · exact ⟨hm, hok⟩
       · rename_i c _
         simp only [HeldM.run_bind, refresh_carry hr]
-        have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
-        generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
-        rw [e]
-        obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
-          Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
-        generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
-        obtain ⟨g3, g4⟩ := sweep_ok (hr.afterActs B.1.1 (st.2 ++ B.1.2)) B.1.1 a.1 B.2
-        change Moves x.fam B.2 _ at g3
-        change ActsOk x B.2 _ _ at g4
-        generalize HeldM.run (Node.sweep _ B.1.1 a.1) B.2 = C at g3 g4 ⊢
-        obtain ⟨g5, g6⟩ := serveOwed_ok (hr.afterActs C.1.1 (st.2 ++ B.1.2 ++ C.1.2)) C.1.1 a.1 now C.2
-        change Moves x.fam C.2 _ at g5
-        change ActsOk x C.2 _ _ at g6
-        simp only [HeldM.run_pure]
-        refine ⟨hm.trans (g1.trans (g3.trans g5)), ?_⟩
-        exact (((hok.right (g1.trans (g3.trans g5))).append
-          ((g2.left hm).right (g3.trans g5))).append
-          ((g4.left (hm.trans g1)).right g5)).append
-          (g6.left (hm.trans (g1.trans g3))))
+        split
+        · exact ⟨hm, hok⟩
+        · simp only [HeldM.run_bind]
+          have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
+          generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
+          rw [e]
+          obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
+            Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
+          generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
+          obtain ⟨g3, g4⟩ := sweep_ok (hr.afterActs B.1.1 (st.2 ++ B.1.2)) B.1.1 a.1 B.2
+          change Moves x.fam B.2 _ at g3
+          change ActsOk x B.2 _ _ at g4
+          generalize HeldM.run (Node.sweep _ B.1.1 a.1) B.2 = C at g3 g4 ⊢
+          obtain ⟨g5, g6⟩ := serveOwed_ok (hr.afterActs C.1.1 (st.2 ++ B.1.2 ++ C.1.2)) C.1.1 a.1 now C.2
+          change Moves x.fam C.2 _ at g5
+          change ActsOk x C.2 _ _ at g6
+          simp only [HeldM.run_pure]
+          refine ⟨hm.trans (g1.trans (g3.trans g5)), ?_⟩
+          exact (((hok.right (g1.trans (g3.trans g5))).append
+            ((g2.left hm).right (g3.trans g5))).append
+            ((g4.left (hm.trans g1)).right g5)).append
+            (g6.left (hm.trans (g1.trans g3))))
   obtain ⟨mR, okR⟩ := pR
   obtain ⟨m2, ok2⟩ := finish_ok hr R.1.1 R.1.2 now mR okR
   exact ⟨mR.trans m2, ok2⟩
+
+/-- The runtime retry admission pass can only retain already-authorized
+acts or append an actual freshly authorized sweep. Pure ordering and candidate
+refusal introduce no additional emitter. -/
+theorem sweepAll_ok (hr : ReadOnly x) (n : Node) (ready : List Id) (out : Acts)
+    {h0 h : Held F} (hm : Moves x.fam h0 h) (hok : ActsOk x h0 h out) :
+    Moves x.fam h0 ((n.sweepAll x ready out).run h).2 ∧
+      ActsOk x h0 ((n.sweepAll x ready out).run h).2 ((n.sweepAll x ready out).run h).1.2 := by
+  unfold Node.sweepAll
+  simp only [HeldM.run_bind]
+  generalize hR : HeldM.run (forIn (m := HeldM F)
+    (RetryOrder.reconcile (n.conns.map Prod.fst) n.retryOrder)
+    ((n, out, [], out.retry.filterMap (fun r => n.addr? r.cid)) : Node × Acts × List Id × List ByteArray) _) h = R
+  have pR := forIn_inv hR (fun h' (st : Node × Acts × List Id × List ByteArray) =>
+      Moves x.fam h0 h' ∧ ActsOk x h0 h' st.2.1) ⟨hm, hok⟩
+    (fun cid _ st h' ⟨hm, hok⟩ => by
+      split
+      · exact ⟨hm, hok⟩
+      · simp only [HeldM.run_bind]
+        cases mode : x.deferredRetries
+        · simp only [Bool.false_eq_true, ↓reduceIte]
+          obtain ⟨m, ok⟩ := sweep_ok (hr.afterActs st.1 st.2.1) st.1 cid h'
+          change Moves x.fam h' _ at m
+          change ActsOk x h' _ _ at ok
+          simp only [HeldM.run_pure, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+          exact ⟨hm.trans m, (hok.right m).append (ok.left hm)⟩
+        · simp only [↓reduceIte]
+          obtain ⟨m, ok⟩ := sweep_ok hr st.1 cid h'
+          split
+          · exact ⟨hm.trans m, hok.right m⟩
+          · exact ⟨hm.trans m, (hok.right m).append (ok.left hm)⟩)
+  simp only [HeldM.run_pure]
+  exact pR
+
+/-- The production clock preserves the same fresh authorization provenance,
+including the separately ordered reserved retry pass. -/
+theorem onTickReserved_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTickReserved x now).run h).2 ∧
+      FramesOk x h ((n.onTickReserved x now).run h).2 ((n.onTickReserved x now).run h).1.2 := by
+  unfold Node.onTickReserved
+  simp only [HeldM.run_bind, hr.dial now h]
+  obtain ⟨m1, ok1⟩ := store_ok hr n ((x.hooks.dial now).run h).1 true h
+  generalize HeldM.run (Node.store x n ((x.hooks.dial now).run h).1 true) h = A at m1 ok1 ⊢
+  generalize hR : HeldM.run (forIn (m := HeldM F) A.1.1.conns
+    ((A.1.1, A.1.2, []) : Node × Acts × List Id) _) A.2 = R
+  have pR := forIn_inv hR (fun h' (st : Node × Acts × List Id) => Moves x.fam h h' ∧ ActsOk x h h' st.2.1)
+    ⟨m1, ok1⟩ (fun a _ st h' ⟨hm, hok⟩ => by
+      split
+      · exact ⟨hm, hok⟩
+      · rename_i c _
+        simp only [HeldM.run_bind, refresh_carry hr]
+        split
+        · exact ⟨hm, hok⟩
+        · simp only [HeldM.run_bind]
+          have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
+          generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
+          rw [e]
+          obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
+            Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
+          generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
+          obtain ⟨g3, g4⟩ := serveOwed_ok (hr.afterActs B.1.1 (st.2.1 ++ B.1.2)) B.1.1 a.1 now B.2
+          change Moves x.fam B.2 _ at g3
+          change ActsOk x B.2 _ _ at g4
+          simp only [HeldM.run_pure]
+          refine ⟨hm.trans (g1.trans g3), ?_⟩
+          exact ((hok.right (g1.trans g3)).append ((g2.left hm).right g3)).append
+            (g4.left (hm.trans g1)))
+  obtain ⟨mR, okR⟩ := pR
+  obtain ⟨mS, okS⟩ := sweepAll_ok hr R.1.1 R.1.2.2 R.1.2.1 mR okR
+  generalize HeldM.run (Node.sweepAll x R.1.1 R.1.2.2 R.1.2.1) R.2 = S at mS okS ⊢
+  obtain ⟨m2, ok2⟩ := finish_ok hr S.1.1 S.1.2 now mS okS
+  exact ⟨mS.trans m2, ok2⟩
+
+/-- **The clock**, for both actual dispatcher branches. -/
+theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTick x now).run h).2 ∧
+      FramesOk x h ((n.onTick x now).run h).2 ((n.onTick x now).run h).1.2 := by
+  unfold Node.onTick
+  split
+  · exact onTickReserved_fresh hr n now h
+  · exact onTickDirect_fresh hr n now h
 
 /-- **A sealed frame, as `openFrame` gave it.** -/
 theorem onSealed_fresh (hr : ReadOnly x) (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray))

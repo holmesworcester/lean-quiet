@@ -181,12 +181,12 @@
     "module": "tests.vacuity.CoreRuntime",
     "detail": "Real signed Bob post delivered with its six-operation requirement closure (root, invite, request, approval, admission, post). Receiver omits the unrelated grant and rename. An inductive reach proof uses runtime-checked closure and lookup-agreement premises; native checks independently validate the post on the partial receiver."
   },
-  "Engine.Inv": {
+  "reach_inv": {
     "status": "kernel-witness",
-    "theorem": "Engine.Inv",
+    "theorem": "Engine.reach_inv",
     "witness": "Vacuity.CoreRuntime.actualInvariant",
     "module": "tests.vacuity.CoreRuntime",
-    "detail": "Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
+    "detail": "Every reachable state keeps the tables' invariant, purges included; witnessed on an actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws."
   },
   "CollisionFree": {
     "status": "runtime-witness",
@@ -223,5 +223,12 @@
     "module": "tests.vacuity.CoreRuntime",
     "detail": "Actual removeMember intent emits one valid Alice-removes-Bob operation; nonempty membership, settled DB, extension and stored-op premises checked at runtime. Self-removal and already-removed controls emit nothing. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it.",
     "exercise": true
+  },
+  "run_purge": {
+    "status": "kernel-witness",
+    "theorem": "Engine.run_purge",
+    "witness": "Vacuity.CoreRuntime.runPurge",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "The engine's purge run on a real signed store, purging a local secret that a shared message cites: it equals purgeS and returns purgeSet. The runtime checks beside it (purgeGone, purgeShared, purgeUndecides) exercise the same nonempty purge."
   }
 }

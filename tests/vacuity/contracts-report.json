@@ -15,17 +15,24 @@
     "detail": "Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives."
   },
   "Unforgeable": {
-    "status": "conditional",
-    "theorem": "Community.Unforgeable",
-    "witness": "Vacuity.Identity.noImpersonation",
-    "module": "tests.vacuity.Identity",
-    "detail": "Intended security relies on exclusive control of honest signing keys and secure, correctly implemented Ed25519. The current predicate quantifies all mathematically possible accepted signatures, so it cannot hold for a finite independent signing history under ordinary signature correctness. Execution/attacker scoping and a trace assumption or computational argument are still needed; native signature checks do not close this formulation gap."
-  },
-  "NoSecondPreimage": {
     "status": "kernel-witness",
-    "theorem": "Community.Merkle.NoSecondPreimage",
-    "witness": "Vacuity.Merkle.preimage",
+    "theorem": "Community.Unforgeable",
+    "witness": "Vacuity.Contracts.unforgeableScoped",
+    "module": "tests.vacuity.Contracts",
+    "detail": "Scoped to the signatures a store holds. Kernel witness: under a toy scheme with a valid signature for every message under every key (as Ed25519 has), a store holding one signed op satisfies it with Signed true of that op's signed bytes only, and the old unscoped form fails for the same Signed (Community.unscoped_signs_all: unscoped, it forces Signed everywhere). For Ed25519 it is the computational assumption that no forgery is in the store."
+  },
+  "NoCollision": {
+    "status": "kernel-witness",
+    "theorem": "Merkle.NoCollision",
+    "witness": "Vacuity.Merkle.noCollision",
     "module": "tests.vacuity.Merkle",
-    "detail": "Closed universal premise for an explicit 32-byte-output model hash and a nonempty attachment. Unique leaf/root outputs are proved against every other input. This model is deliberately not SHA-256."
+    "detail": "Finite premise over the bytes at hand: what a file's root hashes against what checking a chunk hashed. Kernel witness for a 32-byte-output model hash (not SHA-256) and a nonempty file, for every checked list; tests/vacuity/Attachment.lean decides it on real SHA-256 for a two-chunk file's chunks."
+  },
+  "unscoped_signs_all": {
+    "status": "kernel-witness",
+    "theorem": "Community.unscoped_signs_all",
+    "witness": "Vacuity.Contracts.unscopedForces",
+    "module": "tests.vacuity.Contracts",
+    "detail": "Under a toy scheme with a valid signature for every message under every key, the unscoped unforgeability premise forces Signed toyKey m for every m: the negative control for scoping Unforgeable to a store."
   }
 }

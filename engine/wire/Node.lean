@@ -48,10 +48,11 @@ frame came from (at first, the one its handshake ran on).
   counts them), so the runner can send urgent frames ahead of a
   backlog.
 -/
-import ops.sync.Notice
+import engine.sync.Notice
 import engine.core.Held
 import engine.wire.Lanes
-import ops.sync.Sweep
+import engine.sync.Sweep
+import engine.wire.RetryOrder
 
 namespace Engine.Sync
 
@@ -59,12 +60,12 @@ namespace Engine.Sync
 inductive Route where
   | conn (cid : Id)
   | bare (addr : ByteArray)
-  deriving Inhabited
+  deriving Inhabited, DecidableEq
 
 /-- What the Connection family tells sync. -/
 structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   /-- What connection cid carries now: the rooms its peer may see,
-  synced, and the notices it is to give (ops/sync/Notice.lean). -/
+  synced, and the notices it is to give (engine/sync/Notice.lean). -/
   rooms : Id → m (List Room)
   /-- Local ops recording notice x given on connection cid. -/
   onGiven : Id → Id → List Op := fun _ _ => []
@@ -111,11 +112,23 @@ structure Sync (F : Type) (m : Type → Type) [Monad m] where
   catalog; explicit interpreters may supply their own read-only catalog. -/
   catalog : Option (Catalog m) := none
   retryStore : Option (RetryStore m) := none
+  /-- Independent reserved transport room; production supplies a vacant
+  one-frame slot, rather than competing with ordinary output. -/
+  retryRoom : ByteArray → Option Nat := fun _ => none
+  /-- Production commits a retry ticket after native write completion.
+  Direct node interpreters retain immediate cursor bookkeeping. -/
+  deferredRetries : Bool := false
+  /-- Native silence grace may defer timed work for an already-admitted
+  source. Dial/reaction, authorization and authenticated retirement still
+  run. Pure/default callers service every connection as before. -/
+  tickReady : Id → Bool := fun _ => true
 
 structure Node where
   ix : Index
   floor : Nat
   conns : List (Id × Conn) := []
+  /-- Stable catalog admission order, independent of ordinary connection work. -/
+  retryOrder : List Id := []
   /-- Where each session's frames go. -/
   addrs : List (Id × ByteArray) := []
   /-- The sessions opened from the family's `established`. -/
@@ -132,14 +145,25 @@ structure Node where
   /-- One constant-size retry cursor per live session. -/
   sweeps : List (Id × Sweep) := []
 
+structure RetryOffer where
+  cid : Id
+  payload : ByteArray
+  ticket : RetryTicket
+
 /-- What a step asks for, before sealing. -/
 structure Acts where
   send : List (Route × ByteArray) := []
   drop : List Id := []
   /-- Payloads of the serve lane. -/
   serve : List (Route × ByteArray) := []
+  /-- These payloads also occur in serve, but use singleton reserved frames. -/
+  retry : List RetryOffer := []
+  /-- Notice payloads must survive ordinary-data queue pressure. -/
+  critical : List Id := []
 
-instance : Append Acts := ⟨fun a b => ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve⟩⟩
+instance : Append Acts := ⟨fun a b =>
+  ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve,
+    a.retry ++ b.retry, a.critical ++ b.critical⟩⟩
 
 /-- What to do: payloads to send to addresses, sessions dropped, ids
 stored. -/
@@ -152,6 +176,10 @@ structure Effects where
   /-- How many of `send`'s payloads, at its end, are the serve lane's
   (the rest are urgent). -/
   serve : Nat := 0
+  /-- Tickets correspond, in order, to the final frames of send. -/
+  retry : List RetryTicket := []
+  /-- Addresses carrying notices, separately buffered from normal data. -/
+  critical : List ByteArray := []
 
 /-- The discriminators: a bare op, a sealed frame. -/
 def bareTag : UInt8 := 0
@@ -262,7 +290,7 @@ def Node.fanout (n : Node) (ids : List Id) : m (Node × Acts) := do
     let c ← Node.refresh x cid c
     let s ← Conn.filedGive x.fam x.cfg c ids
     conns := (cid, s.conn) :: conns
-    out := out ++ sends cid s.send
+    out := out ++ { sends cid s.send with critical := if s.given.isEmpty then [] else [cid] }
     given := given ++ s.given.map (cid, ·)
   let n ← Node.recordGiven x { n with conns := conns.reverse } given
   return (n, out)
@@ -361,6 +389,18 @@ then purge them and their dependents, with disk scrubbing. -/
 def Node.endSession (cid : Id) : m Effects := do
   Effects.purge x (← x.hooks.closing cid) true
 
+/-- Each reserved payload is sealed alone, paired with its durable cursor
+ticket only if the actual session seal produced a frame. -/
+def Node.sealRetries (n : Node) (retries : List RetryOffer) :
+    m (List (ByteArray × ByteArray) × List RetryTicket) := do
+  let mut reserved : List (ByteArray × ByteArray) := []
+  let mut tickets : List RetryTicket := []
+  for r in retries do
+    let frames ← n.seal x { send := [(.conn r.cid, r.payload)] }
+    reserved := reserved ++ frames
+    tickets := tickets ++ frames.map (fun _ => r.ticket)
+  return (reserved, tickets)
+
 /-- Every entry point ends here: follow the sessions, hand out the
 outbox (the handshake's bare replies go before a new session's first
 frame), seal, and report what was stored. -/
@@ -372,7 +412,11 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   let n := retired.foldl Node.drop n
   let out := { out with drop := out.drop ++ retired }
   let sent ← n.seal x out
-  let served ← n.seal x { send := out.serve }
+  -- A marker cannot introduce any payload not already authorized in Acts.
+  let retries := out.retry.filter fun r => out.serve.contains (.conn r.cid, r.payload)
+  let ordinary := out.serve.filter fun p => !retries.any fun r => p == (.conn r.cid, r.payload)
+  let served ← n.seal x { send := ordinary }
+  let (reserved, tickets) ← n.sealRetries x retries
   let n := n.sent { out with send := out.send ++ out.serve } now
   -- A session that dropped, or left `established`, is forgotten: its
   -- secrets are purged, and a redial makes a new one.
@@ -380,7 +424,9 @@ def Node.finish (n : Node) (out : Acts) (now : Nat) : m (Node × Effects) := do
   for cid in out.drop do
     purged := purged ++ (← Node.endSession x cid).purged
   return ({ n with fresh := [], purged := [] },
-    { send := sent ++ served, drop := out.drop, stored := n.fresh, purged, serve := served.length })
+    { send := sent ++ served ++ reserved, drop := out.drop, stored := n.fresh, purged,
+      serve := served.length + reserved.length, retry := tickets,
+      critical := out.critical.filterMap n.addr? })
 
 /-- Loss of the transport ends all sessions routed through that address.
 The same finish path as a protocol drop purges their keys. -/
@@ -400,7 +446,9 @@ def Node.apply (n : Node) (cid : Id) (s : Step) (now : Nat) : m (Node × Acts) :
   for o in s.take do
     arrived := arrived ++ (← x.hooks.recv (some cid) .empty o now)
   let (n, out') ← n.store x arrived true
-  return (n, split (wireLane x) cid s.send ++ out ++ out')
+  let replies := { split (wireLane x) cid s.send with
+    critical := if s.given.isEmpty then [] else [cid] }
+  return (n, replies ++ out ++ out')
 
 /-- Serve session cid's queue (`Conn.serveOwed`): the ops it wants that
 this node wrote within `hotMs` go urgent; then, in the serve lane, as
@@ -427,8 +475,11 @@ def Node.reserved (n : Node) (out : Acts) (addr : ByteArray) : Nat :=
     if destination = some addr then (Codec.encode [bytes]).size + 74 else 0).sum
 
 def Node.afterActs (n : Node) (out : Acts) : Sync F m :=
-  { x with room := fun addr => if x.catalog.isNone then x.room addr
-      else some ((x.room addr).getD maxFrame - n.reserved out addr) }
+  { x with
+    room := fun addr => if x.catalog.isNone then x.room addr
+      else some ((x.room addr).getD maxFrame - n.reserved out addr)
+    retryRoom := fun addr => if out.retry.any (fun r => n.addr? r.cid == some addr)
+      then some 0 else x.retryRoom addr }
 
 /-- Retry a single durable catalog position for this session. Neither lost
 round openings nor a full asked/owed cache can suppress this path. -/
@@ -440,12 +491,19 @@ def Node.sweep (n : Node) (cid : Id) : m (Node × Acts) := do
   let cursor ← match x.retryStore with
     | some store => store.load peer
     | none => pure (((n.sweeps.find? (fun p => p.1 == cid)).map Prod.snd).getD {})
-  let room := ((n.addr? cid).bind x.room).getD maxFrame
+  let room := if x.deferredRetries then ((n.addr? cid).bind x.retryRoom).getD 0
+    else ((n.addr? cid).bind x.room).getD maxFrame
+  let before := cursor
   let (cursor, offered) ← Sweep.run catalog cursor (c.shows x.fam) room
   let n ← match x.retryStore with
-    | some store => do store.save peer cursor; pure n
+    | some store => do
+      if !x.deferredRetries || offered.isNone then store.save peer cursor
+      pure n
     | none => pure { n with sweeps := (cid, cursor) :: n.sweeps.filter (fun p => p.1 != cid) }
-  return (n, { serve := offered.toList.map fun o => (.conn cid, o.bytes) })
+  return (n, {
+    serve := offered.toList.map (fun o => (.conn cid, o.bytes))
+    retry := if x.deferredRetries then offered.toList.map fun o =>
+      ⟨cid, o.bytes, ⟨peer, before, cursor⟩⟩ else [] })
 
 /-- A connection opened without a handshake: the in-memory harness's. -/
 def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
@@ -493,8 +551,56 @@ def Node.onFrame (n : Node) (addr bytes : ByteArray) (now : Nat) : m (Node × Ef
   | some 1 => n.onSealed x addr (← x.hooks.openFrame body) now
   | _ => return (n, {})
 
-/-- The clock. -/
-def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
+/-- Catalog retries have their own stable admission order. Only sessions
+whose ordinary timed step ran are eligible in this pass; native silence grace
+still gives an admitted frame its original bounded selection opportunity. -/
+def Node.sweepAll (n : Node) (ready : List Id) (out : Acts) : m (Node × Acts) := do
+  let order := RetryOrder.reconcile (n.conns.map Prod.fst) n.retryOrder
+  let mut n := n
+  let mut out := out
+  let mut offered := []
+  let mut claimed := out.retry.filterMap (fun r => n.addr? r.cid)
+  for cid in order do
+    if !ready.contains cid then continue
+    -- A rejected candidate retains its durable cursor. Candidate payloads are
+    -- consumed immediately, so this never retains a frame for every session.
+    let sx := if x.deferredRetries then x else n.afterActs x out
+    let before := n.sweeps
+    let (next, retry) ← n.sweep sx cid
+    let candidate := !retry.retry.isEmpty
+    let decision := RetryOrder.scan next.addr? (fun _ => candidate) claimed [cid]
+    let accepted := !decision.1.isEmpty
+    n := if x.deferredRetries && candidate && !accepted then { next with sweeps := before } else next
+    claimed := decision.2
+    if x.deferredRetries && !accepted then continue
+    out := out ++ retry
+    offered := offered ++ retry.retry.map (·.cid)
+  return ({ n with retryOrder := RetryOrder.offered offered order }, out)
+
+/-- The clock. Ordinary connection work keeps its original traversal order;
+catalog retries then use the independent stable admission queue. -/
+def Node.onTickReserved (n : Node) (now : Nat) : m (Node × Effects) := do
+  let (n, out) ← n.store x (← x.hooks.dial now) true
+  let mut n := n
+  let mut out := out
+  let mut ready := []
+  for (cid, _) in n.conns do
+    match n.conn? cid with
+    | none => pure ()
+    | some c =>
+      let c ← Node.refresh x cid c
+      -- Fresh authenticated notices bypass silence grace.
+      if !x.tickReady cid && c.notices.isEmpty then continue
+      ready := ready ++ [cid]
+      let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
+      let (n', o') ← n'.serveOwed (n'.afterActs x (out ++ o)) cid now
+      n := n'
+      out := out ++ o ++ o'
+  let (next, acts) ← n.sweepAll x ready out
+  next.finish x acts now
+
+/-- Direct interpreters retain the original immediate-cursor clock semantics. -/
+def Node.onTickDirect (n : Node) (now : Nat) : m (Node × Effects) := do
   let (n, out) ← n.store x (← x.hooks.dial now) true
   let mut n := n
   let mut out := out
@@ -503,12 +609,19 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | none => pure ()
     | some c =>
       let c ← Node.refresh x cid c
+      -- Fresh authenticated notices bypass silence grace.
+      if !x.tickReady cid && c.notices.isEmpty then continue
       let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
       let (n', retry) ← n'.sweep (n'.afterActs x (out ++ o)) cid
       let (n', o') ← n'.serveOwed (n'.afterActs x (out ++ o ++ retry)) cid now
       n := n'
       out := out ++ o ++ retry ++ o'
   n.finish x out now
+
+/-- Production deferred transport uses stable retry admission. The direct
+interpreter's previous output budget/order is preserved exactly. -/
+def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) :=
+  if x.deferredRetries then n.onTickReserved x now else n.onTickDirect x now
 
 /-- A local write: this device's own ops, hot from now on. -/
 def Node.onWrite (n : Node) (ops : List Op) (now : Nat) : m (Node × Effects) := do

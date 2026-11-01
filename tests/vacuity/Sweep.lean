@@ -1,4 +1,4 @@
-import ops.sync.SweepRun
+import engine.sync.SweepRun
 import tests.vacuity.Network
 
 /- Synthetic nonempty payload and a populated held store. These checks exercise

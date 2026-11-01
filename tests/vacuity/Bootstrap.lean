@@ -1,5 +1,4 @@
-import ops.connection.bootstrap.FairExecution
-import ops.connection.bootstrap.Bridge
+import app.community.Proofs
 import tests.engine.Lib
 
 /-! Five actual signature verifications and finite key/ID checks certify
@@ -31,7 +30,7 @@ theorem noBeforeLaw (g : scene.Good ed25519) :
     (∀ os, Msg.push scene.c scene.kA scene.kB os ∉ afterTick.net) ∧
     (∀ o ∈ afterTick.b.ops, o = scene.req) := by
   apply Scene.no_connection_before_approval g tickReach
-  have h := Scene.out_tickB g (Scene.inv_init g)
+  have h := Scene.out_tickB g Scene.inv_init
   unfold afterTick Net.step
   rw [h]
   simp only [Scene.init, Scene.a0, List.mem_cons, List.mem_nil_iff, or_false]
@@ -77,7 +76,6 @@ theorem executionFair : execution.Fair := Scene.fairExecution_fair scene ed25519
 theorem executionIdeal : execution.Ideal := Scene.fairExecution_ideal scene ed25519
 
 def eventuallyBootstrapLaw (g : scene.Good ed25519) := Scene.bootstrap g executionFair
-def eventuallyIdealLaw (g : scene.Good ed25519) := Scene.bootstrap_ideal g executionFair executionIdeal
 
 def certifyScene : Option (PLift (scene.Good ed25519)) :=
   if hroot : ed25519.verify scene.A.pk scene.rootMessage (edSign scene.A.sk scene.rootMessage) = true then
@@ -111,7 +109,6 @@ def admissionClassified := withScene admissionClassifiedLaw
 def founderAllowed := withScene founderAllowedLaw
 def joinerAllowed := withScene joinerAllowedLaw
 def eventuallyBootstrap := withScene eventuallyBootstrapLaw
-def eventuallyIdeal := withScene eventuallyIdealLaw
 
 def loaded : List Op → DB Fact
   | [] => DB.empty
@@ -125,8 +122,7 @@ def main : IO UInt32 := do
       ("finite ideal bootstrap path",possible.isSome),("trusted completed sessions",trustedOutcome.isSome),
       ("completed invariant",completedInvariant.isSome),("actual admission classified",admissionClassified.isSome),
       ("founder allowed",founderAllowed.isSome),("joiner allowed",joinerAllowed.isSome),
-      ("bootstrap on constructed infinite fair execution",eventuallyBootstrap.isSome),
-      ("bootstrap on constructed infinite ideal execution",eventuallyIdeal.isSome)] do
+      ("bootstrap on constructed infinite fair execution",eventuallyBootstrap.isSome)] do
     t.ok label ok
   t.ok "node keys have real X25519 sizes" (scene.kA.size == 32 && scene.kB.size == 32)
   t.ok "all five real operations validate through production engine"

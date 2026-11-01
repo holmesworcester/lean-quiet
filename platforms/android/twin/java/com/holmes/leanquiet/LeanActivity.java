@@ -39,17 +39,22 @@ import java.util.List;
  * unhandled reach the EditText.
  */
 public class LeanActivity extends NativeActivity implements BarState.Window {
-  static native void nAppearance(boolean dark, int textDpi);
-  static native void nInsets(int top, int bottom, int ime, int left, int right,
+  private static LeanActivity active;
+  private boolean imeWanted;
+  private boolean imeWasVisible;
+  native void nAppearance(boolean dark, int textDpi);
+  native void nInsets(int top, int bottom, int ime, int left, int right,
       int cutLeft, int cutTop, int cutRight, int cutBottom);
-  static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
-  static native void nAction(int kind, int code, int action);
-  static native void nLink(String url);
+  native void nText(long owner, long revision, String text, int selStart, int selEnd, int compStart, int compEnd, boolean installed);
+  native void nActionDone(long ticket);
+  native boolean nEditorReady(long owner, long revision);
+  native int nAction(long owner, long revision, int kind, int code, int action);
+  native void nLink(String url);
   /** A camera frame's Y plane, as the camera filled it (copied in native),
    * and the sensor's clockwise orientation in degrees. */
-  static native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
+  native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
 
-  static native void nPhoto(int token, int status, int width, int height, byte[] rgba);
+  native void nPhoto(int token, int status, int width, int height, byte[] rgba);
   private int pickerToken;
   private volatile int photoToken;
   private final java.util.concurrent.ExecutorService photoWorker =
@@ -60,6 +65,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   public void pickPhoto(int token) {
     photoToken = token;
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (token == 0 || photoToken != token) return;
       if (pickerToken != 0) { nPhoto(token, 3, 0, 0, null); return; }
       pickerToken = token;
@@ -140,6 +146,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   /** Called with Lean's effective theme; never changes the OS observation. */
   public void appearance(boolean dark, int background) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (appliedBackground == background && appliedDark == dark) return;
       appliedDark = dark;
       appliedBackground = background;
@@ -171,19 +178,148 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override public void onWindowFocusChanged(boolean focused) {
     super.onWindowFocusChanged(focused);
-    if (focused) bars.attach(this);
+    if (focused) {
+      bars.attach(this);
+      if (imeWanted) applyIme();
+    }
   }
 
   @Override protected void onDestroy() {
     discoveryMulticast(false);
+    if (active == this) active = null;
+    imeWanted = false;
     bars.detach(this);
+    // The native run survives configuration replacement. Finish its exact
+    // outstanding request before NativeActivity releases this Java owner.
+    int cancelledPhoto = photoToken;
     photoToken = 0;
+    if (cancelledPhoto != 0) nPhoto(cancelledPhoto, 2, 0, 0, null);
     photoWorker.shutdownNow();
     super.onDestroy();
   }
 
   private EditText edit;
   private InputMethodManager imm;
+  private long editorOwner, editorRevision;
+  private boolean installingEditor, editorRevisionExhausted;
+  private volatile long lastActionTicket;
+  private volatile int lastActionDisposition;
+  private volatile long pendingClearTicket;
+  private volatile int lastActionRefusal;
+  private final Object actionDispositionLock = new Object();
+  private boolean dispositionQueued;
+  private long pendingDispositionTicket;
+  private int pendingDisposition;
+  private android.widget.Toast actionRefusal;
+  private final Object editorCommandLock = new Object();
+  private boolean editorCommandQueued;
+  private long requestedEditorOwner, requestedEditorRevision;
+  private byte[] requestedEditorText;
+  private int requestedEditorMode;
+  private boolean clearCommandQueued;
+  private long clearCommandOwner, clearCommandRevision;
+
+  private void refuseAction(int code) {
+    lastActionRefusal=code;
+    if(code==0)return;
+    String text=code==1?"Your previous action is still finishing. Try again.":
+      code==3?"This message is too large to send. Shorten it and try again.":
+      code==6?"Opening the editor…":
+      "This editor changed. Please try the action again.";
+    if(actionRefusal==null)actionRefusal=android.widget.Toast.makeText(this,text,android.widget.Toast.LENGTH_SHORT);
+    else actionRefusal.setText(text);
+    actionRefusal.show();
+  }
+  private void submitAction(int kind,int code,int action) {
+    refuseAction(nAction(editorOwner,editorRevision,kind,code,action));
+  }
+
+  /** At most one pending editor command. No native/Lean thread waits for it.
+   * An overwritten CAS has no waiter; latest native state is the receipt. */
+  public void updateEditor(long owner,long expected,byte[] utf8,int mode) {
+    synchronized(editorCommandLock) {
+      if(requestedEditorText!=null &&
+          (Long.compareUnsigned(owner,requestedEditorOwner)<0 ||
+           (owner==requestedEditorOwner&&requestedEditorMode!=2&&mode==2)))return;
+      requestedEditorOwner=owner;requestedEditorRevision=expected;
+      requestedEditorText=utf8;requestedEditorMode=mode;
+      if(editorCommandQueued)return;
+      editorCommandQueued=true;
+    }
+    runOnUiThread(() -> {
+      long next,revision;byte[] bytes;int kind;
+      synchronized(editorCommandLock) {
+        next=requestedEditorOwner;revision=requestedEditorRevision;
+        bytes=requestedEditorText;kind=requestedEditorMode;
+        requestedEditorText=null;editorCommandQueued=false;
+      }
+      if(active!=this||isDestroyed()||bytes==null)return;
+      if(kind==4) {
+        // Explicit legacy component clients do not participate in ownership.
+        edit.setEnabled(true);imm.restartInput(edit);if(imeWanted)applyIme();return;
+      }
+      boolean replacing=kind!=2;
+      boolean preserve=kind==5&&editorOwner!=0;
+      boolean consumed=preserve&&revision!=0&&editorRevision==revision;
+      if(replacing) {
+        if(Long.compareUnsigned(next,editorOwner)<0)return;
+        if(next==editorOwner&&editorRevision!=0) { reportInstalled();return; }
+        editorOwner=next;editorRevision=0;editorRevisionExhausted=false;
+      } else if(editorOwner!=next||editorRevision!=revision||editorRevision==0)return;
+      installingEditor=true;
+      try {
+        String value=consumed?"":new String(bytes,java.nio.charset.StandardCharsets.UTF_8);
+        if((!preserve||consumed)&&!edit.getText().toString().equals(value)) {
+          edit.setText(value);edit.setSelection(value.length());
+        }
+      } finally { installingEditor=false; }
+      if(replacing)reportInstalled();else report();
+    });
+  }
+  /** One coalesced terminal receipt; rejected batches cannot retain a slot. */
+  public void actionDisposition(long ticket,int disposition) {
+    synchronized(actionDispositionLock) {
+      pendingDispositionTicket=ticket;pendingDisposition=disposition;
+      if(dispositionQueued)return;
+      dispositionQueued=true;
+    }
+    runOnUiThread(() -> {
+      long token;int result;
+      synchronized(actionDispositionLock) {
+        token=pendingDispositionTicket;result=pendingDisposition;dispositionQueued=false;
+      }
+      lastActionTicket=token;lastActionDisposition=result;
+      if(active==this&&!isDestroyed()&&result==5)refuseAction(2);
+    });
+  }
+  /** The one retained semantic slot owns this one clear until its callback.
+   * Later typing wins. Completion settles the exact ticket in either case. */
+  public void clearAction(long ticket,long owner,long revision) {
+    synchronized(editorCommandLock) {
+      if(pendingClearTicket!=0&&pendingClearTicket!=ticket)nActionDone(pendingClearTicket);
+      pendingClearTicket=ticket;clearCommandOwner=owner;clearCommandRevision=revision;
+      if(clearCommandQueued)return;
+      clearCommandQueued=true;
+    }
+    runOnUiThread(() -> {
+      long token,expectedOwner,expectedRevision;
+      synchronized(editorCommandLock) {
+        token=pendingClearTicket;expectedOwner=clearCommandOwner;expectedRevision=clearCommandRevision;
+        clearCommandQueued=false;
+      }
+      try {
+        if(active!=this||isDestroyed())return;
+        if(editorOwner==expectedOwner&&editorRevision==expectedRevision&&expectedRevision!=0) {
+          installingEditor=true;edit.setText("");edit.setSelection(0);installingEditor=false;
+          report();
+        }
+      } finally {
+        installingEditor=false;lastActionTicket=token;lastActionDisposition=4;
+        synchronized(editorCommandLock){if(pendingClearTicket==token)pendingClearTicket=0;}
+        nActionDone(token);
+      }
+    });
+  }
 
   /** The EditText reports its selection too, not only its text. */
   private final class Field extends EditText {
@@ -197,6 +333,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     // A composition can end, or its region move, with neither the text nor
     // the selection changing: report those too.
     @Override public InputConnection onCreateInputConnection(EditorInfo out) {
+      if(!isEnabled())return null;
       InputConnection ic = super.onCreateInputConnection(out);
       if (ic == null) return null;
       return new InputConnectionWrapper(ic, false) {
@@ -217,6 +354,12 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    // NativeActivity overrides the manifest with STATE_UNSPECIFIED. Restore
+    // its declared hidden-on-navigation policy before enabling the editor;
+    // explicit composer taps still call showIme and retain imeWanted.
+    getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_STATE_HIDDEN
+        | android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+    active = this;
     deliverLink(getIntent());
     reportAppearance(getResources().getConfiguration());
     getWindow().setDecorFitsSystemWindows(false);
@@ -230,6 +373,10 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     bars.attach(this);
     imm = (InputMethodManager) getSystemService(Context.INPUT_METHOD_SERVICE);
     edit = new Field(this);
+    // An empty replacement Field has no semantic owner yet. Do not let an
+    // IME accept text which restoration would overwrite. The pending focus
+    // request is honored after native acknowledges the actual installation.
+    edit.setEnabled(false);
     edit.setAlpha(0f);
     edit.setBackground(null);
     edit.setCursorVisible(false);
@@ -242,11 +389,15 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     edit.setImeOptions(EditorInfo.IME_ACTION_SEND | EditorInfo.IME_FLAG_NO_EXTRACT_UI
         | EditorInfo.IME_FLAG_NO_FULLSCREEN);
     edit.setOnKeyListener((v, code, ev) -> {
-      nAction(14, code, ev.getAction());
-      return false;  // the field still performs OS text editing
+      if(code==KeyEvent.KEYCODE_ENTER) {
+        if(ev.getAction()==KeyEvent.ACTION_DOWN&&ev.getRepeatCount()==0)submitAction(14,code,0);
+        return true; // accepted and refused Send both consume this gesture once
+      }
+      nAction(editorOwner,editorRevision,14,code,ev.getAction());
+      return false;  // other keys still perform OS text editing
     });
     edit.setOnEditorActionListener((v, id, ev) -> {
-      if (ev == null) nAction(5, id, 0);
+      if (ev == null) submitAction(5, id, 0);
       return true;
 
     });
@@ -271,9 +422,14 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
         });
   }
 
-  private static void insets(WindowInsets in) {
+  private void insets(WindowInsets in) {
     Insets bars = in.getInsets(WindowInsets.Type.systemBars());
     Insets ime = in.getInsets(WindowInsets.Type.ime());
+    boolean visible = ime.bottom > 0;
+    // A system Back/hide completes the request too. A later focus event must
+    // not reopen a keyboard the user already dismissed.
+    if (imeWasVisible && !visible) imeWanted = false;
+    imeWasVisible = visible;
     android.view.DisplayCutout cut = in.getDisplayCutout();
     nInsets(bars.top, bars.bottom, ime.bottom, bars.left, bars.right,
         cut == null ? 0 : cut.getSafeInsetLeft(), cut == null ? 0 : cut.getSafeInsetTop(),
@@ -285,8 +441,23 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     return Character.codePointCount(s, 0, Math.min(i, s.length()));
   }
 
-  private void report() {
-    if (edit == null) return;
+  private void report() { reportState(false); }
+  private void reportInstalled() {
+    reportState(true);
+    boolean ready=nEditorReady(editorOwner,editorRevision);
+    boolean changed=edit.isEnabled()!=ready;
+    edit.setEnabled(ready);
+    if(ready) {
+      if(changed)imm.restartInput(edit);
+      if(imeWanted)applyIme();
+    }
+  }
+  private void reportState(boolean installed) {
+    if (edit == null || installingEditor) return;
+    if(installed&&editorRevision!=0) {
+      // Re-ack a recreated native binding without changing the editor revision.
+    } else if(editorRevisionExhausted||editorRevision==Long.MAX_VALUE) { editorRevision=0;editorRevisionExhausted=true; }
+    else editorRevision++;
     Editable t = edit.getText();
     int cs = BaseInputConnection.getComposingSpanStart(t);
     int ce = BaseInputConnection.getComposingSpanEnd(t);
@@ -294,24 +465,39 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
     int se = cp(t, edit.getSelectionEnd());
     int a = cs < 0 ? ss : cp(t, cs);
     int b = cs < 0 ? ss : cp(t, ce);
-    nText(t.toString(), Math.max(ss, 0), Math.max(se, 0), Math.max(a, 0), Math.max(b, 0));
+    nText(editorOwner,editorRevision,t.toString(),Math.max(ss,0),Math.max(se,0),Math.max(a,0),Math.max(b,0),installed);
   }
 
   /** From native (any thread): opens or closes the keyboard. */
   public void showIme(boolean show) {
     runOnUiThread(() -> {
-      android.view.WindowInsetsController c = getWindow().getInsetsController();
-      if (show) {
-        edit.requestFocus();
-        // An explicit request: an implicit one is refused while a hardware
-        // keyboard is attached (as on the emulator).
+      if (active != this || isDestroyed()) return;
+      imeWanted = show;
+      if(show&&!edit.isEnabled())refuseAction(6);
+      applyIme();
+    });
+  }
+
+  // Native touch delivery can precede the replacement window's focus. Keep
+  // the request until focus arrives; posting also lets IMM's window-focus
+  // handler establish the input connection before requesting visibility.
+  private void applyIme() {
+    if (active != this || isDestroyed() || edit == null) return;
+    if (imeWanted) {
+      if(!edit.isEnabled())return;
+      edit.requestFocus();
+      if (!hasWindowFocus() || !edit.isAttachedToWindow()) return;
+      edit.post(() -> {
+        if (active != this || isDestroyed() || !imeWanted || !edit.isEnabled() || !hasWindowFocus()) return;
+        android.view.WindowInsetsController c = getWindow().getInsetsController();
         if (c != null) c.show(WindowInsets.Type.ime());
         imm.showSoftInput(edit, 0);
-      } else {
-        if (c != null) c.hide(WindowInsets.Type.ime());
-        imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
-      }
-    });
+      });
+    } else {
+      android.view.WindowInsetsController c = getWindow().getInsetsController();
+      if (c != null) c.hide(WindowInsets.Type.ime());
+      imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
+    }
   }
 
   private void deliverLink(android.content.Intent intent) {
@@ -329,6 +515,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
    * field already holding t is left alone (its caret too). */
   public void setText(String t) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (edit.getText().toString().equals(t)) return;
       edit.setText(t);
       edit.setSelection(t.length());
@@ -338,6 +525,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   /** From native (any thread): puts text on the clipboard. */
   public void copyText(String text) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       android.content.ClipboardManager cm =
         (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
       if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("message", text));
@@ -364,6 +552,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   public void scan(boolean on) {
     android.util.Log.i("lean", "camera " + (on ? "on" : "off"));
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (on) startCamera();
       else stopCamera();
     });

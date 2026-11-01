@@ -61,7 +61,7 @@ xcb development libraries are native-runner prerequisites. See `docs/BUILD.md`.
 Tests own and reap their subprocesses. No GitHub Actions workflow is used.
 
 [Layout laws](../../engine/renderer/desktop/Laws.lean) apply to the running
-layout and control filter. They prove width coverage with overlapping context,
+layout (`zoomLayout`, at every density) and control filter. They prove width coverage with overlapping context,
 containment of the drawer, unchanged main width when the drawer opens, minimum
 pane sizes, monotonic pane count, control containment and hit membership. They
 do not prove raster identity or native platform scheduling. All are audited

@@ -19,6 +19,7 @@
 #import <AVFoundation/AVFoundation.h>
 #import <QuartzCore/QuartzCore.h>
 #import <IOSurface/IOSurfaceRef.h>
+#include "../native/frame_completion.h"
 #include <lean/lean.h>
 #include "../native/thread.h"
 #import <UIKit/UIGestureRecognizerSubclass.h>
@@ -108,6 +109,7 @@ static UITextField*   lq_field;
 static uint32_t       lq_shown_top_h, lq_shown_bot_h;
 static bool           lq_shown_pin;
 static uint32_t       lq_shown_frame;
+static LqFrameCompletion lq_completion;
 static uint32_t       lq_tap[3];       // the last list tap reported: kind, x, y
 
 // UITouch.timestamp is measured in systemUptime, not CLOCK_MONOTONIC.
@@ -355,8 +357,11 @@ lean_obj_res lq_scroll_to(double b) {
 
 // The same compiled Lean translation/fill on each display refresh.
 // UIKit only converts the resulting rectangles from pixels to points.
-static void lq_translate(void) {
-  if (!lq_placed) return;
+static void lq_translate(bool publishing) {
+  pthread_mutex_lock(&lq_mu);
+  bool busy = lq_completion.pending;
+  pthread_mutex_unlock(&lq_mu);
+  if (!lq_placed || (busy && !publishing)) return;
   lq_slide_thread_init();  // Both first publication and CADisplayLink run here.
   int32_t sample = (int32_t)llround(atomic_load(&lq_offset));
   CALayer* layers[2] = {lq_list, lq_hold};
@@ -377,6 +382,19 @@ static void lq_translate(void) {
   pthread_mutex_unlock(&lq_mu);
 }
 
+// Every iOS frame result explicitly distinguishes staging from completion.
+// No surface and delayed completion are ordinary rejections, not a
+// synchronous-shell fallback that can acknowledge pixels never published.
+static lean_obj_res lq_frame_result(bool accepted) {
+  pthread_mutex_lock(&lq_mu);
+  lq_raw(20, accepted ? 1 : 0, (uint32_t)lq_completion.accepted,
+    lq_completion.accepted >> 32, 0);
+  lq_raw(21, lq_completion.frame, lq_completion.valid ? 1 : 0,
+    (uint32_t)lq_completion.shift, lq_completion.publication);
+  pthread_mutex_unlock(&lq_mu);
+  return lq_poll();
+}
+
 // pin: the list frame is a page, pinned (the header comment; Placement.lean).
 lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj_arg top,
   b_lean_obj_arg bot, uint8_t pin, b_lean_obj_arg placement, b_lean_obj_arg hold) {
@@ -385,9 +403,10 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   for (int i = 0; i < LQ_PLACEMENT_WORDS; i++) p[i] = lean_unbox_uint32(lean_array_get_core(placement, i));
   NSData* geometry = [NSData dataWithBytes:p length:sizeof p];
   pthread_mutex_lock(&lq_mu);
-  bool available = lq_foreground && lq_up;
+  bool available = lq_foreground && lq_up && !lq_completion.pending &&
+    lq_completion.accepted != UINT64_MAX && lq_completion.serial != UINT64_MAX;
   pthread_mutex_unlock(&lq_mu);
-  if (!available) return lq_poll();
+  if (!available) return lq_frame_result(false);
   uint32_t w  = lq_read_w;
   uint32_t h  = lq_read_h;
   lq_over     = over;
@@ -418,9 +437,18 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
   double   tob     = atomic_load(&lq_pend_b);
   double   by      = atomic_exchange(&lq_pend_by, 0.0);
   lq_wait_vsync();
+  const uint32_t serial = p[16];
   __block bool presented = false;
   dispatch_sync(dispatch_get_main_queue(), ^{
     if (!lq_foreground || !lq_up || w != lq_w || h != lq_h) return;
+    pthread_mutex_lock(&lq_mu);
+    LqFrameTicket ticket;
+    bool reserved = lq_completion.accepted != UINT64_MAX &&
+      lq_frame_begin(&lq_completion, &ticket);
+    if (reserved) lq_frame_accept(&lq_completion);
+    uint64_t publication = lq_completion.accepted;
+    pthread_mutex_unlock(&lq_mu);
+    if (!reserved) return;
     presented = true;
     [CATransaction begin];
     [CATransaction setDisableActions:YES];
@@ -471,7 +499,13 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     }
     if (show_list != NULL) lq_list.contents = (__bridge id)show_list;
     if (show_hold != NULL) lq_hold.contents = (__bridge id)show_hold;
-    lq_translate();
+    lq_translate(true);
+    const int32_t shift = lq_shown_shift;
+    [CATransaction setCompletionBlock:^{
+      pthread_mutex_lock(&lq_mu);
+      lq_frame_complete(&lq_completion, ticket, publication, serial, shift);
+      pthread_mutex_unlock(&lq_mu);
+    }];
     [CATransaction commit];
   });
   if (!presented) {
@@ -486,6 +520,10 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
     lq_push(1, 0, 0, 0);
   }
   lq_push(13, 0, 0, 0);
+  lq_raw(20, presented ? 1 : 0, (uint32_t)lq_completion.accepted,
+    lq_completion.accepted >> 32, 0);
+  lq_raw(21, lq_completion.frame, lq_completion.valid ? 1 : 0,
+    (uint32_t)lq_completion.shift, lq_completion.publication);
   lean_object* evs = lean_mk_empty_array_with_capacity(lean_box(lq_n * 8));
   for (uint32_t i = 0; i < lq_n * 8; i += 1) {
     evs = lean_array_push(evs, lean_box_uint32(lq_evs[i]));
@@ -993,6 +1031,7 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   if (v.window == nil) {
     pthread_mutex_lock(&lq_mu);
     lq_up = false;
+    lq_frame_reset(&lq_completion);
     lq_push(11, 0, 0, 0);
     pthread_mutex_unlock(&lq_mu);
     return;
@@ -1001,6 +1040,8 @@ lean_obj_res lq_motion(b_lean_obj_arg samples) {
   UIEdgeInsets in = v.safeAreaInsets;
   pthread_mutex_lock(&lq_mu);
   lq_system_dark = self.traitCollection.userInterfaceStyle == UIUserInterfaceStyleDark;
+  if (lq_w != lq_px(v.bounds.size.width) || lq_h != lq_px(v.bounds.size.height))
+    lq_frame_reset(&lq_completion);
   lq_w    = lq_px(v.bounds.size.width);
   lq_h    = lq_px(v.bounds.size.height);
   lq_itop = lq_px(in.top);
@@ -1141,7 +1182,7 @@ static void* lq_run(void* arg) {
 // frame does not earn the next ones a head start), the keyboard's height
 // mid-animation, and whether the list is scrolling.
 - (void)vsync:(CADisplayLink*)l {
-  lq_translate();
+  lq_translate(false);
   if (!lq_vsync_due) {
     lq_vsync_due = true;
     dispatch_semaphore_signal(lq_vsync);
@@ -1166,6 +1207,9 @@ static void* lq_run(void* arg) {
 
 - (void)applicationWillResignActive:(UIApplication*)app {
   lq_foreground = false;
+  pthread_mutex_lock(&lq_mu);
+  lq_frame_reset(&lq_completion);
+  pthread_mutex_unlock(&lq_mu);
   self.displayLink.paused = YES;
   [lq_field resignFirstResponder];
   [lq_sv setContentOffset:lq_sv.contentOffset animated:NO];
@@ -1240,3 +1284,5 @@ lean_obj_res lq_appearance(uint8_t dark, uint32_t background) {
   });
   return lean_io_result_mk_ok(lean_box(0));
 }
+
+#include "../native/editor_legacy.h"

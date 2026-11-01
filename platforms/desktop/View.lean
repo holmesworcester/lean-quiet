@@ -41,6 +41,7 @@ structure Layers where
   over : Nat := 0
   placement : Array UInt32 := #[]
   hold : Array ByteArray := #[]
+  publication : UInt64 := 0
   deriving Inhabited
 
 def purple : Color := 0x7647C7

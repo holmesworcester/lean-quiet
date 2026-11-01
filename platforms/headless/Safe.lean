@@ -6,7 +6,7 @@ Fixtures and their measurement limitations are in docs/SAFE.md.
 -/
 import platforms.headless.Sim
 import engine.renderer.Toast
-import engine.renderer.SafeFrame
+import app.Screen
 
 open App Safe Paint
 
@@ -150,9 +150,30 @@ def main (args : List String) : IO UInt32 := do
     say "Dismiss this"
     onTap .list 0 0 false
     check "tap dismisses the transient card" ((← get).toast.isNone)
+    -- The geometry checks above leave the app on onboarding. Exercise the
+    -- modal guard in a real conversation, where an ordinary Send can commit;
+    -- otherwise the unrelated non-chat guard makes this check vacuous.
+    closeSheet
+    openPage .chat
+    steps 3
+    modify fun s => { s with text := "Visible conversation send control" }
+    let _ ← onEvent .send
+    let sent := (← get).out.find? fun p => match p.fact with
+      | .message .. => true
+      | _ => false
+    let cleared := (← get).text.isEmpty
+    waitIdle sm
+    let readable ← match sent with
+      | some p => do
+        let held ← (Data.Q.op p.op.id).run (← get).rd #[]
+        pure (held == .bytes (some p.op.bytes))
+      | none => pure false
+    check "uncovered keyboard Send commits readable bytes" (cleared && readable)
     modify fun s => { s with sheet := some {}, text := "Must not send below a surface" }
+    let queued := (← get).queuedWrites
     let _ ← onEvent .send
     check "surface blocks keyboard Send to lower layer" ((← get).text == "Must not send below a surface")
+    check "surface blocks keyboard Send admission" ((← get).queuedWrites == queued)
     check "icon style follows the colour, both polarities" (SafeFrame.lightIcons 0 && !SafeFrame.lightIcons 0xffffff)
     -- No space, asymmetric cutouts and changes in navigation mode.
     let bad : Safe.Input := ⟨40, 30, ⟨25, 20, 25, 20⟩, {}, {}⟩

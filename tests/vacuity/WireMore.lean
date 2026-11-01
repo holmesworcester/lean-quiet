@@ -78,12 +78,69 @@ theorem labelsAgree : lbl key ident digest xs = lbl key ident digest xs.reverse 
   rw [h1, h2]
   rfl
 
-theorem labelsInject : ∀ a, a ∈ xs ↔ a ∈ xs.reverse :=
-  lbl_inj (key := key) (ident := ident) (h := digest) 4 xs xs.reverse (by decide) namedReordered
-    (fun _ _ _ _ h => h) labelsAgree
+-- The label of xs, reordered, satisfies every premise; and any list whose
+-- label is xs's (named, collision-free) holds exactly xs's members: 1 and
+-- 2, and nothing else. digest is the identity, so collision freedom is
+-- free here; what this exercises is the treap labelling, not a hash.
+theorem labelsInject : (Named key ident (xs ++ xs.reverse) ∧
+      NoCollision digest (pres key ident digest xs ++ pres key ident digest xs.reverse) ∧
+      lbl key ident digest xs = lbl key ident digest xs.reverse) ∧
+    ∀ l, Named key ident (xs ++ l) → NoCollision digest (pres key ident digest xs ++ pres key ident digest l) →
+      lbl key ident digest xs = lbl key ident digest l → 1 ∈ l ∧ 2 ∈ l ∧ ∀ a ∈ l, a = 1 ∨ a = 2 := by
+  refine ⟨⟨namedReordered, fun _ _ _ _ h => h, labelsAgree⟩, fun l hn hc he => ?_⟩
+  have hm := lbl_inj (key := key) (ident := ident) (h := digest) (xs.length + l.length) xs l
+    (Nat.le_refl _) hn hc he
+  exact ⟨(hm 1).1 (by decide), (hm 2).1 (by decide), fun a ha => by
+    have := (hm a).2 ha; simpa [xs] using this⟩
 
-theorem numberDecode : ([65, 0, 255] : List UInt8) = ([65] ++ [0, 255] : List UInt8) :=
-  num_inj (by rfl)
+-- lbl_perm: the label of three untied items is the same in another order.
+theorem labelsAnyOrder : lbl key ident digest [1, 2, 3] = lbl key ident digest [3, 1, 2] :=
+  lbl_perm 3 [1, 2, 3] [3, 1, 2] (Nat.le_refl _) (fun _ _ _ _ h => h) (by decide)
+
+-- The control for lbl_perm's Untied premise: two items with one priority
+-- (5) at different times are Named, yet the two orders of the pair have
+-- different labels, since top breaks the tie by list position. So Named
+-- alone does not make the label a function of the set.
+def tkey (a : Nat × Nat) : Key := ⟨a.1, a.2⟩
+def tident (a : Nat × Nat) : ByteArray := Codec.encode a.1
+def idh (b : ByteArray) : ByteArray := b
+def tieP : Nat × Nat := (0, 5)
+def tieQ : Nat × Nat := (1, 5)
+theorem tied_named : Named tkey tident [tieP, tieQ] := by
+  intro a ha b hb
+  have hi : tident tieP ≠ tident tieQ := fun h => by
+    have := congrArg (Codec.decode (α := Nat)) h
+    simp [tident, tieP, tieQ, Codec.decode_encode] at this
+  simp only [List.mem_cons, List.mem_nil_iff, or_false] at ha hb
+  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl
+  · exact ⟨fun _ => rfl, fun _ => rfl⟩
+  · exact ⟨fun h => absurd h (by decide), fun h => absurd h hi⟩
+  · exact ⟨fun h => absurd h (by decide), fun h => absurd h.symm hi⟩
+  · exact ⟨fun _ => rfl, fun _ => rfl⟩
+theorem tied_order : lbl tkey tident idh [tieP, tieQ] ≠ lbl tkey tident idh [tieQ, tieP] := by
+  rw [lbl_eq, lbl_eq]
+  have h1 : top tkey [tieP, tieQ] = some tieQ := by decide
+  have h2 : top tkey [tieQ, tieP] = some tieP := by decide
+  rw [h1, h2]
+  simp only [idh]
+  intro he
+  have hd := congrArg (Codec.decode (α := ByteArray × ByteArray × ByteArray)) he
+  rw [Codec.decode_encode, Codec.decode_encode] at hd
+  have hb : below tkey [tieP, tieQ] tieQ = [tieP] := by decide
+  have ha : above tkey [tieQ, tieP] tieP = [tieQ] := by decide
+  have h0 : below tkey [tieQ, tieP] tieP = [] := by decide
+  rw [hb, h0] at hd
+  have := congrArg (·.1) (Option.some.inj hd)
+  simp only at this
+  rw [lbl_eq (l := ([] : List (Nat × Nat))), lbl_eq (l := [tieP])] at this
+  have ht : top tkey [tieP] = some tieP := by decide
+  rw [ht] at this
+  simp [top] at this
+  exact encode_ne_empty _ this
+
+-- Decoding: any byte list numbered like [65, 0, 255] is that list.
+theorem numberDecode : ∀ m : List UInt8, num m = num [65, 0, 255] → m = [65, 0, 255] :=
+  fun _ h => num_inj h
 example : num [1] ≠ num [1, 0] := by decide
 
 def claim : Claim := .ids range [ident 1]

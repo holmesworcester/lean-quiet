@@ -1,7 +1,7 @@
 /-
 The app on a platform twin: the seam's externs as the app's `Io`.
 -/
-import engine.renderer.PlatformIo
+import app.Screen
 
 open App
 

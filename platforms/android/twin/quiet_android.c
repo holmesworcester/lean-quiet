@@ -84,25 +84,14 @@ static void lq_push(uint32_t k, uint32_t a, uint32_t b, uint32_t c) {
 
 // Raw transport, including all pointers, cancellation and monotonic time.
 static void lq_pump(void) {
-  BaTouch ts[256];
-  bool closed = false;
-  uint32_t n;
+  bool closed=false;uint32_t n,ws[256];
   do {
-    n = ba_drain(ts, 256, &closed);
-    for (uint32_t i = 0; i < n; i++) {
-#ifdef LQ_CTL
-      if (ts[i].kind == 0) __android_log_print(ANDROID_LOG_INFO, "lean", "input down displayed=%u submitted=%u lag=%u",
-        (uint32_t)ts[i].frame, lq_last_serial, lq_last_serial - (uint32_t)ts[i].frame);
-#endif
-      lq_raw(9 + ts[i].kind, ts[i].id, (int32_t)lroundf(ts[i].x),
-        (int32_t)lroundf(ts[i].y), ts[i].t / 1000000, ts[i].frame);
-    }
-  } while (n == 256);
-  uint32_t ws[256];
-  do {
-    n = ba_drain_events(ws, 256);
-    for (uint32_t i = 0; i + 3 < n; i += 4) lq_push(ws[i], ws[i+1], ws[i+2], ws[i+3]);
-  } while (n == 256);
+    n=ba_drain_events(ws,256,&closed);
+    for(uint32_t i=0;i+7<n;i+=8)
+      lq_raw(ws[i],ws[i+1],ws[i+2],ws[i+3],
+        (uint64_t)ws[i+4]|((uint64_t)ws[i+5]<<32),
+        (uint64_t)ws[i+6]|((uint64_t)ws[i+7]<<32));
+  } while(n>=248);
   lq_push(13, 0, 0, 0);
   bool active = bs_active();
   if (active != lq.active) { lq.active = active; lq_push(7, active, 0, 0); }
@@ -398,7 +387,11 @@ lean_obj_res lq_scroll_to(double b) {
 // field 1. Drain input after any compositor wait so a rejected frame stays
 // interactive using the last accepted, actually displayed context.
 static lean_obj_res lq_frame_result(bool accepted) {
-  lq_raw(20, accepted ? 1 : 0, 0, 0, 0, 0);
+  uint64_t accepted_id = bl_acceptance_id(), publication;
+  uint32_t frame; int32_t shift;
+  bool completed = bl_completed_frame(&publication, &frame, &shift);
+  lq_raw(20, accepted ? 1 : 0, (uint32_t)accepted_id, accepted_id >> 32, 0, 0);
+  lq_raw(21, frame, completed ? 1 : 0, (uint32_t)shift, publication, 0);
   lq_phase(0);
   return lq_poll();
 }
@@ -463,7 +456,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
         complete = bl_present((BlKind)k, s->pix, s->w, s->h, s->off, 0);
       }
     }
-    if (complete) { bl_geometry(place); accepted = true; }
+    if (complete) { accepted = bl_geometry(place); }
     else {
       // A pending older publication is left intact. Partial new staging
       // is discarded, and every layer is retried with the next frame.
@@ -588,4 +581,21 @@ lean_obj_res lq_photo_result(void) {
   lean_object* result = lean_alloc_ctor(0, 2, 0);
   lean_ctor_set(result, 0, hdr); lean_ctor_set(result, 1, px);
   return lean_io_result_mk_ok(result);
+}
+
+static lean_obj_res lq_editor_result(char *text,size_t length,const uint64_t *meta,size_t n) {
+  uint64_t error=2;
+  if(!text&&length){meta=&error;n=1;length=0;}
+  lean_object *a=lean_mk_empty_array_with_capacity(lean_box(n));
+  for(size_t i=0;i<n;i++)a=lean_array_push(a,lean_box_uint64(meta[i]));
+  lean_object *p=lean_alloc_ctor(0,2,0);lean_ctor_set(p,0,lean_mk_string_from_bytes(text?text:"",text?length:0));lean_ctor_set(p,1,a);
+  free(text);return lean_io_result_mk_ok(p);
+}
+lean_obj_res lq_editor(uint32_t mode,uint64_t owner,uint64_t revision,b_lean_obj_arg text) {
+  uint64_t meta[12];size_t size;char *value=ba_editor(mode,owner,revision,lean_string_cstr(text),lean_string_size(text)-1,meta,&size);
+  return lq_editor_result(value,size,meta,12);
+}
+lean_obj_res lq_editor_action(uint64_t ticket,uint32_t disposition) {
+  uint64_t meta[8];uint32_t count;size_t size;char *value=ba_editor_action(ticket,disposition,meta,&count,&size);
+  return lq_editor_result(value,size,meta,count);
 }

@@ -1,5 +1,6 @@
 /- Shared desktop application loop. Native shells supply only the OS seam. -/
 import platforms.desktop.Input
+import platforms.desktop.Presentation
 import engine.renderer.Platform
 
 namespace DesktopMain
@@ -8,9 +9,9 @@ private def platform : App.Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, (fun _ => pure false), pure (#[], .empty)⟩
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, (fun _ => pure false), pure (#[], .empty), ⟨Platform.editor, Platform.editorAction⟩⟩
 
-@[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) : IO (Array UInt32)
+@[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) (publication : UInt64) : IO (Array UInt32)
 @[extern "lq_desktop_cursor"] opaque desktopCursor (kind : UInt32) : IO Unit
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
@@ -66,9 +67,10 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
   let layers ← d.layers.get
   let viewport := Desktop.scrollViewport d.layout d.height d.ui d.app layers
   if native then desktopLayers layers.list layers.hold layers.placement viewport
-  let pic ← Desktop.picture d (native && viewport[0]! == 1)
   traceState d
-  let ev ← desktopFrame pic.rows
+  let (published, ev) ← Desktop.publish d (fun publication pic => do
+    return Desktop.Publication.decode (← desktopFrame pic.rows publication)) (native && viewport[0]! == 1)
+  d := published
   let mut anchor := anchor
   let mut scrollGrab := scrollGrab
   for i in [0:ev.size / 4] do
@@ -85,7 +87,9 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     else if k == 9 then
       d := Desktop.pointerEvent d (.motion x y)
       if z == 1 then
-        if let some grab := scrollGrab then Desktop.scrollDrag d grab y
+        if let some grab := scrollGrab then
+          d := Desktop.cancelPresentation d
+          Desktop.scrollDrag d grab y
         if let some a := anchor then
           if let some c := Desktop.caret d x y then desktopSelect a.toUInt32 c.toUInt32
     else if k == 16 then
@@ -94,12 +98,15 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
     else if k == 10 then
       scrollGrab := Desktop.scrollGrab d x y
       anchor := if scrollGrab.isSome then none else Desktop.caret d x y
-      if let some grab := scrollGrab then Desktop.scrollDrag d grab y
+      if let some grab := scrollGrab then
+        d := Desktop.cancelPresentation d
+        Desktop.scrollDrag d grab y
       if let some c := anchor then desktopSelect c.toUInt32 c.toUInt32
     else if k == 11 then anchor := none; scrollGrab := none
     else if k == 12 then d ← Desktop.act d .close
     else if k == 13 then d ← Desktop.resize d x y
     else if k == 19 then
+      d := Desktop.cancelPresentation d
       d := { d with hoverStarted := 0, ui := { d.ui with hoverRow := none, moreFor := none, tooltip := false, grace := false } }
     else if k == 17 then
       d ← Desktop.resize { d with baseDpi := max 80 (min 1280 x), settled := (0, 0) } d.width d.height

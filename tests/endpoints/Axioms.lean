@@ -1,8 +1,7 @@
-import ops.connection.DiscoveryStorage
-import ops.connection.DiscoveryProgress
-#print axioms Connection.Winner.choose_comm
-#print axioms Connection.Winner.choose_stable
-#print axioms Connection.Winner.exactly_one
+import app.Proofs
+#print axioms Engine.Winner.choose_comm
+#print axioms Engine.Winner.choose_stable
+#print axioms Engine.Winner.exactly_one
 #print axioms Connection.DiscoveryLaws.kept_pair
 #print axioms Connection.DiscoveryLaws.both_choose_same
 #print axioms Connection.DiscoveryLaws.single_survivor
@@ -11,9 +10,9 @@ import ops.connection.DiscoveryProgress
 #print axioms Connection.DiscoveryLaws.candidate_cap
 #print axioms Connection.DiscoveryLaws.retry_eventually_due
 #print axioms Connection.DiscoveryLaws.candidate_visited
-#print axioms Endpoint.bounded_cap
-#print axioms Endpoint.delay_bounded
-#print axioms Endpoint.fresh_expires
+#print axioms Hints.bounded_cap
+#print axioms Hints.delay_bounded
+#print axioms Hints.fresh_expires
 
 #print axioms Connection.DiscoveryProgress.plan_ready
 #print axioms Connection.DiscoveryProgress.plan_backoff
