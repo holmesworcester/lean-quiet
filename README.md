@@ -216,6 +216,8 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
   ([evidence and remaining boundary](#bootstrap-witnesses-and-running-app-checks));
+- whole-app resource bounds, cancellation of every blocked wait, and prioritized
+  write-to-display and per-peer service bounds ([current audit](docs/EXECUTION-PROGRESS.md));
 - a signing-history assumption scoped to verification attempts in an execution;
 - that content is drawn faithfully all the way to pixels (proven up to
   each row's layout; painting is not).
@@ -2296,3 +2298,19 @@ The op hash remains symbolic in kernel proofs; no collision-freedom claim is mad
 These are evidence of inhabited premises and meaningful consequences at the
 stated boundary, not proofs of every native adapter or full user session.
 <!-- vacuity:end -->
+
+### Full-app execution report
+
+The target is now bounded resources and prioritized service under arbitrary
+input, plus eventual delivery of each eligible shared op under fair-loss
+transport while posting continues. **The complete claims are not yet proved.**
+The [execution audit](docs/EXECUTION-PROGRESS.md) records counterexamples,
+necessary statement boundaries and the remaining code changes.
+
+| Milestone | Change and reason | Checked boundary |
+|---|---|---|
+| Actual loop relation | TCP now calls the shared `Loop.turn` and `Node.step`, so a proof can use the running selector, dispatch, timer and engine entrypoints. | Kernel dispatch/timer laws; eight branch/order checks; TCP baseline 34/0 and ordered-hint scenario 22/0; old strict-priority, first-hint and lost-deferred-hint controls still fail as intended. Native I/O termination is separate. |
+
+UI-first service with a bounded sync reservation is the next scheduling
+change; the current extraction retains the earlier 1:1 selector. Selection
+bounds alone do not establish commit, read-back or display latency.
