@@ -1,5 +1,84 @@
 # Lean Quiet
 
+# For judges
+
+Lean Quiet is a private group chat app with no server: devices find each
+other and sync directly, and everything is end-to-end encrypted. It is
+written mostly in Lean 4, from the network protocol to the pixels, and its
+laws are proven about the code that runs.
+
+**Run it.** Linux (x86-64, Debian or Ubuntu, X11 or XWayland) is the
+supported platform:
+
+```sh
+make install   # about 10 minutes cold: Lean and Rust in your home folder, pinned assets, the build
+make run       # the desktop app with a demo community, networking off
+make verify    # lake check and lake comparator, on Lean 4.35 (about 15 minutes)
+```
+
+[Try it](#try-it) has the details. The app also builds for Android, iOS,
+macOS and Windows ([release 1.0.0](https://github.com/holmesworcester/lean-quiet/releases/tag/v1.0.0)),
+but `make` supports only Linux. A native macOS `make` was not run on a Mac
+during the hackathon and is not part of this submission.
+
+**What `make verify` checks.**
+- `lake check` replays every theorem in the build through Lean's kernel
+  and accepts only Lean's three standard axioms.
+- `lake comparator` checks that the proofs prove exactly the statements in
+  [`tests/comparator/Challenge.lean`](tests/comparator/Challenge.lean).
+  **That is the file to read.** It states the headline laws below, each
+  copied word for word from the law in the app, with no proof.
+
+**The headline laws.** An *op* is one signed action, such as a message,
+a reaction, a join or a removal.
+
+| # | In plain words | Lean name |
+|---|---|---|
+| 1 | Nobody can post as another user.§ | `Community.no_impersonation` |
+| 2 | Nobody joins without a member's approval. | `Community.admission_needs_approval` |
+| 3 | Only admins can remove other members. | `Community.removal_authorized` |
+| 4 | A removal cannot be undone. | `Community.removed_stays` |
+| 5 | A device accepts a connection exactly when the peer is a current member's device.† | `Community.connect_iff` |
+| 6 | After a removal, the removed member's open sessions get only the removal notice.† | `Connection.removal_reaches_session` |
+| 7 | Sync sends a peer only what that peer may see.† | `Engine.Sync.recv_send` |
+| 8 | Forged or tampered network messages are ignored without being read.† | `Connection.sealed_auth` |
+| 9 | Session keys stay secret.‡ | `Connection.Noise.Symbolic.kk_secret` |
+| 10 | The device that dials knows who answered.‡ | `Connection.Noise.Symbolic.kk_authentic` |
+| 11 | Devices that hold the same ops judge each one the same way.†¶ | `Engine.same_ops_same_verdicts` |
+| 12 | Every device shows a channel's messages in the same order (unless a hostile sender claims a huge counter). | `Community.display_agrees` |
+| 13 | Scrolling never shows a blank where messages should be. | `Cover.covered` |
+| 14 | Back returns to the screen you came from. | `NavLaws.back_open` |
+| 15 | Tapping a community opens that community, even when two share a name. | `Switch.select_tapped_dedupe` |
+| 16 | Letting someone in costs at most three ops, however big the community is. | `Community.approveReq_ops` |
+| 17 | Storing an arriving op costs a fixed number of store operations, however big the community is. | `Engine.ingest_costs` |
+
+- † Relies on the store model: that SQLite answers as the model's tables do.
+- ‡ Proven in a symbolic model of the cryptography.
+- § Assumes signatures cannot be forged.
+- ¶ Assumes no hash collisions among the ops a device sees.
+
+**What is trusted, not proven.**
+- **Lean**: its kernel, compiler and runtime.
+- **SQLite.** The proofs run the engine against a model of its tables.
+  That SQLite answers the same way is tested (random workloads compared
+  row for row, and kill -9 crash tests), not proven.
+- **The crypto primitives**: Ed25519, X25519, ChaCha20-Poly1305 and
+  SHA-256, from the Rust crates libquiet uses. They are assumed correct
+  and secure.
+- **The TCP seam.** Lean's TCP library cannot close a listener or cancel
+  a stuck write, so a few lines of C in
+  [`engine/native/listener.h`](engine/native/listener.h) do both. One of
+  them reads a private field of Lean's socket object; it is reviewed for
+  each Lean version.
+- **The Linux shell** (C, xcb), which puts Lean's pixels in a window and
+  passes input, and the OS.
+
+The full lists are in [What is Assumed](#what-is-assumed) and
+[What isn't Lean, and why](#what-isnt-lean-and-why).
+
+**Built during the hackathon** (from Saturday 31 October, 10:00 PDT):
+[docs/HACKATHON.md](docs/HACKATHON.md).
+
 [Lean](https://lean-lang.org) is usually for proving statements with and about code. But can we 
 build entire apps with it, and prove they work as users might want?
 I think we can now!
