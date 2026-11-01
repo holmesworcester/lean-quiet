@@ -238,9 +238,16 @@ try:
         timed('message_a_to_b', t0)
     except AssertionError as e:
         failed.append(str(e))
-    time.sleep(1)
-    after_a = band(alice, shot('6-alice', x.window(alice)))
-    after_b = band(bob, shot('6-bob', x.window(bob)))
+    # The state says what the app holds before its frame reaches the X
+    # server, and a row can show its placeholder for a frame or two under
+    # load: capture both windows again until they agree, or 15 s pass.
+    end = time.monotonic() + 15
+    while True:
+        time.sleep(.5)
+        after_a = band(alice, shot('6-alice', x.window(alice)))
+        after_b = band(bob, shot('6-bob', x.window(bob)))
+        if same(after_a, after_b) > 0.995 or time.monotonic() > end:
+            break
     shot('6-both')
     for name, image in (('band-alice', after_a), ('band-bob', after_b), ('band-bob-before', before)):
         image.save(OUT / f'{name}.png')
