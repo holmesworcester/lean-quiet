@@ -661,13 +661,6 @@ section qr
 #print axioms Pic.fit_pos
 #print axioms Pic.fit_long
 #print axioms Pic.fit_round
-#print axioms Pic.layout_sizes
-#print axioms Pic.layout_inside
-#print axioms Pic.layout_apart
-#print axioms Pic.add_stored
-#print axioms Pic.scale_wellFormed
-#print axioms Pic.render_wellFormed
-#print axioms Pic.render_opaque
 #print axioms Pic.decode_sized
 end qr
 

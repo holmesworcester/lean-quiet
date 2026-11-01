@@ -97,10 +97,6 @@ def rasterPixel (f : Ttf.Face) (g : Nat) : Option (PLift (∃ b, Ttf.raster f g 
       else none
     else none
 
-def added := Pic.add #[] 2 1 2 1 RendererImages.picture.px
-def addStored := if grew : added.1.size = (#[] : Pic.Composer).size + 1 then
-  some (PLift.up (Pic.add_stored (c := #[]) (c' := added.1) (msg := added.2) (ow := 2) (oh := 1) (w := 2) (h := 1) (px := RendererImages.picture.px) rfl grew))
-  else none
 
 attribute [local instance] LiveLaws.byteArray_lawful LiveLaws.listQ_lawful LiveLaws.q_lawful
 
@@ -141,7 +137,6 @@ def main : IO UInt32 := do
     ((Ttf.Cache.get? cache2 RendererImages.glyphKey).isSome)
   t.ok "bounded glyph cache retains the second distinct glyph"
     ((Ttf.Cache.get? cache2 ⟨0, 5, 20, 20⟩).isSome && cache2.index.size == 2)
-  t.ok "concrete two-pixel attachment grows and applies add_stored" addStored.isSome
   let sm ← Sim.new
   let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
   let s := { s with page := .chat, backStack := [.home], text := "Draft message", field := "Name", mark := none }

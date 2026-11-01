@@ -31,26 +31,6 @@ example : decodedPicture.w = 2 ∧ decodedPicture.h = 1 ∧ decodedPicture.px.si
 example : Pic.decode "not a picture".toUTF8 = none := by rfl
 example : Image.decode "not a picture".toUTF8 = none := by rfl
 
-def tray : Pic.Geom := ⟨12, 2, 3⟩
-def sizes : List (Nat × Nat) := [(4032, 3024), (3024, 4032), (2, 1)]
-theorem layoutSizes : (Pic.layout tray sizes).1.map (fun s => (s.w, s.h)) =
-    sizes.map (fun p => Pic.fit p.1 p.2 tray.box) :=
-  Pic.layout_sizes tray sizes
-
-theorem separated : (Pic.layout tray sizes).1.Pairwise (fun a b => a.x + a.w + tray.gap ≤ b.x) :=
-  Pic.layout_apart tray (by decide) sizes
-
-theorem inside : ∀ s ∈ (Pic.layout tray sizes).1,
-    tray.pad ≤ s.x ∧ s.x + s.w + tray.pad ≤ (Pic.layout tray sizes).2 ∧
-    tray.pad ≤ s.y ∧ s.y + s.h + tray.pad ≤ tray.height :=
-  Pic.layout_inside tray (by decide) sizes
-example : (Pic.layout tray sizes).1.map (fun s => (s.w, s.h)) = [(8, 6), (6, 8), (2, 1)] := by decide
-
-theorem renderSized : (Pic.render tray [picture]).wellFormed = true :=
-  Pic.render_wellFormed tray [picture]
-theorem opacity : (Pic.render tray [picture]).px[4 * 0 + 3]? = some 255 :=
-  Pic.render_opaque tray [picture] 0 (by decide)
-theorem scaled : (Pic.scale picture 1 1).wellFormed = true := Pic.scale_wellFormed picture 1 1
 
 -- Checked font byte/character-map and cache primitives, no native font file.
 def fontBytes := ByteArray.mk #[0, 127, 255, 42]

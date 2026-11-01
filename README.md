@@ -372,7 +372,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1378 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1289, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1371 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1282, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -495,7 +495,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
 | ✅ | 🥊🥊 | **What the encoders write reads back:** QR segments and codewords, invite links and mDNS packets, and QR error correction is sound. Nothing running writes mDNS packets or `leanquiet://` links yet. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_roundtrip`] |
-| 🟡 | 🥊 | **Pictures render whole:** a photo sent is stored as it is when it fits within 2048 px a side, else with its longer side exactly 2048 and the other to the nearest pixel, never below 1 (`Pic.fit`, as the app's `preparePhoto` sizes it); scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: the tray's laws are proven of `Pic`'s tray, which only qr's Android harness runs; the app draws its own chips. | [`fit_small`], [`fit_long`], [`fit_le`], [`fit_pos`], [`fit_round`], [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
+| ✅ | 🥊 | **A photo sent keeps its shape:** it is stored as it is when it fits within 2048 px a side, else with its longer side exactly 2048 and the other to the nearest pixel, never below 1 (`Pic.fit`, as the app's `preparePhoto` sizes it). | [`fit_small`], [`fit_long`], [`fit_le`], [`fit_pos`], [`fit_round`] |
 
 The theorems not listed here are lemmas. The axiom audit,
 `tests/Axioms.lean`, lists them all.
@@ -508,8 +508,15 @@ code that does. `tests/Wiring.lean` classifies every law from the code,
 with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
+🟡 What the check cannot see yet: a model made only of structures. A
+law about a structure whose fields stand for a world (a `World` record,
+say) names no definition that fails to run, so it can pass as about
+running code. Not yet: a rule that finds such models; until then,
+reviewers check that a law's structures are the running code's own or
+a quantified environment (a `Run` of the running step).
+
 <!-- wiring:begin -->
-**1105 of 1289 laws are about running code;** another 35 run its node code in a World, and 149 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1105 of 1282 laws are about running code;** another 35 run its node code in a World, and 142 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -521,7 +528,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Connections | 30 | 26 |  | 4 |
 | Community | 213 | 197 |  | 16 |
 | QR codes | 10 | 10 |  |  |
-| Pictures | 13 | 6 |  | 7 |
+| Pictures | 6 | 6 |  |  |
 | Screen | 259 | 227 |  | 32 |
 | App | 137 | 102 | 6 | 29 |
 | Node | 13 | 13 |  |  |
@@ -537,7 +544,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Scene.approval`, `FairExecution.run`, `Scene.K` +17 | [`FairExecution.fair`], [`ideal`], [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
-| `Pic.add`, `Geom.box`, `Pic.layout` +2 | [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`]*, [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness: the app sizes a photo by `Pic.fit` but draws its own chips; use `Pic`'s tray in the app, or prove these of its chips. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
 | `Frame.wants`, `Subs.ofList`, `Frame.listWins` +2 | [`has_ofList`], [`ofList_wf`], [`screen_subs`]†, [`hull_near`]†, [`past_hull_le`]†, [`screen_index`], [`keep_scrolled_off`]† | Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan). |
 | `Board.apply`, `RWorld.commit`, `RWorld.evict` +10 | [`RWorld.acts_shown`], [`seen_take`], [`World.inv_commit`], [`RWorld.inv_commit`], [`RWorld.inv_pass`], [`RWorld.inv_frame`], [`inv_evict`], [`RWorld.settle`], [`World.inv_pass`], [`World.inv_frame`], [`World.settle`], [`marked_pass`] +7 more | The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`. |
@@ -1334,7 +1340,7 @@ opportunities and full native delivery remain open.
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
 [`oneOpPerId_of`]: engine/core/WindowLaws.lean#L670-L673
 [`op_of_valid`]: app/community/Family.lean#L1231-L1236
-[`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
+[`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L118-L121
 [`Image.decode_sized`]: engine/renderer/ImageLaws.lean#L11-L14
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`Community.parse_valid`]: app/community/member/invite/Proofs.lean#L185-L186
@@ -1680,16 +1686,11 @@ opportunities and full native delivery remain open.
 [`Base62.decode_encode`]: app/community/member/invite/Proofs.lean#L121-L121
 [`Mdns.decode_encode`]: engine/wire/mdns/Laws.lean#L289-L290
 [`decode_roundtrip`]: engine/wire/mdns/Laws.lean#L584-L587
-[`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
-[`fit_long`]: engine/renderer/pic/Laws.lean#L71-L71
-[`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
-[`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
-[`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
-[`render_wellFormed`]: engine/renderer/pic/Laws.lean#L219-L219
-[`render_opaque`]: engine/renderer/pic/Laws.lean#L222-L226
-[`scale_wellFormed`]: engine/renderer/pic/Laws.lean#L236-L236
-[`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
-[`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
+[`fit_small`]: engine/renderer/pic/Laws.lean#L28-L28
+[`fit_long`]: engine/renderer/pic/Laws.lean#L62-L62
+[`fit_le`]: engine/renderer/pic/Laws.lean#L41-L41
+[`fit_pos`]: engine/renderer/pic/Laws.lean#L50-L50
+[`fit_round`]: engine/renderer/pic/Laws.lean#L78-L81
 [`world_trace_moves`]: app/Proofs.lean#L2959-L2961
 [`empty_trace_store`]: app/Proofs.lean#L2966-L2970
 [`world_trace_history`]: app/Proofs.lean#L3485-L3487
@@ -1721,9 +1722,6 @@ opportunities and full native delivery remain open.
 [`allowedB`]: app/community/Proofs.lean#L2289-L2292
 [`allowPeer_iff`]: app/community/Proofs.lean#L3366-L3369
 [`allowPeer_settles`]: app/community/Proofs.lean#L3372-L3376
-[`layout_sizes`]: engine/renderer/pic/Laws.lean#L143-L144
-[`layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
-[`add_stored`]: engine/renderer/pic/Laws.lean#L239-L242
 [`decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
 [`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
@@ -1946,8 +1944,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 484 kernel witnesses, 192 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 46 of 745 linked declarations still pending.**
+**Coverage: 477 kernel witnesses, 191 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 46 of 737 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2147,7 +2145,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`distinct_of_collisionFree`](engine/core/Proofs.lean#L546-L549) | **runtime-witness**: [Vacuity.CoreRuntime.distinctFromHash](tests/vacuity/CoreRuntime.lean). Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure. |
 | [`oneOpPerId_of`](engine/core/WindowLaws.lean#L670-L673) | Pending: no concrete premise witness audited yet |
 | [`op_of_valid`](app/community/Family.lean#L1231-L1236) | **runtime-witness**: [Vacuity.CoreRuntime.validEncoding](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
-| [`Pic.decode_sized`](engine/renderer/pic/Laws.lean#L198-L201) | **kernel-witness**: [Vacuity.RendererImages.pictureSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
+| [`Pic.decode_sized`](engine/renderer/pic/Laws.lean#L118-L121) | **kernel-witness**: [Vacuity.RendererImages.pictureSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Image.decode_sized`](engine/renderer/ImageLaws.lean#L11-L14) | **kernel-witness**: [Vacuity.RendererImages.imageSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Mdns.decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Successful nonempty DNS service announcement parse; malformed IPv4 length and truncated packet controls. |
 | [`Community.parse_valid`](app/community/member/invite/Proofs.lean#L185-L186) | **kernel-witness**: [Vacuity.Core.parsedValid](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
@@ -2497,16 +2495,11 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Base62.decode_encode`](app/community/member/invite/Proofs.lean#L121-L121) | **kernel-witness**: [Vacuity.Core.base62Round](tests/vacuity/Core.lean). Binary fixture [0,1,254,255]; invalid alphabet character rejected. |
 | [`Mdns.decode_encode`](engine/wire/mdns/Laws.lean#L289-L290) | **kernel-witness**: [Vacuity.Formats.announcementRound](tests/vacuity/Formats.lean). Nonempty service query, IPv4 and SRV answers; all name, record and count premises proved. |
 | [`decode_roundtrip`](engine/wire/mdns/Laws.lean#L584-L587) | **kernel-witness**: [Vacuity.Formats.decodedRound](tests/vacuity/Formats.lean). Service discovery query and two answers survive decode/re-encode; localhost example identities, documentation IPv4 address. |
-| [`fit_small`](engine/renderer/pic/Laws.lean#L37-L37) | **kernel-witness**: [Vacuity.Pictures.small](tests/vacuity/Pictures.lean). 640 × 480 photo fits edge 2048 and remains unchanged. |
-| [`fit_long`](engine/renderer/pic/Laws.lean#L71-L71) | **kernel-witness**: [Vacuity.Pictures.longSide](tests/vacuity/Pictures.lean). 4032 × 3024 exceeds edge 2048; longer result side is exactly 2048. |
-| [`fit_le`](engine/renderer/pic/Laws.lean#L50-L50) | **kernel-witness**: [Vacuity.Pictures.bounded](tests/vacuity/Pictures.lean). 4032 × 3024 photo fits within 2048; exact result 2048 × 1536. |
-| [`fit_pos`](engine/renderer/pic/Laws.lean#L59-L59) | **kernel-witness**: [Vacuity.Pictures.positive](tests/vacuity/Pictures.lean). Positive photo dimensions produce positive scaled dimensions. |
-| [`fit_round`](engine/renderer/pic/Laws.lean#L87-L90) | **kernel-witness**: [Vacuity.Pictures.rounding](tests/vacuity/Pictures.lean). Portrait 3024 × 4032 satisfies scaling premise; shorter result side 1536. |
-| [`render_wellFormed`](engine/renderer/pic/Laws.lean#L219-L219) | **kernel-witness**: [Vacuity.RendererImages.renderSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`render_opaque`](engine/renderer/pic/Laws.lean#L222-L226) | **kernel-witness**: [Vacuity.RendererImages.opacity](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`scale_wellFormed`](engine/renderer/pic/Laws.lean#L236-L236) | **kernel-witness**: [Vacuity.RendererImages.scaled](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`Pic.layout_inside`](engine/renderer/pic/Laws.lean#L170-L172) | **kernel-witness**: [Vacuity.RendererImages.inside](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`Pic.layout_apart`](engine/renderer/pic/Laws.lean#L147-L148) | **kernel-witness**: [Vacuity.RendererImages.separated](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
+| [`fit_small`](engine/renderer/pic/Laws.lean#L28-L28) | **kernel-witness**: [Vacuity.Pictures.small](tests/vacuity/Pictures.lean). 640 × 480 photo fits edge 2048 and remains unchanged. |
+| [`fit_long`](engine/renderer/pic/Laws.lean#L62-L62) | **kernel-witness**: [Vacuity.Pictures.longSide](tests/vacuity/Pictures.lean). 4032 × 3024 exceeds edge 2048; longer result side is exactly 2048. |
+| [`fit_le`](engine/renderer/pic/Laws.lean#L41-L41) | **kernel-witness**: [Vacuity.Pictures.bounded](tests/vacuity/Pictures.lean). 4032 × 3024 photo fits within 2048; exact result 2048 × 1536. |
+| [`fit_pos`](engine/renderer/pic/Laws.lean#L50-L50) | **kernel-witness**: [Vacuity.Pictures.positive](tests/vacuity/Pictures.lean). Positive photo dimensions produce positive scaled dimensions. |
+| [`fit_round`](engine/renderer/pic/Laws.lean#L78-L81) | **kernel-witness**: [Vacuity.Pictures.rounding](tests/vacuity/Pictures.lean). Portrait 3024 × 4032 satisfies scaling premise; shorter result side 1536. |
 | [`Unforgeable`](app/community/Family.lean#L1257-L1272) | **kernel-witness**: [Vacuity.Contracts.unforgeableScoped](tests/vacuity/Contracts.lean). Scoped to the signatures a store holds. Kernel witness: under a toy scheme with a valid signature for every message under every key (as Ed25519 has), a store holding one signed op satisfies it with Signed true of that op's signed bytes only, and the old unscoped form fails for the same Signed (Community.unscoped_signs_all: unscoped, it forces Signed everywhere). For Ed25519 it is the computational assumption that no forgery is in the store. |
 | [`unscoped_signs_all`](app/community/Proofs.lean#L90-L95) | **kernel-witness**: [Vacuity.Contracts.unscopedForces](tests/vacuity/Contracts.lean). Under a toy scheme with a valid signature for every message under every key, the unscoped unforgeability premise forces Signed toyKey m for every m: the negative control for scoping Unforgeable to a store. |
 | [`CollisionFree`](engine/core/Proofs.lean#L542-L544) | **runtime-witness**: [Vacuity.CoreRuntime.collisionFree](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
@@ -2546,9 +2539,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`allowedB`](app/community/Proofs.lean#L2289-L2292) | **runtime-witness**: [Vacuity.Bootstrap.joinerAllowed](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
 | [`allowPeer_iff`](app/community/Proofs.lean#L3366-L3369) | **runtime-witness**: [Vacuity.IdentityTrust.netAllowPeer](tests/vacuity/IdentityTrust.lean). Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal. |
 | [`allowPeer_settles`](app/community/Proofs.lean#L3372-L3376) | **runtime-witness**: [Vacuity.IdentityTrust.netAllowSettles](tests/vacuity/IdentityTrust.lean). Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal. |
-| [`layout_sizes`](engine/renderer/pic/Laws.lean#L143-L144) | **kernel-witness**: [Vacuity.RendererImages.layoutSizes](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`layout_apart`](engine/renderer/pic/Laws.lean#L147-L148) | **kernel-witness**: [Vacuity.RendererImages.separated](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
-| [`add_stored`](engine/renderer/pic/Laws.lean#L239-L242) | **runtime-witness**: [Vacuity.RendererRuntime.addStored](tests/vacuity/RendererRuntime.lean). The production Pic.add accepts the synthetic two-pixel RGBA fixture; runtime evaluation proves the result grew, then applies add_stored to the actual result. Invalid buffers are rejected separately in the image fixtures. Native execution, including encoder equality checks, is trusted. |
 | [`decode_valid`](engine/wire/mdns/Laws.lean#L540-L541) | **kernel-witness**: [Vacuity.Formats.announcementSound](tests/vacuity/Formats.lean). Same DNS soundness theorem under a second README reference label. |
 | [`has_ofList`](engine/core/WindowIndex.lean#L452-L453) | **kernel-witness**: [Vacuity.Query.indexHas](tests/vacuity/Query.lean). Two subscriptions: bounded message-1..message-2 and whole community list; proves subscription7 present. Synthetic model fixture; no collected real-user traffic. |
 | [`ofList_wf`](engine/core/WindowIndex.lean#L445-L445) | **kernel-witness**: [Vacuity.Query.indexWF](tests/vacuity/Query.lean). Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic. |

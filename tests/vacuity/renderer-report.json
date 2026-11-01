@@ -384,55 +384,6 @@
     "module": "tests.vacuity.RendererImages",
     "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
   },
-  "layout_sizes": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_sizes",
-    "witness": "Vacuity.RendererImages.layoutSizes",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "Pic.layout_apart": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_apart",
-    "witness": "Vacuity.RendererImages.separated",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "layout_apart": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_apart",
-    "witness": "Vacuity.RendererImages.separated",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "Pic.layout_inside": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_inside",
-    "witness": "Vacuity.RendererImages.inside",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "render_wellFormed": {
-    "status": "kernel-witness",
-    "theorem": "Pic.render_wellFormed",
-    "witness": "Vacuity.RendererImages.renderSized",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "render_opaque": {
-    "status": "kernel-witness",
-    "theorem": "Pic.render_opaque",
-    "witness": "Vacuity.RendererImages.opacity",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "scale_wellFormed": {
-    "status": "kernel-witness",
-    "theorem": "Pic.scale_wellFormed",
-    "witness": "Vacuity.RendererImages.scaled",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
   "Ttf.byte_in_bounds": {
     "status": "kernel-witness",
     "theorem": "Ttf.byte_in_bounds",
@@ -873,13 +824,6 @@
     "witness": "Vacuity.RendererRuntime.rasterPixel",
     "module": "tests.vacuity.RendererRuntime",
     "detail": "The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations."
-  },
-  "add_stored": {
-    "status": "runtime-witness",
-    "theorem": "Pic.add_stored",
-    "witness": "Vacuity.RendererRuntime.addStored",
-    "module": "tests.vacuity.RendererRuntime",
-    "detail": "The production Pic.add accepts the synthetic two-pixel RGBA fixture; runtime evaluation proves the result grew, then applies add_stored to the actual result. Invalid buffers are rejected separately in the image fixtures. Native execution, including encoder equality checks, is trusted."
   },
   "agrees_notice": {
     "status": "runtime-witness",

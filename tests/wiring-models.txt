@@ -146,15 +146,6 @@ Screen.past_hull_le
 Screen.screen_index
 Screen.screen_subs
 
-# engine.renderer.pic.Laws
-Pic.add_stored
-Pic.layout_apart
-Pic.layout_inside
-Pic.layout_sizes
-Pic.render_opaque
-Pic.render_wellFormed
-Pic.scale_wellFormed
-
 # engine.sync.RetryLaws
 Engine.Sync.work_retry_bounded
 
