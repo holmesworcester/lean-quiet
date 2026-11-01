@@ -358,10 +358,34 @@ def finishReader (stopped : StopFlag) (client : TCP.Socket.Client)
   discard <| client.native.cancelRecv.toBaseIO
   discard <| IO.wait job
 
+/-- A retirement's end, once its final frames are written: a FIN, then
+read and discard until the peer's own end, within `stallMs`. Shutting both
+directions at once instead makes the peer's next write meet a reset, and a
+peer whose write fails stops reading: the removal notice it has not yet
+read is lost. The original reader is finished first, so this is the
+socket's only read. -/
+def linger (cap : SocketAbort) (c : TCP.Socket.Client) (stallMs : Nat)
+    (finishReader : IO Unit) : IO Unit := do
+  finishReader
+  unless ← cap.finishWrite do return
+  let deadline := (← IO.monoMsNow) + stallMs
+  repeat
+    let .ok p ← (c.native.recv? 65536).toBaseIO | return
+    repeat
+      if ← p.isResolved then break
+      if (← IO.monoMsNow) ≥ deadline then
+        discard <| c.native.cancelRecv.toBaseIO
+        return
+      IO.sleep 1
+    match ← IO.wait p.result? with
+    | some (.ok (some _)) => pure ()
+    | _ => return
+
 /-- A socket's writer, on its own thread: each native write is the next
 `Outbox.take` batch, marked with when it began, until it is
-stopped (then it shuts the socket down) or a write fails (then the loop
-hears the socket closed). Its end releases the socket's slot. -/
+stopped (then it shuts the socket down), drained (then it `linger`s first)
+or a write fails (then the loop hears the socket closed). Its end releases
+the socket's slot. -/
 def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c : TCP.Socket.Client)
     (addr : ByteArray) (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat)
     (aborter : Option SocketAbort := none) (stallMs : Nat := 30000)
@@ -378,6 +402,10 @@ def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c
       | none =>
         match aborter with
         | some cap =>
+          -- Not stopped, so a drain ended: a retirement, whose last frames
+          -- the peer must still be able to read.
+          unless ← out.atomically (do return (← getThe Outbox).stopped) do
+            linger cap c stallMs cleanupReader
           discard <| c.native.cancelRecv.toBaseIO
           discard <| cap.abort
         | none => closeSocket c
