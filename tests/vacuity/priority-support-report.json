@@ -1,11 +1,4 @@
 {
-  "local_share": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.Inbox.Priority.local_share",
-    "witness": "Vacuity.Priority.localShare",
-    "module": "tests.vacuity.Priority",
-    "detail": "Supporting alias of Priority.local_share: the actual initial phase has three local-preferred turns in four, with exact service order checked on two perpetually growing queues. This is a selector bound, not end-to-end display latency."
-  },
   "phase_cycle": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.Inbox.Priority.phase_cycle",

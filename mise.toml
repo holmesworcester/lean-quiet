@@ -31,12 +31,17 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
 depends = ["crypto"]
 run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:writer-fairness"]
+description = "Actual writer loop FIFO/local-priority fairness with SQLite, reused kernel service bounds and four compiling starvation/copy controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_fairness.sh"
 
 [tasks."test:ref-publications"]
 description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
@@ -252,6 +257,10 @@ run = "platforms/android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquie
 [tasks."android:twin-demo-e2e"]
 description = "Build the runtime and APK, then test a provisioned x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket; retains failure artifacts"
 run = "tests/app/mobile.sh android"
+
+[tasks."android:lifecycle-e2e"]
+description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME focus/hide and clean process finish, with six compiling controls"
+run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]
 description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"

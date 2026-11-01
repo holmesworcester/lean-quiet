@@ -65,6 +65,7 @@ jobs:
             out/ingress
             out/native-lifetime
             out/ref-publications
+            out/writer-fairness
             out/simplify-negative
             out/tree-negative
             out/vacuity

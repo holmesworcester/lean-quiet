@@ -1,0 +1,79 @@
+{
+  "WriterQueue.push_keeps_phase": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.push_keeps_phase",
+    "witness": "Vacuity.WriterFairness.pushKeepsPhase",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "An actual local producer cannot reset the bounded selector phase. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.local_fifo": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.local_fifo",
+    "witness": "Vacuity.WriterFairness.localFIFO",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "The two accepted local jobs precede the newly submitted nonempty local job. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.background_fifo": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.background_fifo",
+    "witness": "Vacuity.WriterFairness.backgroundFIFO",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "The two accepted background jobs precede the newly submitted nonempty background job. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.local_first": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.local_first",
+    "witness": "Vacuity.WriterFairness.localFirst",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "At the initial local-preferred phase, the oldest local job wins while both queues are nonempty. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.background_slot": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.background_slot",
+    "witness": "Vacuity.WriterFairness.backgroundSlot",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "The reserved phase serves the oldest background job while two local jobs remain ready. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.take_state": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.take_state",
+    "witness": "Vacuity.WriterFairness.takeState",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "The actual WriterQueue.take next state is the existing Priority.step next state on the nonempty initial queue. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.local_within": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.local_within",
+    "witness": "Vacuity.WriterFairness.localDeadline",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "Both producers append one nonempty job on every turn forever. The second original local job is selected before turn4; the exact eight-turn prefix is independently kernel checked. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.background_within": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.background_within",
+    "witness": "Vacuity.WriterFairness.backgroundDeadline",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "Both producers append one nonempty job on every turn forever. The second original background job is selected before turn8; no posting-quiescence premise is used. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "WriterQueue.local_share": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.local_share",
+    "witness": "Vacuity.WriterFairness.localShare",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "The actual initial finite phase reserves three of four completed selections for local work. Empty preferred queues fall back immediately. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "push_local": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.push_local",
+    "witness": "Vacuity.WriterFairness.pushLocal",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "A one-op local submission appends to two existing local jobs; the background queue and phase are retained. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  },
+  "push_background": {
+    "status": "kernel-witness",
+    "theorem": "Data.WriterQueue.push_background",
+    "witness": "Vacuity.WriterFairness.pushBackground",
+    "module": "tests.vacuity.WriterFairness",
+    "detail": "A one-op background submission appends behind two existing background jobs. These are queue-selection claims; the named native suite separately runs signed roots through actual Writer.loop and SQLite. Queue capacity, job cost, database completion and OS scheduling remain outside these bounds."
+  }
+}

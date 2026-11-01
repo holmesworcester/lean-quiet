@@ -22,7 +22,7 @@ def main (args : List String) : IO UInt32 := do
   let checkpoint : Lifecycle.Checkpoint :=
     (1, 1, "accepted-user".toUTF8, "visible-message".toUTF8, 27,
       [Codec.encode ["draft that survives suspension".toUTF8], "community".toUTF8])
-  let writer : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false,
+  let writer : Writer := ⟨← IO.mkRef WriterQueue.empty, ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false,
     ← IO.mkRef 0, ← IO.mkRef 0, ← IO.mkRef (0, none), ← IO.mkRef 0⟩
   writer.save (Codec.encode checkpoint)
   let committed ← IO.Promise.new

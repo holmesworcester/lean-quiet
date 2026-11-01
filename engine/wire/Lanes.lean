@@ -126,6 +126,19 @@ def Inbox.next {m : Type → Type} [Monad m] {W E : Type} (writeFirst : Bool)
     | none => pure ((← writes).map .inl)
   return (selected, !writeFirst)
 
+/-- The loop's two channels as queues: local writes, and everything else. -/
+abbrev Queues (W E : Type) := StateM (List W × List E)
+
+def popW {W E : Type} : Queues W E (Option W) :=
+  modifyGet fun (ws, es) => match ws with
+    | [] => (none, ([], es))
+    | w :: ws => (some w, (ws, es))
+
+def popE {W E : Type} : Queues W E (Option E) :=
+  modifyGet fun (ws, es) => match es with
+    | [] => (none, (ws, []))
+    | e :: es => (some e, (ws, es))
+
 /-- The timer decision used after each completed inbox turn. A due tick
 records the sampled time; otherwise its previous time is retained. -/
 def Tick.next (period last now : Nat) : Bool × Nat :=

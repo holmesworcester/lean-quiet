@@ -1,4 +1,5 @@
 import engine.wire.Node
+import engine.renderer.WriteQueue
 import app.community.member.invite.request.Commands
 import app.community.member.join.joining.Commands
 import app.connection.Commands
@@ -373,14 +374,8 @@ def openDb (path : String) : IO Db := do
 
 /-! ## The writer -/
 
-/-- A write: ops (a file's bytes are ops too: its chunks). -/
-structure Job where
-  ops : List Op
-  mine : Bool := false
-  deriving Inhabited
-
 structure Writer where
-  jobs : IO.Ref (Array Job)
+  jobs : IO.Ref WriterQueue
   /-- How many jobs are queued or running. -/
   busy : IO.Ref Nat
   /-- Commit times, µs, for the stats. -/
@@ -410,7 +405,7 @@ def Writer.noticed (w : Writer) (seq : Nat) : IO Unit :=
 
 def Writer.submit (w : Writer) (j : Job) : IO Unit := do
   w.busy.modify (· + 1)
-  w.jobs.modify fun js => if j.mine then #[j] ++ js else js.push j
+  w.jobs.modify (·.push j)
 
 /-- Hand a checkpoint to the writer's thread: the frame never commits. -/
 def Writer.save (w : Writer) (b : ByteArray) : IO Unit :=
@@ -444,19 +439,24 @@ def Writer.run1 (w : Writer) (db : Db) (j : Job) : IO Unit := do
   w.commits.modify fun cs => (if cs.size > 200 then cs.extract 100 cs.size else cs).push
     (j.ops.length, (t1 - t0).toNat)
 
-/-- Each turn takes a job, then commits the newest checkpoint, then the
-job: a checkpoint handed over before a job was submitted commits first. -/
-partial def Writer.loop (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
+/-- One actual writer service turn. Selection, both FIFO queues and phase
+move atomically. Checkpoint-before-selected-job and error accounting retain
+the existing behavior. Bounds concern completed selections, not DB time. -/
+def Writer.turn (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO (Option Job) := do
   let next ← if ← w.paused.get then pure none else
-    w.jobs.modifyGet fun js => if js.isEmpty then (none, js) else (some js[0]!, js.extract 1 js.size)
+    w.jobs.modifyGet WriterQueue.take
   w.commitSave db save
   match next with
-  | none => IO.sleep 2; w.loop db save
+  | none => IO.sleep 2
   | some j =>
     try w.run1 db j
     catch e => IO.eprintln s!"writer: {e}"
     w.busy.modify (· - 1)
-    w.loop db save
+  return next
+
+partial def Writer.loop (w : Writer) (db : Db) (save : Db → ByteArray → IO Unit) : IO Unit := do
+  discard <| w.turn db save
+  w.loop db save
 
 /-- One actual prune pass, shared by the periodic writer and native tests. -/
 def Writer.pruneOnce (w : Writer) (db : Db) : IO Unit := do
@@ -488,7 +488,7 @@ def Writer.start (path : String) (save : Db → ByteArray → IO Unit) : IO Writ
   -- reader take their notices
   dropKeyJournal db
   db.filings
-  let w : Writer := ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0, ← IO.mkRef 0,
+  let w : Writer := ⟨← IO.mkRef WriterQueue.empty, ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef false, ← IO.mkRef 0, ← IO.mkRef 0,
     ← IO.mkRef (0, none), ← IO.mkRef 0⟩
   let _ ← IO.asTask (prio := .dedicated) (w.loop db save)
   let _ ← IO.asTask (prio := .dedicated) (w.prune (← openDb path))
