@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1400 rest on Lean's standard axioms only, and about three quarters of its theorems (1035 of 1376, not counting 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1400 rest on Lean's standard axioms only, and about three quarters of its theorems (1038 of 1376, not counting 24 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -509,7 +509,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1035 of 1376 laws are about running code;** another 35 run its node code in a World, and 306 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1038 of 1376 laws are about running code;** another 35 run its node code in a World, and 303 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -1514,9 +1514,9 @@ opportunities and full native delivery remain open.
 [`old_callback`]: app/Proofs.lean#L1192-L1194
 [`unmounted_quiet`]: app/Screen.lean#L232-L233
 [`old_quiet`]: app/Screen.lean#L236-L237
-[`live_exact`]: app/Screen.lean#L252-L256
 [`subscriptions_exact`]: app/Screen.lean#L240-L241
 [`mounted_runs`]: app/Screen.lean#L305-L307
+[`live_exact`]: app/Screen.lean#L252-L256
 [`restore_checkpoint`]: app/Screen.lean#L302-L302
 [`page_round`]: app/Screen.lean#L2373-L2373
 [`restore_page_anchor`]: app/Proofs.lean#L1200-L1206
@@ -1947,8 +1947,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 509 kernel witnesses, 183 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 16 of 731 linked declarations still pending.**
+**Coverage: 508 kernel witnesses, 183 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 16 of 730 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2316,9 +2316,9 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`old_callback`](app/Proofs.lean#L1192-L1194) | **runtime-witness**: [Vacuity.RendererRuntime.oldCallback](tests/vacuity/RendererRuntime.lean). No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data. |
 | [`unmounted_quiet`](app/Screen.lean#L232-L233) | **kernel-witness**: [Vacuity.RendererFlow.unmounted](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`old_quiet`](app/Screen.lean#L236-L237) | **kernel-witness**: [Vacuity.RendererFlow.oldCallback](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
-| [`live_exact`](app/Screen.lean#L252-L256) | **kernel-witness**: [Vacuity.RendererFlow.liveExact](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`subscriptions_exact`](app/Screen.lean#L240-L241) | **kernel-witness**: [Vacuity.RendererFlow.subscriptions](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`mounted_runs`](app/Screen.lean#L305-L307) | **kernel-witness**: [Vacuity.RendererFlow.mountedWork](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
+| [`live_exact`](app/Screen.lean#L252-L256) | **kernel-witness**: [Vacuity.RendererFlow.liveExact](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`restore_checkpoint`](app/Screen.lean#L302-L302) | **kernel-witness**: [Vacuity.RendererFlow.restore](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`page_round`](app/Screen.lean#L2373-L2373) | **kernel-witness**: [Vacuity.RendererRuntime.pageCodec](tests/vacuity/RendererRuntime.lean). Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims. |
 | [`restore_page_anchor`](app/Proofs.lean#L1200-L1206) | **runtime-witness**: [Vacuity.RendererRuntime.savedAnchor](tests/vacuity/RendererRuntime.lean). No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data. |

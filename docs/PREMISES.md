@@ -398,7 +398,7 @@ Rests on: `Community.Seal.Good`, `Engine.Model.run`, `Trust.NativeCrypto`
 |---|---|---|
 | (none) | | |
 
-## ✅ Sessions are secret and authenticated,
+## ✅ Sessions are secret,
 
 Rests on: `Connection.Noise.Suite.Good`, `Connection.Noise.Symbolic.sym`
 
@@ -431,29 +431,6 @@ Rests on: `Connection.Noise.Suite.Good`, `Connection.Noise.Symbolic.sym`
 | h1 | `Connection.Noise.read1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sR) (Connection.Noise.Symbolic.T.atom sI).pub m1 = some (st, re, p1)` | [crypto] |
 | h2 | `Connection.Noise.write2 Connection.Noise.Symbolic.sym st (Connection.Noise.Symbolic.T.atom f) (Connection.Noise.Symbolic.T.atom sI).pub re p2 = some (sr, m2)` | [crypto] |
 
-**`Connection.Noise.Symbolic.kk_authentic`** (wired)
-
-| premise | statement | tag |
-|---|---|---|
-| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
-| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
-| hR | `S sR` | [discharged] |
-| hIe | `S sI ∨ S e` | [discharged] |
-| h1 | `Connection.Noise.sent1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) (Connection.Noise.Symboli…` | [crypto] |
-| h2 | `Connection.Noise.read2 Connection.Noise.Symbolic.sym st (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) m2 = some (si, p2)` | [crypto] |
-| hm2 | `Connection.Noise.Symbolic.Derivable K m2` | [discharged] |
-
-**`Connection.Noise.Symbolic.kk_authentic_resp`** (wired)
-
-| premise | statement | tag |
-|---|---|---|
-| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
-| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
-| hI | `S sI` | [discharged] |
-| hR | `S sR` | [discharged] |
-| h1 | `Connection.Noise.read1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sR) (Connection.Noise.Symbolic.T.atom sI).pub m1 = some (st, re, p1)` | [crypto] |
-| hm1 | `Connection.Noise.Symbolic.Derivable K m1` | [discharged] |
-
 **`Connection.Noise.Symbolic.kk_secret_init_tight`** (wired)
 
 | premise | statement | tag |
@@ -480,6 +457,79 @@ Rests on: `Connection.Noise.Suite.Good`, `Connection.Noise.Symbolic.sym`
 | hss | `S.dh sI (S.pub sR) = some ss` | [discharged] |
 | hee | `S.dh f (S.pub e) = some ee` | [discharged] |
 | hse | `S.dh f (S.pub sI) = some se` | [discharged] |
+
+## ✅ Sessions are authenticated,
+
+Rests on: `Connection.Noise.Symbolic.sym`
+
+**`Connection.Noise.Symbolic.kk_authentic`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
+| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
+| hR | `S sR` | [discharged] |
+| hIe | `S sI ∨ S e` | [discharged] |
+| no_answer | `∀ (q m : Connection.Noise.Symbolic.T), O q m → ¬Connection.Noise.Symbolic.Answers sR m1 q m` | [discharged] |
+| h1 | `Connection.Noise.sent1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) (Connection.Noise.Symboli…` | [crypto] |
+| hm2 | `Connection.Noise.Symbolic.Derivable O K m2` | [discharged] |
+
+**`Connection.Noise.Symbolic.kk_agree`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
+| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
+| hR | `S sR` | [discharged] |
+| hIe | `S sI ∨ S e` | [discharged] |
+| h1 | `Connection.Noise.sent1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) (Connection.Noise.Symboli…` | [crypto] |
+| h2 | `Connection.Noise.read2 Connection.Noise.Symbolic.sym st (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) m2 = some (si, p2)` | [crypto] |
+| hm2 | `Connection.Noise.Symbolic.Derivable O K m2` | [discharged] |
+
+**`Connection.Noise.Symbolic.kk_authentic_resp`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
+| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
+| hI | `S sI` | [discharged] |
+| hR | `S sR` | [discharged] |
+| no_request | `∀ (q m : Connection.Noise.Symbolic.T), O q m → ¬Connection.Noise.Symbolic.Requests sI (Connection.Noise.Symbolic.T.atom sR).pub p1 q m` | [discharged] |
+| hm1 | `Connection.Noise.Symbolic.Derivable O K m1` | [discharged] |
+| (stated over) | `Connection.Noise.Symbolic.sym` | [crypto] |
+
+**`Connection.Noise.Symbolic.kk_agree_resp`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hK | `∀ (t : Connection.Noise.Symbolic.T), K t → Connection.Noise.Symbolic.Clean S t` | [discharged] |
+| hK2 | `∀ (t : Connection.Noise.Symbolic.T), K t → ∀ {k : Connection.Noise.Symbolic.T} {n : Nat} {ad p : Connection.Noise.Symbolic.T}, Connection.Noise.Symbolic.Part…` | [discharged] |
+| hI | `S sI` | [discharged] |
+| hR | `S sR` | [discharged] |
+| h1 | `Connection.Noise.read1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sR) (Connection.Noise.Symbolic.T.atom sI).pub m1 = some (st, re, p1)` | [crypto] |
+| hm1 | `Connection.Noise.Symbolic.Derivable O K m1` | [discharged] |
+
+**`Connection.Noise.Symbolic.kk_authentic_tight`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h1 | `Connection.Noise.sent1 Connection.Noise.Symbolic.sym pro (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) (Connection.Noise.Symboli…` | [crypto] |
+| hk | `Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom sR) ∨ Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom sI)…` | [discharged] |
+| hf | `Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom f)` | [discharged] |
+| hpub | `∀ (x : Connection.Noise.Symbolic.T), Connection.Noise.Symbolic.Derivable O K x.pub` | [discharged] |
+| hpro | `Connection.Noise.Symbolic.Derivable O K pro` | [discharged] |
+| hm1 | `Connection.Noise.Symbolic.Derivable O K m1` | [discharged] |
+
+**`Connection.Noise.Symbolic.kk_authentic_resp_tight`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hk | `Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom sI) ∨ Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom sR)` | [discharged] |
+| he | `Connection.Noise.Symbolic.Derivable O K (Connection.Noise.Symbolic.T.atom e)` | [discharged] |
+| hpub | `∀ (x : Connection.Noise.Symbolic.T), Connection.Noise.Symbolic.Derivable O K x.pub` | [discharged] |
+| hpro | `Connection.Noise.Symbolic.Derivable O K pro` | [discharged] |
+| hp | `Connection.Noise.Symbolic.Derivable O K p` | [discharged] |
+| (stated over) | `Connection.Noise.Symbolic.sym` | [crypto] |
 
 ## 🟡 A closed session's keys cannot be recovered,
 
