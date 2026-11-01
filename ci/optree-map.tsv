@@ -7,13 +7,10 @@ AppTypes.lean	app/Screen.lean
 engine/renderer/Appearance.lean	app/Screen.lean
 engine/renderer/Data.lean	app/Commands.lean
 engine/renderer/LiveLaws.lean	app/Commands.lean
+engine/renderer/PlatformIo.lean	app/Screen.lean
 engine/renderer/SafeFrame.lean	app/Screen.lean
 engine/renderer/SafeLaws.lean	app/Proofs.lean
 engine/renderer/ThemeLaws.lean	app/Proofs.lean
-engine/wire/DialQueue.lean	engine/wire/DialQueue.lean
-engine/wire/EgressLaws.lean	engine/wire/EgressLaws.lean
-engine/wire/Loop.lean	engine/wire/Loop.lean
-engine/wire/LoopLaws.lean	engine/wire/LoopLaws.lean
 ops/app/Chaos.lean	app/Screen.lean
 ops/app/ClumpList.lean	app/Screen.lean
 ops/app/Components.lean	app/Screen.lean
@@ -128,13 +125,3 @@ ops/sync/TimeLaws.lean	engine/sync/TimeLaws.lean
 ops/sync/TreeLaws.lean	engine/sync/TreeLaws.lean
 ops/sync/Wire.lean	engine/sync/Wire.lean
 ops/sync/Witnesses.lean	engine/sync/Witnesses.lean
-platforms/headless/WriteAdmission.lean	(rewritten: see the op folders)
-tests/engine/LoopChecks.lean	(rewritten: see the op folders)
-tests/vacuity/ClosureDelivery.lean	(rewritten: see the op folders)
-tests/vacuity/ClosureDeliveryMain.lean	(rewritten: see the op folders)
-tests/vacuity/ConnectionProgress.lean	(rewritten: see the op folders)
-tests/vacuity/ConnectionProgressMain.lean	(rewritten: see the op folders)
-tests/vacuity/RoundExchange.lean	(rewritten: see the op folders)
-tests/vacuity/RoundExchangeMain.lean	(rewritten: see the op folders)
-tests/vacuity/StorageEffects.lean	(rewritten: see the op folders)
-tests/vacuity/StorageEffectsMain.lean	(rewritten: see the op folders)
