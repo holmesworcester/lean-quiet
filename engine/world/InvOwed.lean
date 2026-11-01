@@ -5,7 +5,7 @@ empty stores, `owed_bounded_start`, a conjunct of `Plain.good_always`):
 a want joins the queue only while it has room (main's
 `onWant_bounded_owed`), serving leaves a suffix, a new session's queue is
 empty, and nothing else touches it. Over the `Pieces` of every entry
-point (engine/world/InvIx.lean).
+point (engine/world/Pieces.lean), from the plain hooks' (`Plain.pieces`).
 -/
 import engine.world.Drain
 
@@ -130,40 +130,42 @@ theorem serve_bounded (y : Sync F (HeldM F)) (n : Node) (cid : Id) (now : Nat) (
     · simp only [HeldM.run_bind, Node.refresh, HeldM.run_pure]
       exact bounded_replace n cid _ (serveOwed_bounded _ _ _ _ _ _ _ (hn cid c hc)) hn
 
-/-- **Every piece of a plain node keeps each queue within `maxKnown`.** -/
-theorem bounded_pieces : Pieces S s (fun n _ => NodeBounded S.cfg.maxKnown n) where
-  write n ops h hn := bounded_conns (write_conns _ n ops h) hn
-  store n ops mine h hn := store_bounded S s n ops mine h hn
-  recv n cid c b now h hc hn := apply_gen S s (fun n _ => NodeBounded S.cfg.maxKnown n)
-    (fun n ops mine h hn => store_bounded S s n ops mine h hn)
-    n cid _ now h (fun _ => bounded_drop n cid hn)
-    (fun _ => bounded_replace n cid _ (recv_bounded S.fam S.cfg n.ix
-      { c.setRooms (S.rooms s cid) with notices := [] } b now h (hn cid c hc)) hn)
-  tick n cid c now h hc hn := apply_gen S s (fun n _ => NodeBounded S.cfg.maxKnown n)
-    (fun n ops mine h hn => store_bounded S s n ops mine h hn)
-    n cid _ now h (fun _ => bounded_drop n cid hn)
-    (fun _ => bounded_replace n cid _ (by
-      have e : ((Conn.tickGive S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } now :
-          HeldM F Step).run h).1.conn.owed = c.owed :=
-        (tickGive_q S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } now h).1
-      rw [e]; exact hn cid c hc) hn)
-  serve y _ _ n cid now h hn := serve_bounded S y n cid now h hn
-  finish n out now h hn := finish_node S s (NodeBounded S.cfg.maxKnown) (fun m cid hm => bounded_drop m cid hm)
-    (fun m o t hm => bounded_sent m o t hm) (fun _ hm => bounded_conns rfl hm) n out now h hn
-  setAddr n cid a h hn := bounded_conns rfl hn
-  heat n ids now h hn := bounded_conns rfl hn
-  drop n cid h hn := bounded_drop n cid hn
-  opens n cid a dialer now h hn := by
-    unfold Node.open
-    simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
-    intro cid' c hc
-    simp only [Node.conn?, List.find?_cons] at hc
-    split at hc
-    · simp only [Option.map_some, Option.some.injEq] at hc
-      subst hc
-      simp [Conn.open]
-    · exact hn cid' c (close_conn n cid cid' c hc)
-
 end
+
+namespace Plain
+variable {Q : Plain F}
+
+/-- **Every piece of a plain node keeps each queue within `maxKnown`.** -/
+theorem bounded_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => NodeBounded Q.cfg.maxKnown n) :=
+  pieces (fun n ops h hn => bounded_conns (write_conns _ n ops h) hn)
+    (fun n ops mine h hn => store_bounded (Q.two i) .a n ops mine h hn)
+    (fun n cid c rs b now h hc hn => apply_gen (Q.two i) .a (fun n _ => NodeBounded Q.cfg.maxKnown n)
+      (fun n ops mine h hn => store_bounded (Q.two i) .a n ops mine h hn)
+      n cid _ now h (fun _ => bounded_drop n cid hn)
+      (fun _ => bounded_replace n cid _ (recv_bounded Q.fam Q.cfg n.ix (c.carry rs) b now h (hn cid c hc)) hn))
+    (fun n cid c rs now h hc hn => apply_gen (Q.two i) .a (fun n _ => NodeBounded Q.cfg.maxKnown n)
+      (fun n ops mine h hn => store_bounded (Q.two i) .a n ops mine h hn)
+      n cid _ now h (fun _ => bounded_drop n cid hn)
+      (fun _ => bounded_replace n cid _ (by
+        have e : ((Conn.tickGive Q.fam Q.cfg n.ix (c.carry rs) now : HeldM F Step).run h).1.conn.owed = c.owed :=
+          (tickGive_q Q.fam Q.cfg n.ix (c.carry rs) now h).1
+        rw [e]; exact hn cid c hc) hn))
+    (fun y _ _ n cid now h hn => serve_bounded (Q.two i) y n cid now h hn)
+    (fun n cid a dialer now h hn => by
+      show NodeBounded Q.cfg.maxKnown ((n.open ((Q.two i).sync .a) cid a dialer now).run h).1.1
+      unfold Node.open
+      simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
+      intro cid' c hc
+      simp only [Node.conn?, List.find?_cons] at hc
+      split at hc
+      · simp only [Option.map_some, Option.some.injEq] at hc
+        subst hc
+        simp [Conn.open]
+      · exact hn cid' c (close_conn n cid cid' c hc))
+    (fun _ _ _ _ hn => bounded_conns rfl hn) (fun _ _ _ _ hn => bounded_conns rfl hn)
+    (fun n cid _ hn => bounded_drop n cid hn) (fun n o t _ hn => bounded_sent n o t hn)
+    (fun _ _ hn => bounded_conns rfl hn) (fun _ _ _ _ hn => bounded_conns rfl hn)
+
+end Plain
 
 end Engine.World

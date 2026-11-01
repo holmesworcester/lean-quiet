@@ -90,14 +90,14 @@ theorem good_local : Local Q.setup (fun _ => Q.NodeGood) (fun _ => Q.NodeGood) :
   have m : Local Q.setup (fun _ => Q.NodeGood) (fun _ n _ => n.managed = []) :=
     managed_local.mono fun _ _ _ g => g.managed
   have o : Local Q.setup (fun _ => Q.NodeGood) (fun _ n _ => NodeOQ n) :=
-    (pieces_local (fun n _ => NodeOQ n) (fun i => oq_pieces (Q.two i) .a)
-      (fun _ _ _ _ _ hc => by simp [Node.boot, Node.conn?] at hc)).mono fun _ _ _ g => g.owes
+    (Pieces.local lawful (Φ := fun _ n _ => NodeOQ n) oq_pieces
+      (fun _ _ _ _ _ _ hc => by simp [Setup.reboot, Node.boot, Node.conn?] at hc)).mono fun _ _ _ g => g.owes
   have b : Local Q.setup (fun _ => Q.NodeGood) (fun _ n _ => NodeBounded Q.cfg.maxKnown n) :=
-    (pieces_local (fun n _ => NodeBounded Q.cfg.maxKnown n) (fun i => bounded_pieces (Q.two i) .a)
-      (fun _ _ _ _ _ hc => by simp [Node.boot, Node.conn?] at hc)).mono fun _ _ _ g => g.bounded
+    (Pieces.local lawful (Φ := fun _ n _ => NodeBounded Q.cfg.maxKnown n) bounded_pieces
+      (fun _ _ _ _ _ _ hc => by simp [Setup.reboot, Node.boot, Node.conn?] at hc)).mono fun _ _ _ g => g.bounded
   have x : Local Q.setup (fun _ => Q.NodeGood) (fun _ => IxInv Q.fam) :=
-    (pieces_local (IxInv Q.fam) (fun i => ix_pieces (Q.two i) .a)
-      (fun _ h hi => boot_ixinv Q.fam h 0 hi.2.2)).mono fun _ _ _ g => g.ix
+    (Pieces.local lawful (Φ := fun _ => IxInv Q.fam) ix_pieces
+      (fun _ _ h hi => boot_ixinv Q.fam h 0 hi.2.2)).mono fun _ _ _ g => g.ix
   have r : Local Q.setup (fun _ => Q.NodeGood) (fun _ _ h => h.Reachable Q.fam) :=
     store_local.mono fun _ _ _ g => g.store
   have q : Local Q.setup (fun _ => Q.NodeGood) (fun _ _ h => h.db.queue = []) :=

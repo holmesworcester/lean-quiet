@@ -19,9 +19,10 @@ the running node (engine/world/Inv.lean has the first, `managed_nil`).
   which boots the index from the log, covers the store.
 
 Both are proven once per piece of the node (`oq_pieces`, `ix_pieces`:
-the pieces of `Pieces`), then over every entry point as Inv.lean does
-(`onFrame_keeps`, `onTick_keeps`, ...), then over every execution
-(`Plain.always`, through `Local` of engine/world/Good.lean). From
+the `Pieces` of engine/world/Pieces.lean, from the few the plain hooks
+reach, `Plain.pieces`); the entry points are Pieces.lean's, for any
+setup; then over every execution (`Plain.always`, through `Pieces.local`
+and `Local` of engine/world/Good.lean). From
 empty stores they are conjuncts of `Plain.good_always`
 (engine/world/PlainGood.lean: `owes_queued_start`, `ix_covers_start`).
 -/
@@ -33,160 +34,6 @@ open Engine Engine.Sync
 variable {F : Type}
 
 attribute [local instance] byteArray_lawfulBEq
-
-/-! ## A node invariant over every entry point -/
-
-/-- What an invariant of a node and its store must survive, piece by
-piece, to hold across every entry point of a plain node. -/
-structure Pieces (S : Engine.Sync.Setup F) (s : Who) (Φ : Node → Held F → Prop) : Prop where
-  write : ∀ n ops h, Φ n h → Φ ((n.write (S.sync s) ops).run h).1.1 ((n.write (S.sync s) ops).run h).2
-  store : ∀ n ops mine h, Φ n h →
-    Φ ((n.store (S.sync s) ops mine).run h).1.1 ((n.store (S.sync s) ops mine).run h).2
-  recv : ∀ n cid c b now h, n.conn? cid = some c → Φ n h →
-    Φ ((n.apply (S.sync s) cid ((Conn.recv S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } b
-        now : HeldM F Step).run h).1 now).run h).1.1
-      ((n.apply (S.sync s) cid ((Conn.recv S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } b
-        now : HeldM F Step).run h).1 now).run h).2
-  tick : ∀ n cid c now h, n.conn? cid = some c → Φ n h →
-    Φ ((n.apply (S.sync s) cid ((Conn.tickGive S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] }
-        now : HeldM F Step).run h).1 now).run h).1.1
-      ((n.apply (S.sync s) cid ((Conn.tickGive S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] }
-        now : HeldM F Step).run h).1 now).run h).2
-  serve : ∀ (y : Sync F (HeldM F)), y.fam = S.fam → y.hooks = (S.sync s).hooks → ∀ n cid now h, Φ n h →
-    Φ ((n.serveOwed y cid now).run h).1.1 ((n.serveOwed y cid now).run h).2
-  finish : ∀ n out now h, Φ n h →
-    Φ ((n.finish (S.sync s) out now).run h).1.1 ((n.finish (S.sync s) out now).run h).2
-  setAddr : ∀ n cid a h, Φ n h → Φ (n.setAddr cid a) h
-  heat : ∀ n ids now h, Φ n h → Φ (n.heat (S.sync s) ids now) h
-  drop : ∀ n cid h, Φ n h → Φ (n.drop cid) h
-  opens : ∀ n cid a dialer now h, Φ n h →
-    Φ ((n.open (S.sync s) cid a dialer now).run h).1.1 ((n.open (S.sync s) cid a dialer now).run h).2
-
-section
-variable (S : Engine.Sync.Setup F) (s : Who)
-
-/-- **An entry point's end**, for any node property that drops, send
-times and clearing what was stored keep: following (the plain family
-establishes no session, so it only drops managed ones), the empty
-outbox, no retirements, sealing (reads only), send times, and the
-report. -/
-theorem finish_node (P : Node → Prop) (hd : ∀ m cid, P m → P (m.drop cid))
-    (hs : ∀ m (o : Acts) t, P m → P (m.sent o t)) (hf : ∀ m, P m → P { m with fresh := [], purged := [] })
-    (n : Node) (out : Acts) (now : Nat) (h : Held F) (hn : P n) :
-    P ((n.finish (S.sync s) out now).run h).1.1 := by
-  unfold Node.finish
-  simp only [HeldM.run_bind]
-  have f1 : P ((n.follow (S.sync s) now).run h).1.1 := by
-    unfold Node.follow
-    simp only [HeldM.run_bind, sync_established, HeldM.run_pure]
-    generalize hR1 : HeldM.run (forIn (m := HeldM F) n.managed ((n, {}) : Node × Acts) _) h = R1
-    have p1 := forIn_inv hR1 (fun _ (st : Node × Acts) => P st.1) hn (fun a _ st h' hst => by
-      simp only [List.any_nil, Bool.not_false, ↓reduceIte, HeldM.run_pure, ForInStep.value]
-      exact hd _ _ hst)
-    simp only [List.forIn_nil, HeldM.run_pure]
-    exact p1
-  generalize HeldM.run (Node.follow (S.sync s) n now) h = A at f1 ⊢
-  have f2 : P ((Node.flush (S.sync s) A.1.1 out).run A.2).1.1 := by
-    simp only [Node.flush, sync_outbox, HeldM.run_bind, HeldM.run_pure, List.isEmpty_nil, ↓reduceIte]
-    exact f1
-  generalize HeldM.run (Node.flush (S.sync s) A.1.1 out) A.2 = B at f2 ⊢
-  simp only [sync_retired, HeldM.run_pure, List.foldl_nil]
-  exact hf _ (hs _ _ _ f2)
-
-/-! ### The entry points, from the pieces -/
-
-variable {S s} {Φ : Node → Held F → Prop}
-
-theorem onSealed_keeps (P : Pieces S s Φ) (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray))
-    (now : Nat) (h : Held F) (hn : Φ n h) :
-    Φ ((n.onSealed (S.sync s) addr opened now).run h).1.1 ((n.onSealed (S.sync s) addr opened now).run h).2 := by
-  unfold Node.onSealed
-  split
-  · exact hn
-  · split
-    · simp only [HeldM.run_bind]
-      generalize hR : HeldM.run (forIn (m := HeldM F) (_ : List ByteArray)
-        ((n.setAddr _ addr, {}) : Node × Acts) _) h = R
-      have pR := forIn_inv hR (fun h' (st : Node × Acts) => Φ st.1 h') (P.setAddr _ _ _ _ hn)
-        (fun b _ st h' hst => by
-          split
-          · rename_i c hc
-            simp only [HeldM.run_bind, refresh_run, sync_fam, sync_cfg, HeldM.run_pure, ForInStep.value]
-            rw [recv_reads]
-            exact P.recv _ _ _ _ _ _ hc hst
-          · exact hst)
-      exact P.finish _ _ now _ (P.serve (S.sync s) rfl rfl _ _ now _ pR)
-    · exact hn
-
-theorem onFrame_keeps (P : Pieces S s Φ) (n : Node) (addr bytes : ByteArray) (now : Nat) (h : Held F)
-    (hn : Φ n h) :
-    Φ ((n.onFrame (S.sync s) addr bytes now).run h).1.1 ((n.onFrame (S.sync s) addr bytes now).run h).2 := by
-  unfold Node.onFrame
-  split
-  · dsimp only
-    split
-    · exact hn
-    · split
-      · exact hn
-      · simp only [HeldM.run_bind]
-        exact P.finish _ _ now _ (P.store _ _ true _ (P.write _ _ _ hn))
-  · simp only [HeldM.run_bind]
-    exact onSealed_keeps P n addr _ now _ hn
-  · exact hn
-
-theorem onTick_keeps (P : Pieces S s Φ) (n : Node) (now : Nat) (h : Held F) (hn : Φ n h) :
-    Φ ((n.onTick (S.sync s) now).run h).1.1 ((n.onTick (S.sync s) now).run h).2 := by
-  have hd : (S.sync s).deferredRetries = false := rfl
-  unfold Node.onTick
-  rw [hd]
-  unfold Node.onTickDirect
-  simp only [Bool.false_eq_true, ↓reduceIte, HeldM.run_bind]
-  have hA := P.store n (((S.sync s).hooks.dial now).run h).1 true (((S.sync s).hooks.dial now).run h).2 hn
-  generalize HeldM.run (Node.store (S.sync s) n (((S.sync s).hooks.dial now).run h).1 true)
-    (((S.sync s).hooks.dial now).run h).2 = A at hA ⊢
-  generalize hR : HeldM.run (forIn (m := HeldM F) A.1.1.conns ((A.1.1, A.1.2) : Node × Acts) _) A.2 = R
-  have pR := forIn_inv hR (fun h' (st : Node × Acts) => Φ st.1 h') hA
-    (fun b _ st h' hst => by
-      split
-      · exact hst
-      · rename_i c hc
-        simp only [HeldM.run_bind, refresh_run]
-        split
-        · exact hst
-        · simp only [HeldM.run_bind, sync_fam, sync_cfg]
-          rw [tickGive_reads]
-          have g1 := P.tick st.1 b.1 c now h' hc hst
-          generalize HeldM.run (Node.apply (S.sync s) st.1 b.1 _ now) h' = B at g1 ⊢
-          rw [sweep_none _ rfl]
-          simp only [HeldM.run_pure, ForInStep.value]
-          exact P.serve _ rfl rfl _ _ now _ g1)
-  exact P.finish _ _ now _ pR
-
-theorem onWrite_keeps (P : Pieces S s Φ) (n : Node) (ops : List Op) (now : Nat) (h : Held F) (hn : Φ n h) :
-    Φ ((n.onWrite (S.sync s) ops now).run h).1.1 ((n.onWrite (S.sync s) ops now).run h).2 := by
-  unfold Node.onWrite
-  simp only [HeldM.run_bind]
-  exact P.finish _ _ now _ (P.heat _ _ _ _ (P.store n ops true h hn))
-
-theorem onClose_keeps (P : Pieces S s Φ) (n : Node) (addr : ByteArray) (now : Nat) (h : Held F) (hn : Φ n h) :
-    Φ ((n.onClose (S.sync s) addr now).run h).1.1 ((n.onClose (S.sync s) addr now).run h).2 := by
-  unfold Node.onClose
-  apply P.finish
-  have : ∀ (L : List Id) (m : Node), Φ m h → Φ (L.foldl Node.drop m) h := by
-    intro L
-    induction L with
-    | nil => intro m hm; exact hm
-    | cons a t ih => intro m hm; exact ih _ (P.drop m a h hm)
-  exact this _ n hn
-
-theorem connect_keeps (P : Pieces S s Φ) (n : Node) (cid : Id) (a : ByteArray) (dialer : Bool) (now : Nat)
-    (h : Held F) (hn : Φ n h) :
-    Φ ((n.connect (S.sync s) cid a dialer now).run h).1.1 ((n.connect (S.sync s) cid a dialer now).run h).2 := by
-  unfold Node.connect
-  simp only [HeldM.run_bind]
-  exact P.finish _ _ now _ (P.opens n cid a dialer now h hn)
-
-end
 
 /-! ## Invariant 1: what a session owes is queued -/
 
@@ -416,40 +263,6 @@ theorem serve_oq (y : Sync F (HeldM F)) (n : Node) (cid : Id) (now : Nat) (h : H
     · simp only [HeldM.run_bind, Node.refresh, HeldM.run_pure]
       exact oq_replace n cid _ (serveOwed_oq _ _ _ _ _ _ (hn cid c hc)) hn
 
-theorem finish_oq (n : Node) (out : Acts) (now : Nat) (h : Held F) (hn : NodeOQ n) :
-    NodeOQ ((n.finish (S.sync s) out now).run h).1.1 :=
-  finish_node S s NodeOQ (fun m cid hm => oq_drop m cid hm) (fun m o t hm => oq_sent m o t hm)
-    (fun _ hm => oq_conns rfl hm) n out now h hn
-
-/-- **Every piece of a plain node keeps what its sessions owe queued.** -/
-theorem oq_pieces : Pieces S s (fun n _ => NodeOQ n) where
-  write n ops h hn := oq_conns (write_conns _ n ops h) hn
-  store n ops mine h hn := store_oq S s n ops mine h hn
-  recv n cid c b now h hc hn := apply_gen S s (fun n _ => NodeOQ n) (fun n ops mine h hn => store_oq S s n ops mine h hn)
-    n cid _ now h (fun _ => oq_drop n cid hn)
-    (fun _ => oq_replace n cid _ (recv_owed S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] } b now h
-      (hn cid c hc)).1 hn)
-  tick n cid c now h hc hn := apply_gen S s (fun n _ => NodeOQ n) (fun n ops mine h hn => store_oq S s n ops mine h hn)
-    n cid _ now h (fun _ => oq_drop n cid hn)
-    (fun _ => oq_replace n cid _ (SameQ.oq (tickGive_q S.fam S.cfg n.ix { c.setRooms (S.rooms s cid) with notices := [] }
-      now h) (hn cid c hc)) hn)
-  serve y _ _ n cid now h hn := serve_oq y n cid now h hn
-  finish n out now h hn := finish_oq S s n out now h hn
-  setAddr n cid a h hn := oq_conns rfl hn
-  heat n ids now h hn := oq_conns rfl hn
-  drop n cid h hn := oq_drop n cid hn
-  opens n cid a dialer now h hn := by
-    unfold Node.open
-    simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
-    intro cid' c hc
-    simp only [Node.conn?, List.find?_cons] at hc
-    split at hc
-    · simp only [Option.map_some, Option.some.injEq] at hc
-      subst hc
-      intro y hy
-      simp [Conn.open] at hy
-    · exact hn cid' c (close_conn n cid cid' c hc)
-
 end
 
 /-! ## Invariant 2: the index covers the store -/
@@ -616,26 +429,6 @@ theorem serveOwed_ix (y : Sync F (HeldM F)) (hh : y.hooks = (S.sync s).hooks) (n
       · exact (serveOwed_run y.fam y.cfg _ _ _ h).2.2
       · first | rfl | trivial
 
-/-- **Every piece of a plain node keeps its index covering its store.** -/
-theorem ix_pieces : Pieces S s (IxInv S.fam) where
-  write n ops h hi := write_ixinv (S.sync s) n ops h hi
-  store n ops mine h hi := store_ixinv S s n ops mine h hi
-  recv n cid c b now h _ hi := apply_gen S s (IxInv S.fam) (store_ixinv S s) n cid _ now h
-    (fun _ => ixinv_of_ix rfl hi) (fun _ => ixinv_of_ix rfl hi)
-  tick n cid c now h _ hi := apply_gen S s (IxInv S.fam) (store_ixinv S s) n cid _ now h
-    (fun _ => ixinv_of_ix rfl hi) (fun _ => ixinv_of_ix rfl hi)
-  serve y _ hh n cid now h hi := by
-    obtain ⟨e1, e2⟩ := serveOwed_ix S s y hh n cid now h
-    rw [e1]; exact ixinv_of_ix e2 hi
-  finish n out now h hi := by
-    rw [finish_reads S s n out now h]
-    exact finish_node S s (fun m => IxInv S.fam m h) (fun m cid hm => ixinv_of_ix rfl hm)
-      (fun m o t hm => ixinv_of_ix rfl hm) (fun m hm => ixinv_of_ix rfl hm) n out now h hi
-  setAddr n cid a h hi := ixinv_of_ix rfl hi
-  heat n ids now h hi := ixinv_of_ix rfl hi
-  drop n cid h hi := ixinv_of_ix rfl hi
-  opens n cid a dialer now h hi := ixinv_of_ix rfl hi
-
 end
 
 /-! ## Over every execution -/
@@ -643,35 +436,69 @@ end
 namespace Plain
 variable {Q : Plain F}
 
-/-- **A node invariant every piece of a plain node keeps, and a restart
-restores from the store, is kept by everything the World runs there**
-(`Local`, engine/world/Good.lean). -/
-theorem pieces_local (Φ : Node → Held F → Prop) (P : ∀ i, Pieces (Q.two i) .a Φ)
-    (hboot : ∀ n h, Φ n h → Φ (Node.boot Q.fam h.log 0) h) : Local Q.setup (fun _ => Φ) (fun _ => Φ) where
-  runs i f hf nd h hn := by
-    cases hf with
-    | frame addr bytes t => exact onFrame_keeps (P i) nd addr bytes t h hn
-    | tick t => exact onTick_keeps (P i) nd t h hn
-    | write ops t _ => exact onWrite_keeps (P i) nd ops t h hn
-    | close addr t => exact onClose_keeps (P i) nd addr t h hn
-    | connect j cid dialer t _ => exact connect_keeps (P i) nd cid _ dialer t h hn
-  boot _ n h hn := hboot n h hn
+/-- **Every piece of a plain node keeps what its sessions owe queued.** -/
+theorem oq_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => NodeOQ n) :=
+  pieces (fun n ops h hn => oq_conns (write_conns _ n ops h) hn)
+    (fun n ops mine h hn => store_oq (Q.two i) .a n ops mine h hn)
+    (fun n cid c rs b now h hc hn => apply_gen (Q.two i) .a (fun n _ => NodeOQ n)
+      (fun n ops mine h hn => store_oq (Q.two i) .a n ops mine h hn) n cid _ now h (fun _ => oq_drop n cid hn)
+      (fun _ => oq_replace n cid _ (recv_owed Q.fam Q.cfg n.ix (c.carry rs) b now h (hn cid c hc)).1 hn))
+    (fun n cid c rs now h hc hn => apply_gen (Q.two i) .a (fun n _ => NodeOQ n)
+      (fun n ops mine h hn => store_oq (Q.two i) .a n ops mine h hn) n cid _ now h (fun _ => oq_drop n cid hn)
+      (fun _ => oq_replace n cid _ (SameQ.oq (tickGive_q Q.fam Q.cfg n.ix (c.carry rs) now h) (hn cid c hc)) hn))
+    (fun y _ _ n cid now h hn => serve_oq y n cid now h hn)
+    (fun n cid a dialer now h hn => by
+      show NodeOQ ((n.open ((Q.two i).sync .a) cid a dialer now).run h).1.1
+      unfold Node.open
+      simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
+      intro cid' c hc
+      simp only [Node.conn?, List.find?_cons] at hc
+      split at hc
+      · simp only [Option.map_some, Option.some.injEq] at hc
+        subst hc
+        intro y hy
+        simp [Conn.open] at hy
+      · exact hn cid' c (close_conn n cid cid' c hc))
+    (fun _ _ _ _ hn => oq_conns rfl hn) (fun _ _ _ _ hn => oq_conns rfl hn) (fun n cid _ hn => oq_drop n cid hn)
+    (fun n o t _ hn => oq_sent n o t hn) (fun _ _ hn => oq_conns rfl hn) (fun _ _ _ _ hn => oq_conns rfl hn)
+
+/-- **Every piece of a plain node keeps its index covering its store.** -/
+theorem ix_pieces (i : Fin Q.n) : Pieces Q.setup i (IxInv Q.fam) :=
+  pieces (fun n ops h hi => write_ixinv ((Q.two i).sync .a) n ops h hi)
+    (fun n ops mine h hi => store_ixinv (Q.two i) .a n ops mine h hi)
+    (fun n cid _ _ _ now h _ hi => apply_gen (Q.two i) .a (IxInv Q.fam) (store_ixinv (Q.two i) .a) n cid _ now h
+      (fun _ => ixinv_of_ix rfl hi) (fun _ => ixinv_of_ix rfl hi))
+    (fun n cid _ _ now h _ hi => apply_gen (Q.two i) .a (IxInv Q.fam) (store_ixinv (Q.two i) .a) n cid _ now h
+      (fun _ => ixinv_of_ix rfl hi) (fun _ => ixinv_of_ix rfl hi))
+    (fun y _ hh n cid now h hi => by
+      obtain ⟨e1, e2⟩ := serveOwed_ix (Q.two i) .a y hh n cid now h
+      show IxInv Q.fam ((n.serveOwed y cid now).run h).1.1 ((n.serveOwed y cid now).run h).2
+      rw [e1]; exact ixinv_of_ix e2 hi)
+    (fun n cid a dialer now h hi => by
+      show IxInv Q.fam ((n.open ((Q.two i).sync .a) cid a dialer now).run h).1.1
+        ((n.open ((Q.two i).sync .a) cid a dialer now).run h).2
+      unfold Node.open
+      simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
+      exact ixinv_of_ix rfl hi)
+    (fun _ _ _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
+    (fun _ _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
+    (fun _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
 
 /-- **A node invariant that every piece of a plain node keeps, and that
 a restart restores from the store, holds of every node in every
-execution**, against any attacker. -/
+execution**, against any attacker (`Pieces.local`, engine/world/Pieces.lean). -/
 theorem always {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
-    (E : Exec Q.setup adv w₀) (Φ : Node → Held F → Prop) (P : ∀ i, Pieces (Q.two i) .a Φ)
+    (E : Exec Q.setup adv w₀) (Φ : Node → Held F → Prop) (P : ∀ i, Pieces Q.setup i Φ)
     (hboot : ∀ n h, Φ n h → Φ (Node.boot Q.fam h.log 0) h)
     (h0 : ∀ i, Φ (w₀.node i) (w₀.box i)) : ∀ k i, Φ ((E.world k).node i) ((E.world k).box i) :=
-  (pieces_local Φ P hboot).keeps.always h0 E
+  (Pieces.local lawful (Φ := fun _ => Φ) P fun _ n h hn => hboot n h hn).keeps.always h0 E
 
 /-- **Every session owes only ids in its queue**, at every node in every
 execution against any attacker, from sessions that did. -/
 theorem owes_queued {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
     (E : Exec Q.setup adv w₀) (h0 : ∀ i cid c, (w₀.node i).conn? cid = some c → OwesQueued c) :
     ∀ k i cid c, ((E.world k).node i).conn? cid = some c → OwesQueued c :=
-  always E (fun n _ => NodeOQ n) (fun i => oq_pieces (Q.two i) .a)
+  always E (fun n _ => NodeOQ n) oq_pieces
     (fun _ _ _ cid c hc => by simp [Node.boot, Node.conn?] at hc) h0
 
 /-- **Every node's index covers its store**, in every execution against
@@ -683,7 +510,7 @@ theorem ix_covers {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Worl
     (E : Exec Q.setup adv w₀) (h0 : ∀ i, IxCovers Q.fam (w₀.node i) (w₀.box i))
     (hk : ∀ i, IxKeyed Q.fam (w₀.node i).ix) (hl : ∀ i, LogInv (w₀.box i)) :
     ∀ k i, IxCovers Q.fam ((E.world k).node i) ((E.world k).box i) := fun k i =>
-  (always E (IxInv Q.fam) (fun i => ix_pieces (Q.two i) .a) (fun _ h hi => boot_ixinv Q.fam h 0 hi.2.2)
+  (always E (IxInv Q.fam) ix_pieces (fun _ h hi => boot_ixinv Q.fam h 0 hi.2.2)
     (fun i => ⟨h0 i, hk i, hl i⟩) k i).1
 
 end Plain
