@@ -502,6 +502,11 @@ lean_exe vacuity_identity where
 lean_lib Vacuity where
   globs := #[.submodules `tests.vacuity]
 
+-- The spec-review commands (#spec_surface, #audit_axioms, #headline) that
+-- tests/Headline.lean runs on the headline laws (docs/HEADLINE.md).
+lean_lib SpecTools where
+  roots := #[`tests.SpecSurface]
+
 lean_exe vacuity_identity_trust where
   root := `tests.vacuity.IdentityTrustMain
 
