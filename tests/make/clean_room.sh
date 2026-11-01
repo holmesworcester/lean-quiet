@@ -4,7 +4,7 @@
 # builds from nothing as a user with sudo, and opens the app under Xvfb; a
 # screenshot must show the window painted (tests/make/clean_room_inner.sh).
 #
-#   tests/make/clean_room.sh [image...]   default: ubuntu:24.04 debian:12
+#   tests/make/clean_room.sh [image...]   default: ubuntu:24.04 ubuntu:22.04 debian:12
 #
 # Setup: the pinned assets tarball is packed from assets/ (made first by
 # tools/fetch_assets.sh if missing) and must have the pinned sha256; the
@@ -23,7 +23,7 @@ top=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$top"
 export TMPDIR=${TMPDIR:-/tmp}
 images=("$@")
-[ ${#images[@]} -gt 0 ] || images=(ubuntu:24.04 debian:12)
+[ ${#images[@]} -gt 0 ] || images=(ubuntu:24.04 ubuntu:22.04 debian:12)
 cpus=${CLEAN_ROOM_CPUS:-8} mem=${CLEAN_ROOM_MEMORY:-24g}
 logs=$top/out/make/clean-room
 mkdir -p "$logs"

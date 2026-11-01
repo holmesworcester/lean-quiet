@@ -28,10 +28,11 @@ downloads the app's fonts and photos, checked by sha256. If system
 packages are missing (a C compiler, Python, curl and the X headers),
 it lists them and installs them with `sudo apt-get install`; to do that
 yourself, run `make check` first, which only lists them. A cold build
-takes about BUILD_TIME. `make run` opens the app with a demo: two
-communities, seeded on the first run, with networking off, so it works
-without a second device. `make online` runs it with networking on. The
-Makefile doesn't support macOS yet. Details: [docs/BUILD.md](docs/BUILD.md#make-install-and-make-run-linux).
+took about 10 minutes on 8 cores and under 7 GB of memory, downloads
+included. `make run` opens the app with a demo: two communities, seeded
+on the first run, with networking off, so it works without a second
+device. `make online` runs it with networking on. The Makefile doesn't
+support macOS yet. Details: [docs/BUILD.md](docs/BUILD.md#make-install-and-make-run-linux).
 
 # What it looks like
 

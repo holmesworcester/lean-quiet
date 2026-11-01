@@ -213,7 +213,7 @@ description = "make install's assets step on made-up tarballs (file://): downloa
 run = "tests/make/assets_test.sh"
 
 [tasks."make:clean-room"]
-description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and a screenshot of the window under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and a screenshot of the window under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
 run = "tests/make/clean_room.sh"
 
 [tasks."host:desktop-negative"]

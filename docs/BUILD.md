@@ -113,7 +113,7 @@ bytes with the same zlib.
 | Task | Validation |
 | --- | --- |
 | `make:assets-test` | The assets step on made-up tarballs (no network): download, sha256 and per-file checks, repair, deterministic packing. Controls: a flipped bit, files that don't match the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail |
-| `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, a screenshot of the window must show it painted, while one of the empty screen must fail |
+| `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, a screenshot of the window must show it painted, while one of the empty screen must fail |
 
 The gate (`ci/local.sh`, before every push) runs `make:assets` (part
 `make:assets`, about a second): a change that makes the published tarball
@@ -127,7 +127,20 @@ unless that has the pinned sha256, and serves it to the container by
 instead. Logs, `result.txt` (timings, peak memory) and screenshots stay
 in `out/make/clean-room/<image>/`.
 
-CLEAN_ROOM_RESULTS
+Measured 2026-11-01 at fa9a954, the three containers at once on the
+shared 32-core box (load around 70), 8 CPUs and 24 GB each:
+
+| Image | Cold `make install` | Its build step | Second install | First paint | Peak memory |
+| --- | --- | --- | --- | --- | --- |
+| `ubuntu:24.04` | 10m 15s | 5m 53s | 5 s | 4 s | 4.5 GB |
+| `ubuntu:22.04` | 10m 01s | 6m 45s | 6 s | 7 s | 4.2 GB |
+| `debian:12` | 8m 55s | 6m 46s | 9 s | 3 s | 4.6 GB |
+
+The rest of the cold install is apt (40 s to 2m 43s), elan, Lean and
+rustup (1m 21s to 1m 38s) and the assets (under 10 s from `file://`). An
+earlier run alone on `ubuntu:24.04` peaked at 6.2 GB. That run found the
+missing `libx11-dev`: the three xcb packages alone leave `shell.c`
+without `X11/cursorfont.h`.
 
 ## Checking it again
 
