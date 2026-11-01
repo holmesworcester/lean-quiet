@@ -20,10 +20,10 @@ import engine.core.Proofs
 namespace Engine
 
 /-- The most requirements an op may cite (a3's `Budget.reqs`). The ops
-the families write cite at most four (a name, a removal, a grant), but
-for an admission, which cites its invitation's threshold of approvals
-and two more; so 64 leaves room for thresholds up to 62. An op citing
-more is refused at intake. -/
+the families write cite at most four (a removal; an admission three, one
+approval admitting), and a name the one it supersedes besides
+(app/community/Proofs.lean, `*_authored`). An op citing more is refused
+at intake. -/
 def maxReqs : Nat := 64
 
 /-- Whether o cites at most `maxReqs` requirements. -/

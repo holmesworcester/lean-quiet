@@ -3494,9 +3494,8 @@ a key, a secret, an acceptance, an endpoint and a pending join cite
 nothing; a wrap, a receipt and an abandon one op; an invitation, a
 request and a profile two; a post two or three (its clump); a reaction
 and an attachment three; a removal four; a chunk two; a name three and
-the name it supersedes (one, as `rename` writes it). An admission cites
-its invitation's threshold of approvals and two more: `approveReq` is
-not covered here, and is bounded by one approval (one-approval, holmes-80).
+the name it supersedes (one, as `rename` writes it); an admission three
+(one approval admits).
 -/
 
 namespace Community
@@ -3548,7 +3547,7 @@ macro "authored" : tactic => `(tactic| (
   simp only [List.mem_cons, List.not_mem_nil, or_false, List.mem_singleton, List.mem_ite_nil_left,
     List.mem_ite_nil_right, List.not_mem_nil] at ho
   try subst ho
-  try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt]))
+  try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt, approve, admit, wrapKey, wrap]))
 
 theorem nodeKeyOr_authored (fresh : ByteArray) :
     Always (fun p : Key × List Op => ∀ o ∈ p.2, o.reqs.length ≤ maxReqs) (nodeKeyOr fresh) := by
@@ -3575,8 +3574,8 @@ theorem joinOps_authored (i : Invite) (seed nm : ByteArray) (key : Key) : Author
   rcases ho with rfl | rfl | rfl | rfl <;>
     simp [secret, accept, joining, Invite.request, request, maxReqs]
 
-theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List ByteArray) (t : Nat) :
-    Always (fun r : Option (Write × Invite) => ∀ p, r = some p → Authored p.1) (inviteTo c a d b hs t) := by
+theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List ByteArray) :
+    Always (fun r : Option (Write × Invite) => ∀ p, r = some p → Authored p.1) (inviteTo c a d b hs) := by
   unfold inviteTo
   refine always_bind_all (fun k => ?_) _
   cases k with
@@ -3629,6 +3628,14 @@ theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeM
     | authored
     | (refine always_bind_all (fun _ => ?_) _; dsimp only; repeat' split
        all_goals authored)
+
+theorem approveReq_authored (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    Always Authored (approveReq c req myAdm d esk) := by
+  unfold approveReq
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  dsimp only
+  repeat' split
+  all_goals simp [Authored, approve, admit, wrapKey, wrap, maxReqs]
 
 theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
   intro o ho

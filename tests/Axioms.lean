@@ -829,6 +829,7 @@ section cost
 #print axioms Community.join_authored
 #print axioms Community.introduce_authored
 #print axioms Community.removeMember_authored
+#print axioms Community.approveReq_authored
 #print axioms Community.stopWaiting_authored
 #print axioms Community.react_reqs_le
 #print axioms Community.receiptFor_authored
