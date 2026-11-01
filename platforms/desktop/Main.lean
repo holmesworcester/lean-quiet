@@ -210,10 +210,18 @@ def main (args : List String) : IO Unit := do
   -- community's link (once a session), which goes to the file as well
   if let some file := valueOf args "--invite" then
     d ← Desktop.act d (.drawerAct .addMembers)
-    let some (_, link) := d.app.links.find? (·.1 == d.app.me.acc)
-      | throw (IO.userError "--invite: no community to invite to (found or join one first)")
-    IO.FS.writeFile (file ++ ".tmp") (link ++ "\n")
-    IO.FS.rename (file ++ ".tmp") file
+    -- the link is issued by a reader act: the app's frames complete it
+    for _ in [0:5000] do
+      if d.app.links.any (·.1 == d.app.me.acc) then break
+      d ← Desktop.tick d; IO.sleep 2
+    match d.app.links.find? (·.1 == d.app.me.acc) with
+    | some (_, link) =>
+      IO.FS.writeFile (file ++ ".tmp") (link ++ "\n")
+      IO.FS.rename (file ++ ".tmp") file
+    | none =>
+      -- exit, not throw: the writer's dedicated task never ends on its own
+      IO.eprintln "--invite: no link was issued (found or join a community first)"
+      IO.Process.exit 1
   d ← run d none none (← desktopNativeScroll)
   if let some r := d.app.net then r.stop
   -- The existing writer is a dedicated infinite task. Drain accepted
