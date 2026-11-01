@@ -1396,6 +1396,9 @@ def preview (bytes : ByteArray) : ByteArray :=
 anything real). -/
 def bytesOf (tag : String) (n : Nat) : ByteArray := (sha256 tag.toUTF8).extract 0 n
 
+/-- `bytesOf`, sized: zero-padded should the hash be short (it is not). -/
+def sizedOf (tag : String) (n : Nat) : Bytes n := Bytes.fit n (bytesOf tag n)
+
 /-! ## The community -/
 
 /-- This device in one community (Kinds.Accepted). -/
@@ -1412,7 +1415,7 @@ def epoch : Nat := 29330000
 /-- The jobs that make a community of about n messages, their bodies
 sealed under the community's content key k; a few carry photos, each an
 attachment with its chunks (at most `maxFiles` files in all). -/
-def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
+def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
   -- times rise with uneven gaps and end by `now` (wall-clock minutes);
   -- counters follow the channel's newest, `top`, so chaos goes at the end
   let start := now - min now (12 * n)
@@ -1428,7 +1431,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
     let inv := invite c me.adm f bearer.pk false 1
-    let rq := request c inv.id d (cryptoSeal.pub (sha256 s!"chaos-node-{seed}-{i}".toUTF8)) bearer.sk
+    let rq := request c inv.id d (cryptoSeal.pub (sizedOf s!"chaos-node-{seed}-{i}" 32)) bearer.sk
     let ap := approve c rq.id me.adm f
     let j := admit c rq.id [ap.id]
     let p := profile c j.id d names[i % names.size]!.toUTF8 start
@@ -1454,7 +1457,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
     let text := if more == 0 then texts[ti]! ++ " " ++ texts[ti2]! else
       if more == 1 then texts[ti]! ++ "\n\n" ++ texts[ti2]! else texts[ti]!
     let tag := s!"chaos {seed} {i}"
-    let o := sealedPost c u d k (bytesOf (tag ++ " nonce") 24) text.toUTF8 (top + i + 1) t
+    let o := sealedPost c u d k (sizedOf (tag ++ " nonce") 24) text.toUTF8 (top + i + 1) t
     pending := pending.push o
     if att < 12 && !srcs.isEmpty && files < maxFiles then
       let ((w, h, bytes), g7) := photo srcs g
@@ -1462,8 +1465,8 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
       files := files + 1
       let nf : NewFile := { info := { name := s!"photo-{i}.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                       preview := preview bytes },
-                            bytes, key := bytesOf (tag ++ " file key") 32, nonce := bytesOf (tag ++ " file nonce") 24,
-                            metaNonce := bytesOf (tag ++ " meta nonce") 24 }
+                            bytes, key := sizedOf (tag ++ " file key") 32, nonce := sizedOf (tag ++ " file nonce") 24,
+                            metaNonce := sizedOf (tag ++ " meta nonce") 24 }
       let (a, cs) := attach c u o.id d k nf
       pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
@@ -4126,6 +4129,9 @@ engine/native/crypto): the one door every secret, key and nonce the app
 makes goes through. Nothing derives one from the clock. -/
 def newBytes (n : UInt32) : IO ByteArray := Engine.Crypto.randomBytes n
 
+/-- `n` new random bytes, sized: a key or a nonce. -/
+def newSized (n : Nat) : IO (Bytes n) := do Bytes.expect n (← newBytes n.toUInt32)
+
 /-- A new secret seed: a device's, or an invitation's bearer secret. -/
 def newSeed : IO ByteArray := newBytes 32
 
@@ -4156,7 +4162,7 @@ def sendText (text : String) : M Bool := do
   -- sealed under the community's current key, as the composer's send is
   let k? ← intentView (Community.currentKey s.me.c)
   let some k := k? | return false
-  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) t.toUTF8
+  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newSized 24) t.toUTF8
     (← nowMin))
   writeAll w
 
@@ -4167,7 +4173,7 @@ def sendTextAct (text : String) : M (Option Id) := do
   let t := text.trimAscii.toString
   if t.isEmpty then return none
   let (c, adm, dev) := (s.me.c, s.me.adm, s.me.dev)
-  let nonce ← newBytes 24
+  let nonce ← newSized 24
   let now ← nowMin
   some <$> act do
     let (k?, _) ← readView (Community.currentKey c) #[]
@@ -4792,7 +4798,7 @@ def found (n myName : String) : M Unit := do
   let seed ← newSeed
   -- the last fresh bytes are this node's key, if it has none yet
   let w ← intentView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← newBytes 32) (← newBytes 32) (← newBytes 32))
+    (← newSized 32) (← newSized 32) (← newSized 32))
   if ← writeAll w then
     if let some a := acceptOf w then
       refreshCommsNow
@@ -5152,7 +5158,7 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
       let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newBytes 32))
+      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newSized 32))
       if ← writeAll w then
         modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
         refreshCommsNow
@@ -5246,9 +5252,9 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     for (bytes, w, h, _) in s.chips.toList do
       files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
                                       preview := Chaos.preview bytes },
-                            bytes, key := ← newBytes 32, nonce := ← newBytes 24,
-                            metaNonce := ← newBytes 24 } : Community.NewFile)]
-    let nonce ← newBytes 24
+                            bytes, key := ← newSized 32, nonce := ← newSized 24,
+                            metaNonce := ← newSized 24 } : Community.NewFile)]
+    let nonce ← newSized 24
     let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
     if ← writeAll w (present := true) then
       if let some action := submission then
@@ -5643,7 +5649,7 @@ def command (line : String) : M Bool := do
     modify fun s => { s with srcs := some srcs, seed := s.seed + 1 }
     let me := s.me
     let k? ← intentView (Community.currentKey me.c)
-    let k := k?.getD .empty
+    let some k := k? | s.io.ctlReply "chaos: this community's key hasn't arrived yet"; return true
     let seed := s.seed
     let top ← intentView (Community.topCount me.c)
     let now ← nowMin

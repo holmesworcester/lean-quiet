@@ -13,21 +13,21 @@ def entropy (side : String) (i : Nat) : ByteArray := sha256 s!"fair-witness/{sid
 def initial : World := empty (entropy "alice") (entropy "bob")
 def seedA := sha256 "fair-witness/alice/device".toUTF8
 def seedB := sha256 "fair-witness/bob/device".toUTF8
-def nkA := sha256 "fair-witness/alice/node".toUTF8
-def nkB := sha256 "fair-witness/bob/node".toUTF8
+def nkA := Bytes.digest "fair-witness/alice/node".toUTF8
+def nkB := Bytes.digest "fair-witness/bob/node".toUTF8
 def alice := Device.ofSeed seedA
 def bob := Device.ofSeed seedB
 def keyA := cryptoSeal.pub nkA
 def keyB := cryptoSeal.pub nkB
 def c := (root alice keyA).id
-def content := sha256 "fair-witness/community-key".toUTF8
+def content := Bytes.digest "fair-witness/community-key".toUTF8
 
 def view {α} (w : World) (s : Connection.Execution.Side) (v : View Community.Fact α) : α :=
   ((v.liftL : View Connection.F α).run : M α) (w.peer s).memory |>.1
 
 def foundOps : List Op :=
   (view initial .a (found seedA "Fair execution".toUTF8 "Alice".toUTF8 1
-    content (entropy "wrap" 0) nkA)).ops
+    content (Bytes.fit 32 (entropy "wrap" 0)) nkA)).ops
 
 def founded : World := step setup initial (.write .a foundOps)
 def invitation : Option (Write × Invite) :=
@@ -55,13 +55,13 @@ def scenario : Option Scenario := do
   let approval := (view before .a (approveReq c request.id c alice (entropy "wrap" 1))).ops
   let approved := startup ++ [.write .a approval]
   let after := trace setup initial (approved ++ drive 240)
-  let message := sealedPost c c alice content ((entropy "message-nonce" 0).extract 0 24)
+  let message := sealedPost c c alice content ((Bytes.fit 24 (entropy "message-nonce" 0)))
     "Bob, this arrived through the production hooks.".toUTF8 1 1
   -- The durable catalog also emits background retry traffic. This finite
   -- witness services enough FIFO deliveries for the new post to reach Bob;
   -- the number is a fixture length, not a runtime latency bound.
   let completed := approved ++ drive 240 ++ [.write .a [message]] ++ drive 1320
-  let recoveryMessage := sealedPost c c alice content ((entropy "recovery-message-nonce" 0).extract 0 24)
+  let recoveryMessage := sealedPost c c alice content ((Bytes.fit 24 (entropy "recovery-message-nonce" 0)))
     "Bob, this new message crossed the replacement session.".toUTF8 2 2
   let recovered := completed ++ [.close] ++ drive 240 ++ [.write .a [recoveryMessage]] ++ drive 1320
   -- Ensure preparation itself did not substitute a completed store.

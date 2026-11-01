@@ -10,7 +10,7 @@ open Engine Community
 
 /-- A test device's node key, where each device is its own node: an
 X25519 key derived from the device key. -/
-def keyOf (d : Device) : Key := cryptoSeal.pub (sha256 ("test node ".toUTF8 ++ d.pk))
+def keyOf (d : Device) : Key := cryptoSeal.pub (Bytes.digest ("test node ".toUTF8 ++ d.pk))
 
 def hex (b : ByteArray) : String :=
   String.join (b.toList.take 4 |>.map fun x =>

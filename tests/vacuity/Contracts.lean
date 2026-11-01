@@ -10,9 +10,9 @@ set_option linter.defProp false
 private instance (k : ByteArray) : Decidable (suite.ValidKey k) :=
   inferInstanceAs (Decidable (k.size = 32))
 private instance (p : ByteArray) : Decidable (suite.ValidPayload p) :=
-  inferInstanceAs (Decidable (p.size < maxPlaintextSize))
+  inferInstanceAs (Decidable (p.size < Crypto.maxPlaintext))
 private instance (a : ByteArray) : Decidable (suite.ValidAD a) :=
-  inferInstanceAs (Decidable (a.size < 2 ^ 64))
+  inferInstanceAs (Decidable (a.size < Crypto.maxAD))
 
 def key : ByteArray := ⟨Array.replicate 32 3⟩
 def ad : ByteArray := "session transcript".toUTF8
@@ -22,24 +22,27 @@ theorem keyValid : suite.ValidKey key := rfl
 theorem adValid : suite.ValidAD ad := by decide
 theorem payloadValid : suite.ValidPayload payload := by decide
 
--- The supported-key/payload contract has an inhabited domain. The universal
--- native crypto correctness premise remains explicit, not fabricated by a
--- finite test; the runner independently checks this actual roundtrip.
-theorem noiseContract (g : suite.Good) :
+-- The supported-key/payload contract has an inhabited domain. The running
+-- suite is good given the crypto trust file (`suite_good`); the runner
+-- independently checks this actual roundtrip.
+theorem noiseContract (t : Trust.Native) :
     suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload :=
-  g.dec_enc key keyValid 0 ad payload adValid payloadValid
+  (suite_good t).dec_enc key keyValid 0 ad payload adValid payloadValid
 
 def noiseContractCertificate : Option (PLift
     ((suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload) ∧
-      (suite.Good → suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload))) :=
+      (Trust.Native → suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload))) :=
   if h : suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload then
     some (PLift.up ⟨h, noiseContract⟩)
   else none
 
+/-- The running Noise suite is good, given the crypto trust file. -/
+def suiteGoodConditional := some (PLift.up (fun t : Trust.Native => suite_good t))
+
 -- Exact relation to the native stream's rounded-up block count after
 -- ChaChaPoly has consumed the first block for its authenticator key.
-theorem counterBound (n : Nat) : n < maxPlaintextSize ↔ (n + 63) / 64 ≤ 2^32 - 2 := by
-  unfold maxPlaintextSize
+theorem counterBound (n : Nat) : n < Crypto.maxPlaintext ↔ (n + 63) / 64 ≤ 2^32 - 2 := by
+  unfold Crypto.maxPlaintext
   omega
 
 -- A regression against reintroducing the old unrestricted AEAD contract.
@@ -62,6 +65,7 @@ def lengths : List Nat := [0, 1, 31, 32, 33, 64]
 def main : IO UInt32 := do
   let t ← Tests.Checks.new
   t.ok "scoped Noise theorem bridge and native roundtrip" noiseContractCertificate.isSome
+  t.ok "trust file bridged to the running Noise suite" suiteGoodConditional.isSome
   t.ok "corrected Noise contract has concrete supported inputs"
     (Decidable.decide (suite.ValidKey key) && Decidable.decide (suite.ValidAD ad) && Decidable.decide (suite.ValidPayload payload))
   t.ok "correct-size Noise key opens what it seals"
@@ -69,8 +73,8 @@ def main : IO UInt32 := do
   t.ok "unrestricted old roundtrip contract remains rejected" rejectsUnrestricted.isSome
   -- No enormous allocation: check the exact boundary used by the contract.
   t.ok "plaintext bound matches native remaining-block check"
-    (maxPlaintextSize == 274877906817 && (maxPlaintextSize - 1 + 63) / 64 ≤ 4294967294 &&
-      !((maxPlaintextSize + 63) / 64 ≤ 4294967294))
+    (Crypto.maxPlaintext == 274877906817 && (Crypto.maxPlaintext - 1 + 63) / 64 ≤ 4294967294 &&
+      !((Crypto.maxPlaintext + 63) / 64 ≤ 4294967294))
   for n in lengths do
     let sk := sized n
     t.ok s!"key validity classifies size {n}" (Decidable.decide (suite.ValidKey sk) == (n == 32))

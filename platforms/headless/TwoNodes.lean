@@ -202,9 +202,9 @@ def main (args : List String) : IO UInt32 := do
       (!rows.any fun r => (r.data.text == "hi from A" || r.data.text == "hello from B") && (r.data.namesake || r.lay.twin.isSome))
     -- a message under a key A does not hold is not shown at all
     let before := (← get).ids.size
-    let stranger ← Engine.Crypto.randomBytes 32
+    let stranger ← App.newSized 32
     let s ← get
-    let _ ← write (sealedPost s.me.c s.me.adm s.me.dev stranger (← Engine.Crypto.randomBytes 24) "sealed away".toUTF8 1 (← nowMin))
+    let _ ← write (sealedPost s.me.c s.me.adm s.me.dev stranger (← App.newSized 24) "sealed away".toUTF8 1 (← nowMin))
     waitIdle sa
     steps 5
     check s!"a message whose key A lacks is hidden ({before} → {(← get).ids.size} shown)"

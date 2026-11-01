@@ -10,7 +10,7 @@ set_option linter.defProp false
 def oldOps := before ++ [removeB] ++ localBob
 def freshSeed := sha256 "vacuity-carol".toUTF8
 def freshName := "Carol rejoining".toUTF8
-def unusedFresh := sha256 "unused-node-seed".toUTF8
+def unusedFresh := Bytes.digest "unused-node-seed".toUTF8
 def freshRequest := pendingInvite.request (Device.ofSeed freshSeed) pkB
 def freshOps := (joinOps pendingInvite freshSeed freshName pkB).ops
 def freshApproval := approve c freshRequest.id c alice
@@ -25,7 +25,7 @@ def rejoinFresh := do
   let ⟨had⟩ ← certifyDB oldOps admission bobFact
   let ⟨hrem⟩ ← certifyDB oldOps removeB (.removal c requestB.id c)
   if hq : (run oldOps).queue = [] then
-    if hk : nodeKey.eval (run oldOps) = some (pkB,staticB) then
+    if hk : nodeKey.eval (run oldOps) = some (pkB, Bytes.fit 32 staticB) then
       if ha : (eval (run oldOps) (accepted.all.query [])).rows = acceptedRows then
         if hj : (eval (run oldOps) (joining.all.query [])).rows = joiningRows then
           if hn : (eval (run oldOps) (admission.byDevice.query [c,(Device.ofSeed freshSeed).pk] (limit := some 0))).total = 0 then

@@ -69,7 +69,7 @@ structure Peer where
   name : String
   seed : ByteArray
   /-- This node's key's secret: its first found or join writes it. -/
-  nk : ByteArray
+  nk : Key32
   addr : ByteArray
   path : String
   run : Runner
@@ -104,7 +104,7 @@ def Mutant.apply : Mutant → Hooks F (SqlM F) → Hooks F (SqlM F)
 
 def side (dir name : String) (port : Nat) (m : Mutant := .none) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
-  let nk := sha256 s!"node {name}".toUTF8
+  let nk := Bytes.digest s!"node {name}".toUTF8
   let addr := s!"127.0.0.1:{port}".toUTF8
   let path := s!"{dir}/{name}.db"
   let db ← fresh path
@@ -198,8 +198,8 @@ def waitFor (ms : Nat) (p : IO Bool) : IO (Option Nat) := do
 admitted by its own ops and the session is up. -/
 def pairUp (a b : Peer) : IO (Option (Id × Id)) := do
   let dA := Device.ofSeed a.seed
-  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
-    (sha256 "esk".toUTF8) a.nk)).ops
+  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
+    (Bytes.digest "esk".toUTF8) a.nk)).ops
   let c := (root dA a.key).id
   let _ ← waitFor 10000 (stored a c)
   let some (wi, link) ← viewOn a (inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr]) | return none
@@ -242,8 +242,8 @@ def main (args : List String) : IO UInt32 := do
   let dA := Device.ofSeed a.seed
   let dB := Device.ofSeed b.seed
   -- A founds and invites at its address; B joins from the link.
-  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
-    (sha256 "esk".toUTF8) a.nk)).ops
+  a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
+    (Bytes.digest "esk".toUTF8) a.nk)).ops
   let c := (root dA a.key).id
   -- the runner owns the writes: read once the founding has landed
   let _ ← waitFor 10000 (stored a c)
@@ -335,7 +335,7 @@ def main (args : List String) : IO UInt32 := do
   a.run.write wi3.ops
   let seedB3 := sha256 "seed B, rejoined".toUTF8
   let dB3 := Device.ofSeed seedB3
-  b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let req3 := link3.request dB3 b.key
   let reached ← waitFor 10000 (stored a req3.id)
   t.ok "tcp: B's rejoin request, a new device's under the same node key, reaches A bare" reached.isSome
@@ -353,15 +353,15 @@ def main (args : List String) : IO UInt32 := do
   -- A second community between the same nodes: one session carries both.
   let seedA2 := sha256 "seed A, second".toUTF8
   let dA2 := Device.ofSeed seedA2
-  a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (sha256 "key Z".toUTF8)
-    (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
+  a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (Bytes.digest "key Z".toUTF8)
+    (Bytes.digest "esk Z".toUTF8) (Bytes.digest "unused".toUTF8))).ops
   let c' := (root dA2 a.key).id
   let _ ← waitFor 10000 (stored a c')
   let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' dA2 (sha256 "bearer Z".toUTF8) [a.addr])
     | t.ok "tcp: A invites to Zed" false; stopAll
   a.run.write wiZ.ops
   let seedB2 := sha256 "seed B, second".toUTF8
-  b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let reqZ := linkZ.request (Device.ofSeed seedB2) b.key
   let _ ← waitFor 10000 (stored a reqZ.id)
   a.run.write (← look a ((approveReq c' reqZ.id c' dA2).liftL.run : SqlM F Community.Write)).ops
@@ -391,7 +391,7 @@ def main (args : List String) : IO UInt32 := do
   a.run.write wi4.ops
   let seedB4 := sha256 "seed B, rejoined again".toUTF8
   let dB4 := Device.ofSeed seedB4
-  b.run.write (← viewOn b (join link4 seedB4 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  b.run.write (← viewOn b (join link4 seedB4 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let req4 := link4.request dB4 b.key
   let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isSome
   let now ← look b (dial K b.addr 0 : SqlM F (List Op))

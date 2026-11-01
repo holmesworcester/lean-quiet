@@ -281,12 +281,20 @@ relationship to those computational assumptions is not a proved reduction:
   two-chunk file. It is not stated over every byte string: SHA-256 has second
   preimages (more inputs than outputs); finding one is what is infeasible.
   [`assumptions_hold`] also gives a model hash for which it holds of every input.
-- [`Suite.Good`] and [`Seal.Good`] require DH/key-derivation correctness and AEAD
-  roundtrips on supported inputs: 32-byte keys, 24-byte XChaCha nonces, plaintext
-  at most 274877906816 bytes and representable associated-data lengths, where
-  applicable. Their hash/key size guarantees are implementation properties.
-  Finite production tests exercise these laws; the universal correctness
-  hypotheses remain explicit. These contracts alone do not establish secrecy.
+- [`Suite.Good`] and [`Seal.Good`] are what the laws take of a suite: DH and
+  key-derivation correctness, and AEAD roundtrips within the crate's plaintext
+  (at most 274877906816 bytes) and associated-data limits. **Sizes are not
+  assumed:** keys and nonces are `Bytes 32` and `Bytes 24` (engine/core/Crypto.lean),
+  the only sizes the native code accepts, and code that reads one from storage
+  or the wire checks it once (`Bytes.of?`). The running suites have both
+  ([`cryptoSeal_good`], [`suite_good`]) given the crates' correctness, which is
+  stated once, in the crypto trust file engine/core/Trust.lean ([`Trust.Native`]):
+  XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees,
+  and a SHA-256 digest is 32 bytes. Each is a named premise, never an axiom.
+  tests/vacuity/CryptoTrust.lean checks each from both sides: the native crates
+  satisfy it on real inputs, and a broken implementation of the same shape fails
+  it (in the kernel). These contracts are correctness only; they do not
+  establish secrecy.
 - The bootstrap model's `Scene.Good` requires five particular signature
   verifications, distinct participants/node keys and distinct operations in
   its five-op scene. Native certificates discharge these premises for the
@@ -321,8 +329,10 @@ behavior; they do not prove all of these assumptions:
 - **The crypto implementations behave as specified:** ed25519-dalek,
   curve25519-dalek, chacha20poly1305 and sha2, the Rust crates libquiet
   uses. Compatibility tests compare their outputs with libsodium, and the
-  handshake is tested against Noise vectors. These checks do not establish
-  unforgeability or collision resistance.
+  handshake is tested against Noise vectors. What the proofs take of them
+  is one file, engine/core/Trust.lean ([`Trust.Native`]): correctness on
+  sized inputs, checked against the crates in tests/vacuity/CryptoTrust.lean.
+  These checks do not establish unforgeability or collision resistance.
 - **SQLite behaves like the engine's own store.** This is tested row for
   row against the model, and with kill -9 crash tests. A frame's reads in one
   transaction see one committed state (SQLite's snapshot isolation): the
@@ -354,7 +364,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1360 rest on Lean's standard axioms only, and about two thirds of its theorems (993 of 1338, not counting 22 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1378 rest on Lean's standard axioms only, and about two thirds of its theorems (1015 of 1356, not counting 22 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -372,7 +382,7 @@ World); the rest are over models so far
 | ✅ | 🥊🥊🥊 | **Non-members get no ops, even by asking by id.** A session sends only ops of the rooms its peer is let into; haves and wants for any other room, or for a local op, get nothing. | [`recv_send`], [`hold_reply_local`], [`heldIn_index`], [`hold_reply_local_premises`], [`onWant_authorized`], [`serveOwed_blind`], [`serveOwed_shown`] |
 | ✅ | 🥊🥊🥊 | **Secrets stay on the device.** The running filed and closure offers name only shared ops; no local op (a secret, a session key, a pending join) is offered or sent. Of a connection's ops, only the two handshake messages are not local. | [`offer_shared`], [`wire_kinds`], [`local_kinds`], [`joinOps_travels`], [`found_travels`], [`stopWaiting_local`] |
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** The running filed stream and closure walk offer only stored, shared ops in shown rooms. `Conn.tick` sends only round messages, offers and retries. | [`filed_send`], [`offer_shared`], [`offer_stored`], [`tick_send`] |
-| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: `recipients` names exactly the live members' node keys, and a member opens what is sealed to it. Not yet: wrapping through that query (an approval below its threshold already wraps the key to the requester), and the seal's secrecy. | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
+| 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: `recipients` names exactly the live members' node keys, and a member reads every post sealed under a key wrapped to it, through the functions the app runs (the approver's `wrapKey`, the member's `unbox`, the poster's `sealedPost`, the screen's `openStored`), assuming only the crates' correctness. Not yet: wrapping through that query (an approval below its threshold already wraps the key to the requester), and the seal's secrecy. | [`recipients_iff`], [`members_iff`], [`member_reads`], [`sealedPost_opens`], [`wrapKey_opens`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`cryptoSeal_good`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run: an active attacker without the two static keys and the ephemerals derives neither transport key, and the initiator accepts only the responder's own reply. Replays are accepted again, and payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
 | 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every established session is kept open or retired, and each completed close, including crash recovery, leaves no row holding its ephemeral or transport keys; no later purge brings one back, and without the ephemerals nothing derives them. Assumes a deleted row leaves no byte on disk (`secure_delete`, `VACUUM`, the WAL truncated; tested raw). Caught a crash's session kept for good ([caught](docs/CAUGHT.md)). Not yet: a phone backup taken while a session is open; an initiator's ephemeral while its request waits; the step from stored bytes to the symbolic model's names. | [`close_forgets`], [`purge_forgets`], [`retired_complete`], [`forget_stays`], [`close_purges`], [`close_gone`], [`drop_iff_silent`], [`keepalive_sent`], [`live_stays`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
@@ -387,7 +397,7 @@ World); the rest are over models so far
 | 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** In every entry point, each frame sealed for the session carries, of that community, only sync messages and the removal with its closure (within the walk's budget); then the session closes. Not yet: that an entry point's bare handshake replies are only answers to trusted peers (proven per step: `answer_trusted`, `resend_trusted`). | [`removal_reaches_session`], [`notice_sent`], [`closure`], [`notice_send`], [`removed_gets_only_notice`], [`notice_once`], [`notice_no_holds`], [`notice_then_cut`], [`answer_trusted`], [`resend_trusted`] |
 | 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed. Proven of each running step: a responder answers, or re-answers, only a peer the trust rule takes. Not yet: the whole guarantee over the running handshake (proven over a model). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
 | ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state, purges included. A session takes only its rooms' ops; the bare wire takes only a hello's join request. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
-| ✅ | 🥊🥊 | **Both ends hold one session.** Both ends of a handshake hold the same hash, name each other, and cross their send and receive keys; a frame opens to what was sealed. Assumes the native crypto contract (`Suite.Good`), tested, not proven. | [`established_agrees`], [`open_seal`], [`cid_seal`] |
+| ✅ | 🥊🥊 | **Both ends hold one session.** Both ends of a handshake hold the same hash, name each other, and cross their send and receive keys; what the running `sealFor` seals opens, under the session's key, to the bytes sealed, and its header names the session. At the running keys every premise is discharged but the crates' correctness (the crypto trust file): keys and nonces are sized types, and `sealFor` checks the sizes it reads. | [`established_agrees_sodium`], [`established_agrees`], [`sealFor_opens`], [`open_seal_sodium`], [`cid_seal_sodium`], [`open_seal`], [`cid_seal`], [`suite_good`] |
 | | | **Hostile input** | |
 | ✅ | 🥊🥊🥊 | **One parse per op.** A decoded op re-encodes to exactly the bytes received, its id is their SHA-256, and a Valid op is exactly its body's encoding under its own type: no parser differential, no malleability, no renamed or re-typed op. | [`Codec.encode_decode`], [`Op.id_decode`], [`distinct_of_collisionFree`], [`op_of_valid`] |
 | ✅ | 🥊🥊🥊 | **Hostile bytes decode to a well-formed value or to nothing.** A QOI picture comes out at 1–2048 px a side and at most 16 MiB, whatever it claims; invite links and QR segments are valid. So are mDNS packets, though the app does not run mDNS yet. | [`Pic.decode_sized`], [`Image.decode_sized`], [`Mdns.decode_valid`], [`Community.parse_valid`], [`Qr.parse_valid`] |
@@ -474,20 +484,20 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**993 of 1338 laws are about running code;** another 22 run its node code in a World, and 323 are not yet. Stated only: none. 22 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1015 of 1356 laws are about running code;** another 22 run its node code in a World, and 319 are not yet. Stated only: none. 22 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 194 | 138 |  | 56 |
+| Engine | 197 | 141 |  | 56 |
 | Sync | 243 | 188 |  | 55 |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 198 | 132 | 16 | 50 |
-| Connections | 31 | 22 |  | 9 |
-| Community | 213 | 168 |  | 45 |
+| Node and wire | 202 | 136 | 16 | 50 |
+| Connections | 35 | 26 |  | 9 |
+| Community | 219 | 178 |  | 41 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 272 | 210 |  | 62 |
-| App | 150 | 113 | 6 | 31 |
+| App | 151 | 114 | 6 | 31 |
 | Node | 11 | 11 |  |  |
 
 | Missing link | Laws | To make them real |
@@ -510,8 +520,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `PageId.all` | [`NavLaws.depth`]† | Nothing that runs calls it. |
 | `Body.sigs` | [`admission_consented`]† | Nothing that runs calls it. |
 | `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
-| `Seal.maxAssociatedDataSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
-| `Seal.maxPlaintextSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
 | `Execution.World.peer` | [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it; `Connection.Execution.World.run` do. |
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
@@ -608,10 +616,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`CollisionFree`] | 23 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
-| [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
-| [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
+| [`Native`] | 12 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
+| [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.Native` (`suite_good`). |
+| [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.Native` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 399 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 400 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -881,7 +890,7 @@ Lean could do. The proofs do not cover it, and it is first in line to
 | | lines | the decision | the proofs |
 |---|---|---|---|
 | **Scroll physics** (`scroll.c`, UIScrollView) | | Velocity, fling and platform overscroll feel. Lean clamps each new frame; intermediate signed samples translate the last publication without a clamp. | `Input.sequence_offset` bounds frame offsets. `Translate.fill_covers` covers arbitrary interim samples. |
-| **Crypto sizes** (crypto.c) | | A ChaCha20-Poly1305 key that is not 32 bytes seals under 32 zero bytes, while opening refuses it. XChaCha20-Poly1305 with a wrong-sized key or nonce seals to empty bytes. A wrong-sized Ed25519 seed gives empty bytes. | [`Suite.Good`] and `Seal.Good` say the AEAD opens what it seals for every key and nonce. The running AEADs do so only for 32-byte keys and 24-byte nonces. |
+| **Crypto sizes** (crypto.c) | | A ChaCha20-Poly1305 key that is not 32 bytes seals under 32 zero bytes, while opening refuses it. XChaCha20-Poly1305 with a wrong-sized key or nonce seals to empty bytes. A wrong-sized Ed25519 seed gives empty bytes. | No law reaches these fallbacks: keys and nonces are `Bytes 32`/`Bytes 24` in Lean, checked once where they are read (`Bytes.of?`; `sealFor`, `openStored`, `unwrap`, the validators), and the Noise suite's DH decides a malformed secret in Lean. tests/vacuity/CryptoTrust.lean checks the crates refuse every other size. |
 | **The camera on iOS** (quiet_ios.m) | | The back camera at 1280 × 720, oriented 90° always. Android reads the sensor's own orientation. | [`Camera.src_in`] takes the frame's header as given. |
 | **The control channel** (ctl.c and ctl_ios.c, started by activity.c and quiet_ios.m) | | Only development builds have it: `RELEASE=1` builds compile no listener. On Android it is the abstract socket `@leanquiet`, which has no file permissions, so it closes any connection, unread, whose peer (by the kernel's `SO_PEERCRED`) is not adb's shell or root. On iOS it is TCP on 127.0.0.1:7417 (every interface only for a launch with `LEANQUIET_CTL_REMOTE=1`), and a connection's first line must be the launch's 128-bit token. Its commands include `send` (posts as this device), `invite` (the current invite link), `found` and `chaos` (both write ops), and `state` (the composer's text). | Nothing. Another process on the device is not in the model. `android:ctl-guard` and `ios:ctl-guard` test who is answered, with release builds that do not listen. |
 
@@ -998,14 +1007,11 @@ more OS policy or library work into Lean.
   - Speed: nothing to lose; it serves tests.
   - Then provable: an app launched without the flag reads no command,
     as a statement about `App.start`.
-- [ ] **Sizes as types in the crypto.**
-  - Moves: crypto.c's size checks and its fallbacks (the zero key, the
-    empty results).
-  - Instead: fixed-size byte types in `Engine.Crypto` (32-byte keys,
-    24-byte nonces), so crypto.c passes pointers it never checks.
-  - Speed: the same either way.
-  - Then provable: [`Suite.Good`] and `Seal.Good`, as stated, of the
-    AEADs that run.
+- [x] **Sizes as types in the crypto.** Keys and nonces are `Bytes 32`
+  and `Bytes 24` in `Engine`, and the running suites take them, so
+  [`Suite.Good`] and `Seal.Good` hold of the AEADs that run given only the
+  crates' correctness ([`cryptoSeal_good`], [`suite_good`]). crypto.c keeps
+  its size checks as a second line; no law depends on them.
 - [ ] **Decide row reuse in Lean.**
   - Moves: the row comparison in both twins' `lq_stage` (57 and 63
     lines).
@@ -1171,8 +1177,11 @@ opportunities and full native delivery remain open.
 [`lbl_inj`]: engine/sync/Fp.lean#L268-L272
 [`NoCollision`]: engine/core/Merkle.lean#L152-L154
 [`assumptions_hold`]: engine/core/Merkle.lean#L589-L594
-[`Suite.Good`]: engine/wire/Noise.lean#L70-L81
-[`Seal.Good`]: app/community/Op.lean#L55-L65
+[`Suite.Good`]: engine/wire/Noise.lean#L71-L82
+[`Seal.Good`]: app/community/Op.lean#L51-L59
+[`cryptoSeal_good`]: app/community/Op.lean#L147-L149
+[`suite_good`]: engine/wire/Noise.lean#L425-L430
+[`Trust.Native`]: engine/core/Trust.lean#L62-L67
 [`no_impersonation`]: app/community/Proofs.lean#L114-L127
 [`admission_needs_approval`]: app/community/member/invite/Proofs.lean#L40-L48
 [`admission_approved`]: app/community/member/invite/request/approve/Proofs.lean#L87-L97
@@ -1199,17 +1208,20 @@ opportunities and full native delivery remain open.
 [`offer_shared`]: engine/sync/SecrecyLaws.lean#L60-L65
 [`wire_kinds`]: app/connection/Proofs.lean#L41-L42
 [`local_kinds`]: app/connection/Proofs.lean#L48-L49
-[`joinOps_travels`]: app/community/Proofs.lean#L278-L282
-[`found_travels`]: app/community/Proofs.lean#L285-L291
+[`joinOps_travels`]: app/community/Proofs.lean#L339-L343
+[`found_travels`]: app/community/Proofs.lean#L346-L352
 [`stopWaiting_local`]: app/community/member/join/joining/abandon/Proofs.lean#L7-L8
 [`filed_send`]: engine/sync/ConnLaws.lean#L188-L191
 [`offer_stored`]: engine/sync/SecrecyLaws.lean#L78-L82
 [`tick_send`]: engine/sync/ConnLaws.lean#L214-L216
-[`recipients_iff`]: app/community/Proofs.lean#L839-L844
-[`members_iff`]: app/community/Proofs.lean#L829-L831
-[`member_opens`]: app/community/Proofs.lean#L262-L269
-[`openSealed_seal`]: app/community/Proofs.lean#L250-L254
-[`unbox_box`]: app/community/Op.lean#L113-L116
+[`recipients_iff`]: app/community/Proofs.lean#L900-L905
+[`members_iff`]: app/community/Proofs.lean#L890-L892
+[`member_reads`]: app/community/Proofs.lean#L319-L332
+[`sealedPost_opens`]: app/community/Proofs.lean#L285-L298
+[`wrapKey_opens`]: app/community/Proofs.lean#L306-L314
+[`member_opens`]: app/community/Proofs.lean#L263-L269
+[`openSealed_seal`]: app/community/Proofs.lean#L250-L253
+[`unbox_box`]: app/community/Op.lean#L120-L122
 [`check_reads_shared`]: app/community/Proofs.lean#L191-L193
 [`kk_secret`]: engine/wire/NoiseSymbolic.lean#L600-L614
 [`kk_secret_init`]: engine/wire/NoiseSymbolic.lean#L552-L561
@@ -1218,11 +1230,11 @@ opportunities and full native delivery remain open.
 [`kk_authentic_resp`]: engine/wire/NoiseSymbolic.lean#L877-L890
 [`kk_secret_init_tight`]: engine/wire/NoiseSymbolic.lean#L621-L630
 [`kk_runs`]: engine/wire/NoiseSymbolic.lean#L309-L317
-[`handshake_agrees`]: engine/wire/Noise.lean#L356-L370
-[`close_forgets`]: app/Proofs.lean#L3834-L3846
-[`purge_forgets`]: app/Proofs.lean#L3809-L3813
-[`retired_complete`]: app/Proofs.lean#L3860-L3866
-[`forget_stays`]: app/Proofs.lean#L3816-L3820
+[`handshake_agrees`]: engine/wire/Noise.lean#L357-L371
+[`close_forgets`]: app/Proofs.lean#L3849-L3861
+[`purge_forgets`]: app/Proofs.lean#L3824-L3828
+[`retired_complete`]: app/Proofs.lean#L3875-L3881
+[`forget_stays`]: app/Proofs.lean#L3831-L3835
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
 [`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: engine/sync/TimeLaws.lean#L22-L24
@@ -1237,54 +1249,58 @@ opportunities and full native delivery remain open.
 [`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
 [`write_snaps`]: engine/sync/OfferLaws.lean#L590-L593
 [`have_shown_premises`]: engine/sync/OfferLaws.lean#L681-L685
-[`opened_endpoint`]: app/Proofs.lean#L373-L381
-[`established_endpoint`]: app/Proofs.lean#L400-L413
+[`opened_endpoint`]: app/Proofs.lean#L388-L396
+[`established_endpoint`]: app/Proofs.lean#L415-L428
 [`endpoint_signed`]: app/community/member/invite/request/Proofs.lean#L65-L72
 [`endpoint_derives`]: app/community/device/endpoint/Proofs.lean#L30-L32
 [`meV_node`]: app/connection/Proofs.lean#L220-L225
-[`new_device_trusted`]: app/community/Proofs.lean#L881-L887
-[`connect_iff`]: app/community/Proofs.lean#L767-L771
-[`deviceLive_iff`]: app/community/Proofs.lean#L657-L661
-[`refuse_nonmember`]: app/community/Proofs.lean#L782-L785
-[`connect_approved`]: app/community/Proofs.lean#L805-L817
-[`connect_agree`]: app/community/Proofs.lean#L850-L853
-[`removal_cuts_off`]: app/community/Proofs.lean#L865-L872
+[`new_device_trusted`]: app/community/Proofs.lean#L942-L948
+[`connect_iff`]: app/community/Proofs.lean#L828-L832
+[`deviceLive_iff`]: app/community/Proofs.lean#L718-L722
+[`refuse_nonmember`]: app/community/Proofs.lean#L843-L846
+[`connect_approved`]: app/community/Proofs.lean#L866-L878
+[`connect_agree`]: app/community/Proofs.lean#L911-L914
+[`removal_cuts_off`]: app/community/Proofs.lean#L926-L933
 [`cut_stays`]: app/community/member/remove/Proofs.lean#L47-L50
 [`cut_consented`]: app/community/member/Proofs.lean#L108-L115
-[`removals_iff`]: app/community/Proofs.lean#L574-L575
-[`mine_not_removed`]: app/community/Proofs.lean#L1154-L1158
-[`rejoin_fresh`]: app/community/Proofs.lean#L1173-L1186
-[`join_new_device`]: app/community/Proofs.lean#L1213-L1220
-[`removed_stays_removed`]: app/community/Proofs.lean#L1258-L1268
-[`rejoin_dials`]: app/Proofs.lean#L982-L995
-[`reconnect_dials`]: app/Proofs.lean#L1007-L1017
+[`removals_iff`]: app/community/Proofs.lean#L635-L636
+[`mine_not_removed`]: app/community/Proofs.lean#L1215-L1219
+[`rejoin_fresh`]: app/community/Proofs.lean#L1234-L1247
+[`join_new_device`]: app/community/Proofs.lean#L1274-L1281
+[`removed_stays_removed`]: app/community/Proofs.lean#L1319-L1329
+[`rejoin_dials`]: app/Proofs.lean#L997-L1010
+[`reconnect_dials`]: app/Proofs.lean#L1022-L1032
 [`entry_fresh`]: engine/wire/EgressLaws.lean#L958-L966
-[`rooms_cut_node`]: app/Proofs.lean#L1129-L1141
-[`rooms_trusted`]: app/Proofs.lean#L1089-L1096
-[`rooms_cut`]: app/Proofs.lean#L1109-L1120
-[`rooms_removed`]: app/Proofs.lean#L149-L154
-[`rooms_complete`]: app/Proofs.lean#L174-L180
-[`notice_then_cut`]: app/Proofs.lean#L335-L348
-[`trusts_live`]: app/Proofs.lean#L93-L99
-[`rooms_model`]: app/Proofs.lean#L1147-L1150
+[`rooms_cut_node`]: app/Proofs.lean#L1144-L1156
+[`rooms_trusted`]: app/Proofs.lean#L1104-L1111
+[`rooms_cut`]: app/Proofs.lean#L1124-L1135
+[`rooms_removed`]: app/Proofs.lean#L164-L169
+[`rooms_complete`]: app/Proofs.lean#L189-L195
+[`notice_then_cut`]: app/Proofs.lean#L350-L363
+[`trusts_live`]: app/Proofs.lean#L108-L114
+[`rooms_model`]: app/Proofs.lean#L1162-L1165
 [`recv_take`]: engine/sync/ConnLaws.lean#L128-L130
-[`removal_reaches_session`]: app/Proofs.lean#L3062-L3080
+[`removal_reaches_session`]: app/Proofs.lean#L3077-L3095
 [`notice_sent`]: engine/sync/NoticeLaws.lean#L576-L587
 [`closure`]: engine/sync/NoticeLaws.lean#L281-L289
 [`notice_send`]: engine/sync/NoticeLaws.lean#L609-L616
-[`removed_gets_only_notice`]: app/Proofs.lean#L186-L197
+[`removed_gets_only_notice`]: app/Proofs.lean#L201-L212
 [`notice_once`]: engine/sync/NoticeLaws.lean#L641-L647
 [`notice_no_holds`]: engine/sync/NoticeLaws.lean#L436-L447
-[`answer_trusted`]: app/Proofs.lean#L724-L737
-[`resend_trusted`]: app/Proofs.lean#L772-L783
-[`no_connection_before_approval`]: app/community/Proofs.lean#L2876-L2883
-[`sessions_trusted`]: app/community/Proofs.lean#L2900-L2905
-[`bare_takes_only_join`]: app/Proofs.lean#L588-L600
+[`answer_trusted`]: app/Proofs.lean#L739-L752
+[`resend_trusted`]: app/Proofs.lean#L787-L798
+[`no_connection_before_approval`]: app/community/Proofs.lean#L2940-L2947
+[`sessions_trusted`]: app/community/Proofs.lean#L2964-L2969
+[`bare_takes_only_join`]: app/Proofs.lean#L603-L615
 [`intake_local`]: engine/core/Sync.lean#L38-L40
 [`stored_local`]: engine/core/Sync.lean#L86-L89
 [`local_fact_mine`]: app/community/Family.lean#L1307-L1311
 [`intakeConn_conn`]: engine/core/Sync.lean#L33-L34
+[`established_agrees_sodium`]: app/Proofs.lean#L93-L105
 [`established_agrees`]: app/Proofs.lean#L36-L50
+[`sealFor_opens`]: app/connection/Proofs.lean#L555-L563
+[`open_seal_sodium`]: app/connection/Proofs.lean#L535-L541
+[`cid_seal_sodium`]: app/connection/Proofs.lean#L545-L549
 [`open_seal`]: app/connection/Proofs.lean#L480-L487
 [`cid_seal`]: app/connection/Proofs.lean#L511-L515
 [`Codec.encode_decode`]: engine/core/Codec.lean#L773-L776
@@ -1300,7 +1316,7 @@ opportunities and full native delivery remain open.
 [`verify_sound`]: engine/core/Merkle.lean#L474-L482
 [`complete_assembles`]: engine/core/Merkle.lean#L524-L531
 [`chunk_unique`]: app/community/channel/message/attachment/chunk/Proofs.lean#L98-L104
-[`progress_exact`]: app/community/Proofs.lean#L467-L476
+[`progress_exact`]: app/community/Proofs.lean#L528-L537
 [`no_injective_hash`]: engine/core/Merkle.lean#L270-L272
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
@@ -1360,23 +1376,23 @@ opportunities and full native delivery remain open.
 [`sum_project_node`]: app/connection/Family.lean#L616-L627
 [`spec_sum_left`]: engine/core/Project.lean#L195-L198
 [`view_proj`]: engine/core/Project.lean#L408-L411
-[`connect_iff_node`]: app/connection/Proofs.lean#L537-L542
+[`connect_iff_node`]: app/connection/Proofs.lean#L597-L602
 [`members_iff_node`]: app/connection/Proofs.lean#L443-L446
 [`recipients_iff_node`]: app/connection/Proofs.lean#L450-L454
 [`node_settles`]: app/connection/Proofs.lean#L458-L462
 [`request_valid`]: app/community/member/invite/request/Proofs.lean#L47-L55
 [`approve_valid`]: app/community/member/invite/request/approve/Proofs.lean#L108-L116
 [`admit_admits`]: app/community/member/invite/request/approve/Proofs.lean#L124-L135
-[`connect_admitted`]: app/community/Proofs.lean#L791-L801
-[`removeMember_valid`]: app/community/Proofs.lean#L399-L406
+[`connect_admitted`]: app/community/Proofs.lean#L852-L862
+[`removeMember_valid`]: app/community/Proofs.lean#L460-L467
 [`exchange_complete`]: engine/sync/RoundLaws.lean#L232-L241
 [`conn_runs_exchange`]: engine/sync/RoundRun.lean#L536-L556
 [`opening_honest`]: engine/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/sync/Fp.lean#L40-L40
 [`spec_local`]: engine/core/Locality.lean#L54-L58
-[`bootstrap`]: app/community/Proofs.lean#L3238-L3242
-[`bootstrap_possible`]: app/community/Proofs.lean#L3045-L3055
-[`reachable_inv`]: app/community/Proofs.lean#L2823-L2824
+[`bootstrap`]: app/community/Proofs.lean#L3302-L3306
+[`bootstrap_possible`]: app/community/Proofs.lean#L3109-L3119
+[`reachable_inv`]: app/community/Proofs.lean#L2887-L2888
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1510-L1528
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L242
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1456-L1468
@@ -1412,7 +1428,7 @@ opportunities and full native delivery remain open.
 [`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
 [`fresh_served`]: engine/wire/WorldLaws.lean#L631-L638
 [`write_hot`]: engine/wire/WorldLaws.lean#L1442-L1447
-[`onWrite_receives`]: app/Proofs.lean#L3169-L3177
+[`onWrite_receives`]: app/Proofs.lean#L3184-L3192
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
 [`Demand.complete_retired`]: engine/renderer/Demand.lean#L96-L97
 [`Demand.next_visible`]: engine/renderer/Demand.lean#L149-L151
@@ -1426,21 +1442,21 @@ opportunities and full native delivery remain open.
 [`Demand.take_changes`]: engine/renderer/DemandRank.lean#L88-L94
 [`Demand.selected_or_retired`]: engine/renderer/DemandRank.lean#L115-L122
 [`Demand.selected_within`]: engine/renderer/DemandRank.lean#L137-L143
-[`unmount_read`]: app/Proofs.lean#L1168-L1170
-[`unmount_write`]: app/Proofs.lean#L1172-L1174
-[`old_callback`]: app/Proofs.lean#L1176-L1178
+[`unmount_read`]: app/Proofs.lean#L1183-L1185
+[`unmount_write`]: app/Proofs.lean#L1187-L1189
+[`old_callback`]: app/Proofs.lean#L1191-L1193
 [`unmounted_quiet`]: app/Screen.lean#L969-L970
 [`old_quiet`]: app/Screen.lean#L973-L974
 [`live_exact`]: app/Screen.lean#L989-L993
 [`subscriptions_exact`]: app/Screen.lean#L977-L978
 [`mounted_runs`]: app/Screen.lean#L1042-L1044
 [`restore_checkpoint`]: app/Screen.lean#L1039-L1039
-[`page_round`]: app/Screen.lean#L3279-L3279
-[`restore_page_anchor`]: app/Proofs.lean#L1184-L1190
-[`apply_page_anchor`]: app/Proofs.lean#L1194-L1199
+[`page_round`]: app/Screen.lean#L3282-L3282
+[`restore_page_anchor`]: app/Proofs.lean#L1199-L1205
+[`apply_page_anchor`]: app/Proofs.lean#L1209-L1214
 [`resize_anchor`]: app/Screen.lean#L1007-L1008
-[`viewport_geometry`]: app/Proofs.lean#L1210-L1214
-[`viewport_possible`]: app/Proofs.lean#L1217-L1218
+[`viewport_geometry`]: app/Proofs.lean#L1225-L1229
+[`viewport_possible`]: app/Proofs.lean#L1232-L1233
 [`Surface.visible_in_viewport`]: engine/renderer/Surface.lean#L123-L127
 [`newest_visible`]: engine/renderer/Geometry.lean#L101-L107
 [`Surface.pinned_visible`]: engine/renderer/Surface.lean#L141-L143
@@ -1477,13 +1493,13 @@ opportunities and full native delivery remain open.
 [`no_replace`]: app/community/member/remove/View.lean#L77-L79
 [`offered_only`]: app/community/member/remove/View.lean#L86-L89
 [`back_go`]: engine/renderer/Nav.lean#L94-L96
-[`NavLaws.back_open`]: app/Proofs.lean#L1294-L1296
-[`NavLaws.back_root`]: app/Proofs.lean#L1299-L1302
-[`back_switch`]: app/Proofs.lean#L1319-L1322
+[`NavLaws.back_open`]: app/Proofs.lean#L1309-L1311
+[`NavLaws.back_root`]: app/Proofs.lean#L1314-L1317
+[`back_switch`]: app/Proofs.lean#L1334-L1337
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
-[`NavLaws.depth`]: app/Proofs.lean#L1355-L1360
-[`draft_back`]: app/Proofs.lean#L1330-L1332
-[`into_native`]: app/Screen.lean#L3328-L3331
+[`NavLaws.depth`]: app/Proofs.lean#L1370-L1375
+[`draft_back`]: app/Proofs.lean#L1345-L1347
+[`into_native`]: app/Screen.lean#L3331-L3334
 [`present_iff`]: app/community/Screen.lean#L435-L438
 [`present_not_removed`]: app/community/Screen.lean#L445-L448
 [`present_nodup`]: app/community/Screen.lean#L452-L453
@@ -1553,23 +1569,23 @@ opportunities and full native delivery remain open.
 [`projectSet_nodup`]: app/Commands.lean#L746-L748
 [`picBox_aspect`]: app/community/channel/message/reaction/View.lean#L55-L64
 [`message_own`]: app/community/Screen.lean#L147-L150
-[`readable_held`]: app/community/Proofs.lean#L337-L349
-[`readable_complete`]: app/community/Proofs.lean#L377-L387
+[`readable_held`]: app/community/Proofs.lean#L398-L410
+[`readable_complete`]: app/community/Proofs.lean#L438-L448
 [`switcherOrder_sound`]: app/Screen.lean#L796-L798
 [`switcherOrder_complete`]: app/Screen.lean#L803-L805
 [`dedupe_nodup`]: app/community/Screen.lean#L710-L711
 [`dedupe_one_per_community`]: app/community/Screen.lean#L714-L716
 [`select_tapped_dedupe`]: app/community/Screen.lean#L740-L742
-[`drawPage_key`]: app/Screen.lean#L5023-L5027
-[`pageIn_acc`]: app/Screen.lean#L5029-L5032
+[`drawPage_key`]: app/Screen.lean#L5026-L5030
+[`pageIn_acc`]: app/Screen.lean#L5032-L5035
 [`msg_cmp`]: app/community/channel/message/Proofs.lean#L108-L115
 [`time_is_display`]: app/community/channel/message/Proofs.lean#L119-L125
-[`order_total`]: app/community/Proofs.lean#L1351-L1361
+[`order_total`]: app/community/Proofs.lean#L1414-L1424
 [`Pos.cmp_eq_iff`]: engine/core/Order.lean#L44-L46
 [`Pos.cmp_lt_trans`]: engine/core/Order.lean#L57-L59
-[`send_after`]: app/community/Proofs.lean#L1537-L1547
-[`arrival_order`]: app/community/Proofs.lean#L1508-L1520
-[`receipt_once`]: app/community/Proofs.lean#L1465-L1468
+[`send_after`]: app/community/Proofs.lean#L1600-L1611
+[`arrival_order`]: app/community/Proofs.lean#L1571-L1583
+[`receipt_once`]: app/community/Proofs.lean#L1528-L1531
 [`order_local`]: app/community/channel/message/Proofs.lean#L145-L157
 [`display_agrees`]: app/community/channel/message/Proofs.lean#L187-L197
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
@@ -1589,37 +1605,37 @@ opportunities and full native delivery remain open.
 [`fit_round`]: engine/renderer/pic/Laws.lean#L87-L90
 [`Pic.layout_inside`]: engine/renderer/pic/Laws.lean#L170-L172
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
-[`world_trace_moves`]: app/Proofs.lean#L2947-L2949
-[`empty_trace_store`]: app/Proofs.lean#L2954-L2958
-[`world_trace_history`]: app/Proofs.lean#L3473-L3475
-[`empty_trace_history`]: app/Proofs.lean#L3481-L3485
+[`world_trace_moves`]: app/Proofs.lean#L2962-L2964
+[`empty_trace_store`]: app/Proofs.lean#L2969-L2973
+[`world_trace_history`]: app/Proofs.lean#L3488-L3490
+[`empty_trace_history`]: app/Proofs.lean#L3496-L3500
 [`world_trace_unique`]: app/connection/NodeUnique.lean#L72-L74
 [`empty_trace_unique`]: app/connection/NodeUnique.lean#L79-L83
-[`run_count`]: app/Proofs.lean#L2556-L2557
-[`run_get`]: app/Proofs.lean#L2559-L2560
-[`run_view`]: app/Proofs.lean#L2562-L2563
-[`run_arrivedFrom`]: app/Proofs.lean#L2568-L2570
-[`ProgressTape.answer_ready`]: app/Proofs.lean#L2575-L2580
-[`production_step_moves`]: app/Proofs.lean#L2873-L2876
-[`production_step_retains`]: app/Proofs.lean#L2879-L2882
-[`production_step_reachable`]: app/Proofs.lean#L2885-L2887
-[`production_step_settled`]: app/Proofs.lean#L2890-L2895
-[`write_store_tape`]: app/Proofs.lean#L3106-L3110
-[`production_write_receives`]: app/Proofs.lean#L3183-L3188
-[`production_step_history`]: app/Proofs.lean#L3417-L3421
+[`run_count`]: app/Proofs.lean#L2571-L2572
+[`run_get`]: app/Proofs.lean#L2574-L2575
+[`run_view`]: app/Proofs.lean#L2577-L2578
+[`run_arrivedFrom`]: app/Proofs.lean#L2583-L2585
+[`ProgressTape.answer_ready`]: app/Proofs.lean#L2590-L2595
+[`production_step_moves`]: app/Proofs.lean#L2888-L2891
+[`production_step_retains`]: app/Proofs.lean#L2894-L2897
+[`production_step_reachable`]: app/Proofs.lean#L2900-L2902
+[`production_step_settled`]: app/Proofs.lean#L2905-L2910
+[`write_store_tape`]: app/Proofs.lean#L3121-L3125
+[`production_write_receives`]: app/Proofs.lean#L3198-L3203
+[`production_step_history`]: app/Proofs.lean#L3432-L3436
 [`secrecy_runs`]: engine/sync/Witnesses.lean#L10-L14
 [`exchange_ids_stable`]: engine/sync/TreeLaws.lean#L163-L165
 [`exchange_log`]: engine/sync/TreeLaws.lean#L210-L221
 [`exchange_stable`]: engine/sync/TreeLaws.lean#L171-L179
 [`reads_members`]: app/connection/Family.lean#L594-L594
 [`reads_recipients`]: app/connection/Family.lean#L598-L598
-[`FairExecution.fair`]: app/community/Proofs.lean#L3435-L3437
-[`ideal`]: app/community/Proofs.lean#L3453-L3453
-[`admitted_inv`]: app/community/Proofs.lean#L2135-L2138
-[`allowedA`]: app/community/Proofs.lean#L2206-L2206
-[`allowedB`]: app/community/Proofs.lean#L2220-L2223
-[`allowPeer_iff`]: app/community/Proofs.lean#L3297-L3300
-[`allowPeer_settles`]: app/community/Proofs.lean#L3303-L3307
+[`FairExecution.fair`]: app/community/Proofs.lean#L3499-L3501
+[`ideal`]: app/community/Proofs.lean#L3517-L3517
+[`admitted_inv`]: app/community/Proofs.lean#L2199-L2202
+[`allowedA`]: app/community/Proofs.lean#L2270-L2270
+[`allowedB`]: app/community/Proofs.lean#L2284-L2287
+[`allowPeer_iff`]: app/community/Proofs.lean#L3361-L3364
+[`allowPeer_settles`]: app/community/Proofs.lean#L3367-L3371
 [`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
 [`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
@@ -1670,12 +1686,11 @@ opportunities and full native delivery remain open.
 [`absentFold_keeps`]: engine/sync/ClosureStore.lean#L68-L69
 [`absentFold_source`]: engine/sync/ClosureStore.lean#L74-L75
 [`absentFold_covers`]: engine/sync/ClosureStore.lean#L85-L89
-[`openBody_sealBody`]: app/community/Op.lean#L107-L111
 [`production_step_unique`]: app/connection/NodeUnique.lean#L10-L14
-[`world_step_moves`]: app/Proofs.lean#L2909-L2912
-[`Run.shared_retained`]: app/Proofs.lean#L2966-L2972
-[`world_step_history`]: app/Proofs.lean#L3435-L3438
-[`history`]: app/Proofs.lean#L3493-L3498
+[`world_step_moves`]: app/Proofs.lean#L2924-L2927
+[`Run.shared_retained`]: app/Proofs.lean#L2981-L2987
+[`world_step_history`]: app/Proofs.lean#L3450-L3453
+[`history`]: app/Proofs.lean#L3508-L3513
 [`world_step_unique`]: app/connection/NodeUnique.lean#L29-L33
 [`unique`]: app/connection/NodeUnique.lean#L87-L91
 [`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
@@ -1684,8 +1699,8 @@ opportunities and full native delivery remain open.
 [`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
 [`walks_le`]: engine/core/Query.lean#L586-L586
 [`held_run_observed`]: engine/sync/SweepRun.lean#L51-L55
-[`catalog_read`]: app/Proofs.lean#L3219-L3224
-[`ceiling_mono`]: app/Proofs.lean#L3229-L3231
+[`catalog_read`]: app/Proofs.lean#L3234-L3239
+[`ceiling_mono`]: app/Proofs.lean#L3244-L3246
 [`shared_log_turn`]: engine/sync/SharedLog.lean#L15-L17
 [`shared_log_purge`]: engine/sync/SharedLog.lean#L20-L25
 [`consumed_left`]: engine/wire/ExpiryGraceLaws.lean#L39-L39
@@ -1791,8 +1806,8 @@ opportunities and full native delivery remain open.
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L142-L144
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L193-L196
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L200-L204
-[`withView_ofFrame`]: app/Screen.lean#L1648-L1652
-[`withViewLast_moves`]: app/Screen.lean#L1659-L1663
+[`withView_ofFrame`]: app/Screen.lean#L1651-L1655
+[`withViewLast_moves`]: app/Screen.lean#L1662-L1666
 [`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_pure`]: engine/core/CostErase.lean#L25-L25
@@ -1804,17 +1819,18 @@ opportunities and full native delivery remain open.
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`offerM`]: app/Screen.lean#L1117-L1123
+[`Native`]: engine/core/Trust.lean#L62-L67
 [`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L259-L272
 [`Model.run`]: engine/core/Model.lean#L117-L117
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L224-L226
 [`ServiceRun.eventually_emitted`]: engine/sync/ClosureDelivery.lean#L160-L169
-[`Execution.fairRun_fair`]: app/Proofs.lean#L1808-L1808
-[`successful_fair_extension`]: app/Proofs.lean#L1873-L1884
-[`WriteAdmission.admitted_frames`]: app/Screen.lean#L3852-L3854
-[`WriteAdmission.admitted_count`]: app/Screen.lean#L3864-L3866
-[`WriteAdmission.admitted_bytes`]: app/Screen.lean#L3876-L3878
+[`Execution.fairRun_fair`]: app/Proofs.lean#L1823-L1823
+[`successful_fair_extension`]: app/Proofs.lean#L1888-L1899
+[`WriteAdmission.admitted_frames`]: app/Screen.lean#L3855-L3857
+[`WriteAdmission.admitted_count`]: app/Screen.lean#L3867-L3869
+[`WriteAdmission.admitted_bytes`]: app/Screen.lean#L3879-L3881
 [`write_first`]: engine/wire/LaneLaws.lean#L255-L257
 [`Sync.write_within`]: engine/wire/LaneLaws.lean#L408-L412
 [`Sync.event_within`]: engine/wire/LaneLaws.lean#L417-L421
@@ -1826,13 +1842,13 @@ opportunities and full native delivery remain open.
 [`Outbox.push_bounded`]: engine/wire/OutboxLaws.lean#L27-L29
 [`Outbox.take_bounded`]: engine/wire/OutboxLaws.lean#L52-L53
 [`native_batch_bounded`]: engine/wire/OutboxLaws.lean#L64-L68
-[`Presentation.bounded`]: app/Screen.lean#L2736-L2737
-[`Presentation.offer_append`]: app/Screen.lean#L2739-L2741
-[`Presentation.offer_full`]: app/Screen.lean#L2749-L2751
-[`Presentation.acknowledge_matches`]: app/Screen.lean#L2761-L2763
-[`Presentation.transition_prior`]: app/Screen.lean#L2786-L2790
-[`Presentation.transition_rejected`]: app/Screen.lean#L2793-L2796
-[`Presentation.transition_sound`]: app/Screen.lean#L2799-L2802
+[`Presentation.bounded`]: app/Screen.lean#L2739-L2740
+[`Presentation.offer_append`]: app/Screen.lean#L2742-L2744
+[`Presentation.offer_full`]: app/Screen.lean#L2752-L2754
+[`Presentation.acknowledge_matches`]: app/Screen.lean#L2764-L2766
+[`Presentation.transition_prior`]: app/Screen.lean#L2789-L2793
+[`Presentation.transition_rejected`]: app/Screen.lean#L2796-L2799
+[`Presentation.transition_sound`]: app/Screen.lean#L2802-L2805
 [`WriterQueue.push_keeps_phase`]: engine/renderer/WriteQueueLaws.lean#L16-L17
 [`WriterQueue.local_fifo`]: engine/renderer/WriteQueueLaws.lean#L19-L21
 [`WriterQueue.background_fifo`]: engine/renderer/WriteQueueLaws.lean#L23-L24
@@ -1884,18 +1900,26 @@ A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
 
-**Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` now require
-supported key, nonce, plaintext and associated-data sizes where applicable.
-Noise's key derivation must produce supported keys. Malformed-input rejection remains covered by
-regression tests; it no longer contradicts the roundtrip contracts. Native seal
-wrappers also propagate encryption failures instead of returning unusable bytes.
-The frame laws `open_seal` and `cid_seal` now use premises for the particular
-frame, all checked on an actual Noise session carrying a signed message.
+**Contract failures repaired.** `Seal.Good` and Noise `Suite.Good` once
+promised a roundtrip for keys and nonces of every length, which the native
+crates refuse. Keys and nonces are now sized types (`Bytes 32`, `Bytes 24`)
+that the running code carries: the suites take them, and code that reads a key
+or nonce from storage or the wire checks its size once (`Bytes.of?`), so no
+law has a size premise left. The running suites satisfy both contracts given
+the crypto trust file ([`cryptoSeal_good`], [`suite_good`]), and each sealing,
+wrapping, frame and handshake law has an instance at the functions the app
+runs ([`member_reads`], [`sealedPost_opens`], [`wrapKey_opens`],
+[`sealFor_opens`], [`open_seal_sodium`], [`established_agrees_sodium`]) whose
+one remaining premise is that file. Each instance has a mutation control that
+must fail to prove (tests/vacuity/controls.py): the old unsized `sealFor`, a
+post bound to another community, a wrap to the wrong key, a truncated frame
+nonce, an unbox reading the ephemeral key one byte late, and others. Native
+seal wrappers also propagate encryption failures instead of returning
+unusable bytes.
 
-The general native crypto contracts remain **conditional**: finite roundtrips
-do not prove their universal laws. The community and general handshake results
-that rely on them are not promoted to fully witnessed proofs. The symbolic
-Noise suite still has a kernel proof of its contract, separate from native crypto.
+These entries stay **conditional**: they name the trust file, which finite
+roundtrips cannot prove. The symbolic Noise suite still has a kernel proof of
+its contract, separate from native crypto.
 
 
 **Remaining assumption work.** The [explicit assumptions](#what-is-assumed)

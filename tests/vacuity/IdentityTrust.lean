@@ -145,7 +145,7 @@ def cutStays := applyLaw cut (fun h => cut_stays (ingestExtends (run after) late
 
 def endpointSigned := applyLaw (certifyDB before admission bobFact) endpoint_signed
 
-def nodeSecret := sha256 "vacuity-node-secret".toUTF8
+def nodeSecret := Bytes.digest "vacuity-node-secret".toUTF8
 def nodeEndpoint := endpoint nodeSecret
 def endpointDerives := applyLaw
   (certifyDB [nodeEndpoint] nodeEndpoint (.endpoint (cryptoSeal.pub nodeSecret) nodeSecret)) endpoint_derives

@@ -248,31 +248,92 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
     · cases hf'
 
 /-- **A sealed body opens with its key.** -/
-theorem openSealed_seal {S : Seal} (G : S.Good) {c kid k n text : ByteArray}
-    (hk : k.size = 32) (hn : n.size = 24) (ht : text.size < Seal.maxPlaintextSize)
-    (ha : (bodyAd c kid).size < Seal.maxAssociatedDataSize) :
-    openSealed S c kid (n ++ sealBody S k n c kid text) k = some text := by
-  have hs : ¬ (n ++ sealBody S k n c kid text).size < 24 := by rw [ByteArray.size_append, hn]; omega
+theorem openSealed_seal {S : Seal} (G : S.Good) {c kid text : ByteArray} (k : Key32) (n : Nonce24)
+    (ht : text.size < Crypto.maxPlaintext) (ha : (bodyAd c kid).size < Crypto.maxAD) :
+    openSealed S c kid (n.1 ++ sealBody S k n c kid text) k = some text := by
+  have hn := n.2
+  have hs : ¬ (n.1 ++ sealBody S k n c kid text).size < 24 := by rw [ByteArray.size_append, hn]; omega
   unfold openSealed
-  simp only [hs, ↓reduceIte]
-  rw [ByteArray.extract_append_eq_left hn.symm,
-    ByteArray.extract_append_eq_right hn.symm (by rw [ByteArray.size_append, hn])]
-  exact openBody_sealBody G _ _ _ _ _ hk hn ht ha
+  rw [dif_neg hs]
+  have hf : Bytes.front (n := 24) (n.1 ++ sealBody S k n c kid text) (by omega) = n :=
+    Subtype.ext (ByteArray.extract_append_eq_left hn.symm)
+  rw [hf, ByteArray.extract_append_eq_right hn.symm (by rw [ByteArray.size_append, hn])]
+  exact openBody_sealBody G _ _ _ _ _ ht ha
 
 /-- **An admitted device opens every body sealed under a key wrapped to
 it.** A key wrapped to the device's X25519 key unwraps with its secret,
 and that key opens what was sealed under it. -/
-theorem member_opens {S : Seal} (G : S.Good) (rsk esk k n c text : ByteArray)
-    (hr : rsk.size = 32) (he : esk.size = 32) (hk : k.size = 32) (hn : n.size = 24)
-    (ht : text.size < Seal.maxPlaintextSize)
-    (ha : (bodyAd c (kidOf S k)).size < Seal.maxAssociatedDataSize) :
+theorem member_opens {S : Seal} (G : S.Good) (rsk esk k : Key32) (n : Nonce24) (c text : ByteArray)
+    (ht : text.size < Crypto.maxPlaintext)
+    (ha : (bodyAd c (kidOf S k)).size < Crypto.maxAD) :
     let kid := kidOf S k
     ((unbox S rsk kid (box S esk (S.pub rsk) kid k)).bind fun k' =>
-      openSealed S c kid (n ++ sealBody S k n c kid text) k') = some text := by
-  have hkb : k.size < Seal.maxPlaintextSize := by simp [hk, Seal.maxPlaintextSize]
-  have hki : (kidOf S k).size < Seal.maxAssociatedDataSize := by
-    simp only [kidOf, G.hash_size, Seal.maxAssociatedDataSize]; decide
-  simp only [unbox_box G _ _ _ _ hr he hkb hki, Option.bind_some, openSealed_seal G hk hn ht ha]
+      openSealed S c kid (n.1 ++ sealBody S k n c kid text) k') = some text := by
+  have hki : (kidOf S k).size < Crypto.maxAD := by
+    simp only [kidOf, G.hash_size, Crypto.maxAD]; decide
+  simp only [unbox_box G _ _ _ _ hki, Option.bind_some, openSealed_seal G k n ht ha]
+
+/-- What a sealed body is bound to fits the AEAD when the community and
+key ids are 32 bytes (an op id and a hash are). -/
+theorem bodyAd_size {c kid : ByteArray} (hc : c.size = 32) (hk : kid.size = 32) :
+    (bodyAd c kid).size = 66 := by
+  show (Codec.enc c ++ Codec.enc kid).toArray.size = 66
+  rw [List.size_toArray, List.length_append, Codec.length_enc_bytes, Codec.length_enc_bytes, hc, hk,
+    Codec.encNat_small (show 32 < 128 by decide)]
+  rfl
+
+/-- **A running post opens with its key** (`openSealed_seal` at the
+running suite, through the post command and the read path): the body
+`sealedPost` writes, the screen's `openStored` opens with the stored
+key to the text sealed. Every premise but the crates' correctness is
+discharged: key and nonce sizes by their types, the key id's by
+SHA-256's digest size; the community id is an op id (32 bytes) and the
+text is under the AEAD's limit (274877906817 bytes; an op that fits a
+frame is under 1 MiB). -/
+theorem sealedPost_opens (t : Trust.Native) (c adm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
+    (text : ByteArray) (n time : Nat) (clump : Option Id)
+    (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
+    ∃ kid sealed sg, (Codec.decode (sealedPost c adm d k nonce text n time clump).body : Option Body) =
+      some (.post kid sealed n time sg) ∧ kid = kidOf cryptoSeal k ∧
+      openStored cryptoSeal c kid sealed k.1 = some text := by
+  refine ⟨_, _, _, body_mkOp _ _, rfl, ?_⟩
+  have G := cryptoSeal_good t
+  unfold openStored
+  rw [Bytes.of?_val, Option.bind_some]
+  exact openSealed_seal G k nonce ht
+    (by rw [bodyAd_size hc (show (kidOf cryptoSeal k).size = 32 from G.hash_size _)]; decide)
+
+/-- **A running wrap opens at its recipient** (`unbox_box` at the
+running suite, through the approver's `wrapKey` and the member's
+`unwrap`): the wrap `wrapKey` writes to the node key of secret rsk,
+`unbox` opens with rsk to the content key, given the crates'
+correctness. -/
+theorem wrapKey_opens (t : Trust.Native) (c : Id) (k esk rsk : Key32) :
+    ∃ kid bx, (Codec.decode (wrapKey c k esk (cryptoSeal.pub rsk)).body : Option Body) =
+      some (.wrap kid (cryptoSeal.pub rsk) bx) ∧ kid = kidOf cryptoSeal k ∧
+      unbox cryptoSeal rsk kid bx = some k := by
+  have G := cryptoSeal_good t
+  refine ⟨_, _, body_mkOp _ _, rfl, unbox_box G rsk esk k _ ?_⟩
+  rw [show (kidOf cryptoSeal k).size = 32 from G.hash_size _]; decide
+
+/-- **An admitted device reads every post sealed under a key wrapped to
+it**, through the functions the app runs: the approver's `wrapKey` to
+the device's node key, the member's `unbox`, the poster's `sealedPost`
+and the screen's `openStored`. The one premise left about the code is
+the crates' correctness (`member_opens` at the running suite). -/
+theorem member_reads (t : Trust.Native) (c adm : Id) (d : Device) (k esk rsk : Key32) (nonce : Nonce24)
+    (text : ByteArray) (n time : Nat) (clump : Option Id)
+    (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
+    ∃ kid bx sealed sg,
+      (Codec.decode (wrapKey c k esk (cryptoSeal.pub rsk)).body : Option Body) =
+        some (.wrap kid (cryptoSeal.pub rsk) bx) ∧
+      (Codec.decode (sealedPost c adm d k nonce text n time clump).body : Option Body) =
+        some (.post kid sealed n time sg) ∧
+      ((unbox cryptoSeal rsk kid bx).bind fun k' => openStored cryptoSeal c kid sealed k'.1) = some text := by
+  obtain ⟨kid, bx, hw, hk, hu⟩ := wrapKey_opens t c k esk rsk
+  obtain ⟨kid', sealed, sg, hp, hk', ho⟩ := sealedPost_opens t c adm d k nonce text n time clump hc ht
+  subst hk hk'
+  exact ⟨_, bx, sealed, sg, hw, hp, by rw [hu, Option.bind_some, ho]⟩
 open Engine
 
 /-- **Joining is just ops, and only the request leaves the device.** The
@@ -286,7 +347,7 @@ theorem joinOps_travels (C : Crypto) (i : Invite) (seed name : ByteArray) (key :
 and the content key stay. Only the root, the name, the profile and the
 key's wrap travel. -/
 theorem found_travels (C : Crypto) (s : DB Fact) (seed name myName : ByteArray) (time : Nat)
-    (k esk fresh : ByteArray) :
+    (k esk fresh : Key32) :
     ((found seed name myName time k esk fresh).eval s).ops.filter (family C).shared =
       let key := ((nodeKeyOr fresh).eval s).1; let d := Device.ofSeed seed; let r := root d key
       [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time,
@@ -1178,7 +1239,7 @@ writes a fresh join: the new seed's secret, its request from this
 node's key, acceptance and pending join. The request is for the new
 seed's device, never the cut one (`joinOps_travels`). -/
 theorem rejoin_fresh (h : Inv (family C) s) (hq : s.queue = []) {i : Invite}
-    {seed name fresh key sk : ByteArray} (hk : nodeKey.eval s = some (key, sk))
+    {seed name key : ByteArray} {fresh sk : Key32} (hk : nodeKey.eval s = some (key, sk))
     (hacc : ∀ x d, V C s.ops x (.accepted i.community d) → Cut C s.ops i.community d)
     (hjoin : ∀ x k hs r nm d n, V C s.ops x (.joining i.community k hs r nm d n) →
       ∃ u e, Admitted C s.ops i.community u d e)
@@ -1214,7 +1275,7 @@ theorem rejoin_fresh (h : Inv (family C) s) (hq : s.queue = []) {i : Invite}
 rest, every request `join` writes is for a device with no admission in
 the link's community: never a cut device, whatever seed is passed. -/
 theorem join_new_device (h : Inv (family C) s) (hq : s.queue = []) {i : Invite}
-    {seed name fresh : ByteArray} {o : Op} {d e cs bs : ByteArray}
+    {seed name : ByteArray} {fresh : Key32} {o : Op} {d e cs bs : ByteArray}
     (ho : o ∈ ((join i seed name fresh).eval s).ops)
     (hb : (Codec.decode o.body : Option Body) = some (.request d e cs bs)) :
     ∀ u e', ¬ Admitted C s.ops i.community u d e' := by
@@ -1286,17 +1347,19 @@ theorem approveReq_ops (c req myAdm : Id) (d : Device) (esk : ByteArray) :
   all_goals simp
 
 /-- The mutant: an approval that wraps the key to every member. -/
-def approveWrapAll (c req myAdm : Id) (d : Device) (esk : ByteArray) : View Fact Write := do
+def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
   let ok := approve c req myAdm d
   let ks ← key.byCommunity.read [c] (limit := some 1)
   let rs ← recipients c
   return ⟨ok :: (match ks.rows.head? with
-    | some (_, .key _ _ k) => rs.map (wrapKey c k esk)
+    | some (_, .key _ _ k) => match Bytes.of? k with
+      | some k => rs.map (wrapKey c k esk)
+      | none => []
     | _ => [])⟩
 
 /-- **Wrapping to every member is over the budget**: a community of
 three members makes four ops. -/
-theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : ByteArray) (p : Pos) (kid k : ByteArray)
+theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : Key32) (p : Pos) (kid : ByteArray) (k : Key32)
     (u₁ u₂ u₃ : Id) (d₁ d₂ d₃ e₁ e₂ e₃ : Key) :
     ¬ Always (fun w : Write => w.ops.length ≤ 3) (approveWrapAll c req myAdm d esk) := by
   intro h
@@ -1304,14 +1367,14 @@ theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : ByteArray) (p : Pos)
   -- the key; c's admissions; then, per member, its device's admissions
   -- (it is live: one, into a user) and that user's removals (none)
   let dev (u : Id) (d e : Key) : Answer Fact := ⟨[(p, .admission c u d e)], 1, 1⟩
-  have := always_runWith [⟨[(p, .key c kid k)], 1, 1⟩,
+  have := always_runWith [⟨[(p, .key c kid k.1)], 1, 1⟩,
     ⟨[(p, .admission c u₁ d₁ e₁), (p, .admission c u₂ d₂ e₂), (p, .admission c u₃ d₃ e₃)], 3, 3⟩,
     dev u₁ d₁ e₁, none0, dev u₂ d₂ e₂, none0, dev u₃ d₃ e₃, none0] h (by
       simp only [approveWrapAll, recipients, live, deviceLive, unremoved, removals, Rel.read, View.read,
         bind_eq, pure_eq, View.bind, ite_true, runWith, none0, dev, List.isEmpty_cons,
         Bool.false_eq_true, ite_false]
       rfl)
-  simp at this
+  simp [Bytes.of?_val] at this
 open Engine Codec
 section
 variable {s : DB Fact} {C : Crypto}
@@ -1541,7 +1604,8 @@ cap it sorts at its own key, and past it at the receipt the same write
 holds; either way after every message this device lists in c when it
 writes (`Listed`, which every row of `readable c` is). The receipt
 counter must stay below 2^64, as in `arrival_order`. -/
-theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d : Device) (k nonce text : ByteArray)
+theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
+    (text : ByteArray)
     (now : Nat) (files : List NewFile)
     (hk : ∀ z kid m j clump, V C s.ops z (.received c kid m j clump) → j + 1 < 2 ^ 64) :
     let group := (Clump.choose c myAdm now).eval s
@@ -1581,9 +1645,9 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d 
       omega
   · have hsat : countCap ≤ n := by simp only [n]; omega
     have hp : (decode p.body : Option Body) = some (.post (kidOf cryptoSeal k)
-        (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now
+        (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now
         (sig d.sk ([c, myAdm] ++ group.toList) (.post (kidOf cryptoSeal k)
-          (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now .empty))) :=
+          (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) text) n now .empty))) :=
       body_mkOp _ _
     have hc : p.reqs.headD .empty = c := rfl
     have hr := receipt_post h hq rfl hp hsat hnew

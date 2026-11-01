@@ -1,0 +1,10 @@
+{
+  "Trust.Native": {
+    "status": "conditional",
+    "theorem": "Trust.Native",
+    "witness": "Vacuity.CryptoTrust.nativeConditional",
+    "module": "tests.vacuity.CryptoTrust",
+    "exercise": true,
+    "detail": "The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused). The crates refuse every other key and nonce size. A named premise, never an axiom."
+  }
+}
