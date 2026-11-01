@@ -67,6 +67,34 @@ def historyCertificateFor (p : Peer) (input : Node.Input) (now seq : Nat)
 def historyCertificate (s : Scenario) (input : Node.Input) (seq : Nat) :=
   historyCertificateFor (finished s).b input (finished s).now seq (source_reachable s) (source_history s)
 
+theorem runInterval (w : World) (r : Run setup w) (o : Op)
+    (ho : w.b.memory.held.db.ops o.id = some o) (hs : (Connection.Execution.family.room o).isSome)
+    (hr : w.b.memory.held.Reachable Connection.Execution.family) (ha : w.b.memory.held.LogAgrees) :
+    ((r.state 9).peer .b).memory.held.db.ops o.id = some o ∧
+      ((r.state 9).peer .b).memory.held.Reachable Connection.Execution.family ∧
+      ((r.state 9).peer .b).memory.held.LogAgrees ∧
+      ∃ tail, Catalog.shared Connection.Execution.family ((r.state 9).peer .b).memory.held =
+        Catalog.shared Connection.Execution.family w.b.memory.held ++ tail := by
+  have hzero : ((r.state 0).peer .b).memory.held = w.b.memory.held := by rw [r.zero]; rfl
+  have retained := r.shared_retained .b (n := 0) (k := 9) (i := o.id) (o := o) (by decide)
+    (hzero.symm ▸ ho) hs
+  have history := r.history .b (n := 0) (k := 9) (by decide)
+  rw [hzero] at history
+  exact ⟨retained, history hr ha⟩
+
+/-- A populated production world is extended by the actual infinite
+scheduler. The interval is nonzero and includes both ticks and deliveries. -/
+def runCertificateFor (w : World) (o : Op)
+    (hr : w.b.memory.held.Reachable Connection.Execution.family) (ha : w.b.memory.held.LogAgrees) :=
+  if ho : w.b.memory.held.db.ops o.id = some o then
+    if hs : (Connection.Execution.family.room o).isSome then
+      some (PLift.up (runInterval w (fairRun setup w) o ho hs hr ha))
+    else none
+  else none
+
+def runCertificate (s : Scenario) :=
+  runCertificateFor (finished s) s.message (source_reachable s) (source_history s)
+
 def isValid (s : Memory) (o : Op) : Bool :=
   match s.held.db.status o.id with
   | some (.valid (.inl (.message ..))) => true
@@ -112,6 +140,11 @@ def main : IO UInt32 := do
   t.ok "actual append and session purge keep original message position"
     ([written.2, framed.2, ticked.2, closed.2].all fun memory =>
       (catalog.read seq memory.held).1 == some scene.message.id)
+  t.ok "nonempty nine-step production continuation applies retention and history laws"
+    ((runCertificate scene).isSome &&
+      ((fairRun setup w).state 9).b.memory.held.db.ops scene.message.id == some scene.message)
+  t.ok "absent message rejects infinite-run retention premises"
+    (!(runCertificateFor w scene.recoveryMessage (source_reachable scene) (source_history scene)).isSome)
   t.ok "actual tick visits catalog and emits a bounded retry frame"
     (((Connection.retryKey cid : M _) p.memory).1.any (fun peer => (ticked.2.retries peer).isSome) &&
       ticked.1.2.serve > 0)
