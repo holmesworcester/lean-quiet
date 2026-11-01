@@ -177,3 +177,32 @@ This checks the mobile switcher, not every mobile screen. Browser/native text
 rasterization and the sheet shadow still differ slightly; native safe areas
 are exercised by the separate platform suites. The phone header remains fixed
 while its community list scrolls.
+
+## Get started
+
+The eight `start-cases.tsv` captures compare the first screen of a node in
+no community: 390 px phones in both themes, 719/720 px either side of the
+breakpoint, and 1280 px desktops in both themes and at 150% zoom. The
+references are the pinned `App.svelte` with no community (`GetStarted` in
+`Parity.stories.ts`). That is its full-window `blank` screen, with no
+shell and so no sidebar. The capture waits for `.stage`, not `.shell`.
+`Visual.capture` renders `get-started` from an empty database, with no
+fixture community, and fails unless the app is on Get started with no
+community.
+
+The lockup is drawn from libquiet's own brand paths (`ui/brand`, filled by
+`engine/renderer/Vector.lean` at the drawn size). The column is placed in
+quarter CSS pixels, with every edge snapped as the browser snaps it. Its
+laws are the Get started section of `app/Proofs.lean`. The reviewed ceilings in
+`start-budgets.json` allow 3% plus 0.00005 over the measured metrics. What
+remains is glyph rasterization: Lean places text at whole pixels, where
+Chrome uses subpixel origins and LCD-style antialiasing. `check_start_gate.py`
+requires three mutations of the real frames to fail every case they
+apply to: a 220 px sidebar beside the stage, the old disc wordmark in
+place of the lockup, and a shifted column.
+
+Refresh these references explicitly:
+
+```sh
+CHROME=/path/to/chromium LIBQUIET=/path/to/libquiet mise run visual:reference -- --cases tests/visual/start-cases.tsv --output tests/visual/start-reference
+```

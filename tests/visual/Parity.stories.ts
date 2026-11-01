@@ -21,6 +21,9 @@ export const Disappearing: Story = { args: harness({ ...base, ...turnedFrom('cha
 export const Storage: Story = { args: harness({ ...base, ...turnedFrom('community'), viewing: 'channel', settings: { context: 'community', page: 'storage' } }) }
 export const Leave: Story = { args: harness({ ...base, ...turnedFrom('community'), viewing: 'channel', settings: { context: 'community', page: 'remove' } }) }
 export const About: Story = { args: harness({ ...base, ...turnedFrom('you'), viewing: 'list', settings: { context: 'you', page: 'about' } }) }
+// A node in no community: App.svelte's full-window "blank" screen (Get started),
+// with no shell and so no sidebar.
+export const GetStarted: Story = { args: harness({ ...base, community: null, communities: [], communityNames: {}, members: [], channels: [], channel: null }) }
 
 const text = [
   'Boathouse code changed this morning. It is 4417 now.',
