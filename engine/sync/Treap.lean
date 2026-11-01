@@ -152,9 +152,9 @@ theorem height_canon : ∀ (n : Nat) (l : List α), l.length ≤ n → (canon ke
       rw [ih _ (by omega), ih _ (by omega)]
 
 /-- Distinct items have distinct priorities: two items tie in priority
-only when their id numbers are equal (`Key.plt_tie`), so distinct id
-numbers, as distinct ids give, are distinct priorities. -/
-def Prio (l : List α) : Prop := ∀ a ∈ l, ∀ b ∈ l, (key a).n = (key b).n → a = b
+only when their keys are equal (`Key.plt_tie`), so items keyed apart, as
+a room's are, have distinct priorities. -/
+def Prio (l : List α) : Prop := ∀ a ∈ l, ∀ b ∈ l, key a = key b → a = b
 
 /-- The top is the item of largest priority, and with distinct
 priorities, the only one. -/

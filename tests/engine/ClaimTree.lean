@@ -33,8 +33,8 @@ def handlers (ck : Checks) (n : Nat) : IO Unit := do
   let xs := (List.range n).map (· * 2)
   let ys := (List.range n).map (· * 3)
   let items := fun ns => ns.map fun j => (key j, ident j)
-  let ixA : Index := { rooms := [(room, items xs)] }
-  let ixB : Index := { rooms := [(room, items ys)] }
+  let ixA : Index := { rooms := [(room, RoomTree.ofList (items xs))] }
+  let ixB : Index := { rooms := [(room, RoomTree.ofList (items ys))] }
   let cfg : Config := { params := { leaf := 4, fan := 4 }, maxIds := 7 }
   let mut a : Conn := { dialer := false, floor := 0, rooms := [room] }
   let b : Conn := { dialer := true, floor := 0, rooms := [room], peerFloor := some 0 }
@@ -51,8 +51,8 @@ def handlers (ck : Checks) (n : Nat) : IO Unit := do
     let some wire := pending.head? | break
     let some op := Op.decode wire.bytes | ck.ok "handler wire decodes" false; break
     let some (.rbsr r k cs) := Msg.ofOp op | ck.ok "handler successor is a round batch" false; break
-    let ixA' := if hops == 0 then ixA else { rooms := [(room, items xs ++ [late])] }
-    let ixB' : Index := { rooms := [(room, items ys ++ [late])] }
+    let ixA' := if hops == 0 then ixA else { rooms := [(room, RoomTree.ofList (items xs ++ [late]))] }
+    let ixB' : Index := { rooms := [(room, RoomTree.ofList (items ys ++ [late]))] }
     let step := if toA then a.onRbsr cfg ixA' r k cs now else b.onRbsr cfg ixB' r k cs now
     if toA then a := step.conn; sentA := sentA ++ step.send
     else b := step.conn; sentB := sentB ++ step.send

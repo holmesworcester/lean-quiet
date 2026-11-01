@@ -95,28 +95,20 @@ theorem labelsInject : (Named key ident (xs ++ xs.reverse) ∧
 
 -- lbl_perm: the label of three untied items is the same in another order.
 theorem labelsAnyOrder : lbl key ident digest [1, 2, 3] = lbl key ident digest [3, 1, 2] :=
-  lbl_perm 3 [1, 2, 3] [3, 1, 2] (Nat.le_refl _) (fun _ _ _ _ h => h) (by decide)
+  lbl_perm 3 [1, 2, 3] [3, 1, 2] (Nat.le_refl _) (fun _ _ _ _ h => (Key.mk.inj h).2) (by decide)
 
--- The control for lbl_perm's Untied premise: two items with one priority
--- (5) at different times are Named, yet the two orders of the pair have
--- different labels, since top breaks the tie by list position. So Named
--- alone does not make the label a function of the set.
-def tkey (a : Nat × Nat) : Key := ⟨a.1, a.2⟩
-def tident (a : Nat × Nat) : ByteArray := Codec.encode a.1
+-- The control for lbl_perm's Untied premise: two items under one key
+-- (so one priority: priorities tie only for equal keys) but with
+-- different ids are not Untied, and the two orders of the pair have
+-- different labels, since top breaks the tie by list position. So the
+-- label is a function of the set only where no two items share a key.
+def tkey (_ : Nat) : Key := ⟨0, 5⟩
+def tident (a : Nat) : ByteArray := Codec.encode a
 def idh (b : ByteArray) : ByteArray := b
-def tieP : Nat × Nat := (0, 5)
-def tieQ : Nat × Nat := (1, 5)
-theorem tied_named : Named tkey tident [tieP, tieQ] := by
-  intro a ha b hb
-  have hi : tident tieP ≠ tident tieQ := fun h => by
-    have := congrArg (Codec.decode (α := Nat)) h
-    simp [tident, tieP, tieQ, Codec.decode_encode] at this
-  simp only [List.mem_cons, List.mem_nil_iff, or_false] at ha hb
-  rcases ha with rfl | rfl <;> rcases hb with rfl | rfl
-  · exact ⟨fun _ => rfl, fun _ => rfl⟩
-  · exact ⟨fun h => absurd h (by decide), fun h => absurd h hi⟩
-  · exact ⟨fun h => absurd h (by decide), fun h => absurd h.symm hi⟩
-  · exact ⟨fun _ => rfl, fun _ => rfl⟩
+def tieP : Nat := 0
+def tieQ : Nat := 1
+theorem tied_untied : ¬ Untied tkey [tieP, tieQ] := fun hu =>
+  absurd (hu tieP (by simp) tieQ (by simp) rfl) (by decide)
 theorem tied_order : lbl tkey tident idh [tieP, tieQ] ≠ lbl tkey tident idh [tieQ, tieP] := by
   rw [lbl_eq, lbl_eq]
   have h1 : top tkey [tieP, tieQ] = some tieQ := by decide
@@ -126,17 +118,10 @@ theorem tied_order : lbl tkey tident idh [tieP, tieQ] ≠ lbl tkey tident idh [t
   intro he
   have hd := congrArg (Codec.decode (α := ByteArray × ByteArray × ByteArray)) he
   rw [Codec.decode_encode, Codec.decode_encode] at hd
-  have hb : below tkey [tieP, tieQ] tieQ = [tieP] := by decide
-  have ha : above tkey [tieQ, tieP] tieP = [tieQ] := by decide
-  have h0 : below tkey [tieQ, tieP] tieP = [] := by decide
-  rw [hb, h0] at hd
-  have := congrArg (·.1) (Option.some.inj hd)
-  simp only at this
-  rw [lbl_eq (l := ([] : List (Nat × Nat))), lbl_eq (l := [tieP])] at this
-  have ht : top tkey [tieP] = some tieP := by decide
-  rw [ht] at this
-  simp [top] at this
-  exact encode_ne_empty _ this
+  have := congrArg (·.2.1) (Option.some.inj hd)
+  simp only [tident, tieP, tieQ] at this
+  have := congrArg (Codec.decode (α := Nat)) this
+  simp [Codec.decode_encode] at this
 
 -- Decoding: any byte list numbered like [65, 0, 255] is that list.
 theorem numberDecode : ∀ m : List UInt8, num m = num [65, 0, 255] → m = [65, 0, 255] :=
@@ -170,7 +155,7 @@ def wanted := hold_wants setup .b peerNode sessionId conn address room msg.id ({
   (by simp [conn, Conn.open, setup, cfg, Std.HashSet.size_insert])
 
 def wantAnswered := want_sends setup .a peerNode sessionId conn address msg room held 102
-  rfl rfl stored rfl (by simp [setup]) (by decide) (by simp [authorize, peerNode, freshNode, setup, Conn.setRooms, ix, Index.items, conn, Conn.open])
+  rfl rfl stored rfl (by simp [setup]) (by decide) (by simp [authorize, peerNode, freshNode, setup, Conn.setRooms, ix_items, conn, Conn.open])
   rfl rfl (by decide) (by decide)
 
 def taken := op_taken setup .b peerNode sessionId conn address msg room [(Msg.hold room [msg.id]).op.bytes]

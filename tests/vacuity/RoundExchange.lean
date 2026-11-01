@@ -14,15 +14,22 @@ def bob1 : Id := "bob-history-message-000000000001".toUTF8
 def bob2 : Id := "bob-history-message-000000000002".toUTF8
 def xs : List Item := [(⟨1, 1⟩, alice)]
 def ys : List Item := [(⟨2, 2⟩, bob1), (⟨3, 3⟩, bob2)]
-def ix : Index := { rooms := [(room, xs)] }
-def iy : Index := { rooms := [(room, ys)] }
+def ix : Index := { rooms := [(room, RoomTree.ofList xs)] }
+def iy : Index := { rooms := [(room, RoomTree.ofList ys)] }
+theorem ixItems : ix.items room = xs := by
+  simp [ix, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins, xs]
+theorem iyItems : iy.items room = ys := by
+  simp [iy, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins, ys]; decide
 def cfg : Config := { params := { leaf := 1, fan := 2 }, maxKnown := 8, maxIds := 1 }
 def times (n : Nat) : Nat := n * 10
 def first := initial cfg room ix iy 0
 def states := execute cfg room 1 times first
 
 theorem runs : Run cfg room 1 times states := execute_runs cfg room 1 times first
-theorem ready : Ready room 1 xs ys (states 0) := initial_ready ..
+theorem ready : Ready room 1 xs ys (states 0) := by
+  have h := initial_ready cfg room ix iy 0
+  rw [ixItems, iyItems] at h
+  exact h
 theorem sortedX : Sorted Prod.fst xs := by unfold Sorted xs; decide
 theorem sortedY : Sorted Prod.fst ys := by unfold Sorted ys; decide
 theorem named : Named Prod.fst Prod.snd (xs ++ ys) := by
@@ -35,8 +42,7 @@ theorem withinY : within Prod.fst fullRange ys = ys := by decide
 theorem startsFingerprint : (states 0).pending =
     [.fp fullRange 2 (lbl Prod.fst Prod.snd sha256 ys)] := by
   change (initial cfg room ix iy 0).pending = _
-  rw [initial_claim]
-  change [opening Prod.fst Prod.snd sha256 cfg.params ys fullRange] = _
+  rw [initial_claim, iyItems]
   simp only [opening, withinY]
   simp [cfg, fp, ys]
 
@@ -111,7 +117,7 @@ def exchangeCertificate :=
         ready sortedX sortedY named sound emptyAsks.1 emptyAsks.2 ranks
       have member : opening Prod.fst Prod.snd sha256 cfg.params ys fullRange ∈ (states 0).pending := by
         change _ ∈ (initial cfg room ix iy 0).pending
-        rw [initial_claim]
+        rw [initial_claim, iyItems]
         exact List.mem_singleton_self _
       have honest := opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys fullRange
       have enough : (within Prod.fst fullRange xs).length + (within Prod.fst fullRange ys).length < 4 := by decide

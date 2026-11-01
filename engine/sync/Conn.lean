@@ -41,6 +41,7 @@ import engine.sync.Wire
 import engine.sync.Session
 import engine.sync.Serve
 import engine.sync.Closure
+import engine.sync.TreapAnswer
 import engine.core.Sync
 import Std.Data.HashSet
 
@@ -63,17 +64,194 @@ def ins (a : Item) : List Item → List Item
   | [] => [a]
   | b :: t => if a.1 < b.1 then a :: b :: t else if a.1 = b.1 then b :: t else b :: ins a t
 
-/-- Each room's items in key order: what sync reconciles, kept in
-memory. Built from the stored ops once (`ofOps`), then grown by each op
-stored after (`add`), from the writer's notices. -/
+theorem ins_mem {a c : Item} : ∀ {l : List Item}, c ∈ ins a l → c = a ∨ c ∈ l
+  | [], h => by simp only [ins, List.mem_singleton] at h; exact Or.inl h
+  | b :: t, h => by
+    unfold ins at h
+    split at h
+    · rcases List.mem_cons.1 h with h | h
+      · exact Or.inl h
+      · exact Or.inr h
+    · split at h
+      · exact Or.inr h
+      · rcases List.mem_cons.1 h with h | h
+        · exact Or.inr (h ▸ List.mem_cons_self ..)
+        · rcases ins_mem h with h | h
+          · exact Or.inl h
+          · exact Or.inr (List.mem_cons_of_mem _ h)
+
+theorem ins_sorted (a : Item) : ∀ {l : List Item}, Sorted Prod.fst l → Sorted Prod.fst (ins a l)
+  | [], _ => List.pairwise_singleton _ _
+  | b :: t, hs => by
+    have hb := (List.pairwise_cons.1 hs).1
+    have ht := (List.pairwise_cons.1 hs).2
+    unfold ins
+    split
+    · rename_i hab
+      refine List.pairwise_cons.2 ⟨fun c hc => ?_, hs⟩
+      rcases List.mem_cons.1 hc with rfl | hc
+      · exact hab
+      · exact Key.lt_trans hab (hb c hc)
+    · split
+      · exact hs
+      · rename_i hab hne
+        have hba : b.1 < a.1 := by
+          rcases Key.lt_trichotomy a.1 b.1 with h | h | h
+          · exact absurd h hab
+          · exact absurd h hne
+          · exact h
+        refine List.pairwise_cons.2 ⟨fun c hc => ?_, ins_sorted a ht⟩
+        rcases ins_mem hc with rfl | hc
+        · exact hba
+        · exact hb c hc
+
+end
+
+/-! ## Rooms: each its canonical Merkle treap -/
+
+/-- A room's items, held as their canonical Merkle treap
+(engine/sync/TreapAnswer.lean), with what makes it theirs: it is the
+canonical treap of its items in key order, and they are sorted. A range's
+fingerprint is then two splits (`Index.opening`, `Index.answer`); an
+insert hashes once per level. -/
+structure RoomTree where
+  tree : Treap Item
+  canonical : tree = canon Prod.fst Prod.snd sha256 tree.toList ∧ Sorted Prod.fst tree.toList
+
+/-- The room of these sorted items. -/
+def RoomTree.ofSorted (l : List Item) (hs : Sorted Prod.fst l) : RoomTree :=
+  ⟨canon Prod.fst Prod.snd sha256 l, by
+    rw [toList_canon' Prod.fst Prod.snd sha256 hs]; exact ⟨rfl, hs⟩⟩
+
+instance : Inhabited RoomTree := ⟨RoomTree.ofSorted [] List.Pairwise.nil⟩
+
+/-- The room's items in key order. -/
+def RoomTree.items (rm : RoomTree) : List Item := rm.tree.toList
+
+theorem RoomTree.tree_eq (rm : RoomTree) : rm.tree = canon Prod.fst Prod.snd sha256 rm.items := rm.canonical.1
+theorem RoomTree.sorted (rm : RoomTree) : Sorted Prod.fst rm.items := rm.canonical.2
+
+/-- ins of an item whose key is new: the list with it, in some order. -/
+theorem ins_perm (a : Item) : ∀ {l : List Item}, (∀ b ∈ l, b.1 ≠ a.1) → (ins a l).Perm (a :: l)
+  | [], _ => List.Perm.refl _
+  | b :: t, hk => by
+    unfold ins
+    split
+    · exact List.Perm.refl _
+    · split
+      · rename_i h; exact absurd h.symm (hk b (List.mem_cons_self ..))
+      · exact ((ins_perm a fun c hc => hk c (List.mem_cons_of_mem _ hc)).cons b).trans (List.Perm.swap a b t)
+
+/-- ins of an item whose key a sorted list holds already leaves it. -/
+theorem ins_held (a : Item) : ∀ {l : List Item}, Sorted Prod.fst l → (∃ b ∈ l, b.1 = a.1) → ins a l = l
+  | [], _, ⟨_, hb, _⟩ => by cases hb
+  | b :: t, hs, ⟨c, hc, e⟩ => by
+    have hb := (List.pairwise_cons.1 hs).1
+    unfold ins
+    rcases List.mem_cons.1 hc with rfl | hc
+    · rw [if_neg (by rw [e]; exact Key.lt_irrefl _), if_pos e.symm]
+    · have hbc := hb c hc
+      rw [if_neg (by rw [← e]; exact Key.lt_asymm hbc), if_neg (by rw [← e]; exact fun h => Key.lt_irrefl _ (h ▸ hbc))]
+      rw [ins_held a (List.pairwise_cons.1 hs).2 ⟨c, hc, e⟩]
+
+theorem RoomTree.sorted_filter (rm : RoomTree) (q : Item → Bool) : Sorted Prod.fst (rm.items.filter q) :=
+  List.Pairwise.filter _ rm.sorted
+
+/-- An item whose key is new, before sorted items: no two share a key. -/
+theorem untied_cons {a : Item} {l : List Item} (hs : Sorted Prod.fst l) (hn : ∀ b ∈ l, b.1 ≠ a.1) :
+    Untied Prod.fst (a :: l) := by
+  intro x hx y hy exy
+  cases List.mem_cons.1 hx with
+  | inl hxa =>
+    cases List.mem_cons.1 hy with
+    | inl hya => rw [hxa, hya]
+    | inr hyu => exact absurd (by rw [← exy, hxa]) (hn y hyu)
+  | inr hxu =>
+    cases List.mem_cons.1 hy with
+    | inl hya => exact absurd (by rw [exy, hya]) (hn x hxu)
+    | inr hyu => exact sorted_prio Prod.fst hs x hxu y hyu exy
+
+/-- The room with an item: unchanged if its key is the room's already;
+otherwise inserted into the treap, one hash per level and one more. -/
+def RoomTree.add (rm : RoomTree) (a : Item) : RoomTree :=
+  if hk : rm.tree.hasKey Prod.fst a.1 = true then rm
+  else ⟨rm.tree.insert Prod.fst Prod.snd sha256 a, by
+    have e := rm.tree_eq
+    have hs := rm.sorted
+    have hn : ∀ b ∈ rm.items, b.1 ≠ a.1 := fun b hb e' => hk (by
+      rw [e]; exact (hasKey_canon' Prod.fst Prod.snd sha256 hs a.1).2 ⟨b, hb, e'⟩)
+    have hna : a ∉ rm.items := fun h => hn a h rfl
+    have hapart : Untied Prod.fst (a :: rm.items) := untied_cons hs hn
+    have hi : rm.tree.insert Prod.fst Prod.snd sha256 a = canon Prod.fst Prod.snd sha256 (ins a rm.items) := by
+      rw [e, insert_canon Prod.fst Prod.snd sha256 a _ _ (Nat.le_refl _) hna hapart hapart]
+      exact canon_perm Prod.fst Prod.snd sha256 _ _ _ (Nat.le_refl _) hapart (ins_perm a hn).symm
+    rw [hi, toList_canon' Prod.fst Prod.snd sha256 (ins_sorted a hs)]
+    exact ⟨rfl, ins_sorted a hs⟩⟩
+
+@[simp] theorem RoomTree.default_items : (default : RoomTree).items = [] := by
+  show (canon Prod.fst Prod.snd sha256 ([] : List Item)).toList = []
+  rw [canon_nil]; rfl
+
+/-- **A room's items after an add are `ins`'s.** -/
+theorem RoomTree.items_add (rm : RoomTree) (a : Item) : (rm.add a).items = ins a rm.items := by
+  unfold RoomTree.add
+  split
+  · rename_i hk
+    rw [rm.tree_eq] at hk
+    exact (ins_held a rm.sorted ((hasKey_canon' Prod.fst Prod.snd sha256 rm.sorted a.1).1 hk)).symm
+  · show (Treap.insert Prod.fst Prod.snd sha256 a rm.tree).toList = _
+    rename_i hk
+    have e := rm.tree_eq
+    have hs := rm.sorted
+    have hn : ∀ b ∈ rm.items, b.1 ≠ a.1 := fun b hb e' => hk (by
+      rw [e]; exact (hasKey_canon' Prod.fst Prod.snd sha256 hs a.1).2 ⟨b, hb, e'⟩)
+    have hapart : Untied Prod.fst (a :: rm.items) := untied_cons hs hn
+    rw [e, insert_canon Prod.fst Prod.snd sha256 a _ _ (Nat.le_refl _) (fun h => hn a h rfl) hapart hapart,
+      canon_perm Prod.fst Prod.snd sha256 _ _ _ (Nat.le_refl _) hapart (ins_perm a hn).symm,
+      toList_canon' Prod.fst Prod.snd sha256 (ins_sorted a hs)]
+
+/-- The room of these items, added in order (for tests and fixtures). -/
+def RoomTree.ofList (l : List Item) : RoomTree := l.foldl RoomTree.add default
+
+/-- Its items are `ins`'s, one at a time. -/
+theorem RoomTree.ofList_items (l : List Item) : (RoomTree.ofList l).items = l.foldl (fun acc a => ins a acc) [] := by
+  unfold RoomTree.ofList
+  suffices ∀ (rm : RoomTree), (l.foldl RoomTree.add rm).items = l.foldl (fun acc a => ins a acc) rm.items by
+    rw [this]; simp
+  induction l with
+  | nil => intro rm; rfl
+  | cons a t ih => intro rm; simp only [List.foldl_cons]; rw [ih, RoomTree.items_add]
+
+/-- Each room's canonical treap: what sync reconciles, kept in memory.
+Built from the stored ops once (`ofOps`), then grown by each op stored
+after (`add`), from the writer's notices. -/
 structure Index where
-  rooms : List (Id × List Item) := []
+  rooms : List (Id × RoomTree) := []
   deriving Inhabited
 
-def Index.items (ix : Index) (c : Id) : List Item :=
-  match ix.rooms.find? fun p => Decidable.decide (p.1 = c) with
-  | some (_, l) => l
-  | none => []
+/-- RoomTree c, if it has items. -/
+def Index.room? (ix : Index) (c : Id) : Option RoomTree :=
+  (ix.rooms.find? fun p => Decidable.decide (p.1 = c)).map (·.2)
+
+def Index.items (ix : Index) (c : Id) : List Item := ((ix.room? c).map (·.items)).getD []
+
+/-- RoomTree c's treap (a leaf for a room with no items). -/
+def Index.tree (ix : Index) (c : Id) : Treap Item := ((ix.room? c).map (·.tree)).getD .leaf
+
+theorem Index.tree_eq (ix : Index) (c : Id) : ix.tree c = canon Prod.fst Prod.snd sha256 (ix.items c) := by
+  unfold Index.tree Index.items
+  cases ix.room? c with
+  | none => exact (canon_nil Prod.fst Prod.snd sha256).symm
+  | some rm => exact rm.tree_eq
+
+theorem Index.sorted (ix : Index) (c : Id) : Sorted Prod.fst (ix.items c) := by
+  unfold Index.items
+  cases ix.room? c with
+  | none => exact List.Pairwise.nil
+  | some rm => exact rm.sorted
+
+section
+variable {F : Type} (fam : Family F)
 
 /-- The index with a stored op added; a local op is no room's. -/
 def Index.add (ix : Index) (o : Op) : Index :=
@@ -82,16 +260,45 @@ def Index.add (ix : Index) (o : Op) : Index :=
   | some c =>
     let a := (keyOf fam o, o.id)
     if ix.rooms.any (fun p => Decidable.decide (p.1 = c)) then
-      ⟨ix.rooms.map fun p => if p.1 = c then (p.1, ins a p.2) else p⟩
-    else ⟨(c, [a]) :: ix.rooms⟩
+      ⟨ix.rooms.map fun p => if p.1 = c then (p.1, p.2.add a) else p⟩
+    else ⟨(c, (default : RoomTree).add a) :: ix.rooms⟩
 
 def Index.ofOps (ops : List Op) : Index := ops.foldl (Index.add fam) {}
 
-/-- The index without a purged op. -/
-def Index.remove (ix : Index) (x : Id) : Index :=
-  ⟨ix.rooms.map fun p => (p.1, p.2.filter fun a => !Decidable.decide (a.2 = x))⟩
-
 end
+
+/-- The index without a purged op (a room rebuilt; nothing on the
+running path calls it: a purge takes no shared op). -/
+def Index.remove (ix : Index) (x : Id) : Index :=
+  ⟨ix.rooms.map fun p => (p.1, RoomTree.ofSorted (p.2.items.filter fun a => !Decidable.decide (a.2 = x))
+    (RoomTree.sorted_filter p.2 _))⟩
+
+/-- How this side opens a round over w in room r: two splits of the
+room's treap at w's ends (`openingTM`, at most twice its height in
+hashes). -/
+def Index.opening (P : Params) (ix : Index) (r : Id) (w : Range) : Claim :=
+  _root_.Id.run (openingTM Prod.fst Prod.snd sha256 P (ix.tree r) w)
+/-- What this side answers to claim c in room r: from the room's treap
+(`answerTM`, at most 2·(fan + 1)·height hashes). -/
+def Index.answer (P : Params) (ix : Index) (r : Id) (c : Claim) : List Out :=
+  _root_.Id.run (answerTM Prod.fst Prod.snd sha256 P (ix.tree r) c)
+/-- **The opening that runs is `opening`'s** over the room's items. -/
+theorem Index.opening_eq (P : Params) (ix : Index) (r : Id) (w : Range) :
+    ix.opening P r w = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) w := by
+  unfold Index.opening
+  rw [run_eq_val, val_openingTM, ix.tree_eq, openingT_canon Prod.fst Prod.snd sha256 P (ix.sorted r)]
+/-- **The answer that runs is `answer`'s** over the room's items. -/
+theorem Index.answer_eq (P : Params) (ix : Index) (r : Id) (c : Claim) :
+    ix.answer P r c = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) c := by
+  unfold Index.answer
+  rw [run_eq_val, val_answerTM, ix.tree_eq, answerT_canon Prod.fst Prod.snd sha256 P (ix.sorted r)]
+/-- The two as functions, for rewriting under `map` and `flatMap`. -/
+theorem Index.opening_fun (P : Params) (ix : Index) (r : Id) :
+    ix.opening P r = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) :=
+  funext (Index.opening_eq P ix r)
+theorem Index.answer_fun (P : Params) (ix : Index) (r : Id) :
+    ix.answer P r = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) :=
+  funext (Index.answer_eq P ix r)
 
 /-! ## Connections -/
 

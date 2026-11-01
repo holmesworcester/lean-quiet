@@ -919,7 +919,8 @@ theorem stream_delivers_runs (r cid : Id) :
     rfl rfl rfl (by simp [S]) (by simp [S])
     (by simp [Conn.open, S, Std.HashSet.size_insert])
     (by simp [authorize, w2, w1, w0, World.connect, World.run, World.set, World.peer, Peer.empty,
-      World.empty, Node.boot, Index.ofOps, Index.add, Index.items, Conn.setRooms, S, oneRoom,
+      World.empty, Node.boot, Index.ofOps, Index.add, Index.items, Index.room?, RoomTree.items_add,
+      RoomTree.default_items, ins, Conn.setRooms, S, oneRoom,
       Family.room, o, Node.connect, Node.open, finish_run, Node.close, Node.setAddr, Conn.open, Who.other, Room.syncs, Node.sent])
     (by simp [S])
     (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _) (Nat.le_refl _)

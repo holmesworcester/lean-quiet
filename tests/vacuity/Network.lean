@@ -117,9 +117,11 @@ theorem receiveTakeable : Takeable fam conn msg :=
   recv_take fam cfg {} conn msg.bytes 100 held.db _ (by rw [messageTaken]; simp)
 
 -- Authorize a real requested id using the shown-room index, then queue it.
-def ix : Index := ⟨[(room, [(⟨0, 0⟩, msg.id)])]⟩
+def ix : Index := ⟨[(room, RoomTree.ofList [(⟨0, 0⟩, msg.id)])]⟩
+theorem ix_items : ix.items room = [(⟨0, 0⟩, msg.id)] := by
+  simp [ix, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins]
 theorem authorized : msg.id ∈ authorize ix conn [msg.id] := by
-  simp [authorize, ix, Index.items, conn, Conn.open]
+  simp [authorize, ix_items, conn, Conn.open]
 
 theorem wantQueued : msg.id ∈ (conn.onWant cfg ix [msg.id]).conn.owed := by
   have h := onWant_all cfg ix conn [msg.id] (by decide) (by decide) msg.id authorized

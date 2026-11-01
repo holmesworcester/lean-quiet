@@ -18,9 +18,10 @@ label of their canonical treap.
   reads the list only through `top` and `filter`, so where no two items
   share a priority (`Untied`) it is a function of the set, not of the
   list holding it (`lbl_perm`). `Named` alone does not give that: `top`
-  breaks priority ties by list position. Two keys tie only when their
-  id numbers are equal (`Key.plt_tie`), and the running sync's are `num`
-  of distinct ids (`Conn.keyOf`), which `num_inj` keeps apart.
+  breaks priority ties by list position. Two keys tie only when they
+  are equal (`Key.plt_tie`), and the running sync's are apart: an item's
+  key is its claimed time and `num` of its id (`Conn.keyOf`), which
+  `num_inj` keeps apart.
 - `lbl_inj`: equal labels mean equal sets, if `h` has no collision on
   what the two labellings hashed (`pres`). This is the one assumption
   sync makes of its fingerprints, of the same kind as `Distinct` for op
@@ -109,14 +110,17 @@ allocation. -/
 def low (k : Key) : UInt64 := k.n.toUInt64
 
 /-- Whether a's treap priority is below b's: the low 64 bits of their id
-numbers, then the whole numbers. A function of the key alone, so the key
-and its encoding stay (t, n). -/
-def plt (a b : Key) : Prop := a.low < b.low ∨ (a.low = b.low ∧ a.n < b.n)
+numbers, then the whole numbers, then the claimed times (two keys of one
+id number tie only for one op claimed at two times: never, for ops whose
+id is their hash). A function of the key alone, so the key and its
+encoding stay (t, n); and a strict total order on keys (`plt_tie`). -/
+def plt (a b : Key) : Prop := a.low < b.low ∨ (a.low = b.low ∧ (a.n < b.n ∨ (a.n = b.n ∧ a.t < b.t)))
 
 instance (a b : Key) : Decidable (plt a b) :=
-  inferInstanceAs (Decidable (a.low < b.low ∨ (a.low = b.low ∧ a.n < b.n)))
+  inferInstanceAs (Decidable (a.low < b.low ∨ (a.low = b.low ∧ (a.n < b.n ∨ (a.n = b.n ∧ a.t < b.t)))))
 
-theorem plt_nat {a b : Key} : plt a b ↔ a.low.toNat < b.low.toNat ∨ (a.low.toNat = b.low.toNat ∧ a.n < b.n) := by
+theorem plt_nat {a b : Key} : plt a b ↔ a.low.toNat < b.low.toNat ∨
+    (a.low.toNat = b.low.toNat ∧ (a.n < b.n ∨ (a.n = b.n ∧ a.t < b.t))) := by
   unfold plt
   rw [UInt64.lt_iff_toNat_lt, ← UInt64.toNat_inj]
 
@@ -126,9 +130,14 @@ theorem plt_irrefl (a : Key) : ¬ plt a a := by
 theorem plt_trans {a b c : Key} (h1 : plt a b) (h2 : plt b c) : plt a c := by
   rw [plt_nat] at *; omega
 
-/-- **Two keys tie in priority only if their id numbers are equal.** -/
-theorem plt_tie {a b : Key} (h1 : ¬ plt a b) (h2 : ¬ plt b a) : a.n = b.n := by
-  rw [plt_nat] at *; omega
+/-- **Two keys tie in priority only if they are equal.** -/
+theorem plt_tie {a b : Key} (h1 : ¬ plt a b) (h2 : ¬ plt b a) : a = b := by
+  rw [plt_nat] at *
+  rcases a with ⟨t, n⟩
+  rcases b with ⟨t', n'⟩
+  simp only [Key.mk.injEq]
+  dsimp only at h1 h2
+  omega
 
 end Key
 
@@ -374,8 +383,8 @@ theorem lbl_inj : ∀ (n : Nat) (l₁ l₂ : List α), l₁.length + l₂.length
         rw [split_mem (named_sub hn (fun x hx => List.mem_append_left _ hx)) hm1 a,
           split_mem (named_sub hn (fun x hx => List.mem_append_right _ hx)) hm2 a, hb a, ha a]
 
-/-- No two items of l share a priority (their keys' id numbers). -/
-def Untied (key : α → Key) (l : List α) : Prop := ∀ a ∈ l, ∀ b ∈ l, (key a).n = (key b).n → a = b
+/-- No two items of l share a priority: no two share a key. -/
+def Untied (key : α → Key) (l : List α) : Prop := ∀ a ∈ l, ∀ b ∈ l, key a = key b → a = b
 
 /-- With no priority tie, the top is the set's: the same for any order. -/
 theorem top_perm {l l' : List α} (hd : Untied key l) (hp : l.Perm l') : top key l = top key l' := by
