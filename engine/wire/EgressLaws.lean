@@ -767,10 +767,10 @@ theorem onClose_fresh (hr : ReadOnly x) (n : Node) (addr : ByteArray) (now : Nat
     (ActsOk.noConn (fun _ _ hb => List.not_mem_nil hb) (fun _ _ hb => List.not_mem_nil hb))
 
 /-- **The clock.** -/
-theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
-    Moves x.fam h ((n.onTick x now).run h).2 ∧
-      FramesOk x h ((n.onTick x now).run h).2 ((n.onTick x now).run h).1.2 := by
-  unfold Node.onTick
+theorem onTickDirect_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTickDirect x now).run h).2 ∧
+      FramesOk x h ((n.onTickDirect x now).run h).2 ((n.onTickDirect x now).run h).1.2 := by
+  unfold Node.onTickDirect
   simp only [HeldM.run_bind, hr.dial now h]
   obtain ⟨m1, ok1⟩ := store_ok hr n ((x.hooks.dial now).run h).1 true h
   generalize HeldM.run (Node.store x n ((x.hooks.dial now).run h).1 true) h = A at m1 ok1 ⊢
@@ -806,6 +806,87 @@ theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
   obtain ⟨mR, okR⟩ := pR
   obtain ⟨m2, ok2⟩ := finish_ok hr R.1.1 R.1.2 now mR okR
   exact ⟨mR.trans m2, ok2⟩
+
+/-- The runtime retry admission pass can only retain already-authorized
+acts or append an actual freshly authorized sweep. Pure ordering and candidate
+refusal introduce no additional emitter. -/
+theorem sweepAll_ok (hr : ReadOnly x) (n : Node) (ready : List Id) (out : Acts)
+    {h0 h : Held F} (hm : Moves x.fam h0 h) (hok : ActsOk x h0 h out) :
+    Moves x.fam h0 ((n.sweepAll x ready out).run h).2 ∧
+      ActsOk x h0 ((n.sweepAll x ready out).run h).2 ((n.sweepAll x ready out).run h).1.2 := by
+  unfold Node.sweepAll
+  simp only [HeldM.run_bind]
+  generalize hR : HeldM.run (forIn (m := HeldM F)
+    (RetryOrder.reconcile (n.conns.map Prod.fst) n.retryOrder)
+    ((n, out, [], out.retry.filterMap (fun r => n.addr? r.cid)) : Node × Acts × List Id × List ByteArray) _) h = R
+  have pR := forIn_inv hR (fun h' (st : Node × Acts × List Id × List ByteArray) =>
+      Moves x.fam h0 h' ∧ ActsOk x h0 h' st.2.1) ⟨hm, hok⟩
+    (fun cid _ st h' ⟨hm, hok⟩ => by
+      split
+      · exact ⟨hm, hok⟩
+      · simp only [HeldM.run_bind]
+        cases mode : x.deferredRetries
+        · simp only [Bool.false_eq_true, ↓reduceIte]
+          obtain ⟨m, ok⟩ := sweep_ok (hr.afterActs st.1 st.2.1) st.1 cid h'
+          change Moves x.fam h' _ at m
+          change ActsOk x h' _ _ at ok
+          simp only [HeldM.run_pure, Bool.false_and, Bool.false_eq_true, ↓reduceIte]
+          exact ⟨hm.trans m, (hok.right m).append (ok.left hm)⟩
+        · simp only [↓reduceIte]
+          obtain ⟨m, ok⟩ := sweep_ok hr st.1 cid h'
+          split
+          · exact ⟨hm.trans m, hok.right m⟩
+          · exact ⟨hm.trans m, (hok.right m).append (ok.left hm)⟩)
+  simp only [HeldM.run_pure]
+  exact pR
+
+/-- The production clock preserves the same fresh authorization provenance,
+including the separately ordered reserved retry pass. -/
+theorem onTickReserved_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTickReserved x now).run h).2 ∧
+      FramesOk x h ((n.onTickReserved x now).run h).2 ((n.onTickReserved x now).run h).1.2 := by
+  unfold Node.onTickReserved
+  simp only [HeldM.run_bind, hr.dial now h]
+  obtain ⟨m1, ok1⟩ := store_ok hr n ((x.hooks.dial now).run h).1 true h
+  generalize HeldM.run (Node.store x n ((x.hooks.dial now).run h).1 true) h = A at m1 ok1 ⊢
+  generalize hR : HeldM.run (forIn (m := HeldM F) A.1.1.conns
+    ((A.1.1, A.1.2, []) : Node × Acts × List Id) _) A.2 = R
+  have pR := forIn_inv hR (fun h' (st : Node × Acts × List Id) => Moves x.fam h h' ∧ ActsOk x h h' st.2.1)
+    ⟨m1, ok1⟩ (fun a _ st h' ⟨hm, hok⟩ => by
+      split
+      · exact ⟨hm, hok⟩
+      · rename_i c _
+        simp only [HeldM.run_bind, refresh_carry hr]
+        split
+        · exact ⟨hm, hok⟩
+        · simp only [HeldM.run_bind]
+          have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
+          generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
+          rw [e]
+          obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
+            Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
+          generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
+          obtain ⟨g3, g4⟩ := serveOwed_ok (hr.afterActs B.1.1 (st.2.1 ++ B.1.2)) B.1.1 a.1 now B.2
+          change Moves x.fam B.2 _ at g3
+          change ActsOk x B.2 _ _ at g4
+          simp only [HeldM.run_pure]
+          refine ⟨hm.trans (g1.trans g3), ?_⟩
+          exact ((hok.right (g1.trans g3)).append ((g2.left hm).right g3)).append
+            (g4.left (hm.trans g1)))
+  obtain ⟨mR, okR⟩ := pR
+  obtain ⟨mS, okS⟩ := sweepAll_ok hr R.1.1 R.1.2.2 R.1.2.1 mR okR
+  generalize HeldM.run (Node.sweepAll x R.1.1 R.1.2.2 R.1.2.1) R.2 = S at mS okS ⊢
+  obtain ⟨m2, ok2⟩ := finish_ok hr S.1.1 S.1.2 now mS okS
+  exact ⟨mS.trans m2, ok2⟩
+
+/-- **The clock**, for both actual dispatcher branches. -/
+theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
+    Moves x.fam h ((n.onTick x now).run h).2 ∧
+      FramesOk x h ((n.onTick x now).run h).2 ((n.onTick x now).run h).1.2 := by
+  unfold Node.onTick
+  split
+  · exact onTickReserved_fresh hr n now h
+  · exact onTickDirect_fresh hr n now h
 
 /-- **A sealed frame, as `openFrame` gave it.** -/
 theorem onSealed_fresh (hr : ReadOnly x) (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray))

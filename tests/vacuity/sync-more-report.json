@@ -18,7 +18,7 @@
     "theorem": "Engine.Sync.push_capped",
     "witness": "Vacuity.SyncMore.pushBound",
     "module": "tests.vacuity.SyncMore",
-    "detail": "Prove a nonempty mixed-lane push is admitted under 64 bytes, then apply bound theorem. Negative control at cap 20 rejects it. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
+    "detail": "A nonempty mixed-lane push is admitted under 64 bytes, and the law fixes whatever admission returns: the lanes with both pushes, within the cap (not a value compared with itself). Negative control at cap 20 rejects it. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
   },
   "write_first": {
     "status": "kernel-witness",

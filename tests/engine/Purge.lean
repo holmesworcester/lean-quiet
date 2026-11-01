@@ -4,9 +4,13 @@ Purge on SQLite, against the model and on the file itself.
 - **Differential.** Random op graphs mixing shared, conn and local ops
   (some citing ops that never arrive) arrive in random batches, with
   random purges in between, and purged ops sometimes arrive again. Each
-  turn runs on SQLite (`receive`, `purgeSql`) and on the model
-  (`ingestS`, `purgeS`, `drainS`), and after each one every table must
-  match, the `reqs` and `cnt` tables included. After each purge: the
+  turn runs on SQLite (`receive`, `purgeSql`: the engine's `purge` on
+  SQLite's store) and on the model (`ingestS`, `purgeS`, `drainS`), and
+  after each one every table must match, the `reqs` and `cnt` tables
+  included: the check that SQLite answers as the model, which
+  `run_purge` assumes. The purge's `VACUUM` and checkpoint (`scrubSql`)
+  change no row: every table, in the order it is read, is the same
+  before and after them. After each purge: the
   purged ops are exactly the conn and local ops among the targets and
   their stored dependents (`mem_purgeSet`), computed here independently;
   none of them is in any table (`purge_gone`); every shared op is still
@@ -24,8 +28,11 @@ Purge on SQLite, against the model and on the file itself.
   this family and on Community's device secret.
 - **Purge, then again.** A purged local op written again is stored and
   judged as before, and purged again.
+- **Tables that disagree.** `reqs` rows naming more ops than are stored
+  make the walk outrun its bound: the purge aborts and changes nothing.
 -/
 import tests.engine.Lib
+import app.Screen
 
 open Engine Tests
 
@@ -112,6 +119,13 @@ def dumpCnt : SqlM ByteArray (List (ByteArray × Nat)) := do
     pure ((← r[0]?), n)
 
 def sameSet (a b : List Id) : Bool := a.all b.contains && b.all a.contains
+
+/-- Every table, each in the order the store reads it. -/
+def snapshot (db : Db) : IO (List Op × List (Id × Verdict ByteArray) × List (Id × Id) × List Id ×
+    List (ByteArray × Id) × List (Id × Id) × List (ByteArray × Nat)) := do
+  let run {α} (q : SqlM ByteArray α) : IO α := q.run db
+  return (← run dumpOps, ← run (dumpStatus (F := ByteArray)), ← run (dumpWaits (F := ByteArray)),
+    ← run (dumpQueue (F := ByteArray)), ← run (dumpIdx (F := ByteArray)), ← run dumpReqs, ← run dumpCnt)
 
 /-- Every table of the database equals the model's: ops (and the stored
 list), verdicts, waits, queue, index, and the derived `reqs` and `cnt`. -/
@@ -201,7 +215,11 @@ def differential (t : Checks) (dir : String) (seed : Nat) (st : Stats) : IO Stat
     let gone := purgeSet fam pre targets
     let again := rejudgeSet fam pre targets
     let storedPre := ids0.filterMap pre.ops
-    (purgeSql fam targets).run db
+    -- `purgeSql`, a step at a time: the transaction, then `scrubSql`
+    let _ ← (transact (purgeTx fam targets)).run db
+    let tx ← snapshot db
+    (scrubSql (F := ByteArray) true).run db
+    t.ok s!"seed {seed} turn {turn}: VACUUM and the checkpoint change no row" ((← snapshot db) == tx)
     let undrained := purgeS fam targets pre
     m := rest fam undrained
     let tag := s!"seed {seed} turn {turn} purge"
@@ -306,7 +324,7 @@ def session {F} [Codec F] [SortKey F] (fam : Family F) (path : String) (secure :
     -- to keep testing stale copies in the database's rebuilt pages.
     (purgeSql fam [target] (scrub := false)).run db
     (checkpointSql (F := F)).run db
-  | .noCheckpoint => (transact (purgeTx fam [target])).run db
+  | .noCheckpoint => discard <| (transact (purgeTx fam [target])).run db
   let stored := (← (Store.getOp (F := F) target : SqlM F _).run db).isSome
   let opened ← leaks path secrets
   -- The database is used after the scan, so it was open during it.
@@ -363,6 +381,25 @@ def fsCase {F} [Codec F] [SortKey F] (t : Checks) (name : String) (fam : Family 
   let again ← leaks path secrets
   t.ok s!"{name}: no file holds the secret after the second purge" again.isEmpty
 
+/-- Tables that disagree: `reqs` names ops never stored, more than the
+walk's bound (the ids named and the ops stored) allows. The purge aborts
+and changes nothing. -/
+def tampered (t : Checks) (dir : String) : IO Unit := do
+  let path := s!"{dir}/tampered.db"
+  clear path
+  let db ← Db.openAt path
+  let a := mk 2 1 0 [] "a local op".toUTF8
+  let b := mk 0 1 0 [a.id] "a shared op citing it".toUTF8
+  (receive fam [a, b]).run db
+  for i in [0:4] do
+    (sqlDo (F := ByteArray) "INSERT INTO reqs (req, op) VALUES (?, ?)" #[a.id, sha256 s!"ghost-{i}".toUTF8]).run db
+  let before ← snapshot db
+  let aborted ← try (purgeSql fam [a.id]).run db; pure false catch _ => pure true
+  t.ok "tables that disagree: the purge aborts" aborted
+  t.ok "tables that disagree: and changes nothing" ((← snapshot db) == before)
+  let held ← (Store.getOp (F := ByteArray) a.id : SqlM ByteArray _).run db
+  t.ok "tables that disagree: the op named is still stored" (held == some a)
+
 def batchesOf (l : List Op) (n : Nat) : List (List Op) :=
   (List.range ((l.length + n - 1) / n)).map fun i => (l.drop (n * i)).take n
 
@@ -387,6 +424,37 @@ def forwardSecrecy (t : Checks) (dir : String) : IO Unit := do
 end PurgeTest
 
 open PurgeTest in
+/-- The app's checkpoint table keeps one row (`Lifecycle.save`). Five
+checkpoints carrying a secret (a bearer seed the app has since
+forgotten), then one without: one row is left, and once the WAL is
+truncated (as every purge does) no file of the database holds a byte of
+the secret. The old save, an INSERT never deleted, keeps all six rows
+and the secret: the negative control. -/
+def checkpointRows (t : Checks) (dir : String) : IO Unit := do
+  for old in [false, true] do
+    let path := dir ++ (if old then "/checkpoint-old.db" else "/checkpoint.db")
+    clear path
+    let db ← Db.openAt path
+    Lifecycle.init db
+    let secret := sha256 "a bearer seed the app has since forgotten".toUTF8
+    let save (b : ByteArray) : IO Unit := do
+      if old then
+        let o := Op.make 239 [] b
+        let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+      else Lifecycle.save db b
+    for i in [0:5] do save (secret ++ s!"draft {i}".toUTF8)
+    save "nothing secret".toUTF8
+    let n := (← db.query "SELECT CAST(count(*) AS TEXT) FROM app_ops" #[])[0]?.bind (·[0]?)
+      |>.bind (fun b => String.fromUTF8? b >>= String.toNat?) |>.getD 0
+    db.exec "PRAGMA wal_checkpoint(TRUNCATE)"
+    let l ← leaks path [secret]
+    if old then
+      t.ok "negative control: checkpoints saved the old way keep every row, and the secret" (n == 6 && !l.isEmpty)
+    else
+      t.ok "the checkpoint table keeps one row, and no file keeps a byte of a forgotten secret"
+        (n == 1 && l.isEmpty)
+
+open PurgeTest in
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/purge"
   let seeds := (args.drop 1).head?.bind String.toNat? |>.getD 12
@@ -400,4 +468,6 @@ def main (args : List String) : IO UInt32 := do
   t.ok "purges judged shared dependents again, and some verdicts changed" (st.again > 0 && st.changed > 0)
   t.ok "purged ops arrived again" (st.back > 0)
   forwardSecrecy t dir
+  tampered t dir
+  checkpointRows t dir
   t.finish "purge"

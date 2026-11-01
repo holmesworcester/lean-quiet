@@ -52,6 +52,7 @@ import engine.sync.Notice
 import engine.core.Held
 import engine.wire.Lanes
 import engine.sync.Sweep
+import engine.wire.RetryOrder
 
 namespace Engine.Sync
 
@@ -126,6 +127,8 @@ structure Node where
   ix : Index
   floor : Nat
   conns : List (Id × Conn) := []
+  /-- Stable catalog admission order, independent of ordinary connection work. -/
+  retryOrder : List Id := []
   /-- Where each session's frames go. -/
   addrs : List (Id × ByteArray) := []
   /-- The sessions opened from the family's `established`. -/
@@ -548,8 +551,56 @@ def Node.onFrame (n : Node) (addr bytes : ByteArray) (now : Nat) : m (Node × Ef
   | some 1 => n.onSealed x addr (← x.hooks.openFrame body) now
   | _ => return (n, {})
 
-/-- The clock. -/
-def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
+/-- Catalog retries have their own stable admission order. Only sessions
+whose ordinary timed step ran are eligible in this pass; native silence grace
+still gives an admitted frame its original bounded selection opportunity. -/
+def Node.sweepAll (n : Node) (ready : List Id) (out : Acts) : m (Node × Acts) := do
+  let order := RetryOrder.reconcile (n.conns.map Prod.fst) n.retryOrder
+  let mut n := n
+  let mut out := out
+  let mut offered := []
+  let mut claimed := out.retry.filterMap (fun r => n.addr? r.cid)
+  for cid in order do
+    if !ready.contains cid then continue
+    -- A rejected candidate retains its durable cursor. Candidate payloads are
+    -- consumed immediately, so this never retains a frame for every session.
+    let sx := if x.deferredRetries then x else n.afterActs x out
+    let before := n.sweeps
+    let (next, retry) ← n.sweep sx cid
+    let candidate := !retry.retry.isEmpty
+    let decision := RetryOrder.scan next.addr? (fun _ => candidate) claimed [cid]
+    let accepted := !decision.1.isEmpty
+    n := if x.deferredRetries && candidate && !accepted then { next with sweeps := before } else next
+    claimed := decision.2
+    if x.deferredRetries && !accepted then continue
+    out := out ++ retry
+    offered := offered ++ retry.retry.map (·.cid)
+  return ({ n with retryOrder := RetryOrder.offered offered order }, out)
+
+/-- The clock. Ordinary connection work keeps its original traversal order;
+catalog retries then use the independent stable admission queue. -/
+def Node.onTickReserved (n : Node) (now : Nat) : m (Node × Effects) := do
+  let (n, out) ← n.store x (← x.hooks.dial now) true
+  let mut n := n
+  let mut out := out
+  let mut ready := []
+  for (cid, _) in n.conns do
+    match n.conn? cid with
+    | none => pure ()
+    | some c =>
+      let c ← Node.refresh x cid c
+      -- Fresh authenticated notices bypass silence grace.
+      if !x.tickReady cid && c.notices.isEmpty then continue
+      ready := ready ++ [cid]
+      let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
+      let (n', o') ← n'.serveOwed (n'.afterActs x (out ++ o)) cid now
+      n := n'
+      out := out ++ o ++ o'
+  let (next, acts) ← n.sweepAll x ready out
+  next.finish x acts now
+
+/-- Direct interpreters retain the original immediate-cursor clock semantics. -/
+def Node.onTickDirect (n : Node) (now : Nat) : m (Node × Effects) := do
   let (n, out) ← n.store x (← x.hooks.dial now) true
   let mut n := n
   let mut out := out
@@ -566,6 +617,11 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
       n := n'
       out := out ++ o ++ retry ++ o'
   n.finish x out now
+
+/-- Production deferred transport uses stable retry admission. The direct
+interpreter's previous output budget/order is preserved exactly. -/
+def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) :=
+  if x.deferredRetries then n.onTickReserved x now else n.onTickDirect x now
 
 /-- A local write: this device's own ops, hot from now on. -/
 def Node.onWrite (n : Node) (ops : List Op) (now : Nat) : m (Node × Effects) := do

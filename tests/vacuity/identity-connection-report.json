@@ -166,5 +166,33 @@
     "witness": "Vacuity.IdentityConnection.stopLocal",
     "module": "tests.vacuity.IdentityConnection",
     "detail": "Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels."
+  },
+  "purge_forgets": {
+    "status": "runtime-witness",
+    "theorem": "Connection.purge_forgets",
+    "witness": "Vacuity.IdentityConnection.purgeForgets",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Applied to the purge of the session's closing ids (the connection and the request it answers) and judging. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge."
+  },
+  "forget_stays": {
+    "status": "runtime-witness",
+    "theorem": "Connection.forget_stays",
+    "witness": "Vacuity.IdentityConnection.forgetStays",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "Uncited from the first purge (purge_uncited), then a later purge of a community message. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge."
+  },
+  "close_forgets": {
+    "status": "runtime-witness",
+    "theorem": "Connection.close_forgets",
+    "witness": "Vacuity.IdentityConnection.closeForgets",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "The node driver built from the family's own hooks (Connection.hooks), so its closing is the running one; Node.endSession on the session's connection. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge."
+  },
+  "retired_complete": {
+    "status": "runtime-witness",
+    "theorem": "Connection.retired_complete",
+    "witness": "Vacuity.IdentityConnection.retiredComplete",
+    "module": "tests.vacuity.IdentityConnection",
+    "detail": "The established row of the live session, found among the store's established rows at runtime; it is kept open (sessions lists it). The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge."
   }
 }

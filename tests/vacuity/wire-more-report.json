@@ -81,14 +81,14 @@
     "theorem": "Engine.Sync.lbl_inj",
     "witness": "Vacuity.WireMore.labelsInject",
     "module": "tests.vacuity.WireMore",
-    "detail": "Two-item tree [1,2] vs [2,1]; proves key/id uniqueness, equal labels and collision freedom of identity digest. No fixed-length SHA injectivity claim. Synthetic generic family/held-store fixture; not collected real-user traffic."
+    "detail": "Two-item tree [1,2] and its reverse satisfy every premise (key/id uniqueness, collision freedom, equal labels); and any list whose label is [1,2]'s, named and collision-free, is proved to hold exactly 1 and 2. The hash is the identity digest, so collision freedom is free here: this exercises the treap labelling's injectivity, not a hash's. No fixed-length SHA injectivity claim. Synthetic generic family/held-store fixture; not collected real-user traffic."
   },
   "num_inj": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.num_inj",
     "witness": "Vacuity.WireMore.numberDecode",
     "module": "tests.vacuity.WireMore",
-    "detail": "Nonempty byte identifier [65,0,255] reconstructed across concatenation; separate control proves [1] and [1,0] encode differently. Synthetic generic family/held-store fixture; not collected real-user traffic."
+    "detail": "Decoding: any byte list numbered like the nonempty identifier [65,0,255] is that list; separate control proves [1] and [1,0] number differently. Synthetic generic family/held-store fixture; not collected real-user traffic."
   },
   "fold_congr": {
     "status": "kernel-witness",

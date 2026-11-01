@@ -439,9 +439,9 @@ removal and not his message.
 
 - The bare handshake replies an entry point sends: `answer_trusted` and
   `resend_trusted` are per step; that an entry point's bare frames are
-  only those is read from the code. And the entry-point laws run on a
-  store whose purge is `purgeS`, the SQL purge's model, until the purge
-  is written once over the store (`run_purge`).
+  only those is read from the code. (The entry-point laws hold of the
+  running purge: `run_purge` bridges `purgeS`, the model they are
+  stated over.)
 - Community's laws hold over a Community store. Their premises on the
   node's composed store are read from its lists, as `rooms_cut` does;
   carrying a Community law to the composed store (`sum_project`) is

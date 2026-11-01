@@ -23,6 +23,25 @@ a bound hold. Native waits need an explicit completion or cancellation contract,
 followed by a bound on consuming the result. No fixed wall-clock deadline is
 claimed by a completed-step theorem.
 
+## What a step bound currently counts
+
+These are theorems about executable selection cores called by the stages.
+They do not establish a refinement theorem for whole asynchronous workers.
+
+| Stage | Proved service bound | What remains outside that bound |
+|---|---|---|
+| TCP local-write selector | An admitted entry with `p` FIFO predecessors is selected within `2 * (p + 1)` completed turns. | Native handler completion and downstream reading/display. |
+| TCP peer ingress | An admitted source is selected or retired within `4 * (maxSocks + 1)` completed turns, despite other-peer churn. | Admission before the mailbox, retaining payloads through every close path, and eventual peer delivery. |
+| Local Writer selector | Local work within `2 * (p + 1)` completed unpaused selections; background work within `4 * (p + 1)`. | Successful checkpoint/job IO, job size, queue capacity and terminal action outcomes. |
+| Reader/raster demand selector | A continuously owned visible target is selected or retired within `p + 1` attempts, counting every preceding entry. | A configured upper bound on `p`, asynchronous worker refinement and a usable query/paint result. |
+| Display completion | Exact publication receipts are checked; no fixed stage-service bound is yet proved. | Native completion and bounded consumption of that completion. |
+
+These are different counters, not a common app clock. Skipped, stale and
+cancelled selections still count. Adding the numbers would not establish an
+end-to-end theorem: the handoff, retention and completion obligations between
+each pair of stages must also be proved on their actual callers. The selectors'
+internal fairness is a proved policy, not a proposed environmental assumption.
+
 ## Completed runtime connection
 
 [Loop.turn](../engine/wire/Loop.lean) is now the polling, dispatch and timer core
@@ -113,21 +132,59 @@ op per service call bounds that formerly unbounded urgent batch. The actual
 TCP/SQLite fixture passes 12 checks and five controls with continued posting,
 seventeen roughly 1 MB hot ops, zero ordinary window and two lost target copies.
 Supported POSIX sends use a retained abort capability and await the original
-callback plus its tail before releasing native ownership; Fresh passes 51
-checks and 18 controls. These finite results do not prove OS/worker progress,
+callback plus its tail before releasing native ownership; At that reservation milestone, Fresh passed 51
+checks and 18 controls; the subsequent transport-close compatibility run
+passes 53 checks and 19 controls. These finite results do not prove OS/worker progress,
 all reader lifetimes, or Windows cancellation.
+
+## Retry admission and transport-close milestones
+
+The actual Node now retains session retry order, appends new sessions, and
+rotates only successful offers. The shared core proves service or retirement
+within `p + 1` eligible vacant-reservation opportunities. A nonempty infinite
+continuing-arrival witness satisfies the theorem. Full Node/Sweep opportunity
+recurrence is still an obligation; busy ticks are not silently counted as
+service opportunities. See [RETRY-ADMISSION.md](RETRY-ADMISSION.md).
+
+The actual TCP close/reap path now freezes producer admission while retaining
+one already-admitted frame and its source ownership. Normal UI-first selection
+consumes it before transport teardown. Six unconditional helper laws preserve
+input, ownership and polling and reject replenishment; native handler failures
+retire ownership before best-effort store cleanup. This does not protect bytes
+still outside the mailbox or prove durable erasure when SQLite refuses writes.
+See [CLOSE-INGRESS.md](CLOSE-INGRESS.md). The combined source passes all
+1,342 audited laws after merging the store-backed purge bridge, 29 retry and 40 close checks with their runtime/kernel
+controls, and the original 29-check expiry gate with both controls. The
+689-reference evidence inventory has no pending entries; 14 entries retain
+explicit conditional premises. Full app/platform integration remains open.
+
+Actual Node boot and every returned handler now preserve unique connection IDs
+and retry order. The generic proof permits arbitrary effectful hooks and
+specializes to the actual SqlM/IO action; the pinned SDK monad laws are proved.
+This removes a free uniqueness premise, but not the pending/vacant opportunity
+recurrence obligation. See [NODE-UNIQUENESS.md](NODE-UNIQUENESS.md).
+
+Native runner failures now retain original dial/socket jobs independently of a
+completed loop turn. A capacity-checked registry and fixed teardown task retain
+same-turn ownership and retiring notices; three laws cover the actual admission
+gate. The combined source passes 1,355 audited laws, all 707 evidence entries and
+registered runtime certificates, native ownership's 24 checks/ten runtime
+controls/kernel control, and uniqueness's ten native checks/two runtime
+controls/three kernel controls, with restoration. The earlier transport counts
+above describe their earlier integration. Full app/platform validation remains
+open. See [RUNNER-OWNERSHIP.md](RUNNER-OWNERSHIP.md).
 
 ## Obstructions found by the stronger target
 
 | Obligation | Concrete remaining issue |
 |---|---|
 | Per-peer service | Fixed peer mailboxes remove competition for the shared network queue, and the admitted-source deadline survives peer churn. Competing local/control producers still lack a fair admission bound; completion of a loop turn remains separate. |
-| Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Native callback/worker progress, final OS-thread teardown, handler-exception cleanup and Windows cancellation remain open. |
+| Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Returned handler exceptions now retain original native jobs and request cancellation. Native callback/worker progress, complete concurrent trace refinement, final OS-thread teardown and Windows cancellation remain open. |
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
-| Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
+| Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; the actual retry selector now has a pending-eligible vacancy rank bound, but recurrence of those opportunities along complete Node/native executions remains open. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
 | Write-to-display bound | The target is a bound in each stage's completed steps. A bounded composer FIFO pins root/child positions, and mobile/desktop receipts identify actual completion. The actual reader/raster chooser now has the backlog-dependent `p + 1` visible-service rank law. Its asynchronous IO refinement, configured backlog-independent bounds, retained-paint invariants and their composition remain unproved. Native waits and exhaustion need explicit progress/failure outcomes; timings are reported separately. |
-| User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely. A real journal-read fault test also shows a queued founding action and notices lost before execution, with no terminal result after recovery; earlier claim ownership remains open. Failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
+| User-action outcomes | Joining can remain pending while approval is withheld. Checkpoint attempts now yield to selected jobs; returned SQL errors retain job ownership for later service. Empty jobs are refused, and returning log failures are contained. Failed runners and normal suspend replay the retained accepted journal; startup parks later App writes behind a registered boot task. Combined-source recovery, startup, checkpoint and job-retry gates pass; the original lifecycle baseline, all 20 controls and restoration also pass. Reader batches now survive transaction-start and journal-query failures; actions are claimed only after the journal snapshot opens, and notices are acknowledged after commit. Partial action/outbox effects after claim remain open. Failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite
 test or a new component lemma does not close the corresponding whole-app row.

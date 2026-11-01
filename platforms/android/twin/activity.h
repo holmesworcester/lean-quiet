@@ -13,6 +13,7 @@
 #include <android/native_window.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stddef.h>
 
 // Every pointer sample, in surface pixels, with cancellation preserved,
 // CLOCK_MONOTONIC ns and the serial of the displayed Lean frame.
@@ -56,7 +57,7 @@ void ba_accept_scroll(BaTouch sample);
 
 // Events from the Java half since the last call (four words each, as
 // Input.decode reads them: 4 text, 5 IME action, 6 height, 14 key).
-uint32_t ba_drain_events(uint32_t* out, uint32_t max_words);
+uint32_t ba_drain_events(uint32_t* out, uint32_t max_words, bool *closed);
 
 // The keyboard's text, as the EditText last reported it (UTF-8, owned by
 // the caller: free it), and [selStart, selEnd, compStart, compEnd].
@@ -89,3 +90,6 @@ void ba_appearance(bool dark, uint32_t background);
 // Owned system photo picker; metadata is token/status/width/height.
 bool ba_pick_photo(uint32_t token);
 bool ba_take_photo(uint32_t header[4], uint8_t** bytes, size_t* size);
+
+char *ba_editor(uint32_t mode,uint64_t owner,uint64_t revision,const char *text,size_t length,uint64_t out[12],size_t *size);
+char *ba_editor_action(uint64_t ticket,uint32_t disposition,uint64_t out[8],uint32_t *count,size_t *size);

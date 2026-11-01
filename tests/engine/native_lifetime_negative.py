@@ -43,7 +43,7 @@ def native(root, name, part=None, expected=None):
     if expected:
         assert code == 1 and 'native-lifetime:' in text and f'FAIL: {expected}' in text, (name, code, text)
     else:
-        assert code == 0 and 'native-lifetime: 24 passed, 0 failed' in text, (name, code, text)
+        assert code == 0 and 'native-lifetime: 26 passed, 0 failed' in text, (name, code, text)
 
 
 def stopped(root, name, negative=False, reader=False):
@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
          '  pure ()\n  discard <| client.native.cancelRecv.toBaseIO',
          'writer cleanup stops the actual backpressured reader body'),
         ('omit-production-reader-join', 'engine/wire/Tcp.lean', '--reader-only',
-         '      (finishReader stopped c readerDone)', '      (pure ())',
+         '        (finishReader stopped c readerDone)', '        (pure ())',
          'production addSock writer stops and joins its original reader task'),
         ('no-connect-abort', 'engine/wire/SocketAbort.lean', '--connect-only',
          '        unless ← cap.abort do', '        unless true do',
@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
          '    unless ← enqueue ch (.dialed addr none) cancel do pure ()',
          'dial task releases its own lease when stopped completion cannot enqueue'),
         ('lost-queued-failure-lease', 'engine/wire/Tcp.lean', '--connect-only',
-         '    | .dialed addr none => r.slots.release addr',
+         '    | .dialed addr none => slots.release addr',
          '    | .dialed addr none => pure ()',
          'stop drain releases an unhandled failed-dial completion exactly once'),
     ]
@@ -151,4 +151,4 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
             path.write_text(original)
     build(scratch, 'restored', 'native_lifetime')
     native(scratch, 'restored')
-print('native lifetimes: 24 checks, eight lifetime and three stop controls; restored suites pass', flush=True)
+print('native lifetimes: 26 checks, eight lifetime and three stop controls; restored suites pass', flush=True)

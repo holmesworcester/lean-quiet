@@ -28,6 +28,7 @@ import engine.renderer.Geometry
 import engine.renderer.Nav
 import engine.renderer.Cover
 import engine.renderer.Session
+import engine.renderer.HoldCache
 import engine.renderer.Toast
 import engine.renderer.ThemeStore
 import app.community.channel.message.draft.View
@@ -312,11 +313,27 @@ The sequence is the local ordering; op bytes are content-addressed. -/
 def init (db : Db) : IO Unit :=
   db.exec "CREATE TABLE IF NOT EXISTS app_ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL, bytes BLOB NOT NULL);"
 
-/-- Commit an encoded checkpoint. Only the writer's thread runs it
-(`Data.Writer.start`): the frame hands checkpoints over (`Writer.save`). -/
+/-- Commit an encoded checkpoint as the table's only row: the older rows
+go in the same transaction. A checkpoint holds invite links with their
+bearer seeds, drafts with their photos, and queued writes (a found or
+join's device seed, node secret and content key), so an older row keeps
+what the app has since forgotten; `secure_delete` zeroes the freed cells,
+and the WAL's copies go at its next truncation (every scrubbing purge's,
+so each session end's; a courier's purge does not truncate). Kept
+forever, the rows also grew by one every committed frame. Only the
+writer's thread runs it (`Data.Writer.start`): the frame hands
+checkpoints over (`Writer.save`). tests/engine/Purge.lean
+(`checkpointRows`) checks it, with the old INSERT as its control. -/
 def save (db : Db) (cp : ByteArray) : IO Unit := do
   let o := Op.make 239 [] cp
-  let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+  db.exec "BEGIN IMMEDIATE"
+  try
+    let _ ← db.query "DELETE FROM app_ops" #[]
+    let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+    db.exec "COMMIT"
+  catch e =>
+    db.exec "ROLLBACK"
+    throw e
 
 def load (db : Db) : IO (Option Checkpoint) := do
   let rows ← db.query "SELECT bytes FROM app_ops ORDER BY seq DESC LIMIT 1" #[]
@@ -1167,15 +1184,20 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
 
 /-- One pass, in one read transaction; whether it put anything or took
 any change. `afterSnapshot` is a deterministic scheduling seam: a test
-may publish another request after this pass has captured its whole pair. -/
+may publish another request after this pass has captured its whole pair.
+`afterJournal` schedules a producer/teardown after the SQL snapshot opens. -/
 def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
-    (budgetMs : Nat := 0) : RM Bool := do
+    (budgetMs : Nat := 0) (afterJournal : IO Unit := pure ()) : RM Bool := do
   if !(← (← get).enabled) then return false
   let (gen, wants) ← sh.request.get
   let plan ← sh.plan.get
   afterSnapshot
-  let notes ← sh.notes.modifyGet fun a => (a, #[])
-  let acts ← sh.acts.modifyGet fun a => (a, #[])
+  -- Observe the admission cutoff without taking ownership before SQL can
+  -- fail. Only this reader consumes an active Shared; producers append, and
+  -- teardown detaches it permanently before starting a replacement reader.
+  let notes ← sh.notes.get
+  let noteCount := notes.size
+  let acts ← sh.acts.get
   -- at rest (the writers' counter unmoved, no note, the same wants,
   -- nothing dirty) a pass reads nothing, not even the journal
   -- (RestLaws.start_rest); once a second it reads it anyway, for commits
@@ -1195,6 +1217,13 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let s ← get
     -- the journal, read first: the commits this pass's reads see
     let (fs, vs, top) ← rd.filingsSince s.seen
+    afterJournal
+    if !(← (← get).enabled) then
+      rd.exec "COMMIT"
+      return false
+    -- Claim only the captured prefix: arrivals after the cutoff belong to
+    -- the next database snapshot. Per-act revocation checks remain below.
+    sh.acts.modify fun a => a.extract acts.size a.size
     -- the outbox is the pass's: the ops the store has decided leave it
     -- (their rows move from pending to stored, a notice too)
     let judged : Std.HashSet Id := vs.foldl (fun a (x, _) => a.insert x) {}
@@ -1229,6 +1258,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- does nothing (RestLaws.rest_idle)
     if fs.isEmpty && vs.isEmpty && notes.isEmpty && gen == s.gen && s.dirty.isEmpty then
       rd.exec "COMMIT"
+      sh.notes.modify fun a => a.extract noteCount a.size
       return false
     -- the wants moved: the new ones are marked, the gone ones forgotten,
     -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
@@ -1292,6 +1322,9 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       sh.publish ticket v
       published := published + 1
     rd.exec "COMMIT"
+    -- Notes remain retryable through query/COMMIT failure. Later appended
+    -- notes still belong to the next pass, even when this pass produced acts.
+    sh.notes.modify fun a => a.extract noteCount a.size
     -- This is the last effect before returning the successful reader state.
     -- A failed query/COMMIT must leave its notices available to the retry.
     sh.seen.modify (fun _ => top)
@@ -1837,6 +1870,7 @@ structure Io where
   bars : UInt32 → UInt32 → Bool → Bool → IO Unit := fun _ _ _ _ => pure ()
   pickPhoto : UInt32 → IO Bool := fun _ => pure false
   photoResult : IO (Array UInt32 × ByteArray) := pure (#[], .empty)
+  editorIo : Editor.Io := {}
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 2048
@@ -1983,6 +2017,7 @@ structure St where
   insetBot : Nat
   font : Font
   bgRow : ByteArray
+  holdCache : Hold.MessageCache := none
   rd : Db
   wr : Writer
   dbPath : String := ""
@@ -2010,6 +2045,9 @@ structure St where
   presenting : Option PresentationCandidate := none
   /-- What the native text field holds, as last set or reported. -/
   native : String := ""
+  editor : Editor.State := {}
+  editorEpoch : Nat := 0
+  editorContent : Nat := 0
   /-- The reader's board, and the frame's wants of it (Reader): the
   conversation's ids and rows are read there, not on the frame. -/
   sh : Reader.Shared
@@ -2152,12 +2190,18 @@ removal is not announced again. -/
   /-- Teardown may outlive its deadline; these handles stay owned until
   finished. Foreground never starts another node before netStop finishes. -/
   netStop : Option (Task (Except IO.Error Unit)) := none
+  /-- A failed runner's journal is decoded and submitted off the frame.
+  Later local writes park until this submission has completed. -/
+  netReplay : Option (Task (Except IO.Error Unit)) := none
+  /-- Failed-runner teardown stays owned separately: it does not suppress
+  active UI frames or local writing. Recovery never starts another runner. -/
+  failedNetStop : Option (Task (Except IO.Error Unit)) := none
   readerStop : Option Reader.Worker := none
   retiredBoard : Option Reader.Shared := none
   paintStop : Array (Task Unit) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty)⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty), {}⟩⟩
 
 abbrev M := StateT St IO
 
@@ -2189,7 +2233,7 @@ def c (s : St) : Id := s.me.c
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
 /-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
 
 
 end App
@@ -2259,6 +2303,144 @@ theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
 def fieldPage (p : PageId) : Bool :=
   p == .create || p == .createName || p == .paste || p == .name
+
+/-- Which string the native field edits: a page's one-line field, the
+emoji sheet's search, the composer's draft, or none (no visible field,
+or the sheet open without its search: the draft is left as it is). -/
+inductive TextTarget where
+  | field | query | draft | none
+  deriving BEq, DecidableEq, Repr
+
+def textTarget (s : St) : TextTarget :=
+  if fieldPage s.page then .field
+  else if s.page != .chat then .none
+  else match s.sheet with
+    | some sh => if sh.searching then .query else .none
+    | none => .draft
+
+/-- What the native field is to hold now, if anything. -/
+def nativeText (s : St) : Option String :=
+  match textTarget s with
+  | .field => some s.field
+  | .query => s.sheet.map (·.query)
+  | .draft => some s.text
+  | .none => none
+
+/-- A `.text` event's text and selection into the string the field edits. -/
+def textInto (s : St) (t : String) (sel : Array UInt32) : St :=
+  match textTarget s with
+  | .field => { s with field := t, refusal := none, pageKey := none }
+  | .query => match s.sheet with
+    | some sh => { s with sheet := some { sh with query := t, scroll := 0 } }
+    | none => s
+  | .draft => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
+  | .none => s
+
+/-- **A text event edits the string the field edits, and nothing that
+chooses it**: the target is the same after. -/
+theorem into_target (s : St) (t : String) (sel : Array UInt32) : textTarget (textInto s t sel) = textTarget s := by
+  unfold textInto
+  cases hf : fieldPage s.page
+  · by_cases hc : s.page = .chat
+    · cases hs : s.sheet with
+      | none => simp [textTarget, fieldPage, hf, hc, hs]
+      | some sh => by_cases hq : sh.searching <;> simp [textTarget, fieldPage, hf, hc, hs, hq]
+    · simp [textTarget, hf, hc]
+  · simp [textTarget, hf]
+
+/-- **After a text event the field holds what the app holds** (unless it
+edits nothing), so `syncText` sets nothing back: no echo, no lost text. -/
+theorem into_native (s : St) (t : String) (sel : Array UInt32) (h : textTarget s ≠ .none) :
+    nativeText (textInto s t sel) = some t := by
+  unfold nativeText
+  rw [into_target]
+  unfold textInto
+  cases hf : fieldPage s.page
+  · by_cases hc : s.page = .chat
+    · cases hs : s.sheet with
+      | none => simp [textTarget, fieldPage, hf, hc, hs]
+      | some sh => by_cases hq : sh.searching <;> simp_all [textTarget, fieldPage]
+    · simp_all [textTarget, fieldPage]
+  · simp [textTarget, hf]
+
+/-- A field's durable meaning, independent of mount and pixel geometry. -/
+def editorTarget (s : St) : String :=
+  s!"{s.page.code}|{repr s.cur.data.toList}|{repr s.me.acc.data.toList}|{repr (textTarget s)}|{repr (s.selected.map (·.data.toList))}"
+
+/-- Semantic incarnation: resizing/IME animation is deliberately absent. -/
+def editorContext (s : St) : String := s!"{s.editorEpoch}|{editorTarget s}"
+def editorKey (s : St) : String := editorContext s
+
+/-- Photos/chips have a separate captured revision; adding one never installs
+an older text value over typing in the same Field. -/
+def editorContentKey (s : St) : String :=
+  s!"{s.editorContent}|{s.photoRequest.map (·.token)}|{s.photoRequest.map (·.selected)}"
+
+def readEditor : M (Option Editor.Latest) := do
+  let s ← get
+  if s.editor.enabled == some false then return none
+  let response ← s.io.editorIo.exchange 0 s.editor.owner.toUInt64 s.editor.revision ""
+  if response.2[0]? == some 2 then
+    modify fun s => { s with editor := { s.editor with enabled := some true } }
+    return none
+  let value := Editor.latest response
+  modify fun s => { s with editor := { s.editor with enabled := some value.isSome } }
+  return value
+
+/-- Adopt only the Field installed for this exact semantic incarnation. -/
+def adoptEditor (value : Editor.Latest) : M Unit := do
+  let s ← get
+  if value.owner != s.editor.owner.toUInt64 || s.editor.target != editorTarget s then return
+  if value.revision != s.editor.revision || value.consumed then
+    modify fun s => { textInto s (if value.consumed then "" else value.text) value.selection with
+      native := if value.consumed then "" else value.text, editor := { s.editor with revision := value.revision, clear := if value.clearing == 0 then none else s.editor.clear } }
+  else if value.clearing == 0 then
+    modify fun s => { s with editor := { s.editor with clear := none } }
+
+/-- Install/revoke is asynchronous. A new Activity's empty Field is reinstalled
+without relying on the previous Activity's text memo. -/
+def refreshEditor : M Unit := do
+  let some value ← readEditor | return
+  let s ← get
+  if !s.active || !s.surface || !s.life.mounted then
+    discard <| s.io.editorIo.exchange 3 0 0 ""
+    modify fun s => { s with editor := { s.editor with key := "", clear := none } }
+    return
+  adoptEditor value
+  let s ← get
+  -- The exact consumed action owns its clear until Java compares revisions.
+  -- A photo/content update cannot supersede that receipt with an installation.
+  if s.editor.clear.isSome && value.clearing != 0 then return
+  let changed := s.editor.key != editorKey s || value.exhausted
+  if changed then
+    let some next := s.editor.next | do
+      discard <| s.io.editorIo.exchange 3 0 0 ""
+      return
+    modify fun s => { s with editor := { s.editor with owner := next.toNat, key := editorKey s, context := editorContext s, target := editorTarget s, handoff := s.editor.owner != 0 && s.editor.target == editorTarget s, revision := 0, clear := none } }
+  let owner := (← get).editor.owner.toUInt64
+  let s ← get
+  if s.editor.contentKey != editorContentKey s then
+    if s.editor.content + 1 ≥ 18446744073709551616 then
+      discard <| s.io.editorIo.exchange 3 0 0 ""
+      return
+    modify fun s => { s with editor := { s.editor with contentKey := editorContentKey s, content := s.editor.content + 1 } }
+  let s ← get
+  if changed || !value.ready || value.owner != owner then
+    discard <| s.io.editorIo.exchange (if s.editor.handoff then 5 else 1) owner s.editor.content.toUInt64 ((nativeText s).getD s.native)
+  else
+    discard <| s.io.editorIo.exchange 6 owner s.editor.content.toUInt64 ""
+
+/-- Pending commands coalesce; the latest installed revision is their receipt.
+No synchronous UI-thread call or receipt wait occurs on the frame thread. -/
+def syncEditor : M Bool := do
+  refreshEditor
+  let s ← get
+  if s.editor.enabled != some true then return false
+  if s.editor.clear.isSome || s.editor.revision == 0 then return true
+  if let some text := nativeText s then
+    if text != s.native then
+      discard <| s.io.editorIo.exchange 2 s.editor.owner.toUInt64 s.editor.revision text
+  return true
 
 /-- Bottom coordinates shared with the conversation's anchor. -/
 def rowBottom (s : St) (x : Id) : Option Nat := Id.run do
@@ -2351,7 +2533,7 @@ def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat
 
 def useDraft (s : St) : St :=
   let (_, t, bs) := (s.drafts.find? (·.1 == s.me.acc)).getD (.empty, "", [])
-  { s with text := t, chips := restoreChips s bs, sel := #[t.length.toUInt32, t.length.toUInt32, 0, 0] }
+  { s with editorContent := s.editorContent + 1, text := t, chips := restoreChips s bs, sel := #[t.length.toUInt32, t.length.toUInt32, 0, 0] }
 
 /-- Called after switchToAcc selected the saved acceptance. A removed or
 missing acceptance is never restored by this function. -/
@@ -2404,9 +2586,54 @@ def parkDone (sh : Reader.Shared) : M Unit := do
     toNode := s.toNode ++ writes, queuedWrites := s.queuedWrites ++ writes.toList.flatten.map Op.bytes }
   saveCheckpoint
 
+/-- Replay accepted local bytes through the ordinary writer. The journal
+can still contain operations already committed before the runner failed;
+the store identifies those by the same operation ID. -/
+def replayNodeWrites (writer : Writer) (bytes : List ByteArray) : IO Unit := do
+  let ops := bytes.filterMap Op.decode
+  unless ops.isEmpty do writer.submit ⟨ops, true⟩
+
+/-- The loop's completion releases its SQLite ownership. Native socket
+teardown remains separately owned by `netStop`; a delayed OS callback must
+not delay the journal's handoff to the ordinary writer. A late boot is
+included because suspend may begin before the Runner handle is returned. -/
+def replayStoppedNodeWrites (boot : Option (Task (Except IO.Error Engine.Sync.Runner)))
+    (net : Option Engine.Sync.Runner) (writer : Writer) (bytes : List ByteArray) : IO Unit := do
+  if let some r := net then discard <| IO.wait r.done
+  if let some task := boot then
+    if let .ok r ← IO.wait task then discard <| IO.wait r.done
+  replayNodeWrites writer bytes
+
+/-- Observe a finished installed runner before offering any further work.
+The journal covers channel-admitted writes as well as parked ones. A failure
+racing a later offer is recovered at the next observation. No check-and-offer
+atomicity or exactly-once IO across an outer StateT rollback is claimed. -/
+def recoverNode : M Unit := do
+  let s ← get
+  let some r := s.net | return
+  unless ← IO.hasFinished r.done do return
+  let replay ← IO.asTask (prio := .dedicated) (replayNodeWrites s.wr s.queuedWrites)
+  let stopping ← IO.asTask (prio := .dedicated) (stopNodes none (some r))
+  modify fun s => { s with
+    net := none, netBoot := none, netCfg := none, toNode := #[],
+    netReplay := some replay, failedNetStop := some stopping,
+    notices := s.notices ++ ["Sync stopped. Changes will retry locally. Restart Quiet to reconnect."] }
+
 /-- A single nonblocking poll. A result is taken only after completion. -/
 def pollRetired : M Unit := do
   let s ← get
+  if let some t := s.netReplay then
+    if ← IO.hasFinished t then
+      modify fun s => { s with netReplay := none }
+      if let .error _ := t.get then
+        modify fun s => { s with notices := s.notices ++
+          ["Local recovery failed. Restart Quiet to retry queued changes."] }
+  if let some t := s.failedNetStop then
+    if ← IO.hasFinished t then
+      modify fun s => { s with failedNetStop := none }
+      if let .error _ := t.get then
+        modify fun s => { s with notices := s.notices ++
+          ["Sync could not finish stopping. Restart Quiet before reconnecting."] }
   if let some t := s.netStop then
     if ← IO.hasFinished t then
       match t.get with
@@ -2426,6 +2653,7 @@ def pollRetired : M Unit := do
 
 def unmountState (s : St) : St :=
   { stashDraft s with
+    editorEpoch := s.editorEpoch + 1, editor := { s.editor with key := "", clear := none },
     mark := captureAnchor s, life := s.life.unmount, input := Input.revoke s.input,
     rows := {}, imgs := {}, imgWaiting := {},
     sheet := none, selected := none, camOn := false, camView := none, decoding := none,
@@ -2465,6 +2693,7 @@ def resumeReader : M Unit := do
 /-- The unmount barrier used by navigation and suspension. -/
 def leavePage : M Unit := do
   let s ← get
+  if s.editor.enabled == some true then discard <| s.io.editorIo.exchange 3 0 0 ""
   s.io.ime false
   if let some p := s.input.press then s.io.motion { p.first with phase := 3 }.words
   if s.camOn then s.io.scan false
@@ -2553,6 +2782,12 @@ Save its final text before hiding it; search text is not a composer draft. -/
 def captureInput : M Unit := do
   let s ← get
   if !s.active || !s.surface || !s.life.mounted then return
+  if let some value ← readEditor then
+    adoptEditor value
+    return
+  -- A failed owned read must preserve the last known draft. The legacy text
+  -- getter has no owner and cannot safely substitute for this snapshot.
+  if (← get).editor.enabled == some true then return
   if fieldPage s.page then
     let (field, _) ← s.io.text
     modify fun s => { s with field }
@@ -2581,11 +2816,16 @@ def reap : M Unit := do
 and every parked write remain owned. Resume only polls; it never joins. -/
 def suspend (budget : Nat := 250) : M Unit := do
   let deadline := (← IO.monoMsNow) + budget
+  recoverNode
   captureInput
   let s ← get
   if s.net.isSome || s.netBoot.isSome then
     let stopping ← IO.asTask (prio := .dedicated) (stopNodes s.netBoot s.net)
-    modify fun s => { s with netStop := some stopping }
+    let replay ← IO.asTask (prio := .dedicated)
+      (replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites)
+    -- The journal includes both channel-admitted and parked operations.
+    -- Later submissions park afresh until this handoff has completed.
+    modify fun s => { s with netStop := some stopping, netReplay := some replay, toNode := #[] }
   modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
   s.wr.setPaused false
   leavePage
@@ -2593,7 +2833,8 @@ def suspend (budget : Nat := 250) : M Unit := do
   discard <| waitFor deadline do
     reap
     let s ← get
-    return s.netStop.isNone && s.readerStop.isNone && s.paintStop.isEmpty &&
+    return s.netStop.isNone && s.netReplay.isNone && s.failedNetStop.isNone &&
+      s.readerStop.isNone && s.paintStop.isEmpty &&
       s.chaos.isNone && (← s.wr.busy.get) == 0 && (← s.wr.saveDone)
 
 end App
@@ -2688,62 +2929,9 @@ the field to it (`syncText`), so the field and the app's string never
 drift: a page change never empties the composer's draft by way of the
 field (TextLaws in this file: `into_target`, `into_native`). -/
 
-/-- Which string the native field edits: a page's one-line field, the
-emoji sheet's search, the composer's draft, or none (the sheet open
-without its search: the field is left as it is). -/
-inductive TextTarget where
-  | field | query | draft | none
-  deriving BEq, DecidableEq
-
-def textTarget (s : St) : TextTarget :=
-  if fieldPage s.page then .field
-  else match s.sheet with
-    | some sh => if sh.searching then .query else .none
-    | none => .draft
-
-/-- What the native field is to hold now, if anything. -/
-def nativeText (s : St) : Option String :=
-  match textTarget s with
-  | .field => some s.field
-  | .query => s.sheet.map (·.query)
-  | .draft => some s.text
-  | .none => none
-
-/-- A `.text` event's text and selection into the string the field edits. -/
-def textInto (s : St) (t : String) (sel : Array UInt32) : St :=
-  match textTarget s with
-  | .field => { s with field := t, refusal := none, pageKey := none }
-  | .query => match s.sheet with
-    | some sh => { s with sheet := some { sh with query := t, scroll := 0 } }
-    | none => s
-  | .draft => { s with text := t, sel := if sel.size == 4 then sel else #[0, 0, 0, 0] }
-  | .none => s
-
-/-- **A text event edits the string the field edits, and nothing that
-chooses it**: the target is the same after. -/
-theorem into_target (s : St) (t : String) (sel : Array UInt32) : textTarget (textInto s t sel) = textTarget s := by
-  unfold textInto
-  cases hf : fieldPage s.page
-  · cases hs : s.sheet with
-    | none => simp [textTarget, hf, hs]
-    | some sh => by_cases hq : sh.searching <;> simp [textTarget, hf, hs, hq]
-  · simp [textTarget, hf]
-
-/-- **After a text event the field holds what the app holds** (unless it
-edits nothing), so `syncText` sets nothing back: no echo, no lost text. -/
-theorem into_native (s : St) (t : String) (sel : Array UInt32) (h : textTarget s ≠ .none) :
-    nativeText (textInto s t sel) = some t := by
-  unfold nativeText
-  rw [into_target]
-  unfold textInto
-  cases hf : fieldPage s.page
-  · cases hs : s.sheet with
-    | none => simp [textTarget, hf, hs]
-    | some sh => by_cases hq : sh.searching <;> simp_all [textTarget]
-  · simp [textTarget, hf]
-
 /-- Set the native field to the string it edits, when they differ. -/
 def syncText : M Unit := do
+  if ← syncEditor then return
   let s ← get
   if let some t := nativeText s then
     if t != s.native then
@@ -2776,8 +2964,9 @@ def offerAll (ch : Std.CloseableChannel.Sync (List Op)) (q : Array (List Op)) : 
 
 /-- Re-offer parked writes in submission order, only after teardown. -/
 def flushNode : M Unit := do
+  recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome || s.toNode.isEmpty then return
+  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome || s.toNode.isEmpty then return
   let some r := s.net | do
     if s.netCfg.isNone && s.netBoot.isNone then
       for ops in s.toNode do s.wr.submit ⟨ops, true⟩
@@ -2788,10 +2977,11 @@ def flushNode : M Unit := do
 
 /-- Store-owned writes survive unmount and are journaled before offering. -/
 def submit (j : Job) : M Unit := do
+  if j.ops.isEmpty then return
   let s ← get
   modify fun s => { s with queuedWrites := s.queuedWrites ++ j.ops.map Op.bytes }
   saveCheckpoint
-  if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome then
+  if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome || s.netReplay.isSome then
     modify fun s => { s with toNode := s.toNode.push j.ops }
     flushNode
   else s.wr.submit j
@@ -3407,13 +3597,16 @@ def listenHints : M (List ByteArray) := do
 The page and the back stack change only by Nav's steps (its laws in
 engine/renderer/Nav.lean, the app's in app/app/NavLaws.lean). -/
 
-/-- Open p (Nav.go); the page's refusal is cleared. -/
+/-- Open p (Nav.go); the page's refusal is cleared. Opening the switcher
+composes its backdrop from the last frame shown; opening any other page
+keeps it, so back to the switcher draws the backdrop it opened over
+(NavLaws.back_open). -/
 def openSt (p : PageId) (s : St) : St :=
   let backdrop := if p == .switcher then
     match s.lastDisplay with
     | some (words, rows, top, bot) => Surface.compose words s.Hs s.bgRow rows top bot
     | none => #[]
-    else #[]
+    else s.switcherBackdrop
   { s.withNav (Nav.go p s.nav) with
     refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := backdrop }
 
@@ -3560,11 +3753,12 @@ def found (n myName : String) : M Unit := do
 
 /-- The node: started at launch, once (it speaks for every device whose
 secret this store holds: Connection.hooks reads them all, and picks the
-device for each community from its acceptance). Its first frame waits
-for the local writer to be idle, so it boots from everything written. -/
+device for each community from its acceptance). The retained boot task waits
+for earlier local writer work; later App writes park behind that task. -/
 def netStep : M Unit := do
+  recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome then return
+  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome then return
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
   -- started: taken once it is up (the frame never waits on it)
@@ -3583,14 +3777,17 @@ def netStep : M Unit := do
       modify fun s => { s with toNode := #[] }
       if !pending.isEmpty then for ops in pending do s.wr.submit ⟨ops, true⟩
     return
-  if (← s.wr.busy.get) > 0 then return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, askTime := 20000 },
       hooks := Connection.hooks fam Connection.sodium listen }
   let path := s.dbPath
   let sh := s.sh
+  let writer := s.wr
   let t ← IO.asTask (prio := .dedicated) do
+    -- Installing netBoot makes later App submissions park. Only the
+    -- previously admitted writer work remains ahead of this store open.
+    while (← writer.busy.get) > 0 do IO.sleep 2
     let db ← Db.openAt path
     -- the node's commits move the reader's counter (Reader.Shared.commits)
     Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
@@ -3827,8 +4024,17 @@ def removeEv (e : Remove.Ev) : M Unit := do
     -- cancelled: back where it was opened
     if (← get).page == .removeConfirm then back
 
+/-- A refused native candidate is not permission to consult latest text. -/
+def refuseSubmission (refusal : Option UInt32) (submission : Option Editor.Snapshot) : M Bool := do
+  let some code := refusal | return false
+  if code == 0 && submission.isSome then return false
+  say (if code == 1 then "Your previous action is still finishing. Try again."
+    else if code == 3 then "This message is too large to send. Shorten it and try again."
+    else "This editor changed. Please try the action again.")
+  return true
+
 /-- A page's tap: what it does. -/
-def onPageAct (a : Pages.Act) : M Unit := do
+def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
   let s ← get
   match a with
   | .back => back
@@ -3859,31 +4065,39 @@ def onPageAct (a : Pages.Act) : M Unit := do
     s.io.ime true
   | .field => s.io.ime true
   | .continue_ =>
+    if ← refuseSubmission refusal submission then return
+    let field := (submission.map (·.text)).getD s.field
     match s.page with
     | .create =>
-      let n := s.field.trimAscii.toString
+      let n := field.trimAscii.toString
       if !n.isEmpty then
         modify fun s => { s with field := "", newCommunity := n }
+        if let some action := submission then discard <| s.io.editorIo.action action.ticket 4
         openPage .createName
         s.io.ime true
     | .createName =>
-      let me := s.field.trimAscii.toString
+      let me := field.trimAscii.toString
       if !me.isEmpty then
         s.io.ime false
         modify fun s => { s with field := "" }
+        if let some action := submission then discard <| s.io.editorIo.action action.ticket 4
         found s.newCommunity me
     | .paste =>
-      match Community.Invite.parse s.field with
-      | some i => takeInvite i
+      match Community.Invite.parse field with
+      | some i =>
+        if let some action := submission then discard <| s.io.editorIo.action action.ticket 4
+        takeInvite i
       | none =>
         modify fun s => { s with refusal := some "That isn't a Quiet invite link. Check that you copied all of it.", pageKey := none }
     | .name =>
-      let n := s.field.trimAscii.toString
+      let n := field.trimAscii.toString
       if !n.isEmpty then
         s.io.ime false
         modify fun s => { s with joinName := n }
+        if let some action := submission then discard <| s.io.editorIo.action action.ticket 4
         openPage .agree
     | _ => pure ()
+    if let some action := submission then discard <| s.io.editorIo.action action.ticket 2
   | .agree =>
     -- join: a device of its own for this community, the request the link
     -- asks for, and this device's accept and joining facts, as one write
@@ -3964,31 +4178,40 @@ def composerHasInk (s : St) (text : String) : Bool := Id.run do
 /-- Send what the composer holds: its text and photos, as the engine's
 send intent (the post sealed under the community's current key, then
 each photo's attachment and chunks), one write. -/
-def sendNow : M Unit := do
-  let s ← get
-  if s.photoRequest.isSome then say "Finishing the selected photo…"; return
-  let t := s.text.trimAscii.toString
-  if t.isEmpty && s.chips.isEmpty then return
-  -- String stores its UTF-8 byte length. Reject an impossible payload
-  -- before allocating/shaping it merely to check whether it has ink.
-  if t.utf8ByteSize > Sync.maxFrame then
-    say "This message is too large to send. Shorten it and try again."
-    return
-  if s.chips.isEmpty && !composerHasInk s t then
-    say "Add visible text or a photo."
-    return
-  let k? ← intentView (Community.currentKey s.me.c)
-  let some k := k? | say "This community's key hasn't arrived yet."; return
-  let mut files := []
-  for (bytes, w, h, _) in s.chips.toList do
-    files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
-                                    preview := Chaos.preview bytes },
-                          bytes, key := ← newBytes 32, nonce := ← newBytes 24,
-                          metaNonce := ← newBytes 24 } : Community.NewFile)]
-  let nonce ← newBytes 24
-  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
-  if ← writeAll w (present := true) then
-    modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
+def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
+  try
+    if ← refuseSubmission refusal submission then return
+    let s ← get
+    if s.photoRequest.isSome then say "Finishing the selected photo…"; return
+    let t := ((submission.map (·.text)).getD s.text).trimAscii.toString
+    if t.isEmpty && s.chips.isEmpty then return
+    -- String stores its UTF-8 byte length. Reject an impossible payload
+    -- before allocating/shaping it merely to check whether it has ink.
+    if t.utf8ByteSize > Sync.maxFrame then
+      say "This message is too large to send. Shorten it and try again."
+      return
+    if s.chips.isEmpty && !composerHasInk s t then
+      say "Add visible text or a photo."
+      return
+    let k? ← intentView (Community.currentKey s.me.c)
+    let some k := k? | say "This community's key hasn't arrived yet."; return
+    let mut files := []
+    for (bytes, w, h, _) in s.chips.toList do
+      files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
+                                      preview := Chaos.preview bytes },
+                            bytes, key := ← newBytes 32, nonce := ← newBytes 24,
+                            metaNonce := ← newBytes 24 } : Community.NewFile)]
+    let nonce ← newBytes 24
+    let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
+    if ← writeAll w (present := true) then
+      if let some action := submission then
+        discard <| s.io.editorIo.action action.ticket 3
+        if let some latest ← readEditor then adoptEditor latest
+        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1), editor := { s.editor with clear := some (action.ticket, action.revision) } }
+      else
+        modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1) }
+  finally
+    if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
@@ -4009,7 +4232,7 @@ def attachSamplePhoto : M Unit := do
   match ← (IO.FS.readBinFile s!"assets/{i}.qoi").toBaseIO with
   | .ok b =>
     match Image.decode b with
-    | some src => modify fun s => { s with chips := s.chips.push (preparePhoto s.dim src), photoNext := s.photoNext + 1, chromeKey := "" }
+    | some src => modify fun s => { s with editorContent := s.editorContent + 1, chips := s.chips.push (preparePhoto s.dim src), photoNext := s.photoNext + 1, chromeKey := "" }
     | none => say "That photo could not be read."
   | .error _ => say "No photos here."
 
@@ -4038,7 +4261,7 @@ def photoStep : M Unit := do
     match result with
     | some chip =>
       if s.chips.size < Composer.maxChips then
-        modify fun s => { s with chips := s.chips.push chip, chromeKey := "" }
+        modify fun s => { s with editorContent := s.editorContent + 1, chips := s.chips.push chip, chromeKey := "" }
     | none => say "That photo could not be read."
     return
   let (header, bytes) ← s.io.photoResult
@@ -4150,7 +4373,7 @@ def longLabel (r : Region) (x y : Nat) : M Bool := do
   showLabel name
   return true
 
-def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
+def onTap (r : Region) (x y : Nat) (long : Bool) (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
   let s ← get
   -- A transient toast never intercepts the underlying action.
   modify fun s => { s with toast := none, noticeClock := none }
@@ -4171,7 +4394,9 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       let vh := viewH s
       let pg := (s.pageNow).getD (drawPage s.font s.bgRow s.camView (pageIn s)).1
       let height := if s.page.scrolls then pg.bmp.h else vh
-      if y < height then onPageAct (pg.hit x (height - 1 - y))
+      if y < height then
+        let hit := pg.hit x (height - 1 - y)
+        if !(long && hit == .continue_) then onPageAct hit submission refusal
     | .composer => pure ()
     return
   if let some sh := s.sheet then
@@ -4184,13 +4409,13 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
   | .composer =>
     match Composer.hit (composerLayout s) x y with
     | .text => modify (fun s => { s with editorFocused := true, chromeKey := "" }); s.io.ime true
-    | .send => sendNow
+    | .send => if !long then sendNow submission refusal
     | .addPhotos => attachPhoto
     | .takePhoto => say "Taking a photo arrives with the native camera."
     | .emoji | .mention | .voice => say "Not yet."
     | .removeChip i =>
       if i == s.chips.size && s.photoRequest.isSome then cancelPhoto
-      else modify fun s => { s with chips := s.chips.eraseIdxIfInBounds i, chromeKey := "" }
+      else modify fun s => { s with editorContent := s.editorContent + 1, chips := s.chips.eraseIdxIfInBounds i, chromeKey := "" }
     | .none => pure ()
   | .header =>
     match headerHit s x y with
@@ -4220,7 +4445,7 @@ def onTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
 
 /-- Shell coordinates are checked against the current safe rectangle,
 then translated to the content coordinates used by the existing handlers. -/
-def onScreenTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
+def onScreenTap (r : Region) (x y : Nat) (long : Bool) (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
   let s ← get
   let g := geom s
   let sy := match r with
@@ -4230,9 +4455,12 @@ def onScreenTap (r : Region) (x y : Nat) (long : Bool) : M Unit := do
       else g.composerTop + g.shift - 1 - y
   let i := { s.window with ime := ⟨0, 0, 0, s.imeH⟩ }
   if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return
-  onTap r (x - (Safe.content i).x) y long
+  onTap r (x - (Safe.content i).x) y long submission refusal
 
-def onEvent : Event → M Bool
+def plainEvent (event : Event) (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Bool := do
+  let refusal := if refusal.isNone && submission.isNone && (← get).editor.enabled == some true then some 2 else refusal
+  match event with
+  | .action ticket _ _ _ => do discard <| (← get).io.editorIo.action ticket 5; return true
   | .close => do suspend; return false
   | .background => do
     suspend
@@ -4247,18 +4475,24 @@ def onEvent : Event → M Bool
   | .deepLink url => do
     modify fun s => { s with pendingLinks := s.pendingLinks ++ [url] }
     return true
-  | .tap r x y => do onScreenTap r x.toNat y.toNat false; return true
-  | .long r x y => do onScreenTap r x.toNat y.toNat true; return true
+  | .tap r x y => do onScreenTap r x.toNat y.toNat false submission refusal; return true
+  | .long r x y => do onScreenTap r x.toNat y.toNat true submission refusal; return true
   | .text => do
+    refreshEditor
+    if (← get).editor.enabled == some true then return true
     let (t, sel) ← (← get).io.text
     modify fun s => { textInto s t sel with native := t, editorFocused := s.page == .chat }
     return true
   | .send => do
     if !Occlusion.active (← get).sheet.isSome .page then return true
     if (← get).page == .create || (← get).page == .createName || (← get).page == .paste || (← get).page == .name then
-      onPageAct .continue_
+      onPageAct .continue_ submission refusal
       return true
-    sendNow
+    if (← get).page != .chat then
+      if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
+      say "Open a conversation to send a message."
+      return true
+    sendNow submission refusal
     return true
   | .ime h => do modify fun s => { s with imeH := h.toNat, chromeKey := "", pageKey := none }; return true
   | .scrolling on => do
@@ -4269,6 +4503,40 @@ def onEvent : Event → M Bool
       modify fun s => { s with sheet := s.sheet.map fun sh => { sh with drag := none, vel := 0 } }
     else onSheetDrag ph.toNat (x.toNat - (Safe.content (← get).window).x) y.toNat
     return true
+
+/-- One total terminal envelope owns all classified events and its cleanup. -/
+def onEvent (event : Event) : M Bool :=
+  match event with
+  | .action ticket owner refusal events => do
+    let io := (← get).io
+    try
+      refreshEditor
+      let s ← get
+      let action := Editor.snapshot (← io.editorIo.action ticket 0)
+      let valid := owner != 0 && owner == s.editor.owner.toUInt64 &&
+        -- A current displayed field can request focus while its native owner
+        -- installs. Refusal still reaches Send/Continue, so it cannot submit.
+        ((refusal == 1 || refusal == 2 || refusal == 3) || (refusal == 0 && s.editor.contentKey == editorContentKey s &&
+          action.any (fun a => a.ticket == ticket && a.owner == owner && a.content == s.editor.content.toUInt64))) &&
+        s.active && s.surface && s.life.mounted && s.editor.key == editorKey s
+      if !valid then
+        discard <| io.editorIo.action ticket 2
+        -- Input has already retired pointer/native motion. Retire the App's
+        -- sheet drag too; never execute a refused semantic tap or Send.
+        for e in events do
+          match e with
+          | .drag _ x y => discard <| plainEvent (.drag 3 x y)
+          | _ => pure ()
+        if !events.isEmpty then say (if refusal == 1 then "Your previous action is still finishing. Try again."
+          else if refusal == 3 then "This message is too large to send. Shorten it and try again."
+          else "This editor changed. Please try the action again.")
+        return true
+      for e in events do
+        if !(← plainEvent e action (some refusal)) then return false
+      return true
+    finally
+      discard <| io.editorIo.action ticket 1
+  | e => plainEvent e
 
 def loadSrcs : IO (Array Image.Src) := do
   let mut out := #[]
@@ -4545,6 +4813,7 @@ def scrollHeight (s : St) : Nat :=
 
 /-- The same placement and raw-input boundary on every phone and twin. -/
 def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
+  refreshEditor
   let work ← get
   work.sh.setNeeds work.queryNeeds
   work.raster.reconcile work.rasterNeeds.toList
@@ -4581,9 +4850,12 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
     let top := shade top 0
     s.io.frame (SafeFrame.extend s.window list) b over (SafeFrame.extend s.window top)
       (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
+  let (hold, holdCache) := Hold.cachedMessagePlane s.holdCache ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow
+  modify fun s => { s with holdCache }
   let result ← Session.present display s.io.motion (geom s) s.dim.dpi
     (scrollHeight s - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
-    (Hold.messagePlane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow) (Hold.period s.dim)
+    hold (Hold.period s.dim)
+    s.editor.owner.toUInt64 (fun ticket => discard <| s.io.editorIo.action ticket 1)
   let lastDisplay ← saved.get
   modify fun s => { s with input := result.state, lastDisplay }
   -- Session retains the new serial only when the native publication was
@@ -4623,8 +4895,9 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
 def pollInput : M (List Event) := do
   let s ← get
   let context : Input.Context := ⟨Surface.make (geom s) (s.page != .chat && !s.page.scrolls) over s.b s.b 0,
-    s.dim.dpi, scrollHeight s - (geom s).viewNow⟩
+    s.dim.dpi, scrollHeight s - (geom s).viewNow, s.editor.owner.toUInt64⟩
   let result ← Session.receive s.io.motion context s.input (← s.io.poll)
+    (fun ticket => discard <| s.io.editorIo.action ticket 1)
   modify fun s => { s with input := result.state }
   return result.events
 
@@ -4906,6 +5179,12 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       let s ← get
       if s.active && s.surface && s.life.mounted && inputPage == (s.page, s.cur) then
         discard <| onEvent (.ime h)
+    | .action _ _ _ [.send] => if !(← onEvent e) then return none
+    | .action ticket owner refusal events =>
+      match ← owned lease (onEvent e) with
+      | some false => return none
+      | some true => pure ()
+      | none => discard <| onEvent (.action ticket owner 6 events)
     | _ =>
       if let some false ← owned lease (onEvent e) then return none
   let cmds ← (← get).io.ctlPoll
@@ -5035,54 +5314,58 @@ notices it takes (`takeChanges`, its first read), are of one moment of the
 store, so no part of the screen is newer than another. -/
 def stepCore (evs : List Event) : M (Option (List Event)) := do
   let io := (← get).io
-  let incoming := evs ++ (← pollInput) ++ (← io.links).toList.map Event.deepLink
-  let lease := (← get).life.lease
-  let inputPage := ((← get).page, (← get).cur)
-  let mut input := []
-  for e in incoming do
-    match e with
-    | .background | .foreground | .surface _ | .resize | .deepLink _ | .close =>
-      if !(← onEvent e) then return none
-    | _ => input := input ++ [e]
-  reap
-  let s ← get
-  if !s.active || !s.surface || s.netStop.isSome then
-    IO.sleep 16
-    return some []
-  let sc ← io.screen
-  systemTheme (Theme.ofWord (sc[5]?.getD 0))
-  resize sc
-  modify fun s =>
-    if s.notices.head? != s.noticeClock.map (·.1) then
-      { s with noticeClock := s.notices.head?.map fun t => (t, s.nowMs + Toast.life) }
-    else if s.noticeClock.isSome && (Toast.showing s.nowMs s.noticeClock).isNone then
-      { s with notices := s.notices.drop 1, noticeClock := none }
-    else s
-  -- A complete snapshot outranks keyboard events queued for an older frame.
-  if sc.size ≥ 9 then input := input.filter fun e => match e with | .ime _ => false | _ => true
-  mountPage
-  let links := (← get).pendingLinks
-  modify fun s => { s with pendingLinks := [] }
-  for url in links do
-    match Community.Invite.parse url with
-    | some i => takeInvite i
-    | none => say "That isn't a Quiet invite link."
-  let rd := (← get).rd
-  rd.exec "BEGIN"
-  let r ← try
-    let r ← frame input lease inputPage
-    rd.exec "COMMIT"
-    pure r
-  catch e =>
-    rd.exec "ROLLBACK"
-    throw e
-  let mut queued := []
-  for bytes in (← get).queuedWrites do
-    if let some op := Op.decode bytes then
-      if (← (Q.op op.id).run rd #[]) == .bytes none then queued := queued ++ [bytes]
-  modify fun s => { s with queuedWrites := queued }
-  saveCheckpoint
-  return r
+  let polled ← pollInput
+  try
+    let incoming := evs ++ polled ++ (← io.links).toList.map Event.deepLink
+    let lease := (← get).life.lease
+    let inputPage := ((← get).page, (← get).cur)
+    let mut input := []
+    for e in incoming do
+      match e with
+      | .background | .foreground | .surface _ | .resize | .deepLink _ | .close =>
+        if !(← onEvent e) then return none
+      | _ => input := input ++ [e]
+    reap
+    let s ← get
+    if !s.active || !s.surface || s.netStop.isSome then
+      IO.sleep 16
+      return some []
+    let sc ← io.screen
+    systemTheme (Theme.ofWord (sc[5]?.getD 0))
+    resize sc
+    modify fun s =>
+      if s.notices.head? != s.noticeClock.map (·.1) then
+        { s with noticeClock := s.notices.head?.map fun t => (t, s.nowMs + Toast.life) }
+      else if s.noticeClock.isSome && (Toast.showing s.nowMs s.noticeClock).isNone then
+        { s with notices := s.notices.drop 1, noticeClock := none }
+      else s
+    -- A complete snapshot outranks keyboard events queued for an older frame.
+    if sc.size ≥ 9 then input := input.filter fun e => match e with | .ime _ => false | _ => true
+    mountPage
+    let links := (← get).pendingLinks
+    modify fun s => { s with pendingLinks := [] }
+    for url in links do
+      match Community.Invite.parse url with
+      | some i => takeInvite i
+      | none => say "That isn't a Quiet invite link."
+    let rd := (← get).rd
+    rd.exec "BEGIN"
+    let r ← try
+      let r ← frame input lease inputPage
+      rd.exec "COMMIT"
+      pure r
+    catch e =>
+      rd.exec "ROLLBACK"
+      throw e
+    let mut queued := []
+    for bytes in (← get).queuedWrites do
+      if let some op := Op.decode bytes then
+        if (← (Q.op op.id).run rd #[]) == .bytes none then queued := queued ++ [bytes]
+    modify fun s => { s with queuedWrites := queued }
+    saveCheckpoint
+    return r
+  finally
+    for ticket in Input.actionTickets (evs ++ polled) do discard <| io.editorIo.action ticket 5
 
 /-- Raster work remains enabled during frame assembly. Repeated frames
 must not revoke its service opportunity; demand tickets still revoke obsolete
@@ -5091,7 +5374,12 @@ def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M
   modify fun s => { s with
     rasterNeeds := #[], queryNeeds := roots,
     querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
-  stepCore evs
+  try stepCore evs
+  catch error =>
+    -- Revoke even a token returned by the final publication if a later
+    -- checkpoint/IO exception prevents the next consumer turn.
+    discard <| (← get).io.editorIo.exchange 3 0 0 ""
+    throw error
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with
@@ -5165,7 +5453,7 @@ def Io.platform : Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, Platform.pickPhoto, Platform.photoResult⟩
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, Platform.pickPhoto, Platform.photoResult, ⟨Platform.editor, Platform.editorAction⟩⟩
 
 end App
 

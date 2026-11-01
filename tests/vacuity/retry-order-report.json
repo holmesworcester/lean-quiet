@@ -1,0 +1,9 @@
+{
+  "RetryOrder.offered_or_retired": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.RetryOrder.offered_or_retired",
+    "witness": "Vacuity.RetryOrder.target_served",
+    "module": "tests.vacuity.RetryOrder",
+    "detail": "A nonempty infinite execution of the runtime retry core adds a new session on every step while three old sessions remain live. Actual scan/reconcile steps preserve uniqueness and supply unbounded eligible vacant-reservation opportunities; the third original session is served in the first three opportunities. A second kernel instance uses actual ByteArray session/address types with proved lawful equality. This is not a full Node/native execution or proof that those opportunities recur there."
+  }
+}

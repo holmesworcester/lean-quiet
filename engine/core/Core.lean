@@ -11,12 +11,14 @@ op's own fact or refuses it. Anything else waits, Unresolved.
 `judge` is that rule on one op. The engine applies it incrementally:
 `ingest` stores an op and queues it; `step` judges one queued op. A
 judged op wakes the ops waiting on it; an op that cannot be judged yet
-waits on each of its undecided requirements. Every table the engine
-reads or writes goes through `Store`, so the same code runs on SQLite
-(Engine/Sqlite.lean) and on the pure model the proofs use
-(Engine/Model.lean). Nothing is held in memory between steps.
+waits on each of its undecided requirements. `purge` forgets ops
+(Engine/Purge.lean). Every table the engine reads or writes goes
+through `Store`, so the same code runs on SQLite (Engine/Sqlite.lean)
+and on the pure model the proofs use (Engine/Model.lean). Nothing is
+held in memory between steps.
 -/
 import engine.core.Codec
+import Std.Data.HashSet
 
 namespace Engine
 
@@ -207,7 +209,8 @@ def judge {F} (fam : Family F) (o : Op) (sts : List (Option (Verdict F))) : Opti
 
 /-- The engine's tables: ops by id, verdicts by id, the ops waiting on
 each op, the queue of ops to judge, and the index from keys to Valid
-ops. -/
+ops. The last four are a purge's (`purge`): what requires an op, and
+forgetting one. -/
 class Store (F : outParam Type) (m : Type → Type) where
   getOp : Id → m (Option Op)
   putOp : Op → m Unit
@@ -220,6 +223,14 @@ class Store (F : outParam Type) (m : Type → Type) where
   pop : m (Option Id)
   index : ByteArray → Id → m Unit
   lookup : ByteArray → m (List Id)
+  /-- The stored ops that require x, each once, in byte order. -/
+  dependents : Id → m (List Id)
+  /-- x's verdict, filings and queue entries gone. -/
+  undecide : Id → m Unit
+  /-- Op x gone, with what waits on it and what it waits on. -/
+  deleteOp : Id → m Unit
+  /-- How many ops are stored. -/
+  countOps : m Nat
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m]
@@ -284,6 +295,54 @@ def step (fam : Family F) : m Bool := do
 def drain (fam : Family F) : Nat → m Unit
   | 0 => pure ()
   | n + 1 => do if ← step fam then drain fam n
+
+/-! ## Purging (engine/core/Purge.lean) -/
+
+/-- Push each of ys not yet seen onto todo, and mark it seen. -/
+def pushNew (ys todo : List Id) (seen : Std.HashSet Id) : List Id × Std.HashSet Id :=
+  ys.foldl (fun r y => if r.2.contains y then r else (y :: r.1, r.2.insert y)) (todo, seen)
+
+/-- A purge's walk: take an op off todo, and push the stored ops that
+require it, unless seen. At most n steps; none if it needed more. -/
+def walkDeps : Nat → List Id → List Id → Std.HashSet Id → m (Option (List Id))
+  | _, [], found, _ => pure (some found)
+  | 0, _ :: _, _, _ => pure none
+  | n + 1, x :: todo, found, seen => do
+    let r := pushNew (← dependents (F := F) x) todo seen
+    walkDeps n r.1 (x :: found) r.2
+
+/-- Un-decide each of xs, and sort them: the conn and local ops (to
+delete), and the shared ones (to judge again), each in xs's order. -/
+def unsettle (fam : Family F) : List Id → List Id → List Id → m (List Id × List Id)
+  | [], gone, again => pure (gone.reverse, again.reverse)
+  | x :: xs, gone, again => do
+    undecide (F := F) x
+    match ← getOp (F := F) x with
+    | some o =>
+      if (fam.room o).isSome then unsettle fam xs gone (x :: again)
+      else unsettle fam xs (x :: gone) again
+    | none => unsettle fam xs gone again
+
+def deleteAll : List Id → m Unit
+  | [] => pure ()
+  | x :: rest => do deleteOp (F := F) x; deleteAll rest
+
+/-- **Purge `ids`** (engine/core/Purge.lean): walk to them and every
+stored op that requires one of them, transitively; un-decide each; delete
+the conn and local ones; queue the shared ones to be judged again. The
+ops it deleted; or none, having changed nothing, if the walk did not end
+within as many steps as there are ops stored and named, which only
+tables that disagree can cause. -/
+def purge (fam : Family F) (ids : List Id) : m (Option (List Id)) := do
+  let n ← countOps (F := F)
+  let r := pushNew ids [] {}
+  match ← walkDeps (F := F) (ids.length + n) r.1 [] r.2 with
+  | none => pure none
+  | some c =>
+    let p ← unsettle fam c [] []
+    deleteAll (F := F) p.1
+    pushAll (F := F) p.2
+    pure (some p.1)
 
 end
 end Engine

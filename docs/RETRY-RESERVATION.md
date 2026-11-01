@@ -62,10 +62,11 @@ An earlier version described every old-epoch frame being delivered after its
 socket closed and called that a reliable native execution. That was an
 illustrative message-delay argument, **not a demonstrated TCP execution**.
 TCP does not move queued bytes from a closed socket onto a replacement.
-The stronger wording was incorrect and has been removed. Whether timeout or
-replacement can discard already-admitted bytes before their handler runs is
-being checked against the production hooks and runner; it is not counted as
-an established runtime counterexample here.
+The stronger wording was incorrect and has been removed. A separate actual
+TCP/Noise/SQLite trace did demonstrate that control-close or completed-writer
+reaping could discard an already-admitted signed notice. The bounded one-frame
+repair and its exact limits are documented in [CLOSE-INGRESS.md](CLOSE-INGRESS.md).
+This finite repair does not establish arbitrary replacement/delivery progress.
 
 The missing proof cannot be replaced by assuming that a retry eventually
 arrives already authenticated and accepted: that would hide the application
@@ -73,11 +74,13 @@ obligation inside the link assumption. Any protocol repair must first identify
 an actual failing execution and preserve key erasure, revocation and removal
 notice behavior. No change to those security semantics is claimed here.
 
-Multiple distinct authenticated sessions sharing one socket also need a
-proved rotating admission policy. The reserved slot presently bounds and
-serves admitted retries; a fixed earlier session may take every newly vacant
-slot. Neither repeated native completion nor the UI-first selector alone
-discharges that multiplexing obligation.
+Distinct authenticated sessions sharing a socket now use the actual stable
+retry admission queue described in [RETRY-ADMISSION.md](RETRY-ADMISSION.md).
+A concrete fixed-order starvation execution is repaired, and the shared core
+proves service or retirement within p+1 eligible vacant-slot opportunities.
+Composing those opportunities with every full Node/Sweep/native execution
+and semantic delivery remains open; repeated native completion or the
+UI-first selector alone does not establish that composition.
 
 ## Regression boundary
 

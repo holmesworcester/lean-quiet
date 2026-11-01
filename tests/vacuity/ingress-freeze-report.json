@@ -1,0 +1,44 @@
+{
+  "Registry.freeze_input": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.freeze_input",
+    "witness": "Vacuity.IngressFreeze.captured",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  },
+  "Registry.freeze_preserves_state": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.freeze_preserves_state",
+    "witness": "Vacuity.IngressFreeze.retained",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  },
+  "Registry.freeze_preserves_owner": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.freeze_preserves_owner",
+    "witness": "Vacuity.IngressFreeze.ownership",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  },
+  "Registry.frozen_refuses": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.frozen_refuses",
+    "witness": "Vacuity.IngressFreeze.no_refill",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  },
+  "Registry.freeze_preserves_poll": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.freeze_preserves_poll",
+    "witness": "Vacuity.IngressFreeze.still_selected",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  },
+  "Registry.freeze_idempotent": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Ingress.Registry.freeze_idempotent",
+    "witness": "Vacuity.IngressFreeze.repeated",
+    "module": "tests.vacuity.IngressFreeze",
+    "detail": "Concrete live source 1 holds value 42 in a two-slot registry. The kernel applies the actual freeze/offer laws, proves the value remains selectable, and refuses replacement99. No fairness, delivery or quiescence premise occurs. These helper laws do not prove native callback progress or full transport refinement."
+  }
+}

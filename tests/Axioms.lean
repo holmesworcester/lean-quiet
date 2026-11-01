@@ -1,3 +1,7 @@
+import engine.wire.JobOwnersLaws
+import engine.wire.IngressFreezeLaws
+import engine.wire.RetryOrderLaws
+import engine.renderer.HoldCacheLaws
 import engine.renderer.DemandRank
 import engine.wire.ExpiryGraceLaws
 import engine.renderer.WriteQueueLaws
@@ -79,10 +83,24 @@ import engine.renderer.ActsLaws
 import engine.core.Project
 import app.connection.Family
 import engine.wire.EgressLaws
+import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
 audit, with its `open`s. -/
+
+/- The write turn's meter (`Engine.instTurnCostT`, engine/core/CostStore.lean)
+charges a turn and a purge one write per op, not what they do: no law
+may state a budget over it. None names it, in its statement or its proof. -/
+#eval show Lean.CoreM Unit from do
+  let env ← Lean.getEnv
+  let short := ``Engine.instTurnCostT
+  let named := env.constants.toList.filterMap fun (n, ci) =>
+    if ci.type.getUsedConstants.contains short ||
+        (ci.value?.map (·.getUsedConstants.contains short)).getD false then some n else none
+  unless named.isEmpty do
+    throwError m!"rests on the write turn's short count (Engine.instTurnCostT): {named}"
+  IO.println "the write turn's short count: no law names it"
 
 section engine
 open Engine Community
@@ -91,6 +109,7 @@ open Engine Community
 #print axioms Engine.status_iff_spec
 #print axioms Engine.order_free
 #print axioms Engine.reach_drain
+#print axioms Engine.reach_inv
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
@@ -101,6 +120,8 @@ open Engine Community
 #print axioms Engine.distinct_of_collisionFree
 #print axioms Engine.Sync.num_inj
 #print axioms Engine.Sync.lbl_inj
+#print axioms Engine.Sync.top_perm
+#print axioms Engine.Sync.lbl_perm
 #print axioms Engine.Sync.exchange_complete
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
@@ -126,6 +147,7 @@ open Engine Community
 #print axioms Community.profile_authorized
 #print axioms Community.no_renaming
 #print axioms Community.admission_consented
+#print axioms Community.unscoped_signs_all
 #print axioms Community.admission_approved
 #print axioms Community.request_invited
 #print axioms Community.approval_signed
@@ -196,6 +218,7 @@ open Engine Community
 #print axioms Engine.purge_undecides
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
+#print axioms Engine.run_purge
 #print axioms Engine.perm_sortPos
 #print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
@@ -470,8 +493,13 @@ section app
 #print axioms Nav.back_inv
 #print axioms Nav.reset_inv
 #print axioms Nav.swap_inv
+#print axioms Nav.back_stack
+#print axioms Nav.backs_stack
 #print axioms Nav.depth
 #print axioms NavLaws.back_open
+#print axioms NavLaws.back_open_all
+#print axioms NavLaws.open_keeps_backdrop
+#print axioms NavLaws.shipped_back_open_fails
 #print axioms NavLaws.back_root
 #print axioms NavLaws.back_switch
 #print axioms NavLaws.draft_open
@@ -479,6 +507,7 @@ section app
 #print axioms NavLaws.inv_open
 #print axioms NavLaws.inv_back
 #print axioms NavLaws.inv_switch
+#print axioms NavLaws.backs_nav
 #print axioms NavLaws.depth
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
@@ -622,7 +651,6 @@ open Net
 #print axioms Net.Scene.sessions_trusted
 #print axioms Net.Scene.bootstrap_possible
 #print axioms Net.Scene.bootstrap
-#print axioms Net.Scene.bootstrap_ideal
 #print axioms Net.Scene.reachable_inv
 #print axioms Net.Scene.admitted_inv
 #print axioms Net.Scene.allowedA
@@ -1293,6 +1321,14 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_asks
 #print axioms Engine.Sync.conn_runs_exchange
 
+#print axioms Connection.secret_unfiled
+#print axioms Connection.purge_forgets
+#print axioms Connection.forget_stays
+#print axioms Connection.close_forgets
+#print axioms Connection.retired_complete
+#print axioms Connection.retired_open
+#print axioms Connection.shipped_retired_misses
+
 #print axioms App.WriteAdmission.admitted_frames
 #print axioms App.WriteAdmission.admitted_count
 #print axioms App.WriteAdmission.admitted_bytes
@@ -1442,3 +1478,62 @@ end cost
 #print axioms Demand.take_changes
 #print axioms Demand.selected_or_retired
 #print axioms Demand.selected_within
+
+#print axioms Hold.messageLine_key
+#print axioms Hold.prepare_key
+#print axioms Hold.prepare_reuses
+#print axioms Hold.prepare_rows
+#print axioms Hold.cachedMessagePlane_exact
+#print axioms Hold.cachedMessagePlane_reuses
+
+-- Actual multiplex retry admission core (candidate/vacancy opportunities).
+#print axioms Engine.Sync.RetryOrder.claim_false
+#print axioms Engine.Sync.RetryOrder.claim_ready
+#print axioms Engine.Sync.RetryOrder.claim_busy
+#print axioms Engine.Sync.RetryOrder.scan_append
+#print axioms Engine.Sync.RetryOrder.scan_members
+#print axioms Engine.Sync.RetryOrder.offered_perm
+#print axioms Engine.Sync.RetryOrder.offered_members
+#print axioms Engine.Sync.RetryOrder.offered_length
+#print axioms Engine.Sync.RetryOrder.offered_nodup
+#print axioms Engine.Sync.RetryOrder.offered_none
+#print axioms Engine.Sync.RetryOrder.reconcile_members
+#print axioms Engine.Sync.RetryOrder.reconcile_prefix
+#print axioms Engine.Sync.RetryOrder.reconcile_nodup
+#print axioms Engine.Sync.RetryOrder.filter_rank
+#print axioms Engine.Sync.RetryOrder.offered_rank
+#print axioms Engine.Sync.RetryOrder.scan_progress
+#print axioms Engine.Sync.RetryOrder.reconcile_rank
+#print axioms Engine.Sync.RetryOrder.eligible_spec
+#print axioms Engine.Sync.RetryOrder.Run.nodup
+#print axioms Engine.Sync.RetryOrder.waiting_rank
+#print axioms Engine.Sync.RetryOrder.offered_or_retired
+#print axioms Engine.Sync.sweepAll_ok
+#print axioms Engine.Sync.onTickDirect_fresh
+#print axioms Engine.Sync.onTickReserved_fresh
+
+
+-- Atomic admission freeze preserves one source frame across transport close.
+#print axioms Engine.Sync.Ingress.Registry.freeze_input
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_state
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_owner
+#print axioms Engine.Sync.Ingress.Registry.frozen_refuses
+#print axioms Engine.Sync.Ingress.Registry.freeze_preserves_poll
+#print axioms Engine.Sync.Ingress.Registry.freeze_idempotent
+
+-- Original native job ownership admission; no IO trace/completion claim.
+#print axioms Engine.Sync.JobOwners.admitted_bounded
+#print axioms Engine.Sync.JobOwners.full_refuses
+#print axioms Engine.Sync.JobOwners.available_creates
+
+-- Actual Node session-ID and retry-order preservation.
+#print axioms Engine.Sync.NodeUnique.boot_valid
+#print axioms Engine.Sync.NodeUnique.open_valid
+#print axioms Engine.Sync.NodeUnique.sweepAll_valid
+#print axioms Engine.Sync.NodeUnique.step_valid
+#print axioms Engine.Sync.NodeUnique.sql_step_valid
+#print axioms Connection.Execution.production_step_unique
+#print axioms Connection.Execution.world_step_unique
+#print axioms Connection.Execution.world_trace_unique
+#print axioms Connection.Execution.empty_trace_unique
+#print axioms Connection.Execution.Run.unique

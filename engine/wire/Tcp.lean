@@ -55,6 +55,7 @@ import engine.wire.StopFlag
 import engine.wire.Reserved
 import engine.wire.IngressIO
 import engine.wire.ExpiryGrace
+import engine.wire.JobOwners
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -152,6 +153,8 @@ structure Sock where
   readerDone : Task (Except IO.Error Unit) := Task.pure (.ok ())
   aborter : Option SocketAbort := none
   input : Option Ingress.Source := none
+  /-- A transport close owes exactly its frozen, already-admitted frame. -/
+  closeAfterFrame : Bool := false
 
 /-- Push frames and wake the writer. Ordinary overflow is repairable loss;
 only protected-control refusal returns false and requests transport close.
@@ -202,6 +205,15 @@ def Sock.drain (s : Sock) : IO Unit := do
   s.out.atomically (modify fun o => { o with draining := true })
   s.wake.notifyAll
 
+/-- Failure requests stop immediately without waiting for native callbacks.
+A retiring notice retains its finite queue and the writer's existing deadline. -/
+def Sock.cancelOwned (hub : Ingress.Hub Event) (s : Sock) : IO Unit := do
+  s.stopped.request
+  if let some input := s.input then hub.retire input
+  s.out.atomically (modify fun o =>
+    if o.draining then o else { o with stopped := true, lanes := {}, control := {}, retry := .vacant })
+  s.wake.notifyAll
+
 structure RunState where
   db : Db
   node : Node
@@ -213,6 +225,8 @@ structure RunState where
   waiting : List ByteArray := []
   slots : Slots
   ingress : Ingress.Hub Event
+  /-- Original native jobs survive exceptions before whole-turn publication. -/
+  owners : Option JobOwners := none
   /-- One finite grace per live authenticated heard generation. -/
   sessionGrace : List (Id × ExpiryGrace.State) := []
   /-- Socket idle grace is separate; native send stalls never consult it. -/
@@ -273,16 +287,18 @@ def reader (hub : Ingress.Hub Event) (input : Ingress.Source) (sid : Nat)
 
 /-- Accept connections into the channel until stopped; then return, so
 the listener is released and its port is free again. -/
-def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (stopped : StopFlag) (slots : Slots) (cfg : RunConfig) : IO Unit := do
+def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (stopped : StopFlag) (slots : Slots) (cfg : RunConfig)
+    (cancel : IO Bool := pure false) : IO Unit := do
+  let canceled := do return (← stopped.get) || (← cancel)
   repeat
-    if ← stopped.get then return
+    if ← canceled then return
     match ← srv.tryAccept.toBaseIO with
     | .ok (some c) =>
       let peer := match ← c.getPeerName.toBaseIO with
         | .ok a => addrText a
         | .error _ => "?"
       if ← slots.take cfg peer.toUTF8 then
-        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do
+        unless ← enqueue ch (.accepted c peer.toUTF8) canceled do
           SocketAbort.closeIdle c
           slots.release peer.toUTF8
       else SocketAbort.closeIdle c
@@ -405,6 +421,7 @@ def RunState.prepareExpiry (cfg : RunConfig) (st : RunState) (now : Nat) : IO (R
     | .frame sid _ => some sid
     | _ => none
   let readyAddresses := st.socks.filterMap fun s => if ready.contains s.id then some s.addr else none
+  let closing := st.socks.filter (·.closeAfterFrame) |>.map (·.addr)
   let mut sessionGrace := []
   let mut deferred := []
   for (cid, c) in st.node.conns do
@@ -413,7 +430,7 @@ def RunState.prepareExpiry (cfg : RunConfig) (st : RunState) (now : Nat) : IO (R
     let (protect, next) := ExpiryGrace.check (ExpiryGrace.budget cfg.maxSocks) c.heard
       (Decidable.decide (c.heard + x.cfg.live < now)) pending old
     if let some g := next then sessionGrace := (cid, g) :: sessionGrace
-    if protect then deferred := cid :: deferred
+    if protect || (st.node.addr? cid).any closing.contains then deferred := cid :: deferred
   let mut socketGrace := []
   for s in st.socks do
     let old := (st.socketGrace.find? (·.1 == s.id)).map Prod.snd
@@ -427,9 +444,17 @@ listener's mutex. Failed quota checks retain both position and frames. -/
 def RunState.startPending (cfg : RunConfig) (st : RunState) : IO RunState := do
   let chosen ← st.slots.atomically do
     modifyGetThe (List String) fun occupied => DialQueue.reserve cfg occupied st.waiting
+  let mut launched := []
   for addr in chosen do
-    let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr st.ingress.stopped cfg.stallMs)
-  return { st with waiting := st.waiting.filter (!chosen.contains ·) }
+    let create : BaseIO (Unit × NativeJob) := do
+      let done ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr st.ingress.stopped cfg.stallMs)
+      return ((), ⟨pure (), done⟩)
+    let admitted ← match st.owners with
+      | some owners => Option.isSome <$> owners.launch create
+      | none => do discard <| create; pure true
+    if admitted then launched := addr :: launched
+    else st.slots.release addr
+  return { st with waiting := st.waiting.filter (!launched.contains ·) }
 
 def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
     IO (RunState × Option Nat) := do
@@ -438,17 +463,36 @@ def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (
     st.slots.release addr
     return (st, none)
   let sid := st.next
-  let stopped ← StopFlag.new
-  let out ← Std.Mutex.new {}
-  let wake ← Std.Condvar.new
-  let aborter ← SocketAbort.capture c
-  let readerDone ← IO.asTask (prio := .dedicated) (reader st.ingress input sid c stopped)
-  let done ← IO.asTask (prio := .dedicated)
-    (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs
-      (finishReader stopped c readerDone))
-  let s : Sock := {
-    id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake
-    done, readerDone, aborter, input := some input }
+  -- All fallible setup precedes task creation. A refused owner slot still
+  -- owns an idle client and can release it without leaving a native worker.
+  let setup ← (do
+    let stopped ← StopFlag.new
+    let out ← Std.Mutex.new ({} : Outbox)
+    let wake ← Std.Condvar.new
+    let aborter ← SocketAbort.capture c
+    return (stopped, out, wake, aborter)).toBaseIO
+  let .ok (stopped, out, wake, aborter) := setup | do
+    st.ingress.retire input
+    SocketAbort.closeIdle c
+    st.slots.release addr
+    match setup with | .error e => throw e | _ => return (st, none)
+  let create : BaseIO (Sock × NativeJob) := do
+    let readerDone ← IO.asTask (prio := .dedicated) (reader st.ingress input sid c stopped)
+    let done ← IO.asTask (prio := .dedicated)
+      (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs
+        (finishReader stopped c readerDone))
+    let s : Sock := {
+      id := sid, client := c, addr, heard := now, stopped, out, wake
+      done, readerDone, aborter, input := some input }
+    return (s, ⟨s.cancelOwned st.ingress, done⟩)
+  let socket ← match st.owners with
+    | some owners => owners.launch create
+    | none => (fun result => some result.1) <$> create
+  let some s := socket | do
+    st.ingress.retire input
+    SocketAbort.closeIdle c
+    st.slots.release addr
+    return (st, none)
   return ({ st with socks := s :: st.socks, next := sid + 1 }, some sid)
 
 /-- Every socket end notifies the node, then stops the socket's reader
@@ -536,13 +580,44 @@ def RunState.finishClose (cfg : RunConfig) (r : RunState × Effects) (now : Nat)
 def RunState.closeApply (cfg : RunConfig) (st : RunState) (sid now : Nat) : IO RunState := do
   RunState.finishClose x ch notify cfg (← st.close x sid now) now
 
-/-- A native writer's completion is authoritative even if its nonblocking
-closed notification found the event queue full. Never wait for the task. -/
+/-- A transport failure cannot overtake its source's already admitted
+frame. Freeze under the producer mutex, retain one one-shot obligation, and
+stop future I/O; explicit protocol retirement/shutdown still closes directly.
+Repeated control/reap observations cannot renew or replace the saved frame. -/
+def RunState.transportClosed (cfg : RunConfig) (st : RunState) (sid now : Nat) : IO RunState := do
+  let some s := st.sockOf (·.id == sid) | return st
+  if s.closeAfterFrame then return st
+  s.stopped.request
+  let pending ← match s.input with
+    | some source => st.ingress.freeze source
+    | none => pure none
+  s.stop
+  match pending with
+  | some (.frame source _) =>
+    if source == sid then
+      return { st with socks := st.socks.map fun sock =>
+        if sock.id == sid then { sock with closeAfterFrame := true } else sock }
+    else st.closeApply x ch notify cfg sid now
+  | _ => st.closeApply x ch notify cfg sid now
+
+/-- A finished writer still owes its one frozen admitted input, if any.
+Never wait for a native task or allow new input to replenish that obligation. -/
 def RunState.reap (cfg : RunConfig) (st : RunState) (now : Nat) : IO RunState := do
   let mut st := st
   for s in st.socks do
-    if ← IO.hasFinished s.done then st ← st.closeApply x ch notify cfg s.id now
+    if ← IO.hasFinished s.done then st ← st.transportClosed x ch notify cfg s.id now
   return st
+
+/-- A selected frozen frame can fail after leaving its mailbox. Retire its
+native ownership even if the store also rejects close-time writes; preserve
+the original handler error for the caller. Durable erasure cannot be promised
+while SQLite refuses writes. Ordinary successful retirement is unchanged. -/
+def RunState.failedFrame (cfg : RunConfig) (st : RunState) (s : Sock) (now : Nat) : IO Unit := do
+  s.stopped.request
+  if let some input := s.input then st.ingress.retire input
+  s.stop
+  try discard <| st.closeApply x ch notify cfg s.id now
+  catch _ => pure ()
 
 /-- Handle one event; none to stop. -/
 def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) : IO (Option RunState) := do
@@ -552,11 +627,19 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     match st.sockOf (·.id == sid) with
     | none => return some st
     | some s =>
-      let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
-      let x' := { x with room := ← rooms cfg st.socks }
-      let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now
-      some <$> st.apply x ch notify cfg e now
-  | .closed sid => return some (← st.closeApply x ch notify cfg sid now)
+      try
+        let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
+        let x' := { x with room := ← rooms cfg st.socks }
+        let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now
+        let st ← st.apply x ch notify cfg e now
+        -- Selection consumes the one frozen obligation even when authentication
+        -- or decoding refused its contents. No second frame can rearm it.
+        if s.closeAfterFrame then return some (← st.closeApply x ch notify cfg sid now)
+        return some st
+      catch error =>
+        if s.closeAfterFrame then st.failedFrame x ch notify cfg s now
+        throw error
+  | .closed sid => return some (← st.transportClosed x ch notify cfg sid now)
   | .lanes reply =>
     reply.resolve (← st.socks.mapM fun s => do return (s.addr, (← s.lanes).bytes))
     return some st
@@ -642,6 +725,7 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
       | .frame sid _ => some sid
       | _ => none
     for s in st.socks do
+      if s.closeAfterFrame then continue
       let grace := (st.socketGrace.find? (·.1 == s.id)).any fun (_, g) =>
         g.heard == s.heard && g.left != 0 && ready.contains s.id
       let since ← s.since
@@ -701,10 +785,30 @@ structure Runner where
   closing : Std.Mutex Bool
   turnCounters : IO.Ref TurnCounters
   ingress : Ingress.Hub Event
+  owners : Option JobOwners := none
+  cleanup : Option (Task (Except IO.Error Unit)) := none
 
 /-- A snapshot of fixed-size runner telemetry. `started` advances
 before polling, so a notification emitted inside that turn can identify it. -/
 def Runner.counters (r : Runner) : IO TurnCounters := r.turnCounters.get
+
+/-- Join native producers before reclaiming their unadmitted clients. This
+fixed owned task runs after loop completion even if no caller invokes stop. -/
+def cleanupRunner (ingress : Ingress.Hub Event) (owners : JobOwners)
+    (listening : Task (Except IO.Error Unit)) (listener : Std.Internal.UV.TCP.Socket)
+    (slots : Slots) (events : Std.CloseableChannel.Sync Event) : IO Unit := do
+  ingress.stop
+  owners.request
+  discard <| IO.wait listening
+  closeListener listener
+  owners.join
+  while let some ev ← events.tryRecv do
+    match ev with
+    | .accepted c addr | .dialed addr (some c) =>
+      SocketAbort.closeIdle c
+      slots.release addr
+    | .dialed addr none => slots.release addr
+    | _ => pure ()
 
 /-- Listen on `port` (0: any) and run a node on this store, keeping
 what is from `floor` on (0: everything). -/
@@ -724,17 +828,26 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     | .v4 a => a.port
     | .v6 a => a.port
   let stopped ← StopFlag.new
-  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
+  let owners ← JobOwners.new (JobOwners.socketCapacity cfg.maxSocks)
+  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg ingress.stopped)
   let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
-    try runLoop x ch notify cfg writes { db, node, slots, ingress } turnCounters
+    try runLoop x ch notify cfg writes { db, node, slots, ingress, owners := some owners } turnCounters
     catch e =>
+      -- Cancel now; joining belongs to the fixed teardown task below.
+      discard <| ingress.stop.toBaseIO
+      owners.request
       -- The native shells retain stderr (iOS lean.log / Android logcat).
       -- A background IO failure must not disappear into an unread Task.
-      IO.eprintln s!"network runner stopped: {e}"
+      discard <| (IO.eprintln s!"network runner stopped: {e}").toBaseIO
       throw e
+  let cleanup ← IO.asTask (prio := .dedicated) do
+    discard <| IO.wait done
+    cleanupRunner ingress owners listening srv.native slots ch
   let closing ← Std.Mutex.new false
-  return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing, turnCounters, ingress }
+  return {
+    events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing, turnCounters, ingress
+    owners := some owners, cleanup := some cleanup }
 
 /-- Each socket's address and the bytes its lanes hold in the loop's turn.
 An unanswered request returns empty after shutdown or runner failure. -/
@@ -758,14 +871,18 @@ def Runner.write (r : Runner) (ops : List Op) : IO Unit := do
     if ← r.writes.trySend ops then return
     IO.sleep 1
 
-/-- Stop: the loop ends and shuts every socket down, the listener is
-released (its port free for the next start), and both are waited for. -/
+/-- Request loop shutdown and await its fixed owned teardown task. Original
+native jobs remain owned beyond the initial loop shutdown grace; callers that
+must keep serving UI work await this from their dedicated cleanup task. -/
 def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
   if ← getThe Bool then return
   set true
   r.stopped.request
   r.ingress.stop
   discard <| IO.wait r.done
+  if let some cleanup := r.cleanup then
+    discard <| IO.wait cleanup
+    return
   discard <| IO.wait r.listening
   closeListener r.listener
   while let some ev ← r.events.tryRecv do

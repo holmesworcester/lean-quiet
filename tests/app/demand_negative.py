@@ -79,7 +79,7 @@ cases = [
     ], "FAIL: full presentation capacity refuses the ninth send without replacing an obligation or draft"),
 
     ("frame-pauses-worker", "component_demand", [
-        ("app/Screen.lean", "  stepCore evs\n", "  (← get).raster.pause true\n  try stepCore evs finally (← get).raster.pause false\n"),
+        ("app/Screen.lean", "  try stepCore evs\n", "  try\n    (← get).raster.pause true\n    try stepCore evs finally (← get).raster.pause false\n"),
     ], "FAIL: actual App.step permits retained raster progress during frame assembly"),
     ("replace-first-paint", "component_demand", [
         ("app/community/channel/message/attachment/Screen.lean", "(first || old.version == version)", "old.version == version"),

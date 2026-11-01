@@ -69,7 +69,7 @@ gate() {
       bash -c "$cmd" ;;
     runtime) mise run test:engine-runtime ;;
     mdns|qr|net) mise run "test:$1" ;;
-    app) mise run test:app && mise run windows:input ;;
+    app) mise run test:app && mise run windows:input && mise run test:owned-input ;;
     app:1|app:2) APP_TEST_ONLY="${app_group[$1]}" tests/app/run.sh ;;
     app:3) APP_TEST_ONLY="${app_group[$1]}" tests/app/run.sh && mise run windows:input ;;
     visual) mise run visual:compare && mise run visual:hover && mise run visual:composer ;;
@@ -84,6 +84,8 @@ gate() {
     windows-ui|release-windows) mise run windows:e2e ;;
     macos-ui|release-macos) mise run macos:e2e ;;
     android-ui) mise run android:twin-demo-e2e && mise run android:lifecycle-e2e ;;
+    owned-input) mise run test:owned-input ;;
+    android-owned-input) mise run android:owned-input-e2e ;;
     android-lifecycle) mise run android:lifecycle-e2e ;;
     zoom) mise run test:zoom ;;
     android-zoom) mise run android:zoom ;;

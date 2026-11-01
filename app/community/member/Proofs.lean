@@ -77,6 +77,34 @@ theorem admin_removal_stands {x c ra au ta : Id} {o : Op} {s : ByteArray}
 open Engine
 variable {C : Crypto}
 
+/-- **Mutual removal.** Two admins who remove each other, concurrently
+or not, are both removed: neither removal invalidates the other. Each
+removal is Valid from its own op alone (`admin_removal_stands`): signed
+by an admitted device of its author, citing the author's admin fact and
+the target's admission. Nothing in either's premises mentions the other
+removal, so both stand together in one set of ops. -/
+theorem mutual_removal {x y c : Id} {ox oy : Op} {sx sy : ByteArray}
+    {rx ax tx ry ay ty : Id} {d0 e0 du eu dv ev du' eu' dv' ev' : Key} {u v : Id}
+    {gu gv : Fact}
+    (hc : V C ops c (.admission c c d0 e0))
+    -- x: u removes v
+    (hx : ops x = some ox) (hbx : (decode ox.body : Option Body) = some (.remove sx))
+    (hkx : ox.kind = Body.tag (.remove sx)) (hrx : ox.reqs = [c, rx, ax, tx])
+    (hu : V C ops rx (.admission c u du eu)) (hgu : V C ops ax gu) (hau : isAdmin c u gu = true)
+    (hvt : V C ops tx (.admission c v dv' ev'))
+    (hsx : C.verify du (signed ox (.remove sx)) sx = true)
+    -- y: v removes u
+    (hy : ops y = some oy) (hby : (decode oy.body : Option Body) = some (.remove sy))
+    (hky : oy.kind = Body.tag (.remove sy)) (hry : oy.reqs = [c, ry, ay, ty])
+    (hv : V C ops ry (.admission c v dv ev)) (hgv : V C ops ay gv) (hav : isAdmin c v gv = true)
+    (hut : V C ops ty (.admission c u du' eu'))
+    (hsy : C.verify dv (signed oy (.remove sy)) sy = true) :
+    V C ops x (.removal c v u) ∧ V C ops y (.removal c u v) ∧
+      Removed C ops c u ∧ Removed C ops c v :=
+  have h1 := admin_removal_stands hx hbx hkx hrx hc hu hgu hau hvt hsx
+  have h2 := admin_removal_stands hy hby hky hry hc hv hgv hav hut hsy
+  ⟨h1, h2, ⟨y, v, h2⟩, ⟨x, u, h1⟩⟩
+
 /-- **Only a device's own consent cuts it (`cut_consented`).** A cut
 device signed the root or request that admitted it into the removed
 user: nobody else can tie it to a user, so nobody else can cut it. -/

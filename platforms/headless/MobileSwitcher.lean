@@ -37,6 +37,17 @@ private def suite : IO Unit := do
         check "linked devices below the fold is hit-testable" (long.hit (px 80) y == .stub "Linked devices")
         let (_, after) ← (App.onTap .list (px 80) (long.bmp.h - 1 - y) false).run s
         check "actual bottom-anchored input reaches linked devices" (after.page == .stub && after.labelText == "Linked devices")
+        -- Switcher → gear → back draws the switcher over the backdrop it
+        -- opened with. 566e566 emptied it on the gear; NavLaws.back_open
+        -- caught that (docs/CAUGHT.md).
+        let backdrop := #[ByteArray.mk #[1, 2, 3, 4], ByteArray.mk #[5, 6]]
+        let sb := { s with switcherBackdrop := backdrop }
+        check "settings target on the long sheet" (long.hit (pw - px 28) (px 37) == .communitySettings)
+        let (_, gear) ← (App.onTap .list (pw - px 28) (long.bmp.h - 1 - px 37) false).run sb
+        check "gear opens community settings" (gear.page == .communitySettings)
+        let (_, back) ← (App.onTap .header (px 20) (px 20) false).run gear
+        check "back from settings returns to the switcher with its backdrop"
+          (back.page == .switcher && back.switcherBackdrop.map (·.data) == backdrop.map (·.data))
         let (_, closed) ← (App.onTap .header (w - 1) (px 20) false).run s
         check "outside header dismisses actual page" (closed.page != .switcher)
         let bar := Pages.switcherBar base.font dm w (px 24)

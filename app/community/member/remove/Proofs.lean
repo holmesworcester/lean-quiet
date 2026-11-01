@@ -23,13 +23,6 @@ end
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
-/-- **Mutual removal.** Two admins who remove each other, concurrently
-or not, are both removed: neither removal invalidates the other. -/
-theorem mutual_removal {x y c : Id} {u v : Id}
-    (hx : V C ops x (.removal c v u)) (hy : V C ops y (.removal c u v)) :
-    Removed C ops c u ∧ Removed C ops c v :=
-  ⟨⟨y, v, hy⟩, ⟨x, u, hx⟩⟩
-
 /-- **Removal is permanent.** More ops never restore a removed user:
 redelivery, delay and reordering cannot undo a removal. -/
 theorem removed_stays {ops' : Id → Option Op} (he : Extends ops ops') {c u : Id}

@@ -30,6 +30,11 @@ def emojis (c msg : Id) : m (List String × Array Q) :=
   readSet (react.byMessage.query [c, msg] (desc := false))
     (fun | .react _ _ _ e _ => String.fromUTF8? e | _ => none) #[]
 
+/-- A message's reactions, tallied: the first 500 reaction facts only
+(the rest are dropped, and the list's `inRange` and `total` are not
+read), so a tally can be short. `tally_mem` is about `tally` over any
+list, not about this read. Nothing that runs calls it; the running
+Reader uses `emojis` and `one`, which are not capped. -/
 def read (c msg me : Id) (deps : Array Q) : m (List Row.Tally × Array Q) := do
   let (a, _, deps) ← readList (react.byMessage.query [c, msg] (limit := some 500) (desc := false)) deps
   let xs := a.rows.filterMap fun (_, f) => match f with

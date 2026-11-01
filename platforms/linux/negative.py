@@ -19,14 +19,15 @@ out.mkdir(parents=True, exist_ok=True)
 layout = app / 'engine/renderer/desktop/Layout.lean'
 original = layout.read_text()
 mutations = [
-    ('widths', 'w - 220⟩', 'w - 220 + 1⟩'),
-    ('adjacent', '⟨220, w - 220⟩', '⟨221, w - 220⟩'),
-    ('minimum', '⟨w - 375, 375⟩', '⟨w - 1, 1⟩'),
-    ('monotone', 'if 720 ≤ w then', 'if 720 ≤ w && w < 2000 then'),
+    # The laws are about zoomLayout, the tracks the Driver paints.
+    ('widths', 'w - px 220⟩', 'w - px 220 + 1⟩'),
+    ('adjacent', '⟨px 220, w - px 220⟩', '⟨px 221, w - px 220⟩'),
+    ('minimum', '⟨w - px 375, px 375⟩', '⟨w - 1, 1⟩'),
+    ('monotone', 'if px 720 ≤ w then', 'if px 720 ≤ w && w < 2000 then'),
     ('controls_fit', 'xs.filter fun c => decide (Fits g h c.pane c.box minimum)', 'xs.filter fun _ => true'),
     ('controls_screen', 'b.x + b.w ≤ (g.track p).x + (g.track p).w ∧', 'b.x + b.w ≤ (g.track p).x + (g.track p).w + 1 ∧'),
     ('hit_drawn', 'xs.find? fun c => c.box.has x y', '(xs.map fun c => { c with label := c.label ++ "!" }).find? fun c => c.box.has x y'),
-    ('witness', 'decide (Fits g h c.pane c.box minimum)', 'decide (Fits g h c.pane c.box minimum) && g.width != 720'),
+    ('witness', 'decide (Fits g h c.pane c.box minimum)', 'decide (Fits g h c.pane c.box minimum) && g.width != 1080'),
 ]
 
 

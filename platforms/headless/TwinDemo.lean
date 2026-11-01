@@ -148,6 +148,7 @@ partial def loop (s : St) (lastB : Nat) : IO Unit := do
   for e in result.events do
     match e with
     | .close => return
+    | .surface true => discard <| Platform.editor 4 0 0 ""
     | .tap .list _ y => if let some k := s.bandAt y.toNat then s := s.toggle k
     | .tap .composer _ _ => Platform.ime true
     | .tap .header _ _ => Platform.ime false
@@ -173,6 +174,8 @@ end Demo
 
 open Demo in
 def main : IO Unit := do
+  -- This seam component has no App/editor ownership; its legacy test input is explicit.
+  discard <| Platform.editor 4 0 0 ""
   let scr ← Platform.screen
   let w := (scr[0]?.getD 1080).toNat
   let h := (scr[1]?.getD 2400).toNat

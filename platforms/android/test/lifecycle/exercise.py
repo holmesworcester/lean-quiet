@@ -100,6 +100,19 @@ def main():
         ok('native state changes before recreation',ctl('send seed').startswith('ok bands=301'))
         dimensions=run('shell','wm','size')
         width,height=map(int,re.findall(r'(\d+)x(\d+)',dimensions)[-1])
+        startup_ime=run('shell','dumpsys','input_method')
+        (out/'cold-start-ime.txt').write_text(startup_ime)
+        deadline=time.monotonic()+1.2
+        hidden=True
+        while time.monotonic()<deadline:
+            if field('ime')!=0: hidden=False; break
+            time.sleep(.02)
+        ok('cold launch keeps IME hidden until an explicit composer tap',
+           hidden and 'STATE_HIDDEN|ADJUST_RESIZE' in startup_ime)
+        run('shell','input','touchscreen','tap',str(width//3),str(height-63-70))
+        ok('first composer tap after cold launch opens the IME within 1.2s',until(1.2,lambda: field('ime')>300))
+        run('shell','input','keyevent','BACK')
+        ok('Back closes the cold-launch IME within 1.2s',until(1.2,lambda: field('ime')==0))
         for index in range(1,4):
             old_generation=int(phase()[1])
             command('recreate'+str(index))

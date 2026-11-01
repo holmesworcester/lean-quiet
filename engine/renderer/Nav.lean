@@ -15,8 +15,8 @@ shown one (Waiting in place of a conversation).
 - `back_reset`: after a reset, back stays on the new root: a switch never
   backs into the community before it.
 - `depth`: with no page twice, the pages under the shown one are fewer
-  than the kinds of page there are, so back reaches the root within that
-  many steps.
+  than the kinds of page there are, and that many backs reach the root
+  (`backs_stack`: each back pops one).
 
 Every law holds for any type of page; the app's is App.PageId.
 -/
@@ -139,10 +139,26 @@ theorem swap_inv (p : P) (n : Nav P) (h : Inv n) : Inv (swap p n) := by
   · next hs => exact List.nodup_cons.2 ⟨hs, (List.nodup_cons.1 h).2⟩
 
 omit [DecidableEq P] in
+/-- Back pops the stack's top page. -/
+theorem back_stack (n : Nav P) : (back n).stack = n.stack.tail := by
+  unfold back; split <;> simp_all
+
+omit [DecidableEq P] in
+/-- k backs pop the stack's top k pages. -/
+theorem backs_stack (k : Nat) (n : Nav P) : (Nat.repeat back k n).stack = n.stack.drop k := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    show (back (Nat.repeat back k n)).stack = _
+    rw [back_stack, ih, List.tail_drop]
+
+omit [DecidableEq P] in
 /-- **Back reaches the root.** With no page twice, the pages under the
-shown one are fewer than the `all` pages there are. -/
+shown one are fewer than the `all` pages there are, and that many backs
+leave nothing under the shown page. -/
 theorem depth (all : List P) (hall : ∀ p, p ∈ all) (n : Nav P) (h : Inv n) :
-    n.stack.length < all.length := by
+    n.stack.length < all.length ∧ (Nat.repeat back n.stack.length n).stack = [] := by
+  refine ⟨?_, by rw [backs_stack]; simp⟩
   have := List.Nodup.length_le_of_subset h (fun x _ => hall x)
   simp at this
   omega

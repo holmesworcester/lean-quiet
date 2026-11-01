@@ -16,7 +16,8 @@ cases = [
     ("leave-late-boot", "app/Screen.lean", "if let .ok r ← IO.wait t then r.stop", "discard <| IO.wait t", "a runner born after timeout is stopped", False),
     ("read-after-revoke", "app/Screen.lean", "  if !(← s.enabled) then return default\n", "", "revoked reader issues no query", False),
     ("publish-after-revoke", "app/Screen.lean", "      unless (← enabled) && (← sh.current ticket) do", "      unless (← sh.current ticket) do", "revoked pass cannot publish", False),
-    ("offer-while-stopping", "app/Screen.lean", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome then", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome then", "foreground writes also park", False),
+    # Both retained lifecycle owners protect this case; bypass the complete unsafe-offer guard.
+    ("offer-while-stopping", "app/Screen.lean", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome || s.netStop.isSome || s.netReplay.isSome then", "if !s.active || !s.surface || s.net.isSome || s.netBoot.isSome then", "foreground writes also park", False),
     ("join-unfinished-stop", "app/Screen.lean", "if let some t := s.netStop then\n    if ← IO.hasFinished t then", "if let some t := s.netStop then\n    if true then", "suspend returns within its deadline", False),
     ("drop-reader", "app/Screen.lean", "readerStop := s.reader.orElse fun _ => s.readerStop", "readerStop := none", "timed-out work remains owned", False),
     ("drop-completed-act", "app/Screen.lean", "  parkDone s.sh\n", "", "suspend parks and checkpoints a completed reader act", False),
@@ -25,10 +26,11 @@ cases = [
     ("missing-exemption", "tests/wiring.txt", "bounded App.suspend One shared 250ms deadline via waitFor; unfinished teardown remains owned, and resume only polls it.\n", "", "block: the frame waits on App.waitFor", True),
     ("broad-exemption", "tests/wiring.txt", "bounded App.suspend One shared", "bounded App.resumeReader invalid exemption\nbounded App.suspend One shared", "bounded: only the reached App.suspend", True),
     ("blocking-resume", "app/Screen.lean", "def resumeReader : M Unit := do\n", "def resumeReader : M Unit := do\n  discard <| IO.wait (Task.pure ())\n", "block: the frame waits on IO.wait", True),
+    ("synchronous-replay", "app/Screen.lean", "    let replay ← IO.asTask (prio := .dedicated)\n      (replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites)\n", "    replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites\n    let replay ← IO.asTask (prio := .dedicated) (pure ())\n", "bounded: App.suspend reaches unbounded IO.wait", True),
     ("unbounded-suspend", "app/Screen.lean", "def suspend (budget : Nat := 250) : M Unit := do\n", "def suspend (budget : Nat := 250) : M Unit := do\n  discard <| IO.wait (Task.pure ())\n", "bounded: App.suspend reaches unbounded IO.wait", True),
     ("commit-on-frame", "app/Screen.lean", "  s.wr.save (Codec.encode cp)\n", "  Lifecycle.save (← openDb s.dbPath) (Codec.encode cp)\n", "a frame during a purge's checkpoint returns at once", False),
     ("commit-on-frame-wiring", "app/Screen.lean", "  s.wr.save (Codec.encode cp)\n", "  Lifecycle.save (← openDb s.dbPath) (Codec.encode cp)\n", "block: the frame waits on Lifecycle.save", True),
-    ("checkpoint-failure-loses-job", "app/Commands.lean", "    w.commitSave db save\n", "    pure ()\n", "a failed checkpoint keeps its following job pending", False),
+    ("checkpoint-failure-loses-job", "app/Commands.lean", "      w.jobs.modify (·.push j)\n", "      w.busy.modify (· - 1)\n", "a failed checkpoint keeps its following job pending", False),
 ]
 
 def run(cmd, path):

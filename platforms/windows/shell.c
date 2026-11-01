@@ -249,3 +249,5 @@ lean_obj_res lq_appearance(uint8_t dark,uint32_t bg) { (void)dark;(void)bg;retur
 lean_obj_res lq_bars(uint32_t t,uint32_t b,uint8_t lt,uint8_t lb) { (void)t;(void)b;(void)lt;(void)lb;return unit(); }
 lean_obj_res lq_desktop_native_scroll(void) { return lean_io_result_mk_ok(lean_box(0)); }
 lean_obj_res lq_desktop_layers(b_lean_obj_arg l,b_lean_obj_arg h,b_lean_obj_arg p,b_lean_obj_arg v) { (void)l;(void)h;(void)p;(void)v;return unit(); }
+
+#include "../native/editor_legacy.h"

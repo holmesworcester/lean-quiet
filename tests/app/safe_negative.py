@@ -84,7 +84,16 @@ try:
             path.write_text(original.replace(before, after))
             assert run(["lake", "build", "safe"], name + "-build").returncode == 0
             result = run([".lake/build/bin/safe", str(OUT / name), "--no-renders"], name)
-            assert result.returncode != 0 and "FAIL" in result.stdout, (name, "mutation survived")
+            if name == "modal-send":
+                assert result.returncode == 1, (name, "must fail completed assertions")
+                assert "ok uncovered keyboard Send commits readable bytes" in result.stdout
+                failures = [line for line in result.stdout.splitlines() if line.startswith("FAIL ")]
+                assert failures == [
+                    "FAIL surface blocks keyboard Send to lower layer",
+                    "FAIL surface blocks keyboard Send admission",
+                ], (name, failures)
+            else:
+                assert result.returncode != 0 and "FAIL" in result.stdout, (name, "mutation survived")
             print("rejected", name, flush=True)
         finally:
             path.write_text(original)
@@ -103,4 +112,6 @@ try:
 finally:
     assert run(["lake", "build", "safe"], "restored").returncode == 0
     assert run(["tests/app/bar_state.sh"], "bars-restored").returncode == 0
+    restored = run([".lake/build/bin/safe", str(OUT / "restored"), "--no-renders"], "restored-suite")
+    assert restored.returncode == 0 and " checks, 0 failures; renders in " in restored.stdout
 print(f"{len(cases) + 8} mutations rejected; sources and build restored")

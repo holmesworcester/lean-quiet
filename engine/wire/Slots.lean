@@ -34,8 +34,8 @@ structure RunConfig where
   the lease is released only after the original SDK callback completes.
   Unsupported targets retain the old wait without a cancellation claim. -/
   stallMs : Nat := 30000
-  /-- How long `Runner.stop` waits for writers to end their write under
-  way. -/
+  /-- Initial loop-shutdown grace for writes already under way. Runner.stop
+  also awaits its owned native cleanup task; this is not a native deadline. -/
   stopMs : Nat := 1000
 
 /-- A peer's quota is its host, the port dropped from the address text

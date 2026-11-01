@@ -1,6 +1,7 @@
 import tests.engine.Checks
 import tests.vacuity.Session
 import tests.vacuity.Merkle
+import app.community.Proofs
 
 namespace Vacuity.Contracts
 open Engine Connection.Noise
@@ -102,4 +103,54 @@ def main : IO UInt32 := do
     t.ok "empty and nonempty supported payloads roundtrip"
       (suite.dec key 18446744073709551615 ad (suite.enc key 18446744073709551615 ad p) == some p)
   return ← t.finish "Noise contract domain and native boundary checks"
+/-! ## Unforgeability, scoped to a store
+
+A toy scheme with a valid signature for every message under every key
+(the signature is the key itself): forgeries exist, as they do for
+Ed25519, and only a store can be free of them. `Community.Unforgeable`
+holds of a store holding one signed op, with `Signed` true of that op's
+signed bytes only; the unscoped form fails for the same `Signed`. -/
+
+def toyCrypto : Community.Crypto := { verify := fun pk _ s => decide (s = pk), pub := id }
+def toyKey : ByteArray := ⟨#[7]⟩
+def toyOp : Op := Community.mkOp [] (.grant toyKey)
+def toyStore (x : Id) : Option Op := if x = toyOp.id then some toyOp else none
+def toyMsg : ByteArray := Community.signed toyOp (.grant toyKey)
+def ToySigned (pk m : ByteArray) : Prop := pk = toyKey ∧ m = toyMsg
+
+theorem unforgeableScoped :
+    Community.Unforgeable toyCrypto toyStore ToySigned ∧
+    (∀ pk m, ∃ s, toyCrypto.verify pk m s = true) ∧
+    ¬ ToySigned toyKey (toyMsg ++ ⟨#[0]⟩) ∧
+    ¬ (∀ pk m s, toyCrypto.verify pk m s = true → ToySigned pk m) := by
+  refine ⟨?_, fun pk _ => ⟨pk, by simp [toyCrypto]⟩, ?_, ?_⟩
+  · intro x o b pk s hx hb hs hv
+    unfold toyStore at hx
+    split at hx
+    · cases hx
+      have hb' : (Codec.decode toyOp.body : Option Community.Body) = some (.grant toyKey) :=
+        Codec.decode_encode _
+      rw [hb'] at hb
+      cases hb
+      simp only [Community.Body.sigs, List.mem_singleton] at hs
+      subst hs
+      simp only [toyCrypto, decide_eq_true_eq] at hv
+      exact ⟨hv.symm, rfl⟩
+    · cases hx
+  · rintro ⟨_, h⟩
+    have := congrArg ByteArray.size h
+    simp [ByteArray.size_append] at this
+    exact absurd (congrArg ByteArray.size this) (by decide)
+  · intro h
+    have := congrArg ByteArray.size (h toyKey (toyMsg ++ ⟨#[0]⟩) toyKey (by simp [toyCrypto])).2
+    simp [ByteArray.size_append] at this
+    exact absurd (congrArg ByteArray.size this) (by decide)
+
+/-- The unscoped form under the same scheme forces `Signed` everywhere on
+the key: why `Unforgeable` ranges over a store. -/
+theorem unscopedForces (Signed : ByteArray → ByteArray → Prop)
+    (hU : ∀ pk m s, toyCrypto.verify pk m s = true → Signed pk m) (m : ByteArray) :
+    Signed toyKey m :=
+  Community.unscoped_signs_all (C := toyCrypto) hU (fun _ => ⟨toyKey, by simp [toyCrypto]⟩) m
+
 end Vacuity.Contracts

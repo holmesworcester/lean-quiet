@@ -59,6 +59,10 @@ instance {F} : Store F (HeldM F) where
   pop := lift (Store.pop (F := F))
   index k x := lift (Store.index (F := F) k x)
   lookup k := lift (Store.lookup (F := F) k)
+  dependents x := lift (Store.dependents (F := F) x)
+  undecide x := lift (Store.undecide (F := F) x)
+  deleteOp x := lift (Store.deleteOp (F := F) x)
+  countOps := lift (Store.countOps (F := F))
 
 instance {F} [SortKey F] : Lists F (HeldM F) where
   list q := lift (Lists.list q)

@@ -231,20 +231,35 @@ def quotaBeforeReap (t : Checks) : IO Unit := do
       if let some cap := cap then discard <| cap.abort
     return
   let reaped ← RunState.reap x ch (fun _ => pure ()) cfg still 3
-  t.ok "actual reap retires the completed writer's fixed source"
+  t.ok "actual reap preserves the completed writer's fixed source and admitted frame"
+    (reaped.socks.length == 1 && reaped.socks.any (·.closeAfterFrame) &&
+      (← livePeers hub) == 1 && !(← source.closed.get) &&
+      (← hub.offer source (.frame sid "later frame".toUTF8)) == .closed)
+  let premature ← hub.reserve
+  t.ok "a frozen source cannot be reused before its retained frame is handled" premature.isNone
+  if let some unexpected := premature then hub.retire unexpected
+  let selected ← hub.poll (pure none)
+  t.ok "the actual selector consumes the originally admitted native frame"
+    (selected.any fun ev => match ev with
+      | .frame id bytes => id == sid && bytes == junk
+      | _ => false)
+  let reaped ← match selected with
+    | some ev => (fun next => next.getD reaped) <$> reaped.handle x ch (fun _ => pure ()) cfg ev 4
+    | none => pure reaped
+  t.ok "actual retained-frame handling retires the completed writer's fixed source"
     (reaped.socks.isEmpty && (← livePeers hub) == 0 && (← source.closed.get))
   let (third, thirdPeer) ← SocketAbortTest.pair
   let thirdCap ← SocketAbort.capture thirdPeer
   let address3 := "quota-third".toUTF8
   discard <| slots.take cfg address3
-  let (again, accepted) ← RunState.addSock ch cfg reaped third address3 4
+  let (again, accepted) ← RunState.addSock ch cfg reaped third address3 5
   let replacement := accepted.bind fun id => (again.sockOf (·.id == id)).bind (·.input)
   t.ok "retired fixed position is reusable by a subsequent real TCP socket"
     (accepted.isSome && replacement.any (·.index == source.index) && again.socks.length == 1)
   t.ok "an old producer cannot overwrite the actual replacement's mailbox"
     ((← hub.offer source (.frame sid junk)) == .closed)
   let writes ← Std.CloseableChannel.Sync.new (some 1)
-  discard <| RunState.shutdown x ch cfg writes again 5
+  discard <| RunState.shutdown x ch cfg writes again 6
   for cap in [peerCap, secondCap, thirdCap] do
     if let some cap := cap then discard <| cap.abort
 
@@ -300,6 +315,7 @@ def readerCancellation (t : Checks) (global : Bool) : IO Unit := do
         modify fun r => { r with
           closed := false
           live := r.live.set source.index true
+          accepting := r.accepting.set source.index true
           state := { r.state with slots := Vector.replicate (hub.peers + 1) none } }
     discard <| waitFor 1000 do
       discard <| hub.poll (pure none)

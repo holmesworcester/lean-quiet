@@ -20,16 +20,23 @@ with tempfile.TemporaryDirectory(prefix="quiet-ci-driver-", dir=os.environ.get("
                     '[ "$*" != "run $DISPATCH_FAIL" ]\n')
     mise.chmod(0o755)
     cases = [
-        ("both", "", ["run android:photo-e2e", "run android:photo-lifecycle-e2e"], 0),
-        ("picker-fails", "android:photo-e2e", ["run android:photo-e2e"], 1),
-        ("lifetime-fails", "android:photo-lifecycle-e2e",
+        ("both", "android-photo", "", ["run android:photo-e2e", "run android:photo-lifecycle-e2e"], 0),
+        ("picker-fails", "android-photo", "android:photo-e2e", ["run android:photo-e2e"], 1),
+        ("lifetime-fails", "android-photo", "android:photo-lifecycle-e2e",
          ["run android:photo-e2e", "run android:photo-lifecycle-e2e"], 1),
+        ("owned-direct", "owned-input", "", ["run test:owned-input"], 0),
+        ("owned-fails", "owned-input", "test:owned-input", ["run test:owned-input"], 1),
+        ("owned-android", "android-owned-input", "", ["run android:owned-input-e2e"], 0),
+        ("app-with-owned", "app", "", ["run test:app", "run windows:input", "run test:owned-input"], 0),
+        ("app-fails", "app", "test:app", ["run test:app"], 1),
+        ("windows-fails", "app", "windows:input", ["run test:app", "run windows:input"], 1),
+        ("app-owned-fails", "app", "test:owned-input", ["run test:app", "run windows:input", "run test:owned-input"], 1),
     ]
-    for name, fail, expected, code in cases:
+    for name, part, fail, expected, code in cases:
         calls = work / (name + ".calls")
         env = dict(os.environ, PATH=str(work / "bin") + os.pathsep + os.environ["PATH"],
                    DISPATCH_CALLS=str(calls), DISPATCH_FAIL=fail)
-        result = subprocess.run(["bash", "ci/local.sh", "android-photo"], cwd=work,
+        result = subprocess.run(["bash", "ci/local.sh", part], cwd=work,
                                 env=env, capture_output=True, text=True, timeout=30)
         actual = calls.read_text().splitlines() if calls.exists() else []
         (LOGS / (name + ".log")).write_text(result.stdout + result.stderr + repr(actual) + "\n")

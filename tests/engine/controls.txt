@@ -12,12 +12,22 @@ claim-tree	mise run test:claim-tree
 fairness	mise run test:fairness
 catalog-retry	mise run test:catalog-retry
 reserved-retry	mise run test:reserved-retry
+retry-admission	mise run test:retry-admission
+node-uniqueness	mise run test:node-uniqueness
 ingress	mise run test:ingress
 native-lifetimes	mise run test:native-lifetimes
 ref-publications	mise run test:ref-publications
 reader-prune	mise run test:reader-prune
+reader-claim	mise run test:reader-claim
 writer-fairness	mise run test:writer-fairness
+writer-checkpoint	mise run test:writer-checkpoint
+writer-job-retry	mise run test:writer-job-retry
+app-runner-failure	mise run test:app-runner-failure
+app-suspend-journal	mise run test:app-suspend-journal
+app-boot-admission	mise run test:app-boot-admission
 expiry-grace	mise run test:expiry-grace
+close-ingress	mise run test:close-ingress
+runner-ownership	mise run test:runner-ownership
 demand-rank	mise run test:demand-rank
 restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine

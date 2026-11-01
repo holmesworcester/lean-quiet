@@ -13,6 +13,8 @@ structure Source where
 structure Registry (α : Type) (n : Nat) where
   state : State α n := {}
   live : Vector Bool (n + 1) := Vector.replicate (n + 1) false
+  /-- Admission can stop while the last admitted value retains its source. -/
+  accepting : Vector Bool (n + 1) := Vector.replicate (n + 1) false
   closed : Bool := false
 
 structure Hub (α : Type) where
@@ -25,9 +27,22 @@ inductive Offered where
   | closed
   deriving BEq, Repr
 
+/-- Freeze admission without freeing ownership or discarding owed input. -/
+def Registry.freeze {α : Type} {n : Nat} (r : Registry α n) (source : Fin (n+1)) :
+    Option α × Registry α n :=
+  (r.state.slots[source], { r with accepting := r.accepting.set source.val false })
+
+/-- The actual offer gate also refuses a frozen, still-owned source. -/
+def Registry.offer {α : Type} {n : Nat} (r : Registry α n) (source : Fin (n+1))
+    (value : α) : Offered × Registry α n :=
+  if r.closed || !r.live[source] || !r.accepting[source] then (.closed, r) else
+    let (accepted, state) := r.state.offer source value
+    (if accepted then .accepted else .full, { r with state })
+
 def Hub.new {α : Type} (peers : Nat) : IO (Hub α × Source) := do
   let registry ← Std.Mutex.new (α := Registry α peers)
-    { live := (Vector.replicate (peers + 1) false).set 0 true }
+    { live := (Vector.replicate (peers + 1) false).set 0 true,
+      accepting := (Vector.replicate (peers + 1) false).set 0 true }
   let closed ← IO.mkRef false
   return (⟨peers, registry⟩, ⟨0, closed⟩)
 
@@ -41,7 +56,7 @@ def Hub.reserve {α : Type} (hub : Hub α) : IO (Option Source) :=
       if h : i < hub.peers + 1 then
         unless r.live[i] do
           let closed ← IO.mkRef false
-          set { r with live := r.live.set i true }
+          set { r with live := r.live.set i true, accepting := r.accepting.set i true }
           return some ⟨i, closed⟩
     return none
 
@@ -52,11 +67,24 @@ def Hub.offer {α : Type} (hub : Hub α) (source : Source) (value : α) : IO Off
     let r ← getThe (Registry α hub.peers)
     if r.closed || (← source.closed.get) then return .closed
     if h : source.index < hub.peers + 1 then
-      unless r.live[source.index] do return .closed
-      let (accepted, state) := r.state.offer ⟨source.index, h⟩ value
-      set { r with state }
-      return if accepted then .accepted else .full
+      let (result, next) := r.offer ⟨source.index, h⟩ value
+      set next
+      return result
     return .closed
+
+/-- Stop all future producer admissions atomically with capturing the one
+owed value. The incarnation remains live until ordinary retirement, so a
+new socket cannot reuse this fixed source while its frame is retained. -/
+def Hub.freeze {α : Type} (hub : Hub α) (source : Source) : IO (Option α) :=
+  hub.registry.atomically do
+    let r ← getThe (Registry α hub.peers)
+    if r.closed || (← source.closed.get) then return none
+    if h : source.index < hub.peers + 1 then
+      unless r.live[source.index] do return none
+      let (pending, next) := r.freeze ⟨source.index, h⟩
+      set next
+      return pending
+    return none
 
 def Hub.retire {α : Type} (hub : Hub α) (source : Source) : IO Unit :=
   hub.registry.atomically do
@@ -66,6 +94,7 @@ def Hub.retire {α : Type} (hub : Hub α) (source : Source) : IO Unit :=
     if h : source.index < hub.peers + 1 then
       set { r with
         live := r.live.set source.index false
+        accepting := r.accepting.set source.index false
         state := r.state.cancel ⟨source.index, h⟩ }
 
 def Hub.stop {α : Type} (hub : Hub α) : IO Unit :=

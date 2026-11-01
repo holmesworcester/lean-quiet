@@ -22,10 +22,20 @@ What each door costs SQLite (engine/core/Sqlite.lean, Query.lean):
 | clearWaiters | delete a primary-key range | 1 | 0 (its rows were read by waiters) |
 | pop | the queue's first row, deleted | 2 | 0 |
 | list | `listSql`: counters, rows and verdicts, and `countCost` for the actual range plan | 2 + count seeks + also + rows | rows + count rows, plus conjunction work |
+| dependents | primary-key range of `reqs` | 1 | the list's length |
+| undecide | delete its verdict, filings and queue entries | 3 | 0 |
+| deleteOp | read its bytes; delete it and its waits both ways | 4 | 0 |
+| countOps | `count(*)` over `ops` | 1 | the count |
 
 A list with `also` is charged its total for the conjunct walk; SQLite
 walks the smallest conjunct, which can be longer, so no law may rest on
 that row of the table (no list the app or the node reads has `also`).
+
+The purge's doors (`Engine.Purge`) are charged less than SQLite does:
+`deleteOp` also deletes one `reqs` row per requirement, which this
+meter cannot see (the door returns nothing); `undecide` walks the
+queue (no index on its ids) and steps each filing's counter. No law
+rests on those rows of the table.
 -/
 import engine.core.Cost
 import engine.core.Held
@@ -76,10 +86,25 @@ instance [Store F m] : Store F (CostT m) where
   pop := charged { reads := 1, writes := 1, seeks := 2 } (Store.pop (F := F))
   index k x := charged { writes := 1, seeks := 2 } (Store.index (F := F) k x)
   lookup k := chargedBy (fun xs => { reads := 1, seeks := 1, rows := xs.length }) (Store.lookup (F := F) k)
+  dependents x := chargedBy (fun xs => { reads := 1, seeks := 1, rows := xs.length }) (Store.dependents (F := F) x)
+  undecide x := charged { writes := 3, seeks := 3 } (Store.undecide (F := F) x)
+  deleteOp x := charged { reads := 1, writes := 3, seeks := 4 } (Store.deleteOp (F := F) x)
+  countOps := chargedBy (fun n => { reads := 1, seeks := 1, rows := n }) (Store.countOps (F := F))
 
 instance [Lists F m] : Lists F (CostT m) where
   list q := chargedBy (listCost q) (Lists.list q)
 
+/-- A write turn, counted short: `turn` is charged one write per op
+given and `purge` one per id, with no reads, seeks or rows. That is an
+undercount. On SQLite `turn` is `receive`: each op's `ingest` (getOp,
+then putOp and push) and a `drain` (pop, getOp, a getStatus per
+requirement, setStatus, an index per key, waiters, clearWaiters, push or
+addWait), every one a door the table above charges more; `purge` is
+`purgeSql` and a `receive` of nothing. No `Within` or `Costs` law is
+stated over code that calls `Turn.turn` or `Turn.purge` in `CostT`: no
+audited law names this instance (tests/Axioms.lean fails if one does).
+A budget over a turn must run `ingest` and `drain` in `CostT`, door by
+door, rather than rest on this charge. -/
 instance [Sync.Turn F m] : Sync.Turn F (CostT m) where
   turn fam ops := charged { writes := ops.length } (Sync.Turn.turn fam ops)
   purge fam ids scrub := charged { writes := ids.length } (Sync.Turn.purge fam ids scrub)

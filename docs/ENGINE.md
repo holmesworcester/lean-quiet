@@ -138,10 +138,16 @@ purged.
   rest hold with purges anywhere; `purge_settles`: after a purge,
   draining with the budget empties the queue, and every verdict is the
   spec's over the remaining ops.
+- `run_purge`: these are laws of the purge that runs. The purge is one
+  code over `Store`, `purge` (`Core.lean`), as `drain` is: it walks
+  from `ids` through each op's dependents, un-decides what it found,
+  deletes the conn and local ops and queues the shared ones. Run on the
+  model's tables it is `purgeS`, and it returns `purgeSet`.
 
-On SQLite, `purgeSql` finds dependents through a `reqs` table (each
-op's requirements), deletes and re-judges in one transaction, then runs
-`VACUUM` and a TRUNCATE checkpoint of the WAL. `secure_delete` is on
+On SQLite, `purgeSql` runs `purge` and re-judges in one transaction
+(dependents are read from a `reqs` table of each op's requirements),
+then runs `VACUUM` and a TRUNCATE checkpoint of the WAL (`scrubSql`),
+which change no row. `secure_delete` is on
 for every connection, but alone it leaves copies of moved cells in the
 gaps of pages a b-tree split rebuilt, which `VACUUM` removes. `purge`
 (`tests/engine/Purge.lean`) runs random purges on SQLite against the model,
@@ -226,9 +232,11 @@ user's `removal.byUser`.
   checks the disk holds whole batches.
 - Signatures are unforgeable (`Unforgeable`, a hypothesis where used).
   Ed25519 is libsodium's at runtime.
-- SQLite's purge is the model's (`differential` for purge in `purge`),
-  and it leaves no byte of a purged op in the database's files: tested
-  by reading them raw, not proven. The filesystem below is out of
+- SQLite's purge store reads and deletes (`dependents`, `undecide`,
+  `deleteOp`) answer as the model's (`differential` for purge in
+  `purge`, which also checks that `VACUUM` and the checkpoint change no
+  row), and a purge leaves no byte of a purged op in the database's
+  files: tested by reading them raw, not proven. The filesystem below is out of
   scope: blocks a file gave up, and an SSD's remapped ones, may still
   hold old bytes.
 - SHA-256 has no collision on the ops a node holds (`CollisionFree`,

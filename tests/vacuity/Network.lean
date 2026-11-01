@@ -31,7 +31,8 @@ theorem filedWitness : ∃ ids,
 
 theorem shared : ∃ ids,
     (Msg.hold room ids).op ∈ ((conn.filed fam cfg [msg.id] : HeldM Unit Step) held).1.send ∧
-    msg.id ∈ ids ∧ ∃ o, held.db.ops msg.id = some o ∧ (fam.room o).isSome = true := by
+    msg.id ∈ ids ∧ ∃ o r, held.db.ops msg.id = some o ∧ fam.room o = some r ∧
+      has conn.rooms r = true := by
   obtain ⟨ids, hm, hi⟩ := filedWitness
   exact ⟨ids, hm, hi, offer_shared fam cfg conn [msg.id] held room msg.id ids
     (List.mem_append_left _ hm) hi⟩
