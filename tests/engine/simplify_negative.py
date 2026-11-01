@@ -32,8 +32,9 @@ cases = [
     ("silent-room", "engine/sync/Conn.lean", "then { conn := c, send := [(Msg.rbsr r k []).op] } else", "then { conn := c } else", "engine.sync.TimeLaws", None),
     ("room-gate", "engine/sync/Conn.lean", "let ready := c.rooms.filter fun r => c.due cfg r now", "let ready := c.rooms.filter fun r => c.active.isEmpty && c.due cfg r now", "simplify", "a stalled room does not gate it"),
     ("no-show-round", "engine/sync/Conn.lean", "  | none => true\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | none => false\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "simplify", "showing a room starts a round"),
-    ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => true", "simplify", "with no event, no round starts before the safety period"),
-    ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => false", "simplify", "the safety round reopens each room"),
+    # each keeps `cfg` in use, so `due` keeps its signature and the mutant compiles
+    ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some t => Decidable.decide (t + cfg.safety ≤ now) || true", "simplify", "with no event, no round starts before the safety period"),
+    ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some t => Decidable.decide (t + cfg.safety ≤ now) && false", "simplify", "the safety round reopens each room"),
     ("responder-silent", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask cfg now", "  let s := if c.dialer then c.start cfg ix now else { conn := c }", "simplify", "the responder asks for a round"),
     ("ask-ignored", "engine/sync/Conn.lean", "      if ids.isEmpty then return { conn := c.onAsk r }", "      if ids.isEmpty then return { conn := c }", "simplify", "a responder's ask opens a round"),
     # main's rounds as shipped (b4d103a): the dialer rounds on its own timer only, the responder never asks.

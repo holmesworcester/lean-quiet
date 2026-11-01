@@ -477,7 +477,7 @@ depends = ["android:phone-apk"]
 run = "python3 tests/app/pixel_scroll.py"
 
 [tasks."test:stateless"]
-description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+description = "Full and windowed syncs on real Nodes/SQLite (a window at depth 1 gets its closure in the round; at depth 0 its reactions stay Missing), peaks and negative controls"
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
