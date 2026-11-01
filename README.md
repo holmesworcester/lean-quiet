@@ -2563,6 +2563,11 @@ worker never runs or storage refuses every new write. Those external progress
 and capacity boundaries must also be explicit; application fairness remains
 an obligation to prove.
 
+UI bounds count **each pipeline stage's completed steps**. Native milliseconds
+and global app-frame counts are reported separately as regression measurements.
+The stage-local commit/read/raster/presentation composition remains open;
+the eight-entry send FIFO alone does not bound every stage's queued work.
+
 | Milestone | Change and reason | Checked boundary |
 |---|---|---|
 | Actual loop relation | TCP now calls the shared `Loop.turn` and `Node.step`, so a proof can use the running selector, dispatch, timer and engine entrypoints. | At the loop-extraction milestone: kernel dispatch/timer laws, eight branch/order checks, TCP baseline 34/0 and ordered hints 22/0, with starvation/hint controls. The updated priority results appear below. Native I/O termination is separate. |
