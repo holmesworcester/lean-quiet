@@ -204,6 +204,14 @@ requests; it opens the same requests page.
 `import` and Python's PIL; the clean room installs those in its
 containers as the test's own tools, not as the judge's.
 
+Measured 2026-11-01 at f9e274f, in the clean room's three containers at
+once (8 CPUs each, the shared box at load about 100): the e2e took 11 to
+18 s. The windows opened in under 2 s; Bob's request reached Alice 0.5
+to 1.0 s after Agree & Join; Bob was in 0.2 to 0.8 s after Approve;
+Alice's message reached Bob 1.9 s after its first keystroke (typed at
+50 ms a key); Bob's 👍 took 0.3 to 0.4 s and his reply 0.6 to 0.7 s.
+On the box, `ci/local.sh make:demo` (the e2e and the control) took 65 s.
+
 ## Checking it again
 
 The measurement above predates the joined repository; its modules are
