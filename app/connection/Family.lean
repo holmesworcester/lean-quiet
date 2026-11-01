@@ -492,8 +492,6 @@ def meV (c : B) : View F (Option B) := do
   let some _ ← ((Community.mine c).liftL : View F _) | return none
   let k ← ((Community.nodeKey).liftL : View F _)
   return k.map (·.1)
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
@@ -512,8 +510,6 @@ def delivers (req : Id) : Option (B × B × List B) → Bool
   | some (_, _, ops) => ops.any fun b => (Op.decode b).any (·.id == req)
   | none => false
 end
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable [fr : Fresh (Model F)]
@@ -591,8 +587,6 @@ noncomputable abbrev community (C : Community.Crypto) (s : DB F) : DB Community.
 /-- No Community relation shares its names with a Connection relation. -/
 theorem rels_apart : ∀ r ∈ Community.rels, ∀ r' ∈ rels, ¬ (r'.kind = r.kind ∧ r'.name = r.name) := by
   decide
-end Connection
-namespace Connection
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 
@@ -620,8 +614,6 @@ theorem view_node (h : Inv (node C K) s) (hq : s.queue = []) {α : Type}
     {v : View Community.Fact α} (hv : v.Reads (RelKey Community.rels)) :
     (v.liftL : View F α).eval s = v.eval (community C s) :=
   (sum_project_node h hq).2.2.2.2 v hv
-end Connection
-namespace Connection
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)

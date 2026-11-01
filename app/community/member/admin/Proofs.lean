@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.member.admin`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -23,8 +20,6 @@ theorem check_admin {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t : Id}
     obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
     exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
   · simp at h
-end Community
-namespace Community
 open Engine Codec
 section
 variable (C : Crypto) (ops : Id → Option Op)
@@ -33,8 +28,6 @@ variable (C : Crypto) (ops : Id → Option Op)
 def IsAdmin (c u : Id) : Prop :=
   (u = c ∧ ∃ x d e, V C ops x (.admission c c d e)) ∨ ∃ x, V C ops x (.admin c u)
 end
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 

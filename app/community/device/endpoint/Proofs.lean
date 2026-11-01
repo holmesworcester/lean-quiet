@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.device.endpoint.Commands
 
-/-!
-`community.device.endpoint`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine
 
@@ -13,8 +10,6 @@ theorem nodeKeyOr_local (C : Crypto) (s : DB Fact) (fresh : ByteArray) :
   unfold nodeKeyOr
   rw [View.eval_bind']
   split <;> simp [View.eval, endpoint, shared_mkOp, Body.isLocal]
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 
@@ -37,8 +32,6 @@ theorem endpoint_derives {ops : Id → Option Op} {x : Id} {pk sk : ByteArray}
     (h : V C ops x (.endpoint pk sk)) : pk = cryptoSeal.pub sk ∧ sk.size = 32 := by
   obtain ⟨o, b, fs, _, _, _, hc⟩ := valid_inv h
   exact check_endpoint hc
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 section

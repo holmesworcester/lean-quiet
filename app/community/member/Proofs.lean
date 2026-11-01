@@ -4,9 +4,6 @@ import app.community.member.invite.request.Proofs
 import app.community.member.invite.request.approve.Proofs
 import app.community.member.remove.Proofs
 
-/-!
-`community.member`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -29,8 +26,6 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
     refine ⟨_, _, _, _, _, _, _, _, rfl, rfl, h1, ?_, h6⟩
     simpa using h5
   · simp at h
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -79,8 +74,6 @@ theorem admin_removal_stands {x c ra au ta : Id} {o : Op} {s : ByteArray}
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, hadm, hs]
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 

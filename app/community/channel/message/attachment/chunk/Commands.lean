@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.channel.message.attachment.chunk`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -22,8 +19,6 @@ def attach (c adm msg : Id) (by_ : Device) (k : ByteArray) (f : NewFile) : Op ×
   let chunks := (List.range (Merkle.nChunks ct.size)).map fun i =>
     mkOp [c, a.id] (.chunk root ct.size i (Merkle.slice ct i) (tree.2.getD i []))
   (a, chunks)
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}

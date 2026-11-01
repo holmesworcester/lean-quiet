@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.channel.message.attachment.chunk.Proofs
 
-/-!
-`community.channel.message.attachment`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}

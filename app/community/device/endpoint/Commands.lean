@@ -1,16 +1,11 @@
 import app.community.Family
 
-/-!
-`community.device.endpoint`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
 /-- This node's key (local), from 32 random bytes: what it handshakes
 with, and what the devices it holds name as their X25519 key. -/
 def endpoint (sk : ByteArray) : Op := mkOp [] (.endpoint sk)
-end Community
-namespace Community
 open Engine
 
 /-- This node's key: its endpoint op's public key and secret (the least

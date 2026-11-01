@@ -2,9 +2,6 @@ import app.connection.Family
 import app.connection.connection.Commands
 import engine.sync.NoticeLaws
 
-/-!
-`connection.connection`: laws about the op types in this folder and below.
--/
 namespace Connection
 open Engine Engine.Sync Codec
 section

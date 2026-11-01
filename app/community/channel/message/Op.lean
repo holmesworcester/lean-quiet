@@ -6,10 +6,6 @@ the counter, the time, the signature, which covers the sealed bytes) and
 its body sealed, so a keyless node judges a post as a member does. It
 claims a counter, which orders its channel, and a time, which is shown.
 Body tag 23, fact tags 21 and 23 (with a clump root).
-
-`community.channel.message`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community
@@ -36,7 +32,6 @@ instance : Codec Body := Codec.tagged 23 (fun x => (x.ckey, x.text, x.n, x.time,
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
-
 
 
 /-- Its fact, `message`. -/

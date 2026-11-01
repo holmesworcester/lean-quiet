@@ -9,9 +9,6 @@ import app.community.key.View
 import app.community.member.join.accept.View
 import app.community.profile.View
 
-/-!
-`community`: components that compose the op types in this folder and below, and their laws.
--/
 namespace Kinds.Message
 open _root_.Engine _root_.Community _root_.Data
 variable {m : Type → Type} [Monad m] [Reads m]

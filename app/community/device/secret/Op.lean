@@ -2,10 +2,6 @@ import app.community.Op
 
 /-
 A device's signing key pair, from its 32-byte seed. Local.
-
-`community.device.secret`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

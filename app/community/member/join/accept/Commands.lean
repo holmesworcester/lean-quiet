@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.member.join.accept`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 

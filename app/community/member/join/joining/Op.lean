@@ -3,10 +3,6 @@ import app.community.Op
 /-
 This device's join in progress: the inviter, the dial hints, the
 request it presents, the name chosen. Local.
-
-`community.member.join.joining`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

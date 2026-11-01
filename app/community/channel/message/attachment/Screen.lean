@@ -9,9 +9,6 @@ import engine.renderer.Image
 import engine.renderer.Arrival
 import engine.core.Cost
 
-/-!
-`community.channel.message.attachment`: components that compose the op types in this folder and below, and their laws.
--/
 namespace ArrivalLaws
 attribute [local irreducible] Text.oneLine
 open _root_.Arrival

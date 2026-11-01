@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.name`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}

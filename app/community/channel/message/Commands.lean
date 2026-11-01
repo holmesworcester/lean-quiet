@@ -2,9 +2,6 @@ import app.community.Family
 import app.community.channel.message.attachment.chunk.Commands
 import app.community.channel.message.receipt.Commands
 
-/-!
-`community.channel.message`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine
 
@@ -15,8 +12,6 @@ def topCount (c : Id) : View Fact Nat := do
   pure (match a.rows.head? with
     | some (_, .message _ _ _ _ _ n _ _) => min n countCap
     | _ => 0)
-end Community
-namespace Community
 open Engine Codec
 
 /-- A post claiming counter n, at `time` (minutes since the Unix epoch). -/

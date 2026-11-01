@@ -1,9 +1,6 @@
 import engine.wire.Node
 import app.community.Family
 
-/-!
-`community.member.join.joining`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -13,8 +10,6 @@ introduce itself by once admitted. The bearer seed is not kept: the
 request already carries the bearer's signature. -/
 def joining (i : Invite) (req : Id) (name : ByteArray) (device : Key) (epoch : Nat := 0) : Op :=
   mkOp [] (.joining i.community i.inviter i.hints req name device epoch)
-end Community
-namespace Community
 open Engine
 
 /-- The latest join of c among these whose device was never admitted in

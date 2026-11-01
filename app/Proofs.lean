@@ -23,9 +23,6 @@ import app.connection.given.Commands
 import app.connection.opened.Commands
 import engine.core.FIFO
 
-/-!
-`app`: laws about the op types in this folder and below.
--/
 namespace Connection
 open Engine Codec
 
@@ -84,8 +81,6 @@ theorem established_agrees (K : Keys) (G : K.suite.Good)
               obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hIc
               exact ⟨hh.symm, rfl, by rw [hr], by rw [hs], rfl, rfl⟩
           · simp [hm] at hRc
-end Connection
-namespace Connection
 open Engine Engine.Sync
 
 /-- **For a live member, the trust rule is `allowPeer`.** The link
@@ -142,8 +137,6 @@ theorem mem_roomsV (s : DB F) {cid : Id} {rm : Room} (h : rm ∈ (roomsV cid).ev
   simp only [Prod.mk.injEq] at he
   obtain ⟨rfl, rfl⟩ := he
   exact ⟨c', peer', hpeer, hheld, hm⟩
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 
 /-- **A removed member's connection carries only notices
@@ -410,8 +403,6 @@ theorem established_endpoint (K : Keys) {o : Op} {fs : List F} {cid c peer h sk'
                 obtain ⟨_, _, rfl, _, _, _, rfl⟩ := hc
                 exact ⟨rfl, hfrm, rfl, rfl⟩
         · cases hc
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable [fr : Fresh (Model F)]
@@ -964,8 +955,6 @@ theorem reconnect_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s
   simp only [List.head?_cons, Model.run_bind]
   exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
 end
-end Connection
-namespace Connection
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
@@ -981,8 +970,6 @@ node's own verdicts. -/
 theorem removed_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} :
     Removed C (community C s).ops c u ↔ ∃ x r, s.status x = some (.valid (.inl (.removal c u r))) :=
   exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
-end Connection
-namespace Connection
 open Engine Engine.Sync
 
 /-- **A room is carried synced only if trusted.** If connection cid
@@ -1021,8 +1008,6 @@ theorem rooms_cut (s : DB F) {cid c : Id}
   obtain ⟨peer, me, hp, _, hm, ht⟩ := rooms_trusted s h
   rw [trusts_live s (hme me hm), hpeer peer hp] at ht
   cases ht
-end Connection
-namespace Connection
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
@@ -1043,8 +1028,6 @@ theorem rooms_cut_node (h : Inv (node C K) s) (hq : s.queue = []) {cid c : Id}
   rooms_cut s (fun me hm => (connect_iff_node h hq c me).2 (hme me hm)) fun peer hp =>
     let ⟨_, hr, only⟩ := hpeer peer hp
     removal_cuts_off_node h hq hr only
-end Connection
-namespace Connection
 open Engine Engine.Sync
 
 /-- The hook runs the view: on the model, `rooms` gives `roomsV`, its

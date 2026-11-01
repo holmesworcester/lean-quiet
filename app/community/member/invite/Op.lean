@@ -4,10 +4,6 @@ import app.community.Op
 An invitation, issued by an admitted device, with how many approvals a
 request it carries needs: at least one. A link invitation (another device
 for the issuer's user) needs exactly one, by the issuer's user.
-
-`community.member.invite`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

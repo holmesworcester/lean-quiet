@@ -1,10 +1,5 @@
 import app.community.key.Op
 
-/-!
-`community.key`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Community
 open Engine Codec
 

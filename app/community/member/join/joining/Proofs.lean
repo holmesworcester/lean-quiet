@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.member.join.joining.Commands
 
-/-!
-`community.member.join.joining`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine
 variable {C : Crypto}

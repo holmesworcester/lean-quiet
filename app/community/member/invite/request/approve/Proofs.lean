@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.member.invite.request.approve.admit.Proofs
 
-/-!
-`community.member.invite.request.approve`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -67,8 +64,6 @@ theorem tally_iff {c r : Id} {t : Nat} {fs : List Fact} :
     | some us => rw [ha] at h; simp at h; exact ⟨us, approvers_iff.1 ha, h⟩
   · rintro ⟨us, hus, hn, hl⟩
     rw [approvers_iff.2 hus]; simp [hn, hl]
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 

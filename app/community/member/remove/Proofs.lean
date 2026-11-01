@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.member.remove`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 section
@@ -23,8 +20,6 @@ def Live (c : Id) (d : Key) : Prop :=
 /-- Device d is cut in c: admitted into a user that is removed. -/
 def Cut (c : Id) (d : Key) : Prop := ∃ u e, Admitted C ops c u d e ∧ Removed C ops c u
 end
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -41,8 +36,6 @@ theorem removed_stays {ops' : Id → Option Op} (he : Extends ops ops') {c u : I
     (h : Removed C ops c u) : Removed C ops' c u := by
   obtain ⟨x, r, hx⟩ := h
   exact ⟨x, r, spec_extends he hx⟩
-end Community
-namespace Community
 open Engine
 variable {s : DB Fact} {C : Crypto}
 
@@ -55,8 +48,6 @@ theorem cut_not_live {ops : Id → Option Op} {c : Id} {d : Key} (h : Cut C ops 
     ¬ Live C ops c d := by
   obtain ⟨u, e, ha, hr⟩ := h
   exact fun ⟨_, hall⟩ => hall u e ha hr
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 

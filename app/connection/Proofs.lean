@@ -34,9 +34,6 @@ import app.connection.send.Validate
 import engine.wire.Noise
 import engine.wire.NoiseSymbolic
 
-/-!
-`connection`: laws about the op types in this folder and below.
--/
 namespace Connection
 open Engine Codec
 
@@ -50,8 +47,6 @@ theorem wire_kinds (o : Op) (h : scopeOf o = .conn) : o.kind = 33 ∨ o.kind = 3
 /-- Every other connection op is local. -/
 theorem local_kinds (o : Op) (h : ¬ (o.kind = 33 ∨ o.kind = 35)) : scopeOf o = .local := by
   simp [scopeOf, h]
-end Connection
-namespace Connection
 open Engine Codec
 section
 open Engine.Sync
@@ -151,8 +146,6 @@ theorem sealed_auth (x : Sync F (HeldM F)) {K : Keys} (hx : x.hooks.openFrame = 
     rw [hbad cid sk rk hc hk] at hf
     cases hf
 end
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 
 /-- This node is a live member of c, as the trust rule reads it. -/
@@ -188,8 +181,6 @@ theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := by
       rcases List.mem_cons.1 h with h | h
       · exact absurd h.symm hy
       · exact ih h
-end Connection
-namespace Connection
 open Engine Engine.Sync
 section
 variable {A B : Type} [SortKey (A ⊕ B)]
@@ -201,8 +192,6 @@ theorem eval_liftL_bind {α β : Type} (s : DB (A ⊕ B)) (v : View A α) (f : �
   | pure a => rfl
   | list q k ih => exact ih _
 end
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 
 theorem sessionOf_state (f : Fact) (s : DB F) : ((sessionOf f : Model F _).run s).2 = s := by
@@ -242,8 +231,6 @@ theorem meV_node (s : DB F) {c me : B} (h : (meV c).eval s = some me) :
     simp only [View.eval_bind, View.eval_pure] at h
     obtain ⟨⟨pk, sk⟩, hk, rfl⟩ := Option.map_eq_some_iff.1 h
     exact ⟨⟨sk, hk⟩, da.1, da.2, rfl⟩
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable [fr : Fresh (Model F)]
@@ -441,8 +428,6 @@ def Unanswered (K : Keys) (listen : B) (s : DB F) (pk sk c inviter : B) (req : I
       (s.ops r).isSome
   | none => ∃ jr, s.ops req = some jr ∧ ∀ e, (Request.op K sk inviter e (hello c listen [jr])).isSome
 end
-end Connection
-namespace Connection
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
@@ -476,8 +461,6 @@ theorem node_settles {L : List Op} (hd : Distinct L) (hr : Reach (node C K) L s)
     ∃ n, Inv (node C K) (drainS (node C K) n s) ∧ (drainS (node C K) n s).queue = [] :=
   let ⟨n, hn⟩ := drain_terminates hd s hr
   ⟨n, reach_inv (reach_drain hr n), hn⟩
-end Connection
-namespace Connection
 open Engine Engine.Sync
 section
 variable {A B : Type} [SortKey (A ⊕ B)]
@@ -485,8 +468,6 @@ variable {A B : Type} [SortKey (A ⊕ B)]
 theorem eval_liftL_pure {α : Type} (s : DB (A ⊕ B)) (a : α) :
     ((Pure.pure a : View A α).liftL : View (A ⊕ B) α).eval s = a := rfl
 end
-end Connection
-namespace Connection
 open Engine
 section
 variable {K : Keys}

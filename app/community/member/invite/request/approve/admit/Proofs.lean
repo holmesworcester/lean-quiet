@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.member.invite.request.approve.admit`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 

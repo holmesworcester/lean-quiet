@@ -3,9 +3,6 @@ import app.community.Family
 import app.community.channel.message.Commands
 import app.community.channel.message.receipt.Proofs
 
-/-!
-`community.channel.message`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -59,8 +56,6 @@ theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root 
         exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, hs⟩
       · simp at h
     · simp [Post.check] at h
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -99,8 +94,6 @@ theorem child_has_root {x c u root : Id} {d k t : ByteArray} {n tm : Nat}
     simp only [List.getD_cons_succ, List.getD_cons_zero] at he
     subst root
     exact ⟨d2, k2, t2, n2, tm2, hroot⟩
-end Community
-namespace Community
 open Engine Codec
 
 theorem timeCap_lt : timeCap < 2 ^ 64 := Nat.sub_lt (Nat.pow_pos_iff.2 (.inl (by decide))) (by decide)
@@ -145,8 +138,6 @@ def InOrder (desc : Bool) (a b : Pos × Fact) : Prop :=
 
 theorem orient_orient {α} (desc : Bool) (l : List α) : orient desc (orient desc l) = l := by
   cases desc <;> simp [orient]
-end Community
-namespace Community
 open Engine Codec
 section
 variable {s : DB Fact} {C : Crypto}

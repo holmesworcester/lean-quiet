@@ -2,10 +2,6 @@ import app.community.Op
 
 /-
 This node's copy of a community's content key. Local.
-
-`community.key`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

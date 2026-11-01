@@ -20,9 +20,6 @@ import engine.renderer.Platform
 import Std.Data.HashMap
 import engine.core.WindowIndex
 
-/-!
-`app`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Connection
 open Engine Engine.Sync Codec
 
@@ -67,8 +64,6 @@ def roomsV (cid : Id) : View F (List Room) := do
   let given ← givenOn cid
   let cs ← heldV
   roomsOf given ((peersOf a).flatMap fun peer => cs.map (·, peer))
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]

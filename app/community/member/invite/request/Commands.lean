@@ -1,9 +1,6 @@
 import engine.wire.Node
 import app.community.Family
 
-/-!
-`community.member.invite.request`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 

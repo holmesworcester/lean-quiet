@@ -2,10 +2,6 @@ import app.community.Op
 
 /-
 An emoji on a message, by an admitted device.
-
-`community.channel.message.reaction`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community
@@ -26,7 +22,6 @@ instance : Codec Body := Codec.tagged 9 (fun x => (x.emoji, x.time, x.sig)) (fun
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
-
 
 
 /-- Its fact, `react`. -/

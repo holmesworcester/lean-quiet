@@ -1,11 +1,6 @@
 import app.community.member.invite.request.approve.admit.Op
 import app.community.member.invite.request.Op
 
-/-!
-`community.member.invite.request.approve.admit`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Community
 open Engine Codec
 

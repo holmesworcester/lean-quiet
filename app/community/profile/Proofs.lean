@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.profile`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -23,8 +20,6 @@ theorem check_profile {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
     obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
     exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
   · simp at h
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 

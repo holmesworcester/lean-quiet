@@ -4,10 +4,6 @@ import app.community.Op
 An admission of a request: a tally. It cites the request and exactly
 `threshold` approvals of it, by distinct users. Unsigned: anyone holding
 the approvals may compose it. Its fact is the admission (`Root.Fact`).
-
-`community.member.invite.request.approve.admit`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

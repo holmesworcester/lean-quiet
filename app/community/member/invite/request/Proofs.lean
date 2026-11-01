@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.member.invite.request.approve.admit.Proofs
 
-/-!
-`community.member.invite.request`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -25,8 +22,6 @@ theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
     obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
     exact ⟨_, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
   · simp at h
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -64,8 +59,6 @@ theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteAr
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, hcs, hbs, hid]
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 

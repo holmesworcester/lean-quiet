@@ -3,10 +3,6 @@ import app.community.Op
 /-
 A content key delivered to a node's X25519 key, sealed so that only that
 node opens it. A wrap admits nobody, so it needs no author.
-
-`community.key.wrap`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

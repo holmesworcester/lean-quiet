@@ -4,10 +4,6 @@ import app.community.Op
 A member's signed yes to a request, by another device than the
 requester's; a link request is approved by the issuer's user only. It
 cites the request, so approvals come after it.
-
-`community.member.invite.request.approve`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

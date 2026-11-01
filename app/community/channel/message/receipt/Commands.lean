@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.channel.message.receipt`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine
 
@@ -12,14 +9,10 @@ def topReceived (c : Id) : View Fact Nat := do
   pure (match a.rows.head? with
     | some (_, .received _ _ _ k _) => k
     | _ => 0)
-end Community
-namespace Community
 open Engine Codec
 
 /-- This device's k-th receipt of saturated message m (local). -/
 def receipt (m : Id) (k : Nat) : Op := mkOp [m] (.receive k)
-end Community
-namespace Community
 open Engine
 
 /-- What this device writes on receiving op o, sent from here or

@@ -15,9 +15,6 @@ import app.community.member.remove.Commands
 import app.community.name.Commands
 import app.community.profile.Commands
 
-/-!
-`community`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -25,8 +22,6 @@ open Engine Codec
 `key`: the founder's admission names both, signed by d. -/
 def root (d : Device) (key : Key) : Op :=
   mkOp [] (.root d.pk key (sig d.sk [] (.root d.pk key .empty)))
-end Community
-namespace Community
 open Engine
 
 /-- Found a community named `name` from this device's seed, the founder
@@ -277,8 +272,6 @@ def removeMember (c t : Id) (d : Device) : View Fact Write := do
       pure ⟨if u = t ∨ gone.total ≠ 0 then [] else [remove c myAdm a ta d]⟩
     | _, _ => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
-end Community
-namespace Community
 open Engine Codec
 
 def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair seed).extract 0 32⟩
@@ -295,8 +288,6 @@ def openInfo (c kid sealed k : ByteArray) : Option (FileMeta × ByteArray × Byt
 /-- A file from its chunks' slices, in order, opened with its key. -/
 def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option ByteArray :=
   cryptoSeal.dec fileKey fileNonce fileAd (Merkle.assemble slices)
-end Community
-namespace Community
 open Engine
 
 /-- The admissions into c among these rows whose device is live: each

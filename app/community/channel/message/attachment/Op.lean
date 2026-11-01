@@ -6,10 +6,6 @@ is the file's Merkle root and length (`Merkle`); its body,
 sealed under the content key, is the name, kind, size, a preview, and the
 file's own key. The file is sealed once under that key, and the tree is
 over the ciphertext.
-
-`community.channel.message.attachment`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

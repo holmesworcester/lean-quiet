@@ -3,9 +3,6 @@ import app.community.member.invite.Commands
 import app.community.member.invite.request.Proofs
 import app.community.member.invite.request.approve.Proofs
 
-/-!
-`community.member.invite`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -25,8 +22,6 @@ theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c is
     obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
     exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
   · simp at h
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -60,8 +55,6 @@ theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
     | @cons x a _ _ hx _ =>
       obtain ⟨_, _, ra, _, _, _, _, _, da, ea, _, _, _, _, hra, _⟩ := approval_signed hx
       exact Or.inr ⟨o, r, x, a, l, t, da, ea, ra, hy, by rw [hreq]; simp, hr, hx, hra⟩
-end Community
-namespace Community
 open Engine Codec
 namespace Base62
 
@@ -139,8 +132,6 @@ theorem encode_not_ws (l : List UInt8) : ∀ c ∈ encode l, c.isWhitespace = fa
   obtain ⟨d, hd, rfl⟩ := List.mem_map.1 hc
   exact charOf_not_ws d (go_lt _ _ (by simp) d hd)
 end Base62
-end Community
-namespace Community
 open Engine Codec
 
 theorem web_not_ws : ∀ c ∈ web, c.isWhitespace = false := by decide

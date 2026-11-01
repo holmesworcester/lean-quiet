@@ -2,11 +2,6 @@ import app.community.channel.message.attachment.chunk.Op
 import app.community.channel.message.attachment.Op
 import engine.core.Merkle
 
-/-!
-`community.channel.message.attachment.chunk`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Community
 open Engine Codec
 

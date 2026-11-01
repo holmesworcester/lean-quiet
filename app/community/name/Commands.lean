@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.name`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -11,8 +8,6 @@ names it saw), its counter one past theirs. `auth` shows the admin. -/
 def setName (c adm auth : Id) (prev : List Id) (n : Nat) (by_ : Device) (name : ByteArray) : Op :=
   let reqs := [c, adm, auth] ++ prev
   mkOp reqs (.name n name (sig by_.sk reqs (.name n name .empty)))
-end Community
-namespace Community
 open Engine
 
 /-- Rename c as device d of an admin (admitted as `myAdm`, shown admin by

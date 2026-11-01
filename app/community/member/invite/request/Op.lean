@@ -4,10 +4,6 @@ import app.community.Op
 A request redeems an invitation: the requesting device consents (signs),
 and so does the invitation's bearer key from the link. It admits nobody.
 Body tag 12; tag 2, the old join, no longer decodes.
-
-`community.member.invite.request`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

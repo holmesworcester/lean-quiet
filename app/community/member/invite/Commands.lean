@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.member.invite`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Community
 open Engine Codec
 
@@ -20,8 +17,6 @@ def issue (c issuerAdm : Id) (by_ : Device) (key : Key) (secret : ByteArray)
     (hints : List ByteArray) (threshold : Nat := 1) : Op × Invite :=
   let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
   (inv, ⟨c, inv.id, key, hints, secret⟩)
-end Community
-namespace Community
 open Engine Codec
 namespace Base62
 
@@ -69,8 +64,6 @@ def decode (cs : List Char) : Option (List UInt8) :=
   | some ds => bytesOf (ofDigits 0 ds)
   | none => none
 end Base62
-end Community
-namespace Community
 open Engine Codec
 
 /-- Sizes: 32-byte ids, key and seed; at most 8 hints of at most 255 bytes. -/

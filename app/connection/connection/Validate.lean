@@ -1,11 +1,6 @@
 import app.connection.connection.Op
 import app.connection.request.Op
 
-/-!
-`connection.connection`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Connection
 open Engine Codec
 

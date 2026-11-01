@@ -1217,8 +1217,6 @@ theorem All2.comp {α β γ} {R : α → β → Prop} {S : β → γ → Prop} {
   induction h1 generalizing n with
   | nil => cases h2; exact .nil
   | cons ha _ ih => cases h2 with | cons hb hr => exact .cons ⟨_, ha, hb⟩ (ih hr)
-end Community
-namespace Community
 open Engine Codec
 section
 variable (C : Crypto) (ops : Id → Option Op)
@@ -1229,8 +1227,6 @@ def V (x : Id) (f : Fact) : Prop := Spec (family C) ops x (.valid f)
 /-- Device d is admitted into user u of community c, with key e. -/
 def Admitted (c u : Id) (d e : Key) : Prop := ∃ x, V C ops x (.admission c u d e)
 end
-end Community
-namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
@@ -1295,16 +1291,12 @@ theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x
   refine ⟨o, stored_local hf hx ?_, hx⟩
   show (family C).room o = none
   simp [Family.room, family, scopeOf, hb, check_local hc hl]
-end Community
-namespace Community
 open Engine
 
 /-- What an intent writes: ops. Everything is ops, file bytes included
 (an attachment's chunks). -/
 structure Write where
   ops : List Op
-end Community
-namespace Community
 open Engine Codec
 
 /-- The op with these requirements and body, named by its bytes' hash. -/
@@ -1338,8 +1330,6 @@ structure Invite where
 
 /-- The invitation's bearer key pair, from the link's seed. -/
 def Invite.bearer (i : Invite) : Device := Device.ofSeed i.secret
-end Community
-namespace Community
 open Engine
 
 /-- Byte order on ids. -/
@@ -1349,8 +1339,6 @@ def idLt (a b : Id) : Bool := decide (a.toList < b.toList)
 acceptance id. -/
 def better (a b : Key × Id × Bool) : Key × Id × Bool :=
   if (a.2.2 && !b.2.2) || (a.2.2 == b.2.2 && idLt a.2.1 b.2.1) then a else b
-end Community
-namespace Community
 open Engine Codec
 
 /-- What a file's attachment says of it, sealed under the content key. -/
@@ -1377,8 +1365,6 @@ def fileAd : ByteArray := "quiet/file/v1".toUTF8
 
 /-- The file sealed under its own key: what the Merkle tree is over. -/
 def fileCipher (f : NewFile) : ByteArray := cryptoSeal.enc f.key f.nonce fileAd f.bytes
-end Community
-namespace Community
 open Engine
 
 /-- The message a receipt's sort key names: its bytes past the two
@@ -1405,8 +1391,6 @@ theorem body_mkOp (reqs : List Id) (b : Body) : (Codec.decode (mkOp reqs b).body
 theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
     (family C).shared (mkOp reqs b) = !b.isLocal := by
   cases hs : b.isLocal <;> simp [Family.shared, Family.room, family, scopeOf, body_mkOp, hs]
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}
@@ -1436,15 +1420,11 @@ theorem mem_eval_all {q : ListQ} (ha : q.after = none) (hb : q.before = none) (h
   simp only [ha, hb, hl, Bool.and_self]
   split <;> simp
 end
-end Community
-namespace Community
 open Engine
 
 theorem rels_distinct : Rel.Distinct rels := by unfold Rel.Distinct; decide
 
 theorem rels_short : ∀ r ∈ rels, r.kind.toUTF8.size < 128 := by decide
-end Community
-namespace Community
 open Engine
 variable {s : DB Fact} {C : Crypto}
 
@@ -1453,8 +1433,6 @@ theorem filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.qu
     (as : List ByteArray) (y : Id) (f : Fact) :
     (y ∈ s.idx (r.key as) ∧ s.status y = some (.valid f)) ↔ V C s.ops y f ∧ r.args f = some as := by
   exact filed_rel (fam := family C) rfl rels_distinct hr (rels_short r hr) h hq as y f
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}
@@ -1493,16 +1471,12 @@ theorem row_filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : 
   obtain ⟨rfl, rfl⟩ := he
   exact (filed (C := C) hr h hq as _ _).1 ⟨hy, hf⟩
 end
-end Community
-namespace Community
 open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byDevice_args {c d : Id} {f : Fact} :
     admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byDevice, Root.byDevice, Rel.comap, Fact.admission?, eq_comm]
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}
@@ -1538,16 +1512,12 @@ theorem nodup_full {l : List Nat} {n : Nat} (hn : l.Nodup) (hb : ∀ i ∈ l, i 
       fun y hy => hall y (List.mem_range.1 hy)
     rw [List.length_range] at h1 h2; omega
 end
-end Community
-namespace Community
 open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byKey_args {c e : Id} {f : Fact} :
     admission.byKey.args f = some [c, e] ↔ ∃ u d, f = .admission c u d e := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byKey, Root.byKey, Rel.comap, Fact.admission?, eq_comm]
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 section
@@ -1567,8 +1537,6 @@ theorem eval_list {α : Type} (q : ListQ) (k : Answer Fact → View Fact α) :
 theorem better_cases (a b : Key × Id × Bool) : better a b = a ∨ better a b = b := by
   unfold better; split <;> simp
 end
-end Community
-namespace Community
 open Engine Codec
 
 /-- The bytes `be64` lays out for n: digit i (base 256) for each i in is. -/
@@ -1644,8 +1612,6 @@ theorem min_lt {n cap : Nat} (h : cap < 2 ^ 64) : min n cap < 2 ^ 64 :=
 theorem orient_map {α β} (f : α → β) (desc : Bool) (l : List α) :
     orient desc (l.map f) = (orient desc l).map f := by
   cases desc <;> simp [orient, List.map_reverse]
-end Community
-namespace Community
 open Engine Codec
 section
 variable {s : DB Fact} {C : Crypto}

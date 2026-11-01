@@ -4,10 +4,6 @@ import app.community.Op
 A removal names a user. It is Valid when its author's user is an admin,
 or removes itself. Removal never invalidates an op; it changes who counts
 as a member (docs/REMOVAL.md).
-
-`community.member.remove`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

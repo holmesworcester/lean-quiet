@@ -83,9 +83,6 @@ import app.community.profile.Validate
 import engine.core.MerkleCost
 import engine.core.FIFO
 
-/-!
-`community`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -265,8 +262,6 @@ theorem member_opens {S : Seal} (G : S.Good) (rsk esk k n c text : ByteArray)
   have hki : (kidOf S k).size < Seal.maxAssociatedDataSize := by
     simp only [kidOf, G.hash_size, Seal.maxAssociatedDataSize]; decide
   simp only [unbox_box G _ _ _ _ hr he hkb hki, Option.bind_some, openSealed_seal G hk hn ht ha]
-end Community
-namespace Community
 open Engine
 
 /-- **Joining is just ops, and only the request leaves the device.** The
@@ -290,8 +285,6 @@ theorem found_travels (C : Crypto) (s : DB Fact) (seed name myName : ByteArray) 
   simp only [View.eval_pure, List.filter_append, nodeKeyOr_local, List.nil_append]
   simp [root, secret, accept, setName, profile, contentKey, wrapKey, wrap, shared_mkOp,
     Body.isLocal]
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}
@@ -452,8 +445,6 @@ theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id}
     · simp at ho
   · simp at ho
 end
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}
@@ -559,13 +550,9 @@ theorem progress_done (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id
   exact hy
 end
 end
-end Community
-namespace Community
 open Engine Codec
 
 theorem signed_eq (o : Op) (b : Body) : signed o b = toSign o.reqs b := rfl
-end Community
-namespace Community
 open Engine
 variable {s : DB Fact} {C : Crypto}
 
@@ -875,8 +862,6 @@ theorem removal_cuts_off (h : Inv (family C) s) (hq : s.queue = []) {c u : Id} {
   refuse_nonmember h hq c e fun u' d ha =>
     let ⟨e', ha'⟩ := only u' d ha
     ⟨u, e', ha', hr⟩
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 section
@@ -1256,8 +1241,6 @@ theorem join_new_device (h : Inv (family C) s) (hq : s.queue = []) {i : Invite}
           · rw [body_mkOp] at hb; cases hb
           · rw [body_mkOp] at hb; cases hb
 end
-end Community
-namespace Community
 open Engine
 variable {C : Crypto}
 
@@ -1276,8 +1259,6 @@ theorem removed_stays_removed {s s' : DB Fact} (h' : Inv (family C) s') (hq' : s
   refine ⟨hr', fun d e ha => ⟨⟨u, e, ha, hr'⟩, cut_not_live ⟨u, e, ha, hr'⟩⟩, fun e hp => ?_⟩
   obtain ⟨u', d, ha, hl⟩ := (connect_iff h' hq' c e).1 hp
   exact ⟨u', d, ha, hl, fun e' hu => hl.2 u e' hu hr'⟩
-end Community
-namespace Community
 open Engine Engine.View
 
 /-- **An approval writes at most three ops**: the approval, the
@@ -1320,8 +1301,6 @@ theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : ByteArray) (p : Pos)
         Bool.false_eq_true, ite_false]
       rfl)
   simp at this
-end Community
-namespace Community
 open Engine Codec
 section
 variable {s : DB Fact} {C : Crypto}

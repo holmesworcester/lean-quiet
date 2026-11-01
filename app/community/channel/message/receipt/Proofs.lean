@@ -1,9 +1,6 @@
 import engine.core.Order
 import app.community.Family
 
-/-!
-`community.channel.message.receipt`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -40,8 +37,6 @@ theorem received_of_message {clump : Option Id} {x c kid m : Id} {k : Nat} (h : 
   obtain ⟨y, hreq, hy⟩ := h1
   rw [hreq] at hm; simp at hm; subst hm
   exact ⟨o, u, d, sealed, n, tm, hx, hreq, hn, hy⟩
-end Community
-namespace Community
 open Engine Codec
 
 theorem recKey_toList (k : Nat) (m : Id) :
@@ -69,8 +64,6 @@ theorem recKey_inj {k k' : Nat} {m m' : Id} (h : recKey k m = recKey k' m') : m 
   have h2 := List.append_cancel_left h1
   have h3 := (List.append_inj h2 (by rw [be64_length, be64_length])).2
   exact ByteArray.ext (Array.toList_inj.1 h3)
-end Community
-namespace Community
 open Engine Codec
 section
 variable {s : DB Fact} {C : Crypto}

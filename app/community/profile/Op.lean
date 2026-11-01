@@ -3,10 +3,6 @@ import engine.renderer.Chars
 
 /-
 A member's name: a register, the newest by (time, id) current.
-
-`community.profile`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community
@@ -45,7 +41,6 @@ instance : Codec Body := Codec.tagged 7 (fun x => (x.name, x.time, x.sig)) (fun 
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
-
 
 
 /-- Its fact, `profile`. -/

@@ -1,10 +1,5 @@
 import app.connection.send.Op
 
-/-!
-`connection.send`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Connection
 open Engine Codec
 

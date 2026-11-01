@@ -4,11 +4,6 @@ import app.connection.request.Op
 import app.connection.eph.Op
 import app.community.device.endpoint.Op
 
-/-!
-`connection.established`'s validator: the fact it produces from the facts it
-cites. The engine calls it only once every one of them is Valid.
--/
-
 namespace Connection
 open Engine Codec
 

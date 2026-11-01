@@ -1,8 +1,5 @@
 import app.community.Family
 
-/-!
-`community.key.wrap`: laws about the op types in this folder and below.
--/
 namespace Engine.View
 variable {F α β : Type}
 

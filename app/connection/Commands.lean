@@ -6,9 +6,6 @@ import app.connection.opened.Commands
 import app.connection.recv.Commands
 import engine.sync.Notice
 
-/-!
-`connection`: intents and composers: the ops an action writes, in this folder and below.
--/
 namespace Connection
 open Engine Engine.Sync Codec
 
@@ -20,8 +17,6 @@ def givenOn (cid : Id) : View F (List Id) := do
   return a.rights.filterMap fun (_, f) => match f with
     | .given _ x => some x
     | _ => none
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
@@ -129,8 +124,6 @@ def sessionKeys (cid : Id) : m (Option (B × B)) := do
     | .established _ _ _ _ s r _ => some (s, r)
     | _ => none
 end
-end Connection
-namespace Connection
 open Engine
 
 def Frame.version : UInt8 := 1
@@ -139,8 +132,6 @@ def Frame.ad (cid : Id) : B := ⟨#[Frame.version]⟩ ++ cid
 
 /-- Bytes sealed for connection cid with send key `sk` and nonce `n`. -/
 def Frame.seal (K : Keys) (cid sk n p : B) : B := ⟨#[Frame.version]⟩ ++ cid ++ n ++ K.fenc sk n (Frame.ad cid) p
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
@@ -152,8 +143,6 @@ def sealFor (K : Keys) (cid : Id) (p : B) : m (Option B) := do
   let n := (← Fresh.fresh).extract 0 24
   return some (Frame.seal K cid sk n p)
 end
-end Connection
-namespace Connection
 open Engine
 
 /-- A frame's connection id, if it is one. -/
@@ -165,8 +154,6 @@ def Frame.open (K : Keys) (rk b : B) : Option (Id × B) :=
   if b.size < 73 ∨ b.get! 0 ≠ Frame.version then none else
   let cid := b.extract 1 33
   (K.fdec rk (b.extract 33 57) (Frame.ad cid) (b.extract 57 b.size)).map (cid, ·)
-end Connection
-namespace Connection
 open Engine Engine.Sync Codec
 section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]

@@ -4,10 +4,6 @@ import app.community.Op
 One 64 KiB slice of a file's ciphertext with its Merkle path. It cites
 its community and its attachment, and is Valid iff it names its
 attachment's root and length and its path verifies against them.
-
-`community.channel.message.attachment.chunk`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

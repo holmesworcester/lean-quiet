@@ -1,9 +1,6 @@
 import app.community.Family
 import app.community.channel.message.attachment.chunk.Commands
 
-/-!
-`community.channel.message.attachment.chunk`: laws about the op types in this folder and below.
--/
 namespace Community
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -96,8 +93,6 @@ theorem chunk_own {x c att att' root root' : Id} {len len' i i' : Nat}
   have := spec_det hx hy
   simp only [Verdict.valid.injEq, Fact.chunk.injEq] at this
   exact this.2.1
-end Community
-namespace Community
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}

@@ -3,10 +3,6 @@ import app.community.Op
 /-
 The community's name, set by an admin. Counted: a new name's counter is
 one more than the highest it cites, so the newest wins.
-
-`community.name`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community

@@ -2,10 +2,6 @@ import app.community.Op
 
 /-
 The node's X25519 key: 32 random bytes, one per node. Local.
-
-`community.device.endpoint`: this op's body and fact, their bytes, and the lists its fact
-is filed in. Its validator is Validate.lean; the family's registry, which
-sums every op's body and fact, is app/community/Family.lean.
 -/
 
 namespace Community
