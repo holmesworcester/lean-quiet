@@ -15,6 +15,7 @@
 # 3. The gate (ci/local.sh). A failure stops here, nothing pushed.
 # 4. Push HEAD to main, fast-forward only: LAND_PUSH (default
 #    `git push origin HEAD:main`; set it to push with your credentials).
+#    Then save the build for the next landing to start from.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
@@ -52,6 +53,16 @@ if ! git merge-base --is-ancestor origin/main HEAD; then
     fi
   fi
 fi
+# Start from the build of main's last landing ($TMPDIR/lean-quiet-main-build,
+# saved below): Lake rebuilds by content hash, so only what this branch
+# changes is built again, not everything main moved since this tree last
+# built (a landing's merge rebuild took 50 minutes under load without it).
+# --update keeps this tree's own newer outputs.
+cache=$TMPDIR/lean-quiet-main-build
+if [ -d "$cache/build" ]; then
+  echo "land: starting from the build of main at $(cat "$cache/commit" 2>/dev/null)"
+  rsync -a --update "$cache/build/" .lake/build/
+fi
 ci/local.sh build
 python3 ci/proof-links.py >/dev/null && python3 ci/vacuity.py --write >/dev/null
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
@@ -63,3 +74,7 @@ git merge-base --is-ancestor origin/main HEAD ||
   { echo "land: main moved without the lock; run ci/land.sh again" >&2; exit 1; }
 bash -c "${LAND_PUSH:-git push origin HEAD:main}"
 echo "land: main is $(git rev-parse --short HEAD)"
+# the next landing starts from this build (still under the lock)
+mkdir -p "$cache"
+rsync -a --delete .lake/build/ "$cache/build/" && git rev-parse --short HEAD > "$cache/commit"
+echo "land: saved this build for the next landing"
