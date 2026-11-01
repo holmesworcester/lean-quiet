@@ -156,7 +156,7 @@ def profileAuthorized := applyLaw
 
 def noRenaming (Signed : Key → ByteArray → Prop) := applyLaw
   (certifyDB (before ++ [bobProfile]) bobProfile (.profile c requestB.id "Bob".toUTF8 29880001))
-  (fun h => fun hU : Unforgeable ed25519 Signed => no_renaming hU h)
+  (fun h => fun hU : Unforgeable ed25519 _ Signed => no_renaming hU h)
 
 def requestC := request c invitation.id carol (keyOf bob) bearer.sk
 def approvalC := approve c requestC.id c alice

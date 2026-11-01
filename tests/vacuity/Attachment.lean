@@ -1,9 +1,10 @@
 import tests.vacuity.IdentityTrust
 
 /-! Real SHA-256/Ed25519/XChaCha20 attachment fixture. Finite validation and
-progress checks run natively. The three README theorem applications retain
-universal SHA output-size and file-specific second-preimage assumptions:
-these tests do not prove cryptographic collision resistance. -/
+progress checks run natively. The laws' no-collision premise (`ChunkSound`,
+`ChunksSound`) is about the bytes at hand, so it is decided here on the real
+SHA-256 of this file's tree and its chunks; the three README theorem
+applications retain only SHA-256's 32-byte output size as an assumption. -/
 namespace Vacuity.Attachment
 open Engine Community Codec Tests Vacuity.Identity Vacuity.IdentityTrust
 set_option linter.defProp false
@@ -38,26 +39,45 @@ def full := before ++ [attachment, chunk0, chunk1]
 def incomplete := before ++ [attachment, chunk1]
 def duplicated := before ++ [attachment, chunk1, chunk1]
 
+/-- Op o, if it is a chunk, is `ChunkSound` for this file. -/
+def SoundOp (o : Op) : Prop := match (decode o.body : Option Body) with
+  | some b => ChunkSound cipher b
+  | none => True
+
+instance (o : Op) : Decidable (SoundOp o) := by unfold SoundOp; split <;> infer_instance
+
+/-- A store whose ops are among L, each sound, is `ChunksSound`. -/
+theorem sound_of_list {L : List Op} {ops : Id → Option Op}
+    (hl : ∀ x o, ops x = some o → o ∈ L) (h : ∀ o ∈ L, SoundOp o) : ChunksSound ops cipher := by
+  intro x o b hx hb
+  have := h o (hl x o hx)
+  unfold SoundOp at this
+  rw [hb] at this
+  exact this
+
 def sliceCertificate :=
   if hv : check ed25519 chunk0 (chunkBody 0) [rootFact, attachmentFact] = some (chunkFact 0) then
-    some (PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
-      (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
-      chunk_is_slice hs hp hv))
+    if hp : ChunkSound cipher (chunkBody 0) then
+      some (PLift.up (fun (hs : ∀ x, (sha256 x).size = 32) => chunk_is_slice hs hp hv))
+    else none
   else none
 
 def uniqueCertificate := do
   let ⟨hx⟩ ← certify full chunk0 (chunkFact 0)
   let ⟨hy⟩ ← certify full relayed0 (chunkFact 0)
-  return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
-    (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
-    chunk_unique (keyed full) hs hp hx hy)
+  if hp : ∀ o ∈ full, SoundOp o then
+    return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32) =>
+      chunk_unique (keyed full) hs (sound_of_list (fun _ _ h => List.mem_of_find?_eq_some h) hp) hx hy)
+  else none
 
 def progressCertificate := do
   let ⟨ha⟩ ← certifyDB incomplete attachment attachmentFact
   if hq : (run incomplete).queue = [] then
-    return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32)
-      (hp : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 cipher)) =>
-      progress_exact hs hp (runInv incomplete) hq ha)
+    if hp : ∀ o ∈ incomplete, SoundOp o then
+      return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32) =>
+        progress_exact hs (sound_of_list (fun x o h => (reach_stored (runReach incomplete) x o h).1) hp)
+          (runInv incomplete) hq ha)
+    else none
   else none
 
 def tamperedSlice : ByteArray :=
@@ -77,9 +97,11 @@ def main : IO UInt32 := do
   t.ok "real signed attachment is Valid" (certify full attachment attachmentFact).isSome
   t.ok "both actual chunk validity premises" ((certify full chunk0 (chunkFact 0)).isSome &&
     (certify full chunk1 (chunkFact 1)).isSome)
-  t.ok "chunk_is_slice finite validator premise; hash assumptions retained" sliceCertificate.isSome
-  t.ok "chunk_unique two relay validity premises; hash assumptions retained" uniqueCertificate.isSome
-  t.ok "progress_exact invariant settled attachment premises; hash assumptions retained" progressCertificate.isSome
+  t.ok "chunk_is_slice validator and no-collision premises under real SHA-256" sliceCertificate.isSome
+  t.ok "chunk_unique relay validity and no-collision premises under real SHA-256" uniqueCertificate.isSome
+  t.ok "progress_exact settled store and no-collision premises under real SHA-256" progressCertificate.isSome
+  t.ok "checking a two-chunk file's chunk hashes a node: the climb runs"
+    ((Merkle.verifyInputs sha256 cipher.size 1 (Merkle.slice cipher 1) (Merkle.proof sha256 cipher 1)).length == 3)
   t.ok "attachment composer emits the canonical chunk ops" (composed.2 == [chunk0, chunk1])
   t.ok "independent relay reconstructs identical canonical op" (relayed0 == chunk0)
   t.ok "incomplete store actually holds chunk index1" (certifyDB incomplete chunk1 (chunkFact 1)).isSome
@@ -100,6 +122,6 @@ def main : IO UInt32 := do
     ((run (before ++ [chunk0])).status chunk0.id == none)
   t.ok "tamper cannot increase progress"
     ((progress c attachment.id cipher.size).eval (run (incomplete ++ [tampered, wrongIndex, wrongSibling])) == (1,2))
-  t.finish "attachment vacuity (real crypto; universal hash premises remain conditional)"
+  t.finish "attachment vacuity (real crypto; no-collision premises decided on real SHA-256)"
 
 end Vacuity.Attachment

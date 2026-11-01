@@ -74,7 +74,7 @@ def admitAdmits : Option (PLift (V ed25519 (table after) admission.id bobFact)) 
 -- Named certificates make the README's evidence traceable one law at a time.
 def noImpersonation (Signed : Key → ByteArray → Prop) :=
   applyLaw (certify after message messageFact)
-    (fun h => fun hU : Unforgeable ed25519 Signed => no_impersonation hU h)
+    (fun h => fun hU : Unforgeable ed25519 _ Signed => no_impersonation hU h)
 
 def messageAuthorized := applyLaw (certify after message messageFact) message_authorized
 def admissionNeedsApproval := applyLaw (certify after admission bobFact)

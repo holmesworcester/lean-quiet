@@ -147,12 +147,14 @@ wired Connection.reconnect_dials
 
 ## Assumptions
 
-assume Community.Unforgeable Current global verification-to-history predicate is too broad for a finite independent signing history. Needs execution/attacker scoping; secure Ed25519 and secret keys alone do not discharge it.
+assume Community.Unforgeable Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean.
 assume Engine.CollisionFree SHA-256 has no collision among the ops a node received.
 assume Engine.Distinct = Engine.CollisionFree
 assume NodeOffer.offerM The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`.
 assume NodeOffer.Chan = NodeOffer.offerM
-assume Merkle.NoSecondPreimage Exact no-second-preimage idealization for a file's tree inputs, stronger than computational SHA-256 resistance. Model-hash witnesses are not SHA-256 proofs.
+assume Merkle.NoCollision No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean.
+assume Community.ChunkSound = Merkle.NoCollision
+assume Community.ChunksSound = Merkle.NoCollision
 assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only).
 assume Community.Seal.Good Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
@@ -236,8 +238,10 @@ spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypo
 spec Engine.Sync.Msg.offers The ids a sync message offers.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
-spec Merkle.treeInputs A file's Merkle tree inputs, for the no-second-preimage hypothesis.
-spec Merkle.subInputs A subtree's Merkle inputs, for the no-second-preimage hypothesis.
+spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
+spec Merkle.subInputs A subtree's Merkle inputs, for the no-collision hypothesis.
+spec Merkle.verifyInputs What checking a chunk hashes, for the no-collision hypothesis.
+spec Merkle.climbInputs What a Merkle climb hashes, for the no-collision hypothesis.
 spec Merkle.slices A file's chunks, as the tree cuts it.
 spec Engine.Sync.Inbox.Run.selected The result of the actual Inbox.next chooser on a queue trace; every transition runs that chooser with arbitrary FIFO producer appends. Native channel linearization and completion remain assumptions.
 spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue operations and retain its returned preference; this is a harness around the running chooser, not a second selection algorithm.

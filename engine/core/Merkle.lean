@@ -21,10 +21,12 @@ two lengths share a root), its index is below the chunk count, its slice
 has the size its index calls for, every sibling is 32 bytes, and
 climbing from its leaf through the siblings reaches the root.
 
-Laws (`H` has 32-byte outputs and, where a law needs it, no second
-preimage of anything the file's root hashes: collision resistance as a
-hypothesis, as unforgeability is for signatures; injectivity cannot be
-the hypothesis, see `no_injective_hash`):
+Laws (`H` has 32-byte outputs and, where a law needs it, no collision
+between what the file's root hashes and what checking the chunks at hand
+hashed: collision resistance as a hypothesis about those concrete bytes,
+as unforgeability is for signatures; injectivity cannot be the
+hypothesis, see `no_injective_hash`, nor can "no second preimage of
+anything", which no 32-byte hash meets):
 - `encode_verify`: every chunk of a file (under 2^64 bytes) verifies
   against its root;
 - `verify_sound`: a chunk that verifies against a file's root is that
@@ -134,17 +136,40 @@ def assemble (ss : List B) : B := ss.foldl (· ++ ·) .empty
 
 Collision resistance cannot be stated as injectivity: no hash with
 32-byte outputs is injective (`no_injective_hash`), so a law assuming
-both would hold of any verifier. The laws assume instead that none of
-the inputs a file's root hashes has a second preimage. Some 32-byte
-hash meets that for any file (it has fewer than 2^256 inputs), and a
-chunk that verifies but is not the file's yields a SHA-256 second
-preimage. -/
+both would hold of any verifier. Nor can it be "no second preimage of
+the root's inputs": over every byte string, SHA-256 has second preimages
+(it has more inputs than outputs); finding one is what is infeasible.
+The laws assume instead that no input hashed in checking a chunk
+(`verifyInputs`) collides with an input the file's root hashes
+(`treeInputs`): two finite lists of bytes at hand, so the premise fails
+only if a real SHA-256 collision is among them, and a checker can test
+it (tests/vacuity/Attachment.lean does, on real SHA-256). A chunk that
+verifies but is not the file's carries such a collision. -/
 
 section
 variable (H : B → B)
 
-/-- No second preimage, under H, of any of xs. -/
-def NoSecondPreimage (xs : List B) : Prop := ∀ x ∈ xs, ∀ y, H y = H x → y = x
+/-- No collision, under H, between an input in ys and one in xs: an
+input of ys that hashes as one of xs is that input. -/
+def NoCollision (xs ys : List B) : Prop := ∀ x ∈ xs, ∀ y ∈ ys, H y = H x → y = x
+
+instance (xs ys : List B) : Decidable (NoCollision H xs ys) := by
+  unfold NoCollision; infer_instance
+
+/-- What `climb` hashes on the way up, top first: each node's input. -/
+def climbInputs : Nat → Nat → B → List B → List B
+  | 0, _, _, _ => []
+  | d + 1, i, x, sib :: rest =>
+    if i < 2 ^ d then (tagNode ++ climb H d i x rest ++ sib) :: climbInputs d i x rest
+    else (tagNode ++ sib ++ climb H d (i - 2 ^ d) x rest) :: climbInputs d (i - 2 ^ d) x rest
+  | _ + 1, _, _, [] => []
+
+/-- What checking chunk i (slice s, siblings sibs) of a `len`-byte file
+against a root hashes: the root's input, the leaf's, and each node's on
+the way up. -/
+def verifyInputs (len i : Nat) (s : B) (sibs : List B) : List B :=
+  (tagRoot ++ be64 len ++ climb H (depthOf (nChunks len)) i (leaf H i s) sibs) ::
+    (tagLeaf ++ be64 i ++ s) :: climbInputs H (depthOf (nChunks len)) i (leaf H i s) sibs
 
 /-- What leaf j of a file hashes. -/
 def leafIn (ct : B) (j : Nat) : B :=
@@ -350,13 +375,14 @@ theorem climb_path (f : Nat → B) : ∀ d s i, i < 2 ^ d → climb H d i (f (s 
       rw [e, climb_path f d (s + 2 ^ d) (i - 2 ^ d) h', sub]
 
 /-- **A climb that reaches a subtree's root came from that subtree's
-leaf, at that depth, through its path**, unless something the subtree
-hashes has a second preimage. The leaves and the start hash inputs that
+leaf, at that depth, through its path**, unless something the climb
+hashed collides with something the subtree hashes. The leaves and the start hash inputs that
 are not nodes', so the climb cannot stop short or run past the leaves. -/
 theorem climb_sub (hsize : ∀ x, (H x).size = 32) {g : Nat → B}
     (hg : ∀ j a b, a.size = 32 → b.size = 32 → g j ≠ tagNode ++ a ++ b)
     {xin : B} (hx : ∀ a b, a.size = 32 → b.size = 32 → xin ≠ tagNode ++ a ++ b) :
-    ∀ e i sibs d s, NoSecondPreimage H (subInputs H g d s) → sibs.length = e → (∀ y ∈ sibs, y.size = 32) →
+    ∀ e i sibs d s, NoCollision H (subInputs H g d s) (xin :: climbInputs H e i (H xin) sibs) →
+      sibs.length = e → (∀ y ∈ sibs, y.size = 32) →
       i < 2 ^ e → climb H e i (H xin) sibs = sub H (fun j => H (g j)) d s →
       e = d ∧ xin = g (s + i) ∧ sibs = path H (fun j => H (g j)) d s i
   | 0, i, sibs, d, s, hn, hl, _, hi, h => by
@@ -366,10 +392,10 @@ theorem climb_sub (hsize : ∀ x, (H x).size = 32) {g : Nat → B}
     cases d with
     | zero =>
       simp only [climb, sub] at h
-      exact ⟨rfl, hn _ (by simp [subInputs]) _ h, rfl⟩
+      exact ⟨rfl, hn _ (by simp [subInputs]) _ (List.mem_cons_self ..) h, rfl⟩
     | succ d =>
       simp only [climb, sub, node] at h
-      exact absurd (hn _ (by simp [subInputs]) _ h)
+      exact absurd (hn _ (by simp [subInputs]) _ (List.mem_cons_self ..) h)
         (hx _ _ (size_sub hsize (fun _ => hsize _) _ _) (size_sub hsize (fun _ => hsize _) _ _))
   | e + 1, i, sib :: rest, d, s, hn, hl, hs, hi, h => by
     have hsib : sib.size = 32 := hs sib (by simp)
@@ -381,21 +407,34 @@ theorem climb_sub (hsize : ∀ x, (H x).size = 32) {g : Nat → B}
     | zero =>
       simp only [climb, sub, node] at h
       split at h
-      · exact (hg _ _ _ (hc _ _ _) hsib (hn (g s) (by simp [subInputs]) _ h).symm).elim
-      · exact (hg _ _ _ hsib (hc _ _ _) (hn (g s) (by simp [subInputs]) _ h).symm).elim
+      · rename_i hlt
+        exact (hg _ _ _ (hc _ _ _) hsib
+          (hn (g s) (by simp [subInputs]) _ (by simp [climbInputs, hlt]) h).symm).elim
+      · rename_i hge
+        exact (hg _ _ _ hsib (hc _ _ _)
+          (hn (g s) (by simp [subInputs]) _ (by simp [climbInputs, hge]) h).symm).elim
     | succ d =>
-      have hL : NoSecondPreimage H (subInputs H g d s) := fun x hx => hn x (by simp [subInputs, hx])
-      have hR : NoSecondPreimage H (subInputs H g d (s + 2 ^ d)) := fun x hx => hn x (by simp [subInputs, hx])
       have hN := hn (tagNode ++ sub H (fun j => H (g j)) d s ++ sub H (fun j => H (g j)) d (s + 2 ^ d))
         (by simp [subInputs])
       simp only [climb, sub, node] at h
       split at h
       · rename_i hlt
-        obtain ⟨h1, h3⟩ := nodeIn_inj (by rw [hsib, hsub]) (hN _ h)
+        have hL : NoCollision H (subInputs H g d s) (xin :: climbInputs H e i (H xin) rest) :=
+          fun x hx y hy => hn x (by simp [subInputs, hx]) y (by
+            rcases List.mem_cons.1 hy with rfl | hy
+            · exact List.mem_cons_self ..
+            · simp [climbInputs, hlt, hy])
+        obtain ⟨h1, h3⟩ := nodeIn_inj (by rw [hsib, hsub]) (hN _ (by simp [climbInputs, hlt]) h)
         obtain ⟨rfl, h2, h4⟩ := climb_sub hsize hg hx e i rest d s hL hl' hrest hlt h1
         exact ⟨rfl, h2, by simp only [path, hlt, ↓reduceIte, h3, h4]⟩
       · rename_i hge
-        obtain ⟨h3, h1⟩ := nodeIn_inj (by rw [hc, hsub]) (hN _ h)
+        have hR : NoCollision H (subInputs H g d (s + 2 ^ d))
+            (xin :: climbInputs H e (i - 2 ^ e) (H xin) rest) :=
+          fun x hx y hy => hn x (by simp [subInputs, hx]) y (by
+            rcases List.mem_cons.1 hy with rfl | hy
+            · exact List.mem_cons_self ..
+            · simp [climbInputs, hge, hy])
+        obtain ⟨h3, h1⟩ := nodeIn_inj (by rw [hc, hsub]) (hN _ (by simp [climbInputs, hge]) h)
         have hlt : i - 2 ^ e < 2 ^ e := by rw [Nat.pow_succ] at hi; omega
         obtain ⟨rfl, h2, h4⟩ := climb_sub hsize hg hx e (i - 2 ^ e) rest d (s + 2 ^ d) hR hl' hrest hlt h1
         refine ⟨rfl, ?_, by simp only [path, hge, ↓reduceIte, h3, h4]⟩
@@ -435,14 +474,17 @@ theorem leaves_hash (ct : B) : leaves H ct = fun j => H (leafIn ct j) := by
 /-- **A chunk that verifies against a file's root is that file's chunk**:
 the length is the file's, the index is in it, the slice is its slice
 there, and the siblings are its proof (no other siblings verify),
-unless SHA-256 has a second preimage of something the root hashes. -/
-theorem verify_sound (hsize : ∀ x, (H x).size = 32) {ct : B} (hspr : NoSecondPreimage H (treeInputs H ct))
-    {len i : Nat} {s : B} {sibs : List B} (h : verify H (fileRoot H ct) len i s sibs = true) :
+unless something checking it hashed collides with something the root
+hashes. -/
+theorem verify_sound (hsize : ∀ x, (H x).size = 32) {ct : B} {len i : Nat} {s : B} {sibs : List B}
+    (hspr : NoCollision H (treeInputs H ct) (verifyInputs H len i s sibs))
+    (h : verify H (fileRoot H ct) len i s sibs = true) :
     len = ct.size ∧ (slices ct)[i]? = some s ∧ sibs = proof H ct i := by
   obtain ⟨hlen, hi, hl, hs, -, hr⟩ := verify_iff.1 h
-  obtain ⟨hb, ht⟩ := rootIn_inj (hspr _ (List.mem_cons_self ..) _ hr)
-  have hsub : NoSecondPreimage H (subInputs H (leafIn ct) (depthOf (nChunks ct.size)) 0) :=
-    fun x hx => hspr x (List.mem_cons_of_mem _ hx)
+  obtain ⟨hb, ht⟩ := rootIn_inj (hspr _ (List.mem_cons_self ..) _ (List.mem_cons_self ..) hr)
+  have hsub : NoCollision H (subInputs H (leafIn ct) (depthOf (nChunks ct.size)) 0)
+      ((tagLeaf ++ be64 i ++ s) :: climbInputs H (depthOf (nChunks len)) i (leaf H i s) sibs) :=
+    fun x hx y hy => hspr x (List.mem_cons_of_mem _ hx) y (List.mem_cons_of_mem _ hy)
   have hg : ∀ j a b, a.size = 32 → b.size = 32 → leafIn ct j ≠ tagNode ++ a ++ b := by
     intro j a b ha hb
     unfold leafIn
@@ -480,18 +522,19 @@ theorem index_bound {root : B} {len i : Nat} {s : B} {sibs : List B} (h : verify
   exact ⟨hi, hs⟩
 
 /-- **Verifying chunks for every index, put together, are the file**,
-unless SHA-256 has a second preimage of something its root hashes.
-Every file has a chunk, so the first one pins the length. -/
-theorem complete_assembles (hsize : ∀ x, (H x).size = 32) {ct : B}
-    (hspr : NoSecondPreimage H (treeInputs H ct)) {len : Nat} (s : Nat → B) (sibs : Nat → List B)
+unless something checking them hashed collides with something its root
+hashes. Every file has a chunk, so the first one pins the length. -/
+theorem complete_assembles (hsize : ∀ x, (H x).size = 32) {ct : B} {len : Nat}
+    (s : Nat → B) (sibs : Nat → List B)
+    (hspr : ∀ i < nChunks len, NoCollision H (treeInputs H ct) (verifyInputs H len i (s i) (sibs i)))
     (h : ∀ i < nChunks len, verify H (fileRoot H ct) len i (s i) (sibs i) = true) :
     assemble ((List.range (nChunks len)).map s) = ct := by
-  obtain rfl := (verify_sound hsize hspr (h 0 (one_le_nChunks len))).1
+  obtain rfl := (verify_sound hsize (hspr 0 (one_le_nChunks len)) (h 0 (one_le_nChunks len))).1
   have : (List.range (nChunks ct.size)).map s = slices ct := by
     apply List.ext_getElem?
     intro i
     by_cases hi : i < nChunks ct.size
-    · rw [(verify_sound hsize hspr (h i hi)).2.1]
+    · rw [(verify_sound hsize (hspr i hi) (h i hi)).2.1]
       simp [hi]
     · simp [getElem?_slices, hi]
   rw [this, assemble_slices]
@@ -510,7 +553,10 @@ theorem size_witness (x : B) : (witness x).size = 32 := by
   · rfl
   · split <;> rfl
 
-theorem witness_spr : NoSecondPreimage witness (treeInputs witness .empty) := by
+/-- The model hash has no second preimage, over every byte string, of
+anything the empty file's root hashes (it is not SHA-256: it gives those
+inputs outputs nothing else has). -/
+theorem witness_spr : ∀ x ∈ treeInputs witness .empty, ∀ y, witness y = witness x → y = x := by
   have hra : tagRoot ++ be64 0 ++ bytes32 1 ≠ leafIn .empty 0 := by decide
   have h01 : bytes32 0 ≠ bytes32 1 := by decide
   have h02 : bytes32 0 ≠ bytes32 2 := by decide
@@ -541,11 +587,12 @@ theorem witness_spr : NoSecondPreimage witness (treeInputs witness .empty) := by
       · exact absurd hy h01
 
 /-- **The laws' assumptions can hold together**: a hash with 32-byte
-outputs and no second preimage of anything a file's root hashes (where
-injectivity cannot, `no_injective_hash`), so `verify_sound` and
-`complete_assembles` are not vacuous. -/
-theorem assumptions_hold : ∃ H : B → B, (∀ x, (H x).size = 32) ∧ NoSecondPreimage H (treeInputs H .empty) :=
-  ⟨witness, size_witness, witness_spr⟩
+outputs and no collision between what a file's root hashes and anything
+checked against it (where injectivity cannot, `no_injective_hash`), so
+`verify_sound` and `complete_assembles` are not vacuous. -/
+theorem assumptions_hold :
+    ∃ H : B → B, (∀ x, (H x).size = 32) ∧ ∀ ys, NoCollision H (treeInputs H .empty) ys :=
+  ⟨witness, size_witness, fun _ x hx y _ h => witness_spr x hx y h⟩
 
 end
 
