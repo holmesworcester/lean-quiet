@@ -39,17 +39,20 @@ import java.util.List;
  * unhandled reach the EditText.
  */
 public class LeanActivity extends NativeActivity implements BarState.Window {
-  static native void nAppearance(boolean dark, int textDpi);
-  static native void nInsets(int top, int bottom, int ime, int left, int right,
+  private static LeanActivity active;
+  private boolean imeWanted;
+  private boolean imeWasVisible;
+  native void nAppearance(boolean dark, int textDpi);
+  native void nInsets(int top, int bottom, int ime, int left, int right,
       int cutLeft, int cutTop, int cutRight, int cutBottom);
-  static native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
-  static native void nAction(int kind, int code, int action);
-  static native void nLink(String url);
+  native void nText(String text, int selStart, int selEnd, int compStart, int compEnd);
+  native void nAction(int kind, int code, int action);
+  native void nLink(String url);
   /** A camera frame's Y plane, as the camera filled it (copied in native),
    * and the sensor's clockwise orientation in degrees. */
-  static native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
+  native void nLuma(ByteBuffer y, int width, int height, int rowStride, int orientation);
 
-  static native void nPhoto(int token, int status, int width, int height, byte[] rgba);
+  native void nPhoto(int token, int status, int width, int height, byte[] rgba);
   private int pickerToken;
   private volatile int photoToken;
   private final java.util.concurrent.ExecutorService photoWorker =
@@ -60,6 +63,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   public void pickPhoto(int token) {
     photoToken = token;
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (token == 0 || photoToken != token) return;
       if (pickerToken != 0) { nPhoto(token, 3, 0, 0, null); return; }
       pickerToken = token;
@@ -140,6 +144,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   /** Called with Lean's effective theme; never changes the OS observation. */
   public void appearance(boolean dark, int background) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (appliedBackground == background && appliedDark == dark) return;
       appliedDark = dark;
       appliedBackground = background;
@@ -171,10 +176,15 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override public void onWindowFocusChanged(boolean focused) {
     super.onWindowFocusChanged(focused);
-    if (focused) bars.attach(this);
+    if (focused) {
+      bars.attach(this);
+      if (imeWanted) applyIme();
+    }
   }
 
   @Override protected void onDestroy() {
+    if (active == this) active = null;
+    imeWanted = false;
     bars.detach(this);
     photoToken = 0;
     photoWorker.shutdownNow();
@@ -216,6 +226,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
 
   @Override protected void onCreate(Bundle saved) {
     super.onCreate(saved);
+    active = this;
     deliverLink(getIntent());
     reportAppearance(getResources().getConfiguration());
     getWindow().setDecorFitsSystemWindows(false);
@@ -270,9 +281,14 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
         });
   }
 
-  private static void insets(WindowInsets in) {
+  private void insets(WindowInsets in) {
     Insets bars = in.getInsets(WindowInsets.Type.systemBars());
     Insets ime = in.getInsets(WindowInsets.Type.ime());
+    boolean visible = ime.bottom > 0;
+    // A system Back/hide completes the request too. A later focus event must
+    // not reopen a keyboard the user already dismissed.
+    if (imeWasVisible && !visible) imeWanted = false;
+    imeWasVisible = visible;
     android.view.DisplayCutout cut = in.getDisplayCutout();
     nInsets(bars.top, bars.bottom, ime.bottom, bars.left, bars.right,
         cut == null ? 0 : cut.getSafeInsetLeft(), cut == null ? 0 : cut.getSafeInsetTop(),
@@ -299,18 +315,31 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   /** From native (any thread): opens or closes the keyboard. */
   public void showIme(boolean show) {
     runOnUiThread(() -> {
-      android.view.WindowInsetsController c = getWindow().getInsetsController();
-      if (show) {
-        edit.requestFocus();
-        // An explicit request: an implicit one is refused while a hardware
-        // keyboard is attached (as on the emulator).
+      if (active != this || isDestroyed()) return;
+      imeWanted = show;
+      applyIme();
+    });
+  }
+
+  // Native touch delivery can precede the replacement window's focus. Keep
+  // the request until focus arrives; posting also lets IMM's window-focus
+  // handler establish the input connection before requesting visibility.
+  private void applyIme() {
+    if (active != this || isDestroyed() || edit == null) return;
+    if (imeWanted) {
+      edit.requestFocus();
+      if (!hasWindowFocus() || !edit.isAttachedToWindow()) return;
+      edit.post(() -> {
+        if (active != this || isDestroyed() || !imeWanted || !hasWindowFocus()) return;
+        android.view.WindowInsetsController c = getWindow().getInsetsController();
         if (c != null) c.show(WindowInsets.Type.ime());
         imm.showSoftInput(edit, 0);
-      } else {
-        if (c != null) c.hide(WindowInsets.Type.ime());
-        imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
-      }
-    });
+      });
+    } else {
+      android.view.WindowInsetsController c = getWindow().getInsetsController();
+      if (c != null) c.hide(WindowInsets.Type.ime());
+      imm.hideSoftInputFromWindow(edit.getWindowToken(), 0);
+    }
   }
 
   private void deliverLink(android.content.Intent intent) {
@@ -328,6 +357,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
    * field already holding t is left alone (its caret too). */
   public void setText(String t) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (edit.getText().toString().equals(t)) return;
       edit.setText(t);
       edit.setSelection(t.length());
@@ -337,6 +367,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   /** From native (any thread): puts text on the clipboard. */
   public void copyText(String text) {
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       android.content.ClipboardManager cm =
         (android.content.ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
       if (cm != null) cm.setPrimaryClip(android.content.ClipData.newPlainText("message", text));
@@ -363,6 +394,7 @@ public class LeanActivity extends NativeActivity implements BarState.Window {
   public void scan(boolean on) {
     android.util.Log.i("lean", "camera " + (on ? "on" : "off"));
     runOnUiThread(() -> {
+      if (active != this || isDestroyed()) return;
       if (on) startCamera();
       else stopCamera();
     });

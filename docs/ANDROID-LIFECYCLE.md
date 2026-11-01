@@ -1,0 +1,112 @@
+# Android Activity ownership and IME regression
+
+Android may destroy and replace a `NativeActivity` while retaining its process.
+Previously that callback closed the process-global Lean run unconditionally;
+the replacement then reused a run which was already shutting down. A final
+`exit()` also ran Android/HWUI global destructors while their workers remained
+alive. The observed failure ended in a destroyed-mutex abort.
+
+The native boundary now queries the destroyed Activity's actual
+`isChangingConfigurations()` result. Configuration replacement releases its
+surface and Java owner without closing the Lean run; a real finish still closes
+it. Native calls acquire their own JNI local reference under the owner mutex,
+release the mutex before calling Java, and release the reference afterward.
+Callbacks carry their originating Activity and cannot change a replacement
+owner's state. Scroll physics retain the application context. After Lean's main
+returns, stdio is flushed and `_Exit` terminates the dedicated native app process
+without invoking concurrent global destructors.
+
+The keyboard keeps a pending show request until the current Activity has window
+focus, then posts the actual IME call. An explicit hide or an observed visible to
+hidden transition cancels the request, including user Back. Posted work from a
+destroyed owner is ignored. This follows Android's documented requirement that
+the focused editor and window be ready before requesting the keyboard.
+
+An independent test setup defect was also observed: APK installation completed
+before the package-replacement broadcasts updated the IME service. IMMS had no
+current method and the test IME never started. Draining broadcasts alone did not
+resolve every case: repeatedly replacing the selected IME left a dangling bound
+service record. The suite now unselects the old IME before installing its APK
+once, then keeps that unchanged service throughout all app mutations. Tests
+drain the actual Android broadcast queues and observe IME registration before
+measuring app latency. The keyboard is not preopened; the first actual composer
+tap must open it. The original 1.2-second keyboard waits are unchanged.
+
+## Reproduce and review
+
+Run `mise run android:lifecycle-e2e`, or `ci/local.sh android-lifecycle`.
+`ci/local.sh android-ui` invokes both the existing twin UI suite and this task.
+The lifecycle task builds the actual TwinDemo APK, a separate instrumentation
+APK, and the test IME; creates its own `lean-quiet-lifecycle` AVD; then runs the
+baseline, six independently compiled production mutations, and the restored
+baseline. The default owned emulator port is 5646 (`LIFECYCLE_PORT` overrides it).
+It refuses to replace an occupied emulator and tears down its own process.
+
+The fixture uses actual `Activity.recreate()` three times, checks the same live
+PID and retained Lean state, delivers stale JNI text callbacks, taps the actual
+composer, and opens a real dialog to remove window focus. It checks pending show,
+pending hide, user Back, and a real `Activity.finish()` which removes all process
+workers. A test-only native `atexit` probe makes global-destructor regression
+observable without provoking a secondary HWUI crash. Nothing from the probe APK
+is linked into the shipped app.
+
+Each instrumentation invocation supplies a fresh token with its observations.
+An earlier control exposed a fixture defect: a terminated run's retained
+`ready` file was accepted before the next process existed. Captured evidence
+showed an empty actual PID paired with the old run's PID. Replaying the same
+saved APKs after tagging observations reached the intended stale-callback
+assertion; no production code or assertion deadline changed for this repair.
+
+The six controls separately restore configuration-close behavior, permit stale
+callbacks, restore `exit`, drop unfocused show, ignore pending hide, and retain
+user-dismissed show. Each mutant must compile and fail its exact unchanged UI
+assertion. Build failure, host exception, signal, native crash, and Java crash
+in the captured app/instrumentation process are rejected as invalid control
+results. Android's threadtime PID identifies the owner; unparseable fatal lines
+also fail, as do target-process PANIC and uncaught-exception reports. Unrelated
+OS crashes are retained separately with the complete log
+(an emulator Bluetooth service abort exposed this attribution requirement).
+Logs, screenshots from the original
+UI suite, APK hashes, mutated source diffs, and OS IME/window diagnostics are
+retained under `out/lifecycle` and `out/e2e-twin`.
+
+## Runner and limits
+
+Validated with the reviewed Android presentation completion bridge applied:
+40/0 baseline, all six independently compiled controls rejected at their exact
+assertions, and 40/0 restored. All eight app logs also passed the strict
+native/Java/PANIC/uncaught-exception audit. The original named
+`android:twin-demo-e2e` passed unchanged keyboard, text, composition, send,
+scrolling and crash checks, including seven completed composer positions against
+the original minimum of six. That task rebuilt both x86_64 and arm64-v8a APK
+libraries under the 48GB cap. The comparable original-layer run passed with six
+positions; its earlier two-host-core failure remains diagnostic evidence.
+
+This is a provisioned Linux/KVM suite: Android SDK platform/build tools 35+,
+NDK, API36 Google APIs x86_64 system image, JDK17+, Python3, Rust Android targets,
+the repository's pinned Lean/libuv source trees, and a user systemd manager are
+required. Give the four-vCPU emulator at least four host CPUs; the validated
+comparisons used six host CPUs and serialized their UI timing suites. All
+Lean/Lake builds use `MemoryMax=48G` and `MemorySwapMax=0`; private
+mutation snapshots, runtime output and emulator images belong on `/mnt/storage`.
+The checked-in `ci/android-lifecycle.workflow.yml` invokes the same named task on
+a provisioned runner for scheduled, manual, and release runs. As with the other
+workflow templates, remote activation must be reported separately.
+
+These are realistic Android regressions, not a theorem that arbitrary native
+OS scheduling, IME services, or compositor callbacks terminate. They do not add
+an all-app memory or wall-clock bound. The JNI ownership change covers callbacks
+including photo results, but this fixture exercises text callback rejection;
+photo, scanner, and complete app checks remain their existing separate suites.
+Recreation during a pending photo selection/decode still needs a terminal
+cancellation result: Java currently clears its token and stops its worker,
+while `App.photoStep` waits for a result until user cancellation/navigation.
+That action-liveness case remains open and is not covered by the text-callback
+check here.
+Windows is unchanged. No iOS runtime was available for this milestone; the
+separate presentation work's C seam checks are not an iOS device test.
+
+References: [Activity lifecycle](https://developer.android.com/guide/components/activities/activity-lifecycle),
+[Activity.isChangingConfigurations](https://developer.android.com/reference/android/app/Activity#isChangingConfigurations()),
+[native callbacks](https://developer.android.com/ndk/reference/struct/a-native-activity-callbacks),
+and [keyboard visibility](https://developer.android.com/develop/ui/views/touch-and-input/keyboard-input/visibility).

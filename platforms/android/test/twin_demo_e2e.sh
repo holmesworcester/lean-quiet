@@ -37,10 +37,20 @@ finish() {
   exit "$status"
 }
 trap finish EXIT
+old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')
+# Unbind the selected old IME before replacing its service APK.
+"${adb[@]}" shell ime reset > "$art/ime-reset.txt"
 "$root/platforms/android/test/ime/build.sh" "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/twin-demo.apk" >/dev/null
-old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')
+# Installation returns before package broadcasts update the running IME service.
+# Observe actual setup completion before starting the unchanged UI deadlines.
+"${adb[@]}" shell am wait-for-broadcast-idle --flush-broadcast-loopers > "$art/package-broadcast-barrier.txt"
+for _ in $(seq 50); do
+  "${adb[@]}" shell ime list -a -s | grep -q '^com.holmes.testime/.TestIme' && break
+  sleep .1
+done
+"${adb[@]}" shell ime list -a -s | grep -q '^com.holmes.testime/.TestIme'
 "${adb[@]}" shell ime enable com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell ime set com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell setprop debug.lean.trace 1

@@ -254,6 +254,10 @@ run = "platforms/android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquie
 description = "Build the runtime and APK, then test a provisioned x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket; retains failure artifacts"
 run = "tests/app/mobile.sh android"
 
+[tasks."android:lifecycle-e2e"]
+description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME focus/hide and clean process finish, with six compiling controls"
+run = "bash platforms/android/test/lifecycle/run.sh"
+
 [tasks."android:runtime"]
 description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
 run = "platforms/android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src/libuv}\" \"$PWD/out/leanrt\" x86_64 arm64-v8a"

@@ -42,7 +42,8 @@ gate() {
     ios-input-device|release-ios-input) mise run ios:input-device-e2e ;;
     windows-ui|release-windows) mise run windows:e2e ;;
     macos-ui|release-macos) mise run macos:e2e ;;
-    android-ui) mise run android:twin-demo-e2e ;;
+    android-ui) mise run android:twin-demo-e2e && mise run android:lifecycle-e2e ;;
+    android-lifecycle) mise run android:lifecycle-e2e ;;
     zoom) mise run test:zoom ;;
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;
