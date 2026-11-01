@@ -557,9 +557,11 @@ def Conn.walkN (c : Conn) (offer : List (Id × Id)) : Nat → m (Conn × List (I
 invalid ops: their bytes cannot change, and the next round retries them. -/
 def Conn.walk (c : Conn) : m (Conn × List (Id × Id)) := c.walkN fam cfg [] cfg.walk
 
-/-- Authorize ids using only the shown rooms' index, before any blob read. -/
+/-- Authorize ids using only the shown rooms' index, before any blob read.
+Each room's items are read once a want, not once an id. -/
 def authorize (ix : Index) (c : Conn) (ids : List Id) : List Id :=
-  ids.filter fun i => c.rooms.any fun r => (ix.items r).any fun a => Decidable.decide (a.2 = i)
+  let held := c.rooms.map ix.items
+  ids.filter fun i => held.any fun l => l.any fun a => Decidable.decide (a.2 = i)
 
 /-- The peer wants these: the ids authorized from the shown rooms'
 index (before any read) and not queued already join the session's
