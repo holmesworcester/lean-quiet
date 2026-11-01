@@ -25,19 +25,19 @@ theorem payloadValid : suite.ValidPayload payload := by decide
 -- The supported-key/payload contract has an inhabited domain. The running
 -- suite is good given the crypto trust file (`suite_good`); the runner
 -- independently checks this actual roundtrip.
-theorem noiseContract (t : Trust.Native) :
+theorem noiseContract (t : Trust.NativeCrypto) :
     suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload :=
   (suite_good t).dec_enc key keyValid 0 ad payload adValid payloadValid
 
 def noiseContractCertificate : Option (PLift
     ((suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload) ∧
-      (Trust.Native → suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload))) :=
+      (Trust.NativeCrypto → suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload))) :=
   if h : suite.dec key 0 ad (suite.enc key 0 ad payload) = some payload then
     some (PLift.up ⟨h, noiseContract⟩)
   else none
 
 /-- The running Noise suite is good, given the crypto trust file. -/
-def suiteGoodConditional := some (PLift.up (fun t : Trust.Native => suite_good t))
+def suiteGoodConditional := some (PLift.up (fun t : Trust.NativeCrypto => suite_good t))
 
 -- Exact relation to the native stream's rounded-up block count after
 -- ChaChaPoly has consumed the first block for its authenticator key.

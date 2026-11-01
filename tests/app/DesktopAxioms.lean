@@ -6,6 +6,7 @@ requires each to rest on Lean's standard axioms only.
 -/
 import engine.renderer.desktop.Laws
 import platforms.desktop.Laws
+import engine.renderer.Scrollbar
 import platforms.desktop.HoverLaws
 -- The layout laws are stated over zoomLayout, the tracks the Driver
 -- paints, because the 160-dpi `layout` is not what runs at any other
@@ -23,6 +24,23 @@ example : (Desktop.zoomLayout 720 false 80).nav.w = 110 ∧ (Desktop.layout 720 
 #print axioms Desktop.hit_drawn
 #print axioms Desktop.witness
 #print axioms Desktop.settled_no_hold
+#print axioms Desktop.thumb_in_track
+#print axioms Desktop.newest_bottom
+#print axioms Desktop.oldest_top
+#print axioms Desktop.thumb_monotone
+#print axioms Desktop.drag_below
+#print axioms Desktop.drag_mono
+#print axioms Desktop.pinned_bottom
+#print axioms Scrollbar.fits
+#print axioms Scrollbar.newest_bottom
+#print axioms Scrollbar.oldest_top
+#print axioms Scrollbar.monotone
+#print axioms Scrollbar.exact
+#print axioms Scrollbar.seek_below
+#print axioms Scrollbar.seek_mono
+#print axioms Scrollbar.ranks_fit
+#print axioms Scrollbar.ranks_mono
+#print axioms Scrollbar.ranks_newest
 #print axioms Hover.disabled
 #print axioms Hover.absent
 #print axioms Hover.leave_clears

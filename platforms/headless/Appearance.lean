@@ -181,7 +181,7 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
       demand "count pill leaves its surrounding list untouched"
         (getPx pill.rows[px 7]! (px 52) == under &&
          getPx pill.rows[px 32]! (px 52) == under)
-    let waiting := Pages.waiting fresh.font fresh.dim s.W (screen[1]!.toNat - fresh.insetTop - fresh.insetBot) "038d2f7f"
+    let waiting := Pages.waiting Pages.Act.stopWaiting fresh.font fresh.dim s.W (screen[1]!.toNat - fresh.insetTop - fresh.insetBot) "038d2f7f"
       #[("Looking for someone to hand your join to", "Nobody has taken it yet.", .now),
         ("Waiting for a member to let you in", "Quiet asks again whenever it finds one.", .next),
         ("Keys and history arrive", "Then the community opens.", .next)] #[]

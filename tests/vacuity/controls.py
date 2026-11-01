@@ -36,7 +36,7 @@ example (g : Community.cryptoSeal.Good) (k n ad p : ByteArray) :
   simpa using g.dec_enc k n ad p
 """),
     ('a raw byte array is not a frame key', """import app.connection.Proofs
-example (t : Trust.Native) (cid sk n p : ByteArray) :
+example (t : Trust.NativeCrypto) (cid sk n p : ByteArray) :
     Connection.Frame.open Connection.sodium sk (Connection.Frame.seal Connection.sodium cid sk n p) = some (cid, p) :=
   Connection.open_seal_sodium t cid sk n (p := p) (by decide)
 """),
@@ -148,7 +148,7 @@ def sealForOld (K : Keys) (cid : Id) (p : B) : m (Option B) := do
   let some (sk, _) ← sessionKeys cid | return none
   let n := (← Fresh.fresh).extract 0 24
   return some (Frame.seal K cid sk n p)
-theorem sealForOld_opens [Fresh (HeldM F)] (t : Trust.Native) {cid p f : B} {h : Held F}
+theorem sealForOld_opens [Fresh (HeldM F)] (t : Trust.NativeCrypto) {cid p f : B} {h : Held F}
     (hp : p.size < Crypto.maxPlaintext)
     (hs : ((sealForOld sodium cid p : HeldM F _) h).1 = some f) :
     ∃ sk rk, ((sessionKeys cid : HeldM F _) h).1 = some (sk, rk) ∧
@@ -172,7 +172,7 @@ def sealedPostBad (c adm : Id) (by_ : Device) (k : Key32) (nonce : Nonce24) (tex
     (clump : Option Id := none) : Op :=
   let kid := kidOf cryptoSeal k
   post c adm by_ kid (nonce.1 ++ sealBody cryptoSeal k nonce adm kid text) n time clump
-theorem sealedPostBad_opens (t : Trust.Native) (c adm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
+theorem sealedPostBad_opens (t : Trust.NativeCrypto) (c adm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
     (text : ByteArray) (n time : Nat) (clump : Option Id)
     (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
     ∃ kid sealed sg, (Codec.decode (sealedPostBad c adm d k nonce text n time clump).body : Option Body) =
@@ -192,7 +192,7 @@ open Engine
 def wrapKeyBad (c : Id) (k esk : Key32) (_to : ByteArray) : Op :=
   let kid := kidOf cryptoSeal k
   wrap c kid _to (box cryptoSeal esk (cryptoSeal.pub esk) kid k)
-theorem wrapKeyBad_opens (t : Trust.Native) (c : Id) (k esk rsk : Key32) :
+theorem wrapKeyBad_opens (t : Trust.NativeCrypto) (c : Id) (k esk rsk : Key32) :
     ∃ kid bx, (Codec.decode (wrapKeyBad c k esk (cryptoSeal.pub rsk)).body : Option Body) =
       some (.wrap kid (cryptoSeal.pub rsk) bx) ∧ kid = kidOf cryptoSeal k ∧
       unbox cryptoSeal rsk kid bx = some k := by
@@ -205,7 +205,7 @@ end Community
 namespace Connection
 open Engine
 def sodiumBad : Keys := { sodium with fdec := fun k n ad c => Noise.xchachaOpen k (n.extract 0 23) ad c }
-theorem open_seal_bad (t : Trust.Native) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
+theorem open_seal_bad (t : Trust.NativeCrypto) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
     (hp : p.size < Crypto.maxPlaintext) :
     Frame.open sodiumBad sk.1 (Frame.seal sodiumBad cid.1 sk.1 n.1 p) = some (cid.1, p) :=
   let h := t.xchacha sk n (Frame.ad cid.1) p hp (ad_fits cid)

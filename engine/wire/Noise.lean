@@ -427,7 +427,7 @@ crypto trust file): DH agreement from X25519's on 32-byte secrets, HKDF
 keys and handshake associated data from SHA-256's digest size, the
 handshake AEAD from ChaCha20-Poly1305's roundtrip, and framing from the
 public key's 32 bytes. -/
-theorem suite_good (t : Trust.Native) : suite.Good where
+theorem suite_good (t : Trust.NativeCrypto) : suite.Good where
   dh_comm := suite_dh_comm t.x25519
   hkdf_keys ck ikm := hkdf_size t.sha256 ck ikm
   hash_ad x := by show (Engine.sha256 x).size < Crypto.maxAD; rw [t.sha256]; decide

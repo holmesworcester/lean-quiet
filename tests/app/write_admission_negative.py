@@ -4,10 +4,10 @@ from pathlib import Path
 import subprocess
 
 root = Path(__file__).resolve().parents[2]
-# The admission code is a section of the root screen (app/Screen.lean): it
-# names no op type and only the app calls it. Its namespace, with what it
-# imports, is checked alone, so a mutant costs one small file.
-screen = (root / "app/Screen.lean").read_text()
+# The admission code (engine/wire/WriteAdmission.lean) names no op type.
+# Its namespace, with what it imports, is checked alone, so a mutant costs
+# one small file.
+screen = (root / "engine/wire/WriteAdmission.lean").read_text()
 start = screen.index("namespace App.WriteAdmission")
 end = screen.index("end App.WriteAdmission") + len("end App.WriteAdmission")
 source = "import engine.core.Core\nimport engine.wire.Frame\n\n" + screen[start:end] + "\n"

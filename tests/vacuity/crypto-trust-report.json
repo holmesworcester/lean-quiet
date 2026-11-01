@@ -1,7 +1,7 @@
 {
-  "Trust.Native": {
+  "NativeCrypto": {
     "status": "conditional",
-    "theorem": "Trust.Native",
+    "theorem": "Trust.NativeCrypto",
     "witness": "Vacuity.CryptoTrust.nativeConditional",
     "module": "tests.vacuity.CryptoTrust",
     "exercise": true,

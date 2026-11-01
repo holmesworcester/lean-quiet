@@ -4,7 +4,7 @@ import tests.engine.Lib
 functions the app runs. Keys and nonces are sized (`Key32`, `Nonce24`), so
 no size premise is left to discharge: the fixtures' sizes are proved by
 `rfl` when they are built. What is left is the crypto trust file's
-assumption (`Trust.Native`): each theorem's instance takes it as its one
+assumption (`Trust.NativeCrypto`): each theorem's instance takes it as its one
 premise (the *conditional* bridges below), and the executable checks the
 instance's conclusion directly on the native crates. Wrong sizes cannot be
 passed at all; the controls show the stored-key path refuses them, and that
@@ -35,36 +35,36 @@ theorem counterBound (n : Nat) : n < Crypto.maxPlaintext ↔ (n + 63) / 64 ≤ 2
 
 /-! ## Conditional bridges: the instances, given the trust file -/
 
-def goodConditional := some (PLift.up (fun t : Trust.Native => cryptoSeal_good t))
+def goodConditional := some (PLift.up (fun t : Trust.NativeCrypto => cryptoSeal_good t))
 
 def openSealedConditional :=
   if ha : (bodyAd room kid).size < Crypto.maxAD then
-    some (PLift.up (fun t : Trust.Native =>
+    some (PLift.up (fun t : Trust.NativeCrypto =>
       openSealed_seal (c := room) (kid := kid) (text := text) (cryptoSeal_good t) key nonce textFits ha))
   else none
 
 def memberOpensConditional :=
   if ha : (bodyAd room kid).size < Crypto.maxAD then
-    some (PLift.up (fun t : Trust.Native =>
+    some (PLift.up (fun t : Trust.NativeCrypto =>
       member_opens (cryptoSeal_good t) rsk esk key nonce room text textFits ha))
   else none
 
 def unboxConditional :=
   if hi : kid.size < Crypto.maxAD then
-    some (PLift.up (fun t : Trust.Native => unbox_box (cryptoSeal_good t) rsk esk key kid hi))
+    some (PLift.up (fun t : Trust.NativeCrypto => unbox_box (cryptoSeal_good t) rsk esk key kid hi))
   else none
 
 /-- The app's own path: the poster's `sealedPost`, read back by the
 screen's `openStored` (`sealedPost_opens`). -/
-def postOpensConditional := some (PLift.up (fun t : Trust.Native =>
+def postOpensConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
   sealedPost_opens t room admission poster key nonce text 1 29880000 none roomSize textFits))
 
 /-- The approver's `wrapKey`, opened by the member's `unbox`
 (`wrapKey_opens`). -/
-def wrapOpensConditional := some (PLift.up (fun t : Trust.Native => wrapKey_opens t room key esk rsk))
+def wrapOpensConditional := some (PLift.up (fun t : Trust.NativeCrypto => wrapKey_opens t room key esk rsk))
 
 /-- All four together (`member_reads`). -/
-def memberReadsConditional := some (PLift.up (fun t : Trust.Native =>
+def memberReadsConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
   member_reads t room admission poster key esk rsk nonce text 1 29880000 none roomSize textFits))
 
 /-! ## The old unsized roundtrip, refuted by the native crates -/

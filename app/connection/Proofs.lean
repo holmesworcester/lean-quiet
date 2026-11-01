@@ -536,7 +536,7 @@ end
 running keys, `sodium`). With the 32-byte id, send key and 24-byte nonce
 that `sealFor` checks, the frame law's premises follow from
 XChaCha20-Poly1305's correctness alone (engine/core/Trust.lean). -/
-theorem open_seal_sodium (t : Trust.Native) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
+theorem open_seal_sodium (t : Trust.NativeCrypto) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
     (hp : p.size < Crypto.maxPlaintext) :
     Frame.open sodium sk.1 (Frame.seal sodium cid.1 sk.1 n.1 p) = some (cid.1, p) :=
   let h := t.xchacha sk n (Frame.ad cid.1) p hp (ad_fits cid)
@@ -544,7 +544,7 @@ theorem open_seal_sodium (t : Trust.Native) (cid : Bytes 32) (sk : Key32) (n : N
 
 /-- **A running frame's header names its connection** (`cid_seal` at
 `sodium`). -/
-theorem cid_seal_sodium (t : Trust.Native) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
+theorem cid_seal_sodium (t : Trust.NativeCrypto) (cid : Bytes 32) (sk : Key32) (n : Nonce24) {p : B}
     (hp : p.size < Crypto.maxPlaintext) :
     Frame.cid (Frame.seal sodium cid.1 sk.1 n.1 p) = some cid.1 :=
   cid_seal (K := sodium) (t.xchacha sk n (Frame.ad cid.1) p hp (ad_fits cid)).2 cid.2 n.2
@@ -556,7 +556,7 @@ open Engine.Sync
 key, which the peer holds as its receive key (`established_agrees`).
 `sealFor` seals only under the sizes it checks, so XChaCha20-Poly1305's
 correctness is the one premise left. -/
-theorem sealFor_opens [Fresh (HeldM F)] (t : Trust.Native) {cid p f : B} {h : Held F}
+theorem sealFor_opens [Fresh (HeldM F)] (t : Trust.NativeCrypto) {cid p f : B} {h : Held F}
     (hp : p.size < Crypto.maxPlaintext)
     (hs : ((sealFor sodium cid p : HeldM F _) h).1 = some f) :
     ∃ sk rk, ((sessionKeys cid : HeldM F _) h).1 = some (sk, rk) ∧

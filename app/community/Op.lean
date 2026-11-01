@@ -146,7 +146,7 @@ def cryptoSeal : Seal where
 
 /-- **The running suite is good**, given the crates' correctness: the
 crypto trust file's assumptions, on sized inputs. -/
-theorem cryptoSeal_good (t : Trust.Native) : cryptoSeal.Good where
+theorem cryptoSeal_good (t : Trust.NativeCrypto) : cryptoSeal.Good where
   dh_comm a b := t.x25519.2 a b
   dec_enc k n ad p hp ha := (t.xchacha k n ad p hp ha).1
   pub_size a := (t.x25519.1 a).1

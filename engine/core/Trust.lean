@@ -60,7 +60,7 @@ def X25519 : Prop := Agree (fun a b => x25519 a.1 b) (fun a => x25519Base a.1)
 def Sha256Size : Prop := DigestSize sha256
 
 /-- All four: what a suite built on the native crates needs. -/
-structure Native : Prop where
+structure NativeCrypto : Prop where
   xchacha : XChaCha
   chacha : ChaCha
   x25519 : X25519

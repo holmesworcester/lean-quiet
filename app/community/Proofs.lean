@@ -290,7 +290,7 @@ discharged: key and nonce sizes by their types, the key id's by
 SHA-256's digest size; the community id is an op id (32 bytes) and the
 text is under the AEAD's limit (274877906817 bytes; an op that fits a
 frame is under 1 MiB). -/
-theorem sealedPost_opens (t : Trust.Native) (c adm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
+theorem sealedPost_opens (t : Trust.NativeCrypto) (c adm : Id) (d : Device) (k : Key32) (nonce : Nonce24)
     (text : ByteArray) (n time : Nat) (clump : Option Id)
     (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
     ∃ kid sealed sg, (Codec.decode (sealedPost c adm d k nonce text n time clump).body : Option Body) =
@@ -308,7 +308,7 @@ running suite, through the approver's `wrapKey` and the member's
 `unwrap`): the wrap `wrapKey` writes to the node key of secret rsk,
 `unbox` opens with rsk to the content key, given the crates'
 correctness. -/
-theorem wrapKey_opens (t : Trust.Native) (c : Id) (k esk rsk : Key32) :
+theorem wrapKey_opens (t : Trust.NativeCrypto) (c : Id) (k esk rsk : Key32) :
     ∃ kid bx, (Codec.decode (wrapKey c k esk (cryptoSeal.pub rsk)).body : Option Body) =
       some (.wrap kid (cryptoSeal.pub rsk) bx) ∧ kid = kidOf cryptoSeal k ∧
       unbox cryptoSeal rsk kid bx = some k := by
@@ -321,7 +321,7 @@ it**, through the functions the app runs: the approver's `wrapKey` to
 the device's node key, the member's `unbox`, the poster's `sealedPost`
 and the screen's `openStored`. The one premise left about the code is
 the crates' correctness (`member_opens` at the running suite). -/
-theorem member_reads (t : Trust.Native) (c adm : Id) (d : Device) (k esk rsk : Key32) (nonce : Nonce24)
+theorem member_reads (t : Trust.NativeCrypto) (c adm : Id) (d : Device) (k esk rsk : Key32) (nonce : Nonce24)
     (text : ByteArray) (n time : Nat) (clump : Option Id)
     (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
     ∃ kid bx sealed sg,

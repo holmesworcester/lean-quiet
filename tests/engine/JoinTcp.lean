@@ -102,7 +102,7 @@ def Mutant.apply : Mutant → Hooks F (SqlM F) → Hooks F (SqlM F)
   | .quiet, h => { h with rooms := quietRooms }
   | .old, h => { h with established := oldSessions, retired := oldRetired }
 
-def side (dir name : String) (port : Nat) (m : Mutant := .none) : IO Peer := do
+def sideAt (dir name : String) (port : Nat) (m : Mutant) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
   let nk := Bytes.digest s!"node {name}".toUTF8
   let addr := s!"127.0.0.1:{port}".toUTF8
@@ -111,6 +111,19 @@ def side (dir name : String) (port : Nat) (m : Mutant := .none) : IO Peer := do
   let x : Sync F (SqlM F) := { fam, cfg, hooks := m.apply (hooks fam K addr) }
   let run ← Runner.start x db 0 port.toUInt16
   return { name, seed, nk, addr, path, run }
+
+/-- A side listening on `port`, or, while another process holds it (tests
+run in parallel), on another: its hooks name its address before it
+listens, so the port is chosen here, not by the OS. -/
+def side (dir name : String) (port : Nat) (m : Mutant := .none) : IO Peer := do
+  let mut p := port
+  for _ in [0:40] do
+    try
+      return ← sideAt dir name p m
+    catch e =>
+      unless ((toString e).splitOn "address already in use").length > 1 do throw e
+      p := 20000 + (p * 7919 + 4999) % 12000
+  throw <| IO.userError s!"{name}: no free port near {port}"
 
 def Peer.key (p : Peer) : ByteArray := cryptoSeal.pub p.nk
 
@@ -236,7 +249,9 @@ def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/jointcp"
   IO.FS.createDirAll dir
   let t ← Checks.new
-  let base := 47000 + (← IO.monoMsNow) % 900
+  -- a base port may be given (tests/engine/jointcp_busy.sh holds it first)
+  let clock ← IO.monoMsNow
+  let base := (args[1]?.bind String.toNat?).getD (47000 + clock % 900)
   let a ← side dir "A" base
   let b ← side dir "B" (base + 1)
   let dA := Device.ofSeed a.seed

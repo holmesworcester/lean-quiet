@@ -69,7 +69,7 @@ def establishedAgreesSodium (s : IdentityConnection.Session) :=
         [.inr (.connection s.req.id s.m2), .inr (.request pkA pkB s.m1),
          .inr (.eph s.req.id (sodium.suite.pub eB) eB), .inl (.endpoint pkB staticB)] =
         some (.established s.reply.id c pkA s.hash s.recvKey s.sendKey true) then
-        some (PLift.up (fun t : Trust.Native => established_agrees_sodium t rfl rfl hn hr hi))
+        some (PLift.up (fun t : Trust.NativeCrypto => established_agrees_sodium t rfl rfl hn hr hi))
       else none
     else none
   else none
@@ -77,7 +77,7 @@ def establishedAgreesSodium (s : IdentityConnection.Session) :=
 /-- `open_seal_sodium`: the real session's id, receive key and nonce, sized
 once (`Bytes.of?`, as `sealFor` does); the trust file is the one premise. -/
 def openSealSodium (s : IdentityConnection.Session) :
-    Option (PLift (Trust.Native → Frame.open sodium s.recvKey (incoming s) = some (s.reply.id, payload))) :=
+    Option (PLift (Trust.NativeCrypto → Frame.open sodium s.recvKey (incoming s) = some (s.reply.id, payload))) :=
   match hc : Bytes.of? (n := 32) s.reply.id, hk : Bytes.of? (n := 32) s.recvKey,
       hn : Bytes.of? (n := 24) nonce with
   | some cid, some k, some n =>
@@ -89,7 +89,7 @@ def openSealSodium (s : IdentityConnection.Session) :
   | _, _, _ => none
 
 def cidSealSodium (s : IdentityConnection.Session) :
-    Option (PLift (Trust.Native → Frame.cid (incoming s) = some s.reply.id)) :=
+    Option (PLift (Trust.NativeCrypto → Frame.cid (incoming s) = some s.reply.id)) :=
   match hc : Bytes.of? (n := 32) s.reply.id, hk : Bytes.of? (n := 32) s.recvKey,
       hn : Bytes.of? (n := 24) nonce with
   | some cid, some k, some n =>
@@ -104,7 +104,7 @@ def cidSealSodium (s : IdentityConnection.Session) :
 def sealed (s : IdentityConnection.Session) := ((sealFor sodium s.reply.id payload : HeldM F _) (held s)).1
 
 def sealForOpens (s : IdentityConnection.Session) :
-    Option (PLift (Trust.Native → ∃ f, sealed s = some f ∧ ∃ sk rk,
+    Option (PLift (Trust.NativeCrypto → ∃ f, sealed s = some f ∧ ∃ sk rk,
       ((sessionKeys s.reply.id : HeldM F _) (held s)).1 = some (sk, rk) ∧
         Frame.open sodium sk f = some (s.reply.id, payload))) :=
   match h : sealed s with

@@ -94,7 +94,7 @@ theorem idHashRefused : ¬ DigestSize id := by
 
 /-- The whole trust file, bridged to both running suites: what every
 crypto law's instance at running code takes. -/
-def nativeConditional := some (PLift.up (fun t : Trust.Native =>
+def nativeConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
   And.intro (Community.cryptoSeal_good t) (Connection.Noise.suite_good t)))
 
 /-! ## Satisfied by the running code: each shape on the native crates -/

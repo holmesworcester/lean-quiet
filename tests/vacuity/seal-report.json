@@ -4,7 +4,7 @@
     "theorem": "Community.Seal.Good",
     "witness": "Vacuity.SealAudit.goodConditional",
     "module": "tests.vacuity.SealAudit",
-    "detail": "Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.Native: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove.",
+    "detail": "Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove.",
     "exercise": true
   },
   "openSealed_seal": {
@@ -45,7 +45,7 @@
     "witness": "Vacuity.SealAudit.goodConditional",
     "module": "tests.vacuity.SealAudit",
     "exercise": true,
-    "detail": "The running suite is good given the crypto trust file (engine/core/Trust.lean, Trust.Native: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). tests/vacuity/CryptoTrust.lean checks each part on the native crates and fails a broken model of each in the kernel. Mutation control: cryptoSeal opening under the zero nonce fails the proof."
+    "detail": "The running suite is good given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). tests/vacuity/CryptoTrust.lean checks each part on the native crates and fails a broken model of each in the kernel. Mutation control: cryptoSeal opening under the zero nonce fails the proof."
   },
   "sealedPost_opens": {
     "status": "conditional",

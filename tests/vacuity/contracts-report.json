@@ -4,7 +4,7 @@
     "theorem": "Connection.Noise.Suite.Good",
     "witness": "Vacuity.Contracts.noiseContractCertificate",
     "module": "tests.vacuity.Contracts",
-    "detail": "Valid keys come only from HKDF, whose outputs are SHA-256 digests; the running suite decides a malformed secret in Lean. The running suite has the contract given the crypto trust file (engine/core/Trust.lean, Trust.Native: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (suite_good). The executable checks native roundtrips, DH symmetry for every pair of 0/1/31/32/33/64-byte secrets, and HKDF key validity. Conditional on the trust file.",
+    "detail": "Valid keys come only from HKDF, whose outputs are SHA-256 digests; the running suite decides a malformed secret in Lean. The running suite has the contract given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (suite_good). The executable checks native roundtrips, DH symmetry for every pair of 0/1/31/32/33/64-byte secrets, and HKDF key validity. Conditional on the trust file.",
     "exercise": true
   },
   "Symbolic.sym": {
@@ -41,6 +41,6 @@
     "witness": "Vacuity.Contracts.suiteGoodConditional",
     "module": "tests.vacuity.Contracts",
     "exercise": true,
-    "detail": "The running Noise suite is good given the crypto trust file (engine/core/Trust.lean, Trust.Native: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). Mutation controls: DH without the zero-point check fails suite_dh_comm; an empty public key for a malformed secret fails suite_pub_size."
+    "detail": "The running Noise suite is good given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). Mutation controls: DH without the zero-point check fails suite_dh_comm; an empty public key for a malformed secret fails suite_pub_size."
   }
 }
