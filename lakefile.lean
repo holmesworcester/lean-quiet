@@ -552,3 +552,6 @@ lean_exe writer_resume where
 lean_exe prune_ack where
   root := `tests.engine.PruneAck
   moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_fairness where
+  root := `tests.engine.WriterFairness

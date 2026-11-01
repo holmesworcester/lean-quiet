@@ -12,7 +12,7 @@ namespace PublicationFixture
 @[extern "lq_stop_probe_injected"] opaque injected : IO Bool
 
 def writer (paused : Bool := false) : IO Writer :=
-  return ⟨← IO.mkRef #[], ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef paused,
+  return ⟨← IO.mkRef WriterQueue.empty, ← IO.mkRef 0, ← IO.mkRef #[], ← IO.mkRef paused,
     ← IO.mkRef 0, ← IO.mkRef 0, ← IO.mkRef (0, none), ← IO.mkRef 0⟩
 
 def root (name : String) : Op :=

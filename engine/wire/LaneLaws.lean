@@ -252,19 +252,6 @@ theorem framesFor_only (sockOf : ByteArray → Option Nat) (s : Nat) (fs : List 
 
 /-! ## The run loop's inbox -/
 
-/-- The loop's two channels as queues: local writes, and everything else. -/
-abbrev Queues (W E : Type) := StateM (List W × List E)
-
-def popW {W E : Type} : Queues W E (Option W) :=
-  modifyGet fun (ws, es) => match ws with
-    | [] => (none, ([], es))
-    | w :: ws => (some w, (ws, es))
-
-def popE {W E : Type} : Queues W E (Option E) :=
-  modifyGet fun (ws, es) => match es with
-    | [] => (none, (ws, []))
-    | e :: es => (some e, (ws, es))
-
 /-- The initial write-preferred turn takes a waiting local write. -/
 theorem write_first {W E : Type} (w : W) (ws : List W) (es : List E) :
     (Inbox.next true popW popE).run (w :: ws, es) = ((some (.inl w), false), (ws, es)) := rfl
