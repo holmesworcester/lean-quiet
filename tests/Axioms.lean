@@ -681,6 +681,9 @@ end net
 #print axioms Connection.answer_trusted
 #print axioms Connection.resend_trusted
 #print axioms PeopleLaws.present_not_removed
+#print axioms PeopleLaws.unremoved_false
+#print axioms PeopleLaws.deviceCut_removal
+#print axioms PeopleLaws.shipped_removed_without_removal
 
 #print axioms Connection.eval_roomFor
 #print axioms Connection.mem_roomsV
@@ -858,6 +861,7 @@ section cost
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
+#print axioms Community.approveReq_wrap_admits
 #print axioms Community.wrapAll_over
 end cost
 

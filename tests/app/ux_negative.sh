@@ -83,7 +83,7 @@ law "each label page starts a line late" engine/renderer/Label.lean \
   "ls.extract (page * count)" "ls.extract (page * count + 1)"
 law "the window may be the newest away from it" app/Screen.lean \
   "  else if near || cur.isNone then" "  else if near then"
-suite "a session dot on home's avatars" "" "home avatars have no connection dots" app/Screen.lean \
+suite "a session dot on home's avatars" "" "home avatars have no connection dots" app/community/Screen.lean \
   "    let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])" \
   "    b := b.round (px 38) (y + px 30) (px 46) (y + px 38) (px 4) 0x2EB67D
     let initial := oneLine font (px 24) (String.ofList [(name.toList.headD '?').toUpper])"

@@ -48,13 +48,14 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
 
 - The root founds the community; its fact is the founder's admission,
   and the founder's user is the community id. The founder is admin.
-- An invite is issued by an admitted device, with a threshold: how
-  many members must approve a request it carries, at least one (the
-  user's decision, 2026-10-27: approvals are always needed; they are
-  where key-material wraps to the new device will hang). A link
-  invitation (another device for the issuer's user) needs exactly one
-  approval, by the issuer's user, as libquiet's unbound device links
-  do. There is no open link: the bearer key alone admits nobody.
+- An invite is issued by an admitted device. A request it carries is
+  admitted by one approval (the user's decisions: 2026-10-27,
+  approvals are always needed, and they are where key-material wraps to
+  the new device hang; 2026-10-31, no thresholds, since one member can
+  mint the distinct users any threshold would count). A link invitation
+  (another device for the issuer's user) is approved by the issuer's
+  user only, as libquiet's unbound device links are. There is no open
+  link: the bearer key alone admits nobody.
 - A request redeems an invitation: the requesting device consents
   (signs), and so does the invitation's bearer key from the link. A
   request admits nobody. It is libquiet's Join before its vouches.
@@ -62,13 +63,12 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   than the requester's; a link request is approved by the issuer's user
   only. It cites the request, so approvals come after the request
   without the engine needing forward needs.
-- An admission of a request is a tally: it cites the request and
-  exactly `threshold` approvals of it, by distinct users. It is
-  unsigned (anyone holding the approvals may compose it), and its fact
-  is the admission: into a new user named by the request for a member
-  invitation, into the issuer's user for a link invitation. Several
-  admits of one request (other sets of approvals) all give that same
-  admission fact.
+- An admission of a request cites the request and exactly one
+  approval of it. It is unsigned (anyone holding the approval may
+  compose it), and its fact is the admission: into a new user named by
+  the request for a member invitation, into the issuer's user for a link
+  invitation. Several admits of one request (citing other approvals) all
+  give that same admission fact.
 - A request is body tag 12; tag 2 (the old join, of the same shape) no
   longer decodes, so an old op is refused rather than misread.
 - An admin grants admin to another user. Admin cannot be revoked.
@@ -197,7 +197,7 @@ inductive Body where
 /-! ## Each op type's fact and body by its fields, as laws and views match them -/
 
 @[match_pattern] abbrev Fact.admission (c : Id) (u : Id) (device : Key) (enc : Key) : Fact := .ofAdmission ⟨c, u, device, enc⟩
-@[match_pattern] abbrev Fact.invitation (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat) : Fact := .ofInvitation ⟨c, issuer, bearer, link, threshold⟩
+@[match_pattern] abbrev Fact.invitation (c : Id) (issuer : Id) (bearer : Key) (link : Bool) : Fact := .ofInvitation ⟨c, issuer, bearer, link⟩
 @[match_pattern] abbrev Fact.admin (c : Id) (u : Id) : Fact := .ofAdmin ⟨c, u⟩
 @[match_pattern] abbrev Fact.removal (c : Id) (u : Id) (by_ : Id) : Fact := .ofRemoval ⟨c, u, by_⟩
 @[match_pattern] abbrev Fact.message (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id := none) : Fact := .ofMessage ⟨c, u, device, ckey, text, n, time, clump⟩
@@ -205,7 +205,7 @@ inductive Body where
 @[match_pattern] abbrev Fact.profile (c : Id) (u : Id) (name : ByteArray) (time : Nat) : Fact := .ofProfile ⟨c, u, name, time⟩
 @[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, kid, sealed⟩
 @[match_pattern] abbrev Fact.react (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) : Fact := .ofReact ⟨c, u, target, emoji, time⟩
-@[match_pattern] abbrev Fact.request (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) (threshold : Nat) : Fact := .ofRequest ⟨c, u, device, enc, link, threshold⟩
+@[match_pattern] abbrev Fact.request (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) : Fact := .ofRequest ⟨c, u, device, enc, link⟩
 @[match_pattern] abbrev Fact.approval (c : Id) (req : Id) (u : Id) : Fact := .ofApproval ⟨c, req, u⟩
 @[match_pattern] abbrev Fact.secret (pk : ByteArray) (seed : ByteArray) : Fact := .ofSecret ⟨pk, seed⟩
 @[match_pattern] abbrev Fact.accepted (c : Id) (device : Key) : Fact := .ofAccepted ⟨c, device⟩
@@ -218,7 +218,7 @@ inductive Body where
 @[match_pattern] abbrev Fact.received (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Option Id := none) : Fact := .ofReceived ⟨c, kid, msg, k, clump⟩
 
 @[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, sig⟩
-@[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, threshold, sig⟩
+@[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, sig⟩
 @[match_pattern] abbrev Body.request (device : ByteArray) (enc : ByteArray) (consent : ByteArray) (bearerSig : ByteArray) : Body := .ofRequest ⟨device, enc, consent, bearerSig⟩
 @[match_pattern] abbrev Body.grant (sig : ByteArray) : Body := .ofGrant ⟨sig⟩
 @[match_pattern] abbrev Body.remove (sig : ByteArray) : Body := .ofRemove ⟨sig⟩
@@ -245,11 +245,11 @@ theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : 
 theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {c' : Id} {u' : Id} {device' : Key} {enc' : Key}
     (hinj : Fact.admission c u device enc = Fact.admission c' u' device' enc') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' := by
   rw [Fact.admission.injEq] at hinj; exact hinj
-theorem Fact.invitation.injEq (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (threshold : Nat) (c' : Id) (issuer' : Id) (bearer' : Key) (link' : Bool) (threshold' : Nat) :
-    (Fact.invitation c issuer bearer link threshold = Fact.invitation c' issuer' bearer' link' threshold') = (c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link' ∧ threshold = threshold') := by
+theorem Fact.invitation.injEq (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (c' : Id) (issuer' : Id) (bearer' : Key) (link' : Bool) :
+    (Fact.invitation c issuer bearer link = Fact.invitation c' issuer' bearer' link') = (c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link') := by
   simp [Fact.invitation]
-theorem Fact.invitation.inj {c : Id} {issuer : Id} {bearer : Key} {link : Bool} {threshold : Nat} {c' : Id} {issuer' : Id} {bearer' : Key} {link' : Bool} {threshold' : Nat}
-    (hinj : Fact.invitation c issuer bearer link threshold = Fact.invitation c' issuer' bearer' link' threshold') : c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link' ∧ threshold = threshold' := by
+theorem Fact.invitation.inj {c : Id} {issuer : Id} {bearer : Key} {link : Bool} {c' : Id} {issuer' : Id} {bearer' : Key} {link' : Bool}
+    (hinj : Fact.invitation c issuer bearer link = Fact.invitation c' issuer' bearer' link') : c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link' := by
   rw [Fact.invitation.injEq] at hinj; exact hinj
 theorem Fact.admin.injEq (c : Id) (u : Id) (c' : Id) (u' : Id) :
     (Fact.admin c u = Fact.admin c' u') = (c = c' ∧ u = u') := by
@@ -293,11 +293,11 @@ theorem Fact.react.injEq (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (ti
 theorem Fact.react.inj {c : Id} {u : Id} {target : Id} {emoji : ByteArray} {time : Nat} {c' : Id} {u' : Id} {target' : Id} {emoji' : ByteArray} {time' : Nat}
     (hinj : Fact.react c u target emoji time = Fact.react c' u' target' emoji' time') : c = c' ∧ u = u' ∧ target = target' ∧ emoji = emoji' ∧ time = time' := by
   rw [Fact.react.injEq] at hinj; exact hinj
-theorem Fact.request.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) (threshold : Nat) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) (link' : Bool) (threshold' : Nat) :
-    (Fact.request c u device enc link threshold = Fact.request c' u' device' enc' link' threshold') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' ∧ threshold = threshold') := by
+theorem Fact.request.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) (link' : Bool) :
+    (Fact.request c u device enc link = Fact.request c' u' device' enc' link') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link') := by
   simp [Fact.request]
-theorem Fact.request.inj {c : Id} {u : Id} {device : Key} {enc : Key} {link : Bool} {threshold : Nat} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {link' : Bool} {threshold' : Nat}
-    (hinj : Fact.request c u device enc link threshold = Fact.request c' u' device' enc' link' threshold') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' ∧ threshold = threshold' := by
+theorem Fact.request.inj {c : Id} {u : Id} {device : Key} {enc : Key} {link : Bool} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {link' : Bool}
+    (hinj : Fact.request c u device enc link = Fact.request c' u' device' enc' link') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' := by
   rw [Fact.request.injEq] at hinj; exact hinj
 theorem Fact.approval.injEq (c : Id) (req : Id) (u : Id) (c' : Id) (req' : Id) (u' : Id) :
     (Fact.approval c req u = Fact.approval c' req' u') = (c = c' ∧ req = req' ∧ u = u') := by
@@ -365,11 +365,11 @@ theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray)
 theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {sig' : ByteArray}
     (h : Body.root device enc sig = Body.root device' enc' sig') : device = device' ∧ enc = enc' ∧ sig = sig' := by
   rw [Body.root.injEq] at h; exact h
-theorem Body.invite.injEq (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray) (bearer' : Key) (link' : Bool) (threshold' : Nat) (sig' : ByteArray) :
-    (Body.invite bearer link threshold sig = Body.invite bearer' link' threshold' sig') = (bearer = bearer' ∧ link = link' ∧ threshold = threshold' ∧ sig = sig') := by
+theorem Body.invite.injEq (bearer : Key) (link : Bool) (sig : ByteArray) (bearer' : Key) (link' : Bool) (sig' : ByteArray) :
+    (Body.invite bearer link sig = Body.invite bearer' link' sig') = (bearer = bearer' ∧ link = link' ∧ sig = sig') := by
   simp [Body.invite]
-theorem Body.invite.inj {bearer : Key} {link : Bool} {threshold : Nat} {sig : ByteArray} {bearer' : Key} {link' : Bool} {threshold' : Nat} {sig' : ByteArray}
-    (h : Body.invite bearer link threshold sig = Body.invite bearer' link' threshold' sig') : bearer = bearer' ∧ link = link' ∧ threshold = threshold' ∧ sig = sig' := by
+theorem Body.invite.inj {bearer : Key} {link : Bool} {sig : ByteArray} {bearer' : Key} {link' : Bool} {sig' : ByteArray}
+    (h : Body.invite bearer link sig = Body.invite bearer' link' sig') : bearer = bearer' ∧ link = link' ∧ sig = sig' := by
   rw [Body.invite.injEq] at h; exact h
 theorem Body.request.injEq (device : ByteArray) (enc : ByteArray) (consent : ByteArray) (bearerSig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (consent' : ByteArray) (bearerSig' : ByteArray) :
     (Body.request device enc consent bearerSig = Body.request device' enc' consent' bearerSig') = (device = device' ∧ enc = enc' ∧ consent = consent' ∧ bearerSig = bearerSig') := by
@@ -947,13 +947,6 @@ def isAdmin (c u : Id) : Fact → Bool
   | .admin c' u' => decide (c' = c ∧ u' = u)
   | _ => false
 
-/-- The users of these facts, if every one approves request r of c. -/
-def approvers (c r : Id) : List Fact → Option (List Id)
-  | [] => some []
-  | .approval c' r' u :: rest =>
-    if c' = c ∧ r' = r then (approvers c r rest).map (u :: ·) else none
-  | _ :: _ => none
-
 /-- The highest counter of these names of c (0 for none), if every fact
 is one. -/
 def prevMax (c : Id) : List Fact → Option Nat
@@ -967,13 +960,6 @@ def counterOk (c : Id) (n : Nat) (fs : List Fact) : Bool :=
   | some m => decide (n = m + 1)
   | none => false
 
-/-- Whether these facts are exactly t approvals of request r of c, by
-t distinct users. -/
-def tally (c r : Id) (t : Nat) (fs : List Fact) : Bool :=
-  match approvers c r fs with
-  | some us => decide (us.Nodup ∧ us.length = t)
-  | none => false
-
 /-- An op's validator, by its body, over the facts its requirements
 produced (slot order): its op type's (each folder's Validate.lean), given
 the facts it cites, typed. Slot 0 is the community's root, whose fact is
@@ -983,8 +969,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofInvite b, [.ofAdmission r, .ofAdmission a] => (Invitation.check C o b r a).map .ofInvitation
   | .ofRequest b, [.ofAdmission r, .ofInvitation i] => (Request.check C o b r i).map .ofRequest
   | .ofApprove b, [.ofAdmission r, .ofRequest q, .ofAdmission a] => (Approve.check C o b r q a).map .ofApproval
-  | .ofAdmit b, .ofAdmission r :: .ofRequest q :: aps =>
-    (Admit.check o b r q (tally r.c (o.reqs.getD 1 .empty) q.threshold aps)).map .ofAdmission
+  | .ofAdmit b, [.ofAdmission r, .ofRequest q, .ofApproval a] => (Admit.check o b r q a).map .ofAdmission
   | .ofGrant b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
     (Grant.check C o b r a (isAdmin r.c a.u auth) t).map .ofAdmin
   | .ofRemove b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
@@ -1264,7 +1249,7 @@ theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
 request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
-  | .root _ _ s | .invite _ _ _ s | .grant s | .remove s | .post _ _ _ _ s
+  | .root _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s
   | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []

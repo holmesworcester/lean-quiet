@@ -8,6 +8,6 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 tools/noto_assets.sh
 mise run crypto
 lake build visual
-.lake/build/bin/visual out/visual/hover-actual tests/visual/hover-cases.tsv
+tests/visual/capture.sh out/visual/hover-actual tests/visual/hover-cases.tsv
 python3 tests/visual/compare_hover.py --budgets tests/visual/hover-budgets.json
 python3 tests/visual/check_hover_gate.py

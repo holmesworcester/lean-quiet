@@ -10,11 +10,11 @@ tools/noto_assets.sh
 mise run crypto
 lake build visual
 python3 tests/visual/test_compare.py
-.lake/build/bin/visual out/visual/actual tests/visual/cases.tsv
+tests/visual/capture.sh out/visual/actual tests/visual/cases.tsv
 python3 tests/visual/compare.py tests/visual/reference out/visual/actual out/visual/report --budgets tests/visual/budgets.json
-.lake/build/bin/visual out/visual/switcher-actual tests/visual/switcher-cases.tsv
+tests/visual/capture.sh out/visual/switcher-actual tests/visual/switcher-cases.tsv
 python3 tests/visual/compare.py tests/visual/switcher-reference out/visual/switcher-actual out/visual/switcher-report --budgets tests/visual/switcher-budgets.json
 python3 tests/visual/check_switcher_gate.py
-.lake/build/bin/visual out/visual/mobile-switcher-actual tests/visual/mobile-switcher-cases.tsv
+tests/visual/capture.sh out/visual/mobile-switcher-actual tests/visual/mobile-switcher-cases.tsv
 python3 tests/visual/compare.py tests/visual/mobile-switcher-reference out/visual/mobile-switcher-actual out/visual/mobile-switcher-report --budgets tests/visual/mobile-switcher-budgets.json
 python3 tests/visual/check_mobile_switcher_gate.py
