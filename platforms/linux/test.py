@@ -83,11 +83,19 @@ try:
             def click(x, y):
                 xdo('mousemove', '--window', win, x*scale, y*scale, 'click', '1')
 
-            def shot(name):
-                time.sleep(.2)
-                path = OUT / f'{tag}-{name}.png'
-                sp.run(['import', '-window', win, str(path)], env=env, check=True)
-                return Image.open(path).convert('RGB')
+            def shot(name, until=None, timeout=10):
+                # A state change is reported before its frame reaches the X
+                # server; under load that can take longer than one capture.
+                # With `until`, capture again until the frame shows it (the
+                # check after still asserts on the last capture).
+                end = time.monotonic() + timeout
+                while True:
+                    time.sleep(.2)
+                    path = OUT / f'{tag}-{name}.png'
+                    sp.run(['import', '-window', win, str(path)], env=env, check=True)
+                    image = Image.open(path).convert('RGB')
+                    if until is None or until(image) or time.monotonic() > end:
+                        return image
 
             image = shot('chat')
             check(image.size == (1100*scale, 760*scale), tag + ' window size')
@@ -149,7 +157,7 @@ try:
             before = lines()[1]
             click(90, 28)
             wait(lambda: any(s.startswith('switch ') for s in lines()), 'community menu')
-            image = shot('switcher')
+            image = shot('switcher', lambda im: im.getpixel((300*scale, 200*scale)) == (255,255,255))
             check(image.getpixel((300*scale, 200*scale)) == (255,255,255),
                   tag + ' community popup extends over main, retaining a white panel')
             scroll_before = lines()[7]
@@ -172,15 +180,15 @@ try:
             check(True, tag + ' community switched by X pointer')
             click(90, 730)
             wait(lambda: 'Desktop.Context.settings' in lines(), 'settings')
-            image = shot('settings')
+            image = shot('settings', lambda im: im.getpixel((725*scale, 420*scale)) == (240,240,240))
             check(image.getpixel((725*scale, 420*scale)) == (240,240,240), tag + ' context divider at 1100-375')
             xdo('windowsize', '--sync', win, 770*scale, 600*scale)
             wait(lambda: lines() and lines()[0] == '770 600', '770 resize')
-            image = shot('770')
+            image = shot('770', lambda im: im.getpixel((395*scale, 420*scale)) == (240,240,240))
             check(image.getpixel((395*scale, 420*scale)) == (240,240,240), tag + ' overlay stays 375px wide at 770')
             xdo('windowsize', '--sync', win, 719*scale, 600*scale)
             wait(lambda: lines() and lines()[0] == '719 600', '719 resize')
-            image = shot('719')
+            image = shot('719', lambda im: im.getpixel((100*scale,420*scale)) == (255,255,255))
             check(image.getpixel((100*scale,420*scale)) == (255,255,255), tag + ' context replaces narrow window')
             click(30, 30)
             wait(lambda: 'Desktop.Context.closed' in lines(), 'close context')
@@ -250,7 +258,7 @@ try:
             _, _, ax, ay = next(s for s in lines() if s.startswith('choice dark ')).split()
             click(int(ax), int(ay))
             wait(lambda: 'theme dark' in lines(), 'dark appearance')
-            image = shot('dark')
+            image = shot('dark', lambda im: im.getpixel((2*scale, 140*scale)) == (47,25,61))
             check(image.getpixel((2*scale, 140*scale)) == (47,25,61), tag + ' live theme repaints desktop sidebar')
             # Exit through the WM protocol, never signal unrelated processes.
             xdo('windowclose', win)
