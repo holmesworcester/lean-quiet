@@ -45,8 +45,8 @@ def channelBound (c : UInt8) : Prop :=
 instance (c : UInt8) : Decidable (channelBound c) := by unfold channelBound; infer_instance
 
 set_option maxRecDepth 4096 in
-set_option maxHeartbeats 0 in
-/-- All 256 channel intervals enclose the WCAG transfer function. -/
+/-- All 256 channel intervals enclose the WCAG transfer function. A
+`decide` within the default heartbeat bound (it needs under 100000). -/
 theorem channel_bounds : ∀ c : Fin 256, channelBound c.val.toUInt8 := by decide
 
 /-- Luminance in ten-billionths; the upper bound is this plus 10000. -/

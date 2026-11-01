@@ -40,6 +40,7 @@ theorem rest_ignores_acts {W : Type} [BEq W] [Hashable W] (c : Nat) :
 section
 variable {W : Type} [BEq W] [Hashable W] [LawfulBEq W]
 
+omit [LawfulBEq W] in
 theorem mem_actsFirst (ws : List W) (t : Std.HashSet W) (x : W) : x ∈ actsFirst ws t ↔ x ∈ ws := by
   simp only [actsFirst, List.mem_append, List.mem_filter]
   cases t.contains x <;> simp

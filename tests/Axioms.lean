@@ -84,10 +84,24 @@ import engine.renderer.ActsLaws
 import engine.core.Project
 import app.connection.Family
 import engine.wire.EgressLaws
+import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
 audit, with its `open`s. -/
+
+/- The write turn's meter (`Engine.instTurnCostT`, engine/core/CostStore.lean)
+charges a turn and a purge one write per op, not what they do: no law
+may state a budget over it. None names it, in its statement or its proof. -/
+#eval show Lean.CoreM Unit from do
+  let env ← Lean.getEnv
+  let short := ``Engine.instTurnCostT
+  let named := env.constants.toList.filterMap fun (n, ci) =>
+    if ci.type.getUsedConstants.contains short ||
+        (ci.value?.map (·.getUsedConstants.contains short)).getD false then some n else none
+  unless named.isEmpty do
+    throwError m!"rests on the write turn's short count (Engine.instTurnCostT): {named}"
+  IO.println "the write turn's short count: no law names it"
 
 section engine
 open Engine Community
@@ -107,6 +121,8 @@ open Engine Community
 #print axioms Engine.distinct_of_collisionFree
 #print axioms Engine.Sync.num_inj
 #print axioms Engine.Sync.lbl_inj
+#print axioms Engine.Sync.top_perm
+#print axioms Engine.Sync.lbl_perm
 #print axioms Engine.Sync.exchange_complete
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
@@ -132,6 +148,7 @@ open Engine Community
 #print axioms Community.profile_authorized
 #print axioms Community.no_renaming
 #print axioms Community.admission_consented
+#print axioms Community.unscoped_signs_all
 #print axioms Community.admission_approved
 #print axioms Community.request_invited
 #print axioms Community.approval_signed
@@ -477,6 +494,8 @@ section app
 #print axioms Nav.back_inv
 #print axioms Nav.reset_inv
 #print axioms Nav.swap_inv
+#print axioms Nav.back_stack
+#print axioms Nav.backs_stack
 #print axioms Nav.depth
 #print axioms NavLaws.back_open
 #print axioms NavLaws.back_open_all
@@ -489,6 +508,7 @@ section app
 #print axioms NavLaws.inv_open
 #print axioms NavLaws.inv_back
 #print axioms NavLaws.inv_switch
+#print axioms NavLaws.backs_nav
 #print axioms NavLaws.depth
 #print axioms App.drawPage_key
 #print axioms App.pageIn_acc
@@ -632,7 +652,6 @@ open Net
 #print axioms Net.Scene.sessions_trusted
 #print axioms Net.Scene.bootstrap_possible
 #print axioms Net.Scene.bootstrap
-#print axioms Net.Scene.bootstrap_ideal
 #print axioms Net.Scene.reachable_inv
 #print axioms Net.Scene.admitted_inv
 #print axioms Net.Scene.allowedA

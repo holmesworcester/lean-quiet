@@ -123,7 +123,7 @@
     "theorem": "Community.no_renaming",
     "witness": "Vacuity.IdentityTrust.noRenaming",
     "module": "tests.vacuity.IdentityTrust",
-    "detail": "Actual valid signed profile premise is witnessed and a wrong-device profile is rejected. Attributing verification to an actual signing event still requires Unforgeable ed25519 Signed, whose global quantification is too broad for a finite independent signing history. Execution/attacker scoping and an explicit trace assumption or computational argument remain unfinished."
+    "detail": "Actual valid signed profile premise is witnessed and a wrong-device profile is rejected. Attribution to the key holder assumes Unforgeable ed25519 over this store: no forged signature among the ones it holds (Ed25519 unforgeability, a computational assumption). The premise is satisfiable with an informative Signed (Vacuity.Contracts.unforgeableScoped)."
   },
   "allowPeer_iff": {
     "status": "runtime-witness",

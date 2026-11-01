@@ -279,7 +279,7 @@ theorem countok_start (s : σ) : CountOk ({ store := s } : RWorld σ C W V Q) :=
 theorem countok_commit {w : RWorld σ C W V Q} (h : CountOk w) (c : C) : CountOk (w.commit apply c) := by
   unfold CountOk at *; simp only [commit, List.length_append, List.length_singleton]; omega
 
-theorem countok_passIdx {w : RWorld σ C W V Q} (h : CountOk w) (cap : Nat) :
+theorem countok_passIdx {w : RWorld σ C W V Q} (cap : Nat) :
     CountOk (w.passIdx hits eval reads hitQs cap) := by
   unfold CountOk passIdx
   split <;> simp [passWith]

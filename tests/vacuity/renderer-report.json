@@ -578,7 +578,7 @@
     "theorem": "LiveLaws.answer_agrees",
     "witness": "Vacuity.RendererLive.cachedAnswer",
     "module": "tests.vacuity.RendererLive",
-    "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
+    "detail": "Synthetic two-query cache (queryA answered \"hello\", queryB no bytes), in agreement from empty through actual store operations. The cache answers queryB, and the law fixes whatever it answers to the moment's (no bytes), not one answer compared with itself. Cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
   },
   "read_one_moment": {
     "status": "kernel-witness",
@@ -921,14 +921,14 @@
     "theorem": "NavLaws.back_switch",
     "witness": "Vacuity.RendererRuntime.switchBack",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "draft_back": {
     "status": "runtime-witness",
     "theorem": "NavLaws.draft_back",
     "witness": "Vacuity.RendererRuntime.draftBack",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "NavLaws.depth": {
     "status": "runtime-witness",
@@ -949,7 +949,7 @@
     "theorem": "LifecycleLaws.restore_page_anchor",
     "witness": "Vacuity.RendererRuntime.savedAnchor",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "apply_page_anchor": {
     "status": "runtime-witness",
@@ -963,35 +963,35 @@
     "theorem": "LifecycleLaws.unmount_read",
     "witness": "Vacuity.RendererRuntime.unmountedRead",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "unmount_write": {
     "status": "runtime-witness",
     "theorem": "LifecycleLaws.unmount_write",
     "witness": "Vacuity.RendererRuntime.unmountedWrite",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "old_callback": {
     "status": "runtime-witness",
     "theorem": "LifecycleLaws.old_callback",
     "witness": "Vacuity.RendererRuntime.oldCallback",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data."
+    "detail": "No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data."
   },
   "drawPage_key": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "App.drawPage_key",
     "witness": "Vacuity.RendererRuntime.sameKey",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency."
+    "detail": "For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency."
   },
   "pageIn_acc": {
-    "status": "runtime-witness",
+    "status": "kernel-witness",
     "theorem": "App.pageIn_acc",
     "witness": "Vacuity.RendererRuntime.keyAcceptance",
     "module": "tests.vacuity.RendererRuntime",
-    "detail": "The runtime app fixture supplies a concrete PageIn key and reflexive key equality. These statements are congruence laws: this example makes their assumptions inhabited but their conclusion is specification-trivial on identical keys; it does not establish pixel fidelity or that the key contains every rendering dependency."
+    "detail": "For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency."
   },
   "Ttf.raster_valid": {
     "status": "runtime-witness",

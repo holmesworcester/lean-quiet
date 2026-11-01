@@ -339,9 +339,10 @@ theorem classified_at_down (p : Press) (time : Nat) (q : Point)
     (h : classify p time = some (.tap q)) : q = p.first.pos
 
 theorem classified_page (p : Press) (time : Nat) (q : Point)
-    (_h : classify p time = some (.tap q))
-    (pin : p.context.frame.pin = true) (fit : p.context.frame.g.Fits) (hy : 0 ≤ q.y) :
-    (p.context.frame.g.view : Int) - 1 - content p.context.frame q.y = q.y - p.context.frame.g.top
+    (h : classify p time = some (.tap q))
+    (pin : p.context.frame.pin = true) (fit : p.context.frame.g.Fits) (hy : 0 ≤ p.first.pos.y) :
+    (p.context.frame.g.view : Int) - 1 - content p.context.frame q.y =
+      p.first.pos.y - p.context.frame.g.top
 
 theorem classified_key (p : Press) (time : Nat) (q : Point)
     (h : classify p time = some (.tap q)) (grid : SheetGeom.Grid) (ok : grid.Ok)

@@ -22,6 +22,7 @@ theorem reply_conn {K : Keys} {r sk frm m1 f : B} {co : Op} (h : Reply.op K r sk
       simp only [h2, Option.bind_some, Option.some.injEq, pure] at h
       exact ⟨_, _, h.symm⟩
 
+omit fr in
 theorem reply_reqs {K : Keys} {r sk frm m1 f : B} {co : Op} (h : Reply.op K r sk frm m1 f = some co) :
     co.reqs = [r] ∧ ∃ m2, co = mkOp [r] (.connection m2) := by
   unfold Reply.op at h

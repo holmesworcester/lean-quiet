@@ -85,7 +85,7 @@ theorem sequence_offset (c : Context) (s : State) (es : List Raw) :
       exact step_offset c r.state e
 
 /-- Inverse of the actual conversation placement, at the down position. -/
-theorem tap_content (g : Geom) (_hf : g.Fits) (over bf bn height y : Nat) :
+theorem tap_content (g : Geom) (over bf bn height y : Nat) :
     Seam.home g bn (content (Surface.make g false over bf bn height) y) = y := by
   simp [content, Surface.make, Seam.home]; omega
 
@@ -115,11 +115,16 @@ theorem classified_at_down (p : Press) (time : Nat) (q : Point)
     · cases h; rfl
     · cases h
 
+/-- On a pinned page, a classified tap lands on the page row of the
+press's DOWN position: the row its tapped point maps to is the down
+point's, measured from the page's top. -/
 theorem classified_page (p : Press) (time : Nat) (q : Point)
-    (_h : classify p time = some (.tap q))
-    (pin : p.context.frame.pin = true) (fit : p.context.frame.g.Fits) (hy : 0 ≤ q.y) :
-    (p.context.frame.g.view : Int) - 1 - content p.context.frame q.y = q.y - p.context.frame.g.top := by
-  have ht := Geometry.pinned_tap p.context.frame.g fit q.y.toNat
+    (h : classify p time = some (.tap q))
+    (pin : p.context.frame.pin = true) (fit : p.context.frame.g.Fits) (hy : 0 ≤ p.first.pos.y) :
+    (p.context.frame.g.view : Int) - 1 - content p.context.frame q.y =
+      p.first.pos.y - p.context.frame.g.top := by
+  rw [classified_at_down p time q h]
+  have ht := Geometry.pinned_tap p.context.frame.g fit p.first.pos.y.toNat
   simp only [Seam.tapRow, Int.toNat_of_nonneg hy] at ht
   simpa [content, pin] using ht
 

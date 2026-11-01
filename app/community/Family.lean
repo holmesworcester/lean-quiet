@@ -1260,9 +1260,31 @@ theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
       exact ⟨o, b, hx, Op.ext' hkd rfl (Codec.encode_decode hb).symm, hb⟩
     · cases hv
 
-/-- What a device key has signed. -/
-def Unforgeable (C : Crypto) (Signed : Key → ByteArray → Prop) : Prop :=
-  ∀ pk m s, C.verify pk m s = true → Signed pk m
+/-- The signatures an op's body carries, each over `signed o b`: the
+request's two (its device's consent and the invitation bearer's), one
+for every other signed op, none for unsigned ones. -/
+def Body.sigs : Body → List ByteArray
+  | .root _ _ s | .invite _ _ _ s | .grant s | .remove s | .post _ _ _ _ s
+  | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
+  | .request _ _ c b => [c, b]
+  | _ => []
+
+/-- **Signatures are unforgeable, over the ones a store holds.** Every
+signature that an op in `ops` carries, and that verifies under key pk,
+was made by pk's holder: `Signed pk m` says the holder signed m.
+
+This is Ed25519's unforgeability as a fact about one store: it fails only
+if a forgery is in the store. It is not stated over every byte string.
+Every message has some valid signature under every key (finding one is
+infeasible, not impossible), so the unscoped form, `∀ pk m s, verify pk m
+s → Signed pk m`, holds only of a `Signed` true of every message
+(`unscoped_signs_all`), and the laws built on it would then say nothing
+about who signed. tests/vacuity/Contracts.lean (`unforgeableScoped`) has a
+store where this form holds of a `Signed` that is false of other
+messages, under a scheme with a valid signature for every message. -/
+def Unforgeable (C : Crypto) (ops : Id → Option Op) (Signed : Key → ByteArray → Prop) : Prop :=
+  ∀ x o b pk s, ops x = some o → (decode o.body : Option Body) = some b → s ∈ b.sigs →
+    C.verify pk (signed o b) s = true → Signed pk (signed o b)
 
 /-- Ops are stored under their own ids (Engine.Inv.key). -/
 def Keyed (ops : Id → Option Op) : Prop := ∀ x o, ops x = some o → o.id = x

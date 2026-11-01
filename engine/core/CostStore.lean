@@ -94,6 +94,17 @@ instance [Store F m] : Store F (CostT m) where
 instance [Lists F m] : Lists F (CostT m) where
   list q := chargedBy (listCost q) (Lists.list q)
 
+/-- A write turn, counted short: `turn` is charged one write per op
+given and `purge` one per id, with no reads, seeks or rows. That is an
+undercount. On SQLite `turn` is `receive`: each op's `ingest` (getOp,
+then putOp and push) and a `drain` (pop, getOp, a getStatus per
+requirement, setStatus, an index per key, waiters, clearWaiters, push or
+addWait), every one a door the table above charges more; `purge` is
+`purgeSql` and a `receive` of nothing. No `Within` or `Costs` law is
+stated over code that calls `Turn.turn` or `Turn.purge` in `CostT`: no
+audited law names this instance (tests/Axioms.lean fails if one does).
+A budget over a turn must run `ingest` and `drain` in `CostT`, door by
+door, rather than rest on this charge. -/
 instance [Sync.Turn F m] : Sync.Turn F (CostT m) where
   turn fam ops := charged { writes := ops.length } (Sync.Turn.turn fam ops)
   purge fam ids scrub := charged { writes := ids.length } (Sync.Turn.purge fam ids scrub)

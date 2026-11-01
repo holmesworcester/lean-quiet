@@ -8,8 +8,9 @@ with, and what the devices it holds name as their X25519 key. -/
 def endpoint (sk : ByteArray) : Op := mkOp [] (.endpoint sk)
 open Engine
 
-/-- This node's key: its endpoint op's public key and secret (the least
-id, should it ever hold two). -/
+/-- This node's key: its endpoint op's public key and secret. Should it
+ever hold two, the one of greatest id: `Rel.read` reads greatest first
+(`desc` defaults to true), and an endpoint's sort key is empty. -/
 def nodeKey : View Fact (Option (Key × ByteArray)) := do
   let a ← endpoint.all.read [] (limit := some 1)
   pure (a.rows.head?.bind fun (_, f) => match f with

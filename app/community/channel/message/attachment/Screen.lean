@@ -25,7 +25,7 @@ open _root_.Engine _root_.Community _root_.Data
 attribute [local instance] modelReads
 section
 variable {C : Crypto} {s : DB Fact} (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
-  (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct))
+  (hspr : ChunksSound s.ops ct)
 include hsize hspr
 
 /-- **Complete is every chunk held.** A picture whose counts are its

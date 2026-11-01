@@ -26,13 +26,30 @@ theorem check_chunk {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c att roo
     exact ⟨_, _, rfl, h1, rfl, h6, _, _, _, _, _, _, rfl⟩
   · simp at h
 
+/-- No SHA-256 collision between what file ct's root hashes and what
+checking chunk body b hashed (`Merkle.NoCollision` over the bytes b
+carries); nothing for a body that is not a chunk. Two finite lists of
+bytes at hand, so it fails only if b carries a real collision, and a
+node can test it. -/
+def ChunkSound (ct : ByteArray) : Body → Prop
+  | .chunk _ len i s sibs =>
+    Merkle.NoCollision sha256 (Merkle.treeInputs sha256 ct) (Merkle.verifyInputs sha256 len i s sibs)
+  | _ => True
+
+instance (ct : ByteArray) (b : Body) : Decidable (ChunkSound ct b) := by
+  unfold ChunkSound; split <;> infer_instance
+
+/-- `ChunkSound` of every op a store holds: no chunk in it carries a
+SHA-256 collision with file ct's tree. -/
+def ChunksSound (ops : Id → Option Op) (ct : ByteArray) : Prop :=
+  ∀ x o b, ops x = some o → (decode o.body : Option Body) = some b → ChunkSound ct b
+
 /-- **A Valid chunk is its file's slice.** If its root is a file's root
-(SHA-256 32 bytes wide, and nothing the root hashes having a second
-preimage), its length is the file's, its slice is the file's slice at
-its index, and its siblings are that slice's proof. -/
+(SHA-256 32 bytes wide, and nothing checking the chunk hashed colliding
+with what the root hashes), its length is the file's, its slice is the
+file's slice at its index, and its siblings are that slice's proof. -/
 theorem chunk_is_slice {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c att : Id} {len i : Nat}
-    {ct : ByteArray} (hsize : ∀ x, (sha256 x).size = 32)
-    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct))
+    {ct : ByteArray} (hsize : ∀ x, (sha256 x).size = 32) (hspr : ChunkSound ct b)
     (h : check C o b fs = some (.chunk c att (Merkle.fileRoot sha256 ct) len i)) :
     ∃ slice, b = .chunk (Merkle.fileRoot sha256 ct) len i slice (Merkle.proof sha256 ct i) ∧
       len = ct.size ∧ (Merkle.slices ct)[i]? = some slice := by
@@ -66,13 +83,13 @@ its attachment: the slice and siblings are the file's
 (`chunk_is_slice`), the op cites c and the attachment, and its type is
 its body's (`op_of_valid`). -/
 theorem chunk_id (hk : Keyed ops) (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
-    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct)) {c att z : Id} {l i : Nat}
+    (hspr : ChunksSound ops ct) {c att z : Id} {l i : Nat}
     (hz : V C ops z (.chunk c att (Merkle.fileRoot sha256 ct) l i)) : z = (fileChunk c att ct i).id := by
   obtain ⟨o, b, hzo, hmk, hb⟩ := op_of_valid hz
   obtain ⟨o', b', fs, hzo', hb', hr, hc⟩ := valid_inv hz
   rw [hzo] at hzo'; cases hzo'
   rw [hb] at hb'; cases hb'
-  obtain ⟨slice, rfl, rfl, hs⟩ := chunk_is_slice hsize hspr hc
+  obtain ⟨slice, rfl, rfl, hs⟩ := chunk_is_slice hsize (hspr z o b hzo hb) hc
   obtain ⟨o2, _, _, _, _, hzo2, hreqs, _⟩ := chunk_of_attachment hz
   rw [hzo] at hzo2; cases hzo2
   have hsl : (Merkle.slices ct).getD i .empty = slice := by simp [List.getD, hs]
@@ -82,7 +99,7 @@ theorem chunk_id (hk : Keyed ops) (hsize : ∀ x, (sha256 x).size = 32) {ct : By
 counted twice; and two attachments never share a chunk op, since each
 cites its own. -/
 theorem chunk_unique (hk : Keyed ops) (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
-    (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct)) {c att x y : Id} {l l' i : Nat}
+    (hspr : ChunksSound ops ct) {c att x y : Id} {l l' i : Nat}
     (hx : V C ops x (.chunk c att (Merkle.fileRoot sha256 ct) l i))
     (hy : V C ops y (.chunk c att (Merkle.fileRoot sha256 ct) l' i)) : x = y := by
   rw [chunk_id hk hsize hspr hx, chunk_id hk hsize hspr hy]
