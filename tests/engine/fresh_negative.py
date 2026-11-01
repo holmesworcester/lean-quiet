@@ -62,8 +62,8 @@ cases = [
      "fresh_tcp", "FAIL: P gets all 64 ops while S never reads", True),
     # The frame handler serves with no room (each frame its `burst`).
     ("no-room", "engine/wire/Tcp.lean",
-     "      let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now",
-     "      let (st, e) ← st.node? fun n => n.onFrame x s.addr p now",
+     "      let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now",
+     "      let (st, e) ← st.node? fun n => n.step x (.frame s.addr p) now",
      "fresh_tcp", "FAIL: S's lanes stay within the window", True),
     # The room is blind to what the lanes hold (`Sock.queued := 0`).
     ("room-blind", "engine/wire/Tcp.lean",
@@ -71,8 +71,8 @@ cases = [
      "  let qs ← socks.mapM fun s => do return (s.addr, ({} : Lanes))",
      "fresh_tcp", "FAIL: S is not closed before stallMs", True),
     ("no-timeout", "engine/wire/Tcp.lean",
-     "        if shut cfg.idle cfg.stallMs now s.heard (← s.since) then",
-     "        if shut cfg.idle cfg.stallMs now s.heard none then",
+     "      if shut cfg.idle cfg.stallMs now s.heard (← s.since) then",
+     "      if shut cfg.idle cfg.stallMs now s.heard none then",
      "fresh_tcp", "FAIL: S is closed within stallMs", True),
     # The slot is released at close, while the writer still waits.
     ("slot-at-close", "engine/wire/Tcp.lean",
