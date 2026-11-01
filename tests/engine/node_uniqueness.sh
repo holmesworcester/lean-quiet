@@ -6,7 +6,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 mkdir -p out/node-uniqueness
 systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 \
-  lake build app.connection.NodeUnique +tests.vacuity.NodeUnique node_uniqueness \
+  lake build app.Proofs +tests.vacuity.NodeUnique node_uniqueness \
   >out/node-uniqueness/named-build.log 2>&1
 systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 \
   lake env lean tests/engine/NodeUniqueAxioms.lean >out/node-uniqueness/axioms.log 2>&1

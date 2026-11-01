@@ -210,9 +210,10 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let decoding ← IO.asTask (prio := .dedicated) do IO.sleep 400; return (none : Option String)
     (← get).wr.busy.modify (· + 1)
     modify fun s => { s with
-      active := true, netCfg := none, reader := some ⟨stopped, reader⟩, rst := none,
+      active := true, netCfg := none,
       chaos := some (producer.map fun r => r.toOption.getD #[]),
       decoding := some (decoding.map fun r => r.toOption.getD none) }
+    attachReader ⟨stopped, reader⟩
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "reader, decoder and producer share one suspend deadline" ((← IO.monoMsNow) ≤ begin + 150)

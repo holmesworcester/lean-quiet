@@ -87,6 +87,9 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:app-suspend-journal
   mise run test:app-boot-admission
   mise run test:app-network-ownership
+  mise run test:app-stop-ui
+  mise run test:app-frame-times
+  mise run test:app-reader-ownership
   mise run test:expiry-grace
   mise run test:close-ingress
   mise run test:runner-ownership

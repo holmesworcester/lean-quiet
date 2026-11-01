@@ -1,3 +1,4 @@
+import engine.renderer.FrameTimes
 import engine.core.Query
 import engine.renderer.Platform
 import engine.renderer.Row
@@ -1770,7 +1771,7 @@ structure Shared where
   /-- Protects only demand changes and publication, never database IO. -/
   gate : Std.BaseMutex
 
-def Shared.new (commits : IO.Ref Nat) : IO Shared :=
+def Shared.new (commits : IO.Ref Nat) : BaseIO Shared :=
   return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
     commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef {}, ← IO.mkRef [], ← Std.BaseMutex.new⟩
 
@@ -2149,14 +2150,14 @@ def work (sh : Shared) (stopped : IO.Ref Bool) (initial : St) : IO St := do
       IO.sleep 50
   return s
 
-def Worker.start (sh : Shared) (s : St) : IO Worker := do
+def Worker.start (sh : Shared) (s : St) : BaseIO Worker := do
   let stopped ← IO.mkRef false
   let done ← IO.asTask (prio := .dedicated) (work sh stopped { s with enabled := return !(← stopped.get) })
   return ⟨stopped, done⟩
 
 /-- Publish cancellation through Ref.take/restore, so an overlapping native
 Ref.get cannot restore an old false value over a completed stop request. -/
-def Worker.requestStop (w : Worker) : IO Unit :=
+def Worker.requestStop (w : Worker) : BaseIO Unit :=
   w.stopped.modify (fun _ => true)
 
 def Worker.stop (w : Worker) : IO (Option St) := do
@@ -2164,6 +2165,88 @@ def Worker.stop (w : Worker) : IO (Option St) := do
   match ← IO.wait w.done with
   | .ok s => return some s
   | .error e => throw e
+
+/-- The original worker and the board on which its in-flight work runs. -/
+structure HeldWorker where
+  worker : Worker
+  board : Shared
+
+/-- One active-or-retiring worker, its replacement board and its recovered
+connection. Frame fields borrow these caps; rollback cannot release them. -/
+structure Ownership where
+  active : Option HeldWorker := none
+  retiring : Option HeldWorker := none
+  ready : Option St := none
+  board : Option Shared := none
+  generation : Nat := 0
+
+abbrev Owner := Std.Mutex Ownership
+
+def Owner.new : BaseIO Owner := Std.Mutex.new {}
+
+def Owner.snapshot (owner : Owner) : BaseIO Ownership := owner.atomically get
+
+/-- The actual thread is created and registered in the same BaseIO claim.
+No database action, join, or user callback runs under the owner mutex. -/
+def Owner.start (owner : Owner) (expected : Nat) (board : Shared) (state : St) : BaseIO Bool :=
+  owner.atomically do
+    let n ← get
+    if n.generation != expected || n.active.isSome || n.retiring.isSome then return false
+    let board := n.board.getD board
+    let worker ← Worker.start board state
+    set { n with
+      active := some ⟨worker, board⟩
+      ready := none
+      board := some board
+      generation := n.generation + 1 }
+    return true
+
+/-- Explicit transfer for wiring adapters, never inferred from stale frame
+fields. At most one original worker may remain active or retiring. -/
+def Owner.attach (owner : Owner) (worker : Worker) (board : Shared) : BaseIO Bool :=
+  owner.atomically do
+    let n ← get
+    if n.active.isSome || n.retiring.isSome then return false
+    set { n with
+      active := some ⟨worker, board⟩
+      ready := none
+      board := some board
+      generation := n.generation + 1 }
+    return true
+
+/-- Revoke the original worker before installing a fresh board. Repeated
+unmount while it finishes keeps the same retiring task and replacement board. -/
+def Owner.detach (owner : Owner) (commits : IO.Ref Nat) : BaseIO Bool := owner.atomically do
+  let n ← get
+  let some old := n.board | return false
+  if n.retiring.isSome then return false
+  if let some held := n.active then held.worker.requestStop
+  let board ← Shared.new commits
+  let out ← old.out.get
+  board.out.modify (fun _ => out)
+  set { n with
+    active := none
+    retiring := n.active
+    ready := if n.active.isSome then none else n.ready.map (fun (r : St) => { rd := r.rd })
+    board := some board
+    generation := n.generation + 1 }
+  return true
+
+/-- A completed result remains in shared ownership after reaping, so a
+later frame error cannot discard the only reusable reader connection. -/
+def Owner.reap (owner : Owner) (expected : Nat) : BaseIO Bool := owner.atomically do
+  let n ← get
+  if n.generation != expected then return false
+  let some held := n.retiring | return false
+  unless ← IO.hasFinished held.worker.done do return false
+  match held.worker.done.get with
+  | .ok state =>
+    set { n with
+      retiring := none
+      ready := some { rd := state.rd }
+      generation := n.generation + 1 }
+    return true
+  | .error _ => return false
 
 end Reader
 
@@ -3058,6 +3141,8 @@ structure St where
   rd : Db
   wr : Writer
   netOwner : NetworkOwner
+  readerOwner : Reader.Owner
+  readerGeneration : Nat := 0
   dbPath : String := ""
   /-- The network, if this app runs one: the port its node listens on,
   and whether it is reached on loopback (two apps on one machine, in
@@ -3262,11 +3347,34 @@ def attachNetwork (boot : Option (Task (Except IO.Error Engine.Sync.Runner)))
     throw (IO.userError "network ownership is still occupied")
   syncNetwork
 
+/-- Refresh only a new shared lifetime. Synchronous twins keep their local
+query-cache progress when the owner generation has not changed. -/
+def syncReader : M Unit := do
+  let n ← (← get).readerOwner.snapshot
+  let some board := n.board | return
+  modify fun s => { s with
+    sh := board
+    reader := n.active.map (·.worker)
+    readerStop := n.retiring.map (·.worker)
+    retiredBoard := n.retiring.map (·.board)
+    rst := if n.active.isSome || n.retiring.isSome then none
+      else if s.readerGeneration != n.generation then n.ready else s.rst
+    readerGeneration := n.generation }
+
+/-- A wiring adapter transfers the actual worker and its board together. -/
+def attachReader (worker : Reader.Worker) : M Unit := do
+  let s ← get
+  unless ← s.readerOwner.attach worker s.sh do
+    throw (IO.userError "reader ownership is still occupied")
+  syncReader
+
 /-- The only observation door for UI components. It declares ownership
 and consumes a published answer; it never performs database IO. -/
 def query (scope : Component.Scope) (want : Reader.Want) : M (Option Reader.Val) := do
   let s ← get
   if !s.life.mounted then return none
+  syncReader
+  let s ← get
   let need := scope.need want
   let id := (scope.owner, want, scope.visible)
   if !s.querySeen.contains id then
@@ -3732,6 +3840,7 @@ def recoverNode : M Unit := do
 /-- A single nonblocking poll. A result is taken only after completion. -/
 def pollRetired : M Unit := do
   syncNetwork
+  syncReader
   let owner := (← get).netOwner
   if let some (.error _) ← owner.takeReplay then
     modify fun s => { s with notices := s.notices ++
@@ -3746,9 +3855,10 @@ def pollRetired : M Unit := do
   if let some w := s.readerStop then
     if ← IO.hasFinished w.done then
       match w.done.get with
-      | .ok r =>
+      | .ok _ =>
         if let some sh := s.retiredBoard then parkDone sh
-        modify fun s => { s with readerStop := none, retiredBoard := none, rst := some { rd := r.rd } }
+        discard <| s.readerOwner.reap s.readerGeneration
+        syncReader
       | .error e => throw e
   let mut pending := #[]
   for t in s.paintStop do
@@ -3767,32 +3877,35 @@ def unmountState (s : St) : St :=
 /-- Revoke before detaching the board. An issued SQLite read may finish
 on the old refs, but no subsequent query or publication is authorized. -/
 def stopReader : M Unit := do
+  syncReader
   let s ← get
-  if let some w := s.reader then w.requestStop
+  let managed := (← s.readerOwner.snapshot).board.isSome
+  let detached ← if managed then s.readerOwner.detach s.wr.count else pure false
   parkDone s.sh
   let out ← s.sh.out.get
   s.sh.acts.set #[]
   s.sh.setWants #[]
   s.sh.board.set {}
-  s.sh.out.set #[]
+  -- If a retired worker already owns the old board, this is its replacement
+  -- board. Keep that board's pending outbox across another unmount.
+  if !managed || detached then s.sh.out.set #[]
   s.sh.notes.set #[]
   s.sh.seen.set 0
-  let sh ← Reader.Shared.new s.wr.count
-  sh.out.set out
-  modify fun s => { s with
-    sh, reader := none,
-    readerStop := s.reader.orElse fun _ => s.readerStop,
-    retiredBoard := if s.reader.isSome then some s.sh else s.retiredBoard,
-    rst := s.rst.map fun r => { rd := r.rd } }
+  if managed then
+    syncReader
+  else
+    let sh ← Reader.Shared.new s.wr.count
+    sh.out.set out
+    modify fun s => { s with sh, rst := s.rst.map fun r => { rd := r.rd } }
   pollRetired
 
 def resumeReader : M Unit := do
   pollRetired
   let s ← get
-  if !s.threaded || !s.active || !s.surface || s.netStop.isSome || s.reader.isSome then return
+  if !s.threaded || !s.active || !s.surface || s.reader.isSome then return
   if let some r := s.rst then
-    let w ← Reader.Worker.start s.sh r
-    modify fun s => { s with reader := some w, rst := none }
+    discard <| s.readerOwner.start s.readerGeneration s.sh r
+    syncReader
 
 /-- The unmount barrier used by navigation and suspension. -/
 def leavePage : M Unit := do
@@ -3808,7 +3921,7 @@ def leavePage : M Unit := do
 /-- Mount after refreshing the viewport. -/
 def mountPage : M Unit := do
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome then return
+  if !s.active || !s.surface then return
   if s.mountedPage == some (s.page, s.cur) then resumeReader; return
   if s.mountedPage.isSome then leavePage
   modify fun s => { s with life := s.life.mount, mountedPage := some (s.page, s.cur) }
@@ -4120,6 +4233,7 @@ def readRow (m : Id) : M (Option (RowData × Array Q)) := do
 /-- Notices made by this node itself: a change to the outbox, at its ops'
 positions under their keys. -/
 def noticeLocal (ps : List Pending) : M Unit := do
+  syncReader
   let fs := Pending.filings ps
   (← get).sh.notes.modify (· ++ fs)
 
@@ -4208,6 +4322,8 @@ of this node's own (`submit`). -/
 def writeAll (w : Community.Write) (present := false) : M Bool := do
   let s ← get
   if !s.life.allows s.life.lease then return false
+  syncReader
+  let s ← get
   let present := present && s.page == .chat
   if let some reason := WriteAdmission.refusal {} s.queuedWrites w.ops then
     let now ← IO.monoMsNow
@@ -4261,6 +4377,7 @@ its transaction and before the marks, and what it touches shows in the
 frame that pass serves (ActsLaws.acts_shown). Its id, for `takeDone`. -/
 def act (intent : Reader.RM Community.Write) : M Id := do
   if !(← get).life.mounted then return .empty
+  syncReader
   let id ← newBytes 16
   (← get).sh.act id intent
   return id
@@ -4268,6 +4385,7 @@ def act (intent : Reader.RM Community.Write) : M Id := do
 /-- The acts the reader has run: each write submitted, as the frame's
 own are (`submit`), in order; what each wrote, for its continuation. -/
 def takeDone : M (Array (Id × Option Community.Write)) := do
+  syncReader
   let ds ← (← get).sh.done.modifyGet fun a => (a, #[])
   for (_, w?) in ds do
     if let some w := w? then submit ⟨w.ops, true⟩
@@ -4401,6 +4519,8 @@ device the reader's thread runs them. The outbox is the reader's
 def readerPass : M Unit := do
   let s ← get
   if !s.life.mounted then return
+  syncReader
+  let s ← get
   -- Devices publish the complete component tree once, in present. A
   -- partial tree would reorder requests twice per frame and repeatedly
   -- rebuild the reader's dependency index while it is serving them.
@@ -4417,6 +4537,7 @@ def readerPass : M Unit := do
 /-- Take the board's moved set in one swap. A mounted attachment checks
 its answer every frame; this only clears its waiting diagnostic. -/
 def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
+  syncReader
   let (moved, b) ← (← get).sh.board.modifyGet fun b => let (mv, b') := b.take; ((mv, b'), b')
   if moved.toList.any fun | .slices _ => true | _ => false then
     modify fun s => { s with imgWaiting := {} }
@@ -4969,6 +5090,7 @@ writer's and the node's alike), and the verdicts it recorded or cleared,
 from the store's journal: read inside the frame's read transaction, they
 are exactly the commits this frame's reads see. -/
 def takeChanges : M (Array Filing × Array (Id × Bool)) := do
+  syncReader
   let s ← get
   let (fs, vs, top) ← s.rd.filingsSince s.seen
   modify fun s => { s with seen := top }
@@ -6451,7 +6573,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     modify fun s => { s with input }
     let t1 ← s.io.nowUs
     slow t1
-    modify fun s => { s with b, frames := s.frames + 1, times := s.times.push (t1 - t0).toNat }
+    modify fun s => { s with b, frames := s.frames + 1, times := FrameTimes.push s.times (t1 - t0).toNat }
     return some (← present shown b (!s.page.scrolls))
   -- 7. chrome and the frame
   let s ← get
@@ -6471,7 +6593,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   let fr := withToast s (listFrame s b bots) (viewH s)
   let t1 ← s.io.nowUs
   slow t1
-  let times := (if s.times.size ≥ 600 then s.times.extract 300 s.times.size else s.times).push (t1 - t0).toNat
+  let times := FrameTimes.push s.times (t1 - t0).toNat
   modify fun s => { s with
     b := b
     frames := s.frames + 1
@@ -6497,7 +6619,7 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
       | _ => input := input ++ [e]
     reap
     let s ← get
-    if !s.active || !s.surface || s.netStop.isSome then
+    if !s.active || !s.surface then
       IO.sleep 16
       return some []
     let sc ← io.screen
@@ -6542,6 +6664,7 @@ must not revoke its service opportunity; demand tickets still revoke obsolete
 publication, and the worker never holds its bookkeeping lock during paint. -/
 def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M (Option (List Event)) := do
   syncNetwork
+  syncReader
   modify fun s => { s with
     rasterNeeds := #[], queryNeeds := roots,
     querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
@@ -6577,6 +6700,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
   let setting ← Theme.load rd
   let wr ← Writer.start dbPath commitCheckpoint
   let netOwner ← NetworkOwner.new
+  let readerOwner ← Reader.Owner.new
   let theme : Theme.State := ⟨setting, Theme.ofWord (screen[5]?.getD 0)⟩
   io.appearance (Theme.effective theme == .dark) (Palette.color (Theme.effective theme) .bg)
   -- the communities are this device's accepted facts: read them once
@@ -6593,7 +6717,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
-           wr := wr, netOwner, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, netOwner, readerOwner, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
