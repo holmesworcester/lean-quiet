@@ -206,3 +206,13 @@ a staged, optimistic, blank or shifted image cannot satisfy the receipt.
 The finite TCP regression keeps its 64-frame/1,500 ms limit. The subsequent desktop repair acknowledges actual composed native publication;
 Mac/Windows runtime validation remains outstanding, and the iOS wrapper has
 source review only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).
+
+## Admitted-input expiry milestone
+
+Silence expiry now grants a pending source one bounded selection opportunity,
+with the existing UI-first selector unchanged. Junk cannot rearm the same
+authenticated-heard generation; authenticated removal and stalled-send
+cancellation retain immediate cleanup. See [EXPIRY-GRACE.md](EXPIRY-GRACE.md)
+for eleven kernel laws, nonempty witnesses and 29 native checks with controls.
+This does not protect bytes not yet admitted or prove delivery across ordinary
+transport failure and key replacement.

@@ -575,3 +575,6 @@ lean_exe desktop_native_presentation where
   root := `tests.app.DesktopNativePresentation
   moreLinkObjs := #[desktop_presentation_native.o]
   moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0", "/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1"]
+
+lean_exe epoch_ingress where
+  root := `tests.engine.EpochIngress

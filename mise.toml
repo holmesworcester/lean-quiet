@@ -31,12 +31,17 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness && mise run test:expiry-grace"
 
 [tasks."test:catalog-retry"]
 description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
 depends = ["crypto"]
 run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:expiry-grace"]
+description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
+depends = ["crypto"]
+run = "bash tests/engine/expiry_grace.sh"
 
 [tasks."test:writer-fairness"]
 description = "Actual writer loop FIFO/local-priority fairness with SQLite, reused kernel service bounds and four compiling starvation/copy controls"

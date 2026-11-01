@@ -77,6 +77,12 @@ def Hub.stop {α : Type} (hub : Hub α) : IO Unit :=
 def Hub.stopped {α : Type} (hub : Hub α) : IO Bool :=
   hub.registry.atomically do return (← getThe (Registry α hub.peers)).closed
 
+/-- Bounded snapshot of already admitted values. It neither consumes input
+nor advances the source cursor; the actual loop remains its sole consumer. -/
+def Hub.pending {α : Type} (hub : Hub α) : IO (List α) :=
+  hub.registry.atomically do
+    return (← getThe (Registry α hub.peers)).state.slots.toArray.toList.filterMap id
+
 /-- Control is sampled only into its own empty slot. It cannot occupy a
 peer's slot. Polling calls the exact proved pure core while holding its lock. -/
 def Hub.poll {α : Type} (hub : Hub α) (control : IO (Option α)) : IO (Option α) :=

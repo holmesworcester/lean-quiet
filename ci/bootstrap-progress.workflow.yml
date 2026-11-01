@@ -66,6 +66,7 @@ jobs:
             out/native-lifetime
             out/ref-publications
             out/writer-fairness
+            out/expiry-grace
             out/simplify-negative
             out/tree-negative
             out/vacuity

@@ -35,7 +35,7 @@ theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F Byt
     (hc : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i))
     (hs : ∀ store, x.retryStore = some store →
       (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor))) : ReadOnly x := by
-  obtain ⟨fam, cfg, hk, room, catalog, retryStore, retryRoom, deferredRetries⟩ := x
+  obtain ⟨fam, cfg, hk, room, catalog, retryStore, retryRoom, deferredRetries, tickReady⟩ := x
   simp only at hx
   subst hx
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := hooks_reads hfr fam K listen

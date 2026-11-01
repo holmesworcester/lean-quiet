@@ -1,0 +1,79 @@
+{
+  "ExpiryGrace.same_generation": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.same_generation",
+    "witness": "Vacuity.ExpiryGrace.sameGeneration",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "The active heard100 episode keeps its twelve-selection budget even if a later check supplies a larger999 budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.no_rearm": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.no_rearm",
+    "witness": "Vacuity.ExpiryGrace.junkDoesNotRearm",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "A pending source cannot replace an exhausted heard100 episode with a fresh999 budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.exhausted": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.exhausted",
+    "witness": "Vacuity.ExpiryGrace.junkCannotDelay",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "A pending source with exhausted heard100 budget cannot delay expiry. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.empty_no_delay": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.empty_no_delay",
+    "witness": "Vacuity.ExpiryGrace.emptyCannotDelay",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "An empty source does not delay expiry despite a positive old budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.fresh_clears": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.fresh_clears",
+    "witness": "Vacuity.ExpiryGrace.freshClears",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "A no-longer-overdue heard200 episode clears old heard100 grace. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.consume_keeps_generation": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.consume_keeps_generation",
+    "witness": "Vacuity.ExpiryGrace.generationRetained",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "One actual consume retains the heard100 episode token. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.consume_decreases": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.consume_decreases",
+    "witness": "Vacuity.ExpiryGrace.selectionDecreases",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "One actual consume reduces the positive twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "ExpiryGrace.consume_saturates": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.consume_saturates",
+    "witness": "Vacuity.ExpiryGrace.zeroSaturates",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "An exhausted episode stays at zero after consumption. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "consumed_left": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.consumed_left",
+    "witness": "Vacuity.ExpiryGrace.afterSeven",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "Seven successive consumes leave five units of the twelve-selection budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "budget_exhausted": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.budget_exhausted",
+    "witness": "Vacuity.ExpiryGrace.afterTwelve",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "Twelve consumes exhaust the maxSocks2 budget. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  },
+  "source_before_exhaustion": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.ExpiryGrace.source_before_exhaustion",
+    "witness": "Vacuity.ExpiryGrace.sourceOpportunity",
+    "module": "tests.vacuity.ExpiryGrace",
+    "detail": "The existing nonempty infinite churn fixture selects the owed source at turn7, before its twelve-selection opportunity expires, despite continuous local/peer arrivals and reuse of a different source. These are executable-core/source-selection claims. The named native suite checks actual TCP/Noise/SQLite integration; OS/store completion and full fair-loss convergence remain outside this claim."
+  }
+}

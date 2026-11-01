@@ -74,6 +74,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:native-lifetimes
   mise run test:ref-publications
   mise run test:writer-fairness
+  mise run test:expiry-grace
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi
