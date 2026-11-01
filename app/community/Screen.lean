@@ -896,7 +896,8 @@ def markAdvance64 (dm : Dim) : Nat := (12 * 2550 * 64 * dm.dpi + 2048 * 80) / (2
 def betaWarning : String := "Quiet is in beta and shouldn't be used for activities requiring security."
 
 /-- Get started's rows: libquiet's three, each a glyph, a label and the
-chevron. Link devices opens the explanatory page (linking is not built). -/
+chevron. Link devices opens this device's side of linking: scan or paste
+the other device's link (docs/LINKING.md). -/
 def startRows {α : Type} (onJoin onCreate onDevices : α) : Array (String × String × α) :=
   #[("person-add", "Join a community", onJoin), ("plus", "Create a new community", onCreate),
     ("devices", "Link devices", onDevices)]
