@@ -1,11 +1,13 @@
 /-
-Non-vacuity for secrecy and the liveness histories. The witnesses execute
-filed and recv on held stores, with actual encoded messages.
+Non-vacuity for secrecy and the liveness histories: evidence, not laws.
+The witnesses execute filed and recv on held stores, with actual encoded
+messages (Vacuity.WireMore.secrecyRun, Vacuity.Network).
 -/
 import engine.sync.SecrecyLaws
 import engine.sync.TimeLaws
 
-namespace Engine.Sync
+namespace Vacuity.SyncWitnesses
+open Engine Engine.Sync
 
 /-- A real stored leaf is advertised, inhabiting both secrecy laws' premise. -/
 theorem secrecy_runs (r : Id) :
@@ -43,4 +45,4 @@ theorem live_runs {F : Type} (fam : Family F) :
     (fun now t ht old => ⟨deliver now t ht old, fun _ => by rw [heard]; dsimp [cfg] at old; omega⟩)
     (fun now t ht old => ⟨deliver now t ht old, fun _ => by rw [heard]; dsimp [cfg] at old; omega⟩)
   exact fun now => (both now).1
-end Engine.Sync
+end Vacuity.SyncWitnesses
