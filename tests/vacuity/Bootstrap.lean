@@ -62,7 +62,7 @@ theorem completedInvariantLaw (g : scene.Good ed25519) : ∃ acts t,
 theorem admissionClassifiedLaw (g : scene.Good ed25519) :
     (scene.B.pk = scene.A.pk ∧ scene.kB = scene.kA ∧ scene.r ∈ scene.S) ∨
     (scene.B.pk = scene.B.pk ∧ scene.kB = scene.kB ∧ scene.adm ∈ scene.S) :=
-  Scene.admitted_inv g (fun _ h => h) ⟨scene.adm.id, Scene.v_adm g (fun _ h => h) (fun _ h => h)⟩
+  Scene.admitted_inv g (fun _ h => h) ⟨scene.adm.id, _, Scene.v_adm g (fun _ h => h) (fun _ h => h)⟩
 
 theorem founderAllowedLaw (g : scene.Good ed25519) : Allowed ed25519 scene.S scene.c scene.kA :=
   (Scene.allowedA g (fun _ h => h)).mpr (by simp [Scene.S])

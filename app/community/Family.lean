@@ -92,10 +92,18 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   names a content key by id and carries the nonce and ciphertext
   (`Community.Keys`). Its header is clear: the key id, the time, the
   signature, which covers the sealed bytes. Validators read only the
-  header, so a keyless node judges a post as a member does.
+  header, so a keyless node judges a post as a member does. Its key id
+  is the community's (an attachment's too).
+- A community has one content key, made at founding (keys do not rotate
+  yet). The root names its id (`kidOf`, a hash of the key), and every
+  admission copies it, so every member agrees which key it is.
 - A content key is local (`key`): this node's copy of a community's
-  key. A wrap delivers one to a node's X25519 key, sealed so that only
-  that node opens it. A wrap admits nobody, so it needs no author.
+  key, filed under its id, which its validator computes from the key.
+  A wrap delivers the community's key to an admitted node's X25519 key,
+  sealed so that only that node opens it. An admitted device writes and
+  signs it, citing its own admission and the recipient's; its key id is
+  the root's. The recipient takes the key only if it hashes to that id
+  (`unwrap`), so no member can plant another key under it.
 - A post claims two numbers: a counter, which orders its channel, and
   a time, wall-clock minutes since the Unix epoch, which is shown (the
   user's decision, 2026-10-28: "don't hack order onto time"). A
@@ -196,7 +204,7 @@ inductive Body where
 
 /-! ## Each op type's fact and body by its fields, as laws and views match them -/
 
-@[match_pattern] abbrev Fact.admission (c : Id) (u : Id) (device : Key) (enc : Key) : Fact := .ofAdmission ⟨c, u, device, enc⟩
+@[match_pattern] abbrev Fact.admission (c : Id) (u : Id) (device : Key) (enc : Key) (kid : ByteArray) : Fact := .ofAdmission ⟨c, u, device, enc, kid⟩
 @[match_pattern] abbrev Fact.invitation (c : Id) (issuer : Id) (bearer : Key) (link : Bool) : Fact := .ofInvitation ⟨c, issuer, bearer, link⟩
 @[match_pattern] abbrev Fact.admin (c : Id) (u : Id) : Fact := .ofAdmin ⟨c, u⟩
 @[match_pattern] abbrev Fact.removal (c : Id) (u : Id) (by_ : Id) : Fact := .ofRemoval ⟨c, u, by_⟩
@@ -217,13 +225,13 @@ inductive Body where
 @[match_pattern] abbrev Fact.endpoint (pk : ByteArray) (sk : ByteArray) : Fact := .ofEndpoint ⟨pk, sk⟩
 @[match_pattern] abbrev Fact.received (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Option Id := none) : Fact := .ofReceived ⟨c, kid, msg, k, clump⟩
 
-@[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, sig⟩
+@[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (kid : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, kid, sig⟩
 @[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, sig⟩
 @[match_pattern] abbrev Body.request (device : ByteArray) (enc : ByteArray) (consent : ByteArray) (bearerSig : ByteArray) : Body := .ofRequest ⟨device, enc, consent, bearerSig⟩
 @[match_pattern] abbrev Body.grant (sig : ByteArray) : Body := .ofGrant ⟨sig⟩
 @[match_pattern] abbrev Body.remove (sig : ByteArray) : Body := .ofRemove ⟨sig⟩
 @[match_pattern] abbrev Body.post (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (sig : ByteArray) : Body := .ofPost ⟨ckey, text, n, time, sig⟩
-@[match_pattern] abbrev Body.wrap (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Body := .ofWrap ⟨ckey, recipient, box⟩
+@[match_pattern] abbrev Body.wrap (box : ByteArray) (sig : ByteArray) : Body := .ofWrap ⟨box, sig⟩
 @[match_pattern] abbrev Body.profile (name : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofProfile ⟨name, time, sig⟩
 @[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, kid, sealed, sig⟩
 @[match_pattern] abbrev Body.react (emoji : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofReact ⟨emoji, time, sig⟩
@@ -239,11 +247,11 @@ inductive Body where
 @[match_pattern] abbrev Body.endpoint (sk : ByteArray) : Body := .ofEndpoint ⟨sk⟩
 @[match_pattern] abbrev Body.receive (k : Nat) : Body := .ofReceive ⟨k⟩
 
-theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) :
-    (Fact.admission c u device enc = Fact.admission c' u' device' enc') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc') := by
+theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (kid : ByteArray) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) (kid' : ByteArray) :
+    (Fact.admission c u device enc kid = Fact.admission c' u' device' enc' kid') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ kid = kid') := by
   simp [Fact.admission]
-theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {c' : Id} {u' : Id} {device' : Key} {enc' : Key}
-    (hinj : Fact.admission c u device enc = Fact.admission c' u' device' enc') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' := by
+theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {kid : ByteArray} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {kid' : ByteArray}
+    (hinj : Fact.admission c u device enc kid = Fact.admission c' u' device' enc' kid') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ kid = kid' := by
   rw [Fact.admission.injEq] at hinj; exact hinj
 theorem Fact.invitation.injEq (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (c' : Id) (issuer' : Id) (bearer' : Key) (link' : Bool) :
     (Fact.invitation c issuer bearer link = Fact.invitation c' issuer' bearer' link') = (c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link') := by
@@ -359,11 +367,11 @@ theorem Fact.received.injEq (c : Id) (kid : Id) (msg : Id) (k : Nat) (clump : Op
 theorem Fact.received.inj {c : Id} {kid : Id} {msg : Id} {k : Nat} {clump : Option Id} {c' : Id} {kid' : Id} {msg' : Id} {k' : Nat} {clump' : Option Id}
     (hinj : Fact.received c kid msg k clump = Fact.received c' kid' msg' k' clump') : c = c' ∧ kid = kid' ∧ msg = msg' ∧ k = k' ∧ clump = clump' := by
   rw [Fact.received.injEq] at hinj; exact hinj
-theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (sig' : ByteArray) :
-    (Body.root device enc sig = Body.root device' enc' sig') = (device = device' ∧ enc = enc' ∧ sig = sig') := by
+theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (kid : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (kid' : ByteArray) (sig' : ByteArray) :
+    (Body.root device enc kid sig = Body.root device' enc' kid' sig') = (device = device' ∧ enc = enc' ∧ kid = kid' ∧ sig = sig') := by
   simp [Body.root]
-theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {sig' : ByteArray}
-    (h : Body.root device enc sig = Body.root device' enc' sig') : device = device' ∧ enc = enc' ∧ sig = sig' := by
+theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {kid : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {kid' : ByteArray} {sig' : ByteArray}
+    (h : Body.root device enc kid sig = Body.root device' enc' kid' sig') : device = device' ∧ enc = enc' ∧ kid = kid' ∧ sig = sig' := by
   rw [Body.root.injEq] at h; exact h
 theorem Body.invite.injEq (bearer : Key) (link : Bool) (sig : ByteArray) (bearer' : Key) (link' : Bool) (sig' : ByteArray) :
     (Body.invite bearer link sig = Body.invite bearer' link' sig') = (bearer = bearer' ∧ link = link' ∧ sig = sig') := by
@@ -395,11 +403,11 @@ theorem Body.post.injEq (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : 
 theorem Body.post.inj {ckey : ByteArray} {text : ByteArray} {n : Nat} {time : Nat} {sig : ByteArray} {ckey' : ByteArray} {text' : ByteArray} {n' : Nat} {time' : Nat} {sig' : ByteArray}
     (h : Body.post ckey text n time sig = Body.post ckey' text' n' time' sig') : ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ sig = sig' := by
   rw [Body.post.injEq] at h; exact h
-theorem Body.wrap.injEq (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) (ckey' : ByteArray) (recipient' : ByteArray) (box' : ByteArray) :
-    (Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') = (ckey = ckey' ∧ recipient = recipient' ∧ box = box') := by
+theorem Body.wrap.injEq (box : ByteArray) (sig : ByteArray) (box' : ByteArray) (sig' : ByteArray) :
+    (Body.wrap box sig = Body.wrap box' sig') = (box = box' ∧ sig = sig') := by
   simp [Body.wrap]
-theorem Body.wrap.inj {ckey : ByteArray} {recipient : ByteArray} {box : ByteArray} {ckey' : ByteArray} {recipient' : ByteArray} {box' : ByteArray}
-    (h : Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') : ckey = ckey' ∧ recipient = recipient' ∧ box = box' := by
+theorem Body.wrap.inj {box : ByteArray} {sig : ByteArray} {box' : ByteArray} {sig' : ByteArray}
+    (h : Body.wrap box sig = Body.wrap box' sig') : box = box' ∧ sig = sig' := by
   rw [Body.wrap.injEq] at h; exact h
 theorem Body.profile.injEq (name : ByteArray) (time : Nat) (sig : ByteArray) (name' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.profile name time sig = Body.profile name' time' sig') = (name = name' ∧ time = time' ∧ sig = sig') := by
@@ -926,6 +934,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 @[simp] theorem signedBy_ofGrant (o : Op) (b : Grant.Body) : signedBy o b.unsigned = signed o (.ofGrant b) := rfl
 @[simp] theorem signedBy_ofRemove (o : Op) (b : Remove.Body) : signedBy o b.unsigned = signed o (.ofRemove b) := rfl
 @[simp] theorem signedBy_ofPost (o : Op) (b : Post.Body) : signedBy o b.unsigned = signed o (.ofPost b) := rfl
+@[simp] theorem signedBy_ofWrap (o : Op) (b : Wrap.Body) : signedBy o b.unsigned = signed o (.ofWrap b) := rfl
 @[simp] theorem signedBy_ofProfile (o : Op) (b : Profile.Body) : signedBy o b.unsigned = signed o (.ofProfile b) := rfl
 @[simp] theorem signedBy_ofAttach (o : Op) (b : Attach.Body) : signedBy o b.unsigned = signed o (.ofAttach b) := rfl
 @[simp] theorem signedBy_ofReact (o : Op) (b : React.Body) : signedBy o b.unsigned = signed o (.ofReact b) := rfl
@@ -943,7 +952,7 @@ def Fact.isLocal : Fact → Bool
 /-- Whether a fact shows that user u of community c is admin: the
 founder's admission (the founder's user is the community), or a grant. -/
 def isAdmin (c u : Id) : Fact → Bool
-  | .admission c' u' _ _ => decide (c' = c ∧ u' = c ∧ u = c)
+  | .admission c' u' _ _ _ => decide (c' = c ∧ u' = c ∧ u = c)
   | .admin c' u' => decide (c' = c ∧ u' = u)
   | _ => false
 
@@ -980,7 +989,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofAttach b, [.ofAdmission r, .ofAdmission a, .ofMessage m] => (Attach.check C o b r a m).map .ofAttachment
   | .ofChunk b, [.ofAdmission r, .ofAttachment t] => (Chunk.check o b r t).map .ofChunk
   | .ofReact b, [.ofAdmission r, .ofAdmission a, .ofMessage m] => (React.check C o b r a m).map .ofReact
-  | .ofWrap b, [.ofAdmission r] => (Wrap.check o b r).map .ofWrap
+  | .ofWrap b, [.ofAdmission r, .ofAdmission a, .ofAdmission t] => (Wrap.check C o b r a t).map .ofWrap
   | .ofSecret b, [] => (Secret.check C b).map .ofSecret
   | .ofKey b, [] => (ContentKey.check b).map .ofKey
   | .ofEndpoint b, [] => (Endpoint.check b).map .ofEndpoint
@@ -1210,7 +1219,7 @@ variable (C : Crypto) (ops : Id → Option Op)
 def V (x : Id) (f : Fact) : Prop := Spec (family C) ops x (.valid f)
 
 /-- Device d is admitted into user u of community c, with key e. -/
-def Admitted (c u : Id) (d e : Key) : Prop := ∃ x, V C ops x (.admission c u d e)
+def Admitted (c u : Id) (d e : Key) : Prop := ∃ x kid, V C ops x (.admission c u d e kid)
 end
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -1249,7 +1258,7 @@ theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
 request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
-  | .root _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s
+  | .root _ _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s | .wrap _ s
   | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []
@@ -1464,7 +1473,7 @@ theorem at_row {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.q
   exact ⟨y, _, rfl, hf.1, hf.2⟩
 
 theorem admission_byUser_args {c u : Id} {f : Fact} :
-    admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by
+    admission.byUser.args f = some [c, u] ↔ ∃ d e kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byUser, eq_comm]
 
 /-- A row of a list read at rest is a Valid fact filed under it. -/
@@ -1482,7 +1491,7 @@ open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byDevice_args {c d : Id} {f : Fact} :
-    admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
+    admission.byDevice.args f = some [c, d] ↔ ∃ u e kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byDevice, Root.byDevice, Rel.comap, Fact.admission?, eq_comm]
 open Engine
 section
@@ -1523,7 +1532,7 @@ open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byKey_args {c e : Id} {f : Fact} :
-    admission.byKey.args f = some [c, e] ↔ ∃ u d, f = .admission c u d e := by
+    admission.byKey.args f = some [c, e] ↔ ∃ u d kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byKey, Root.byKey, Rel.comap, Fact.admission?, eq_comm]
 open Engine
 variable {C : Crypto}

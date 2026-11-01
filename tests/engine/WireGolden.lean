@@ -22,7 +22,7 @@ def hex (b : ByteArray) : String :=
 def bs (s : String) : ByteArray := s.toUTF8
 
 def bodies : List (String × Body) :=
-  [("root", .root (bs "dev") (bs "enc") (bs "sig")),
+  [("root", .root (bs "dev") (bs "enc") (bs "kid") (bs "sig")),
    ("invite", .invite (bs "bearer") true (bs "sig")),
    ("invite2", .invite (bs "bearer") false (bs "sig")),
    ("request", .request (bs "dev") (bs "enc") (bs "consent") (bs "bsig")),
@@ -30,7 +30,7 @@ def bodies : List (String × Body) :=
    ("remove", .remove (bs "sig")),
    ("post", .post (bs "kid") (bs "sealed text") 7 1700000 (bs "sig")),
    ("post-cap", .post (bs "kid") (bs "x") (2 ^ 63) 5 (bs "sig")),
-   ("wrap", .wrap (bs "kid") (bs "recipient") (bs "box")),
+   ("wrap", .wrap (bs "box") (bs "sig")),
    ("profile", .profile (bs "Maya") 42 (bs "sig")),
    ("attach", .attach (bs "root-32-bytes-root-32-bytes-root") 1000 (bs "kid") (bs "sealed") (bs "sig")),
    ("react", .react (bs "🌱") 99 (bs "sig")),
@@ -47,7 +47,7 @@ def bodies : List (String × Body) :=
    ("receive", .receive 12)]
 
 def facts : List (String × Fact) :=
-  [("admission", .admission (bs "c") (bs "u") (bs "dev") (bs "enc")),
+  [("admission", .admission (bs "c") (bs "u") (bs "dev") (bs "enc") (bs "kid")),
    ("invitation", .invitation (bs "c") (bs "i") (bs "bearer") true),
    ("admin", .admin (bs "c") (bs "u")),
    ("removal", .removal (bs "c") (bs "u") (bs "by")),
@@ -81,9 +81,9 @@ def no : Crypto := { verify := fun _ _ _ => false, pub := fun _ => ByteArray.emp
 /-- Sample requirement lists: each op type's own shape, and some wrong ones. -/
 def reqs : List (List Fact) :=
   let c := bs "c"
-  let root := Fact.admission c c (bs "dev0") (bs "enc0")
-  let author := Fact.admission c (bs "u") (bs "dev") (bs "enc")
-  let other := Fact.admission c (bs "v") (bs "dev2") (bs "enc2")
+  let root := Fact.admission c c (bs "dev0") (bs "enc0") (bs "kid")
+  let author := Fact.admission c (bs "u") (bs "dev") (bs "enc") (bs "kid")
+  let other := Fact.admission c (bs "v") (bs "dev2") (bs "enc2") (bs "kid")
   let msg := Fact.message c (bs "u") (bs "dev") (bs "kid") (bs "t") 1 2
   let child := Fact.message c (bs "u") (bs "dev") (bs "kid") (bs "t") 1 2 (some (bs "r"))
   let inv := Fact.invitation c (bs "u") (bs "bearer") false

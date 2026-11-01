@@ -169,7 +169,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "with two endpoint ops, nodeKey is the greater id's"
     (held == some (cryptoSeal.pub top, top) && (endpoint nkA).id != (endpoint nkB).id)
   mine a w
-  let c := (root dA keyA).id
+  let c := (root dA keyA (kidOf cryptoSeal kA)).id
   let kid := kidOf cryptoSeal kA
   t.ok "A holds the content key" ((← rows a (key.byId.query [kid])).any fun (_, f) => f == .key c kid kA)
   t.ok "and its wrap to A's node key is stored"
@@ -177,7 +177,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "A's node key is a real X25519 key, held as a local op with its secret"
     (keyA.size == 32 && (← rows a (endpoint.all.query [])).any fun (_, f) => f == .endpoint keyA nkA)
   t.ok "the root names A's device and A's node key"
-    ((← rows a (admission.byKey.query [c, keyA])).any fun (_, f) => f == .admission c c dA.pk keyA)
+    ((← rows a (admission.byKey.query [c, keyA])).any fun (_, f) => f == .admission c c dA.pk keyA (kidOf cryptoSeal kA))
   -- A posts: the text is sealed; the op and its fact hold only ciphertext.
   let nonce := (Bytes.fit 24 (sha256 "nonce 1".toUTF8))
   let wpost ← sendOn a (send c c dA kA nonce "hello from Ann".toUTF8 3 [])
@@ -278,11 +278,15 @@ def main (args : List String) : IO UInt32 := do
     (after.rows.length == 1 && after.total == 1 &&
       after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ _ _ => k == kid | _ => false)
   t.ok "A reads the same one message" ((← rd a).rows.length == 1)
-  -- A message under a key nobody here holds stays hidden.
+  -- A post under a key the root does not name is Invalid
+  -- (`post_community_key`): no member writes one that others would take.
   let kX := Bytes.digest "a key never wrapped".toUTF8
-  mine a (← sendOn a (send c c dA kX ((Bytes.fit 24 (sha256 "nonce X".toUTF8))) "unreadable".toUTF8 4))
-  t.ok "A stores the message under the unheld key" ((← rows a (message.all.query [c])).length == 2)
-  t.ok "but A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
+  let wX ← sendOn a (send c c dA kX ((Bytes.fit 24 (sha256 "nonce X".toUTF8))) "unreadable".toUTF8 4)
+  mine a wX
+  t.ok "A refuses its own post under another key"
+    ((← (Store.getStatus (F := Fact) (m := SqlM Fact) (wX.ops.headD default).id).run a) == some .invalid)
+  t.ok "so A stores no message under it" ((← rows a (message.all.query [c])).length == 1)
+  t.ok "and A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
     | .message _ _ _ _ s _ _ _ => some s | _ => none
   t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openStored cryptoSeal c kid s k)
@@ -343,7 +347,7 @@ def main (args : List String) : IO UInt32 := do
   let chunkOps := wf.ops.drop 2
   t.ok "every chunk cites its community and its attachment, and nothing else"
     (chunkOps.all fun o => o.reqs == [c, att])
-  fromPeer solo ([root dA keyA] ++ chunkOps)
+  fromPeer solo ([root dA keyA (kidOf cryptoSeal kA)] ++ chunkOps)
   let soloChunks ← rows solo (message.all.query [c])
   t.ok "a node without the post holds no message" soloChunks.isEmpty
   let countValid (db : Db) (os : List Op) : IO Nat := do
@@ -392,7 +396,7 @@ def main (args : List String) : IO UInt32 := do
     let pr (db : Db) (len : Nat) : IO (Nat × Nat) :=
       ((progress c att len).run : SqlM Fact (Nat × Nat)).run db
     let dl ← fresh dir "download.db"
-    fromPeer dl ([root dA keyA] ++ wpost.ops ++ [postOp, attOp])
+    fromPeer dl ([root dA keyA (kidOf cryptoSeal kA)] ++ wpost.ops ++ [postOp, attOp])
     t.ok "before any chunk, progress is 0 of the chunk count" ((← pr dl l) == (0, nc))
     let mut steps := true
     let mut k := 0
@@ -544,7 +548,7 @@ def main (args : List String) : IO UInt32 := do
     ((← ((Community.mine c).run : SqlM Fact _).run cdb).map (·.1) == some dC3.pk && (← liveOn cdb dC3.pk))
   let adm3 ← rows cdb (admission.byDevice.query [c, dC3.pk])
   t.ok "the new device is a new user, never the removed one"
-    (adm3.any fun (_, f) => match f with | .admission _ u3 _ k => u3 != uC && k == keyC | _ => false)
+    (adm3.any fun (_, f) => match f with | .admission _ u3 _ k _ => u3 != uC && k == keyC | _ => false)
   t.ok "the old user stays removed and its device stays cut, on both nodes"
     (!(← liveOn a dC.pk) && !(← liveOn cdb dC.pk) &&
       (← rows a (removal.byUser.query [c, uC])).length == 1)

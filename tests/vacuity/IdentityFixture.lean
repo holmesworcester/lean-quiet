@@ -27,13 +27,16 @@ def bob := Device.named "vacuity-bob"
 def carol := Device.named "vacuity-carol"
 def mallory := Device.named "vacuity-mallory"
 def bearer := Device.named "vacuity-invitation"
-def r := root alice (keyOf alice)
+/-- The community's content key, and its id, which the root names. -/
+def communityKey : Key32 := ⟨⟨Array.replicate 32 41⟩, rfl⟩
+def keyId := kidOf cryptoSeal communityKey
+def r := root alice (keyOf alice) keyId
 def c := r.id
 def invitation := invite c c alice bearer.pk false
 def requestB := request c invitation.id bob (keyOf bob) bearer.sk
 def approval := approve c requestB.id c alice
 def admission := admit c requestB.id approval.id
-def message := post c admission.id bob "content-key-1".toUTF8 "Hello Alice, this is Bob.".toUTF8 1 29880000
+def message := post c admission.id bob keyId "Hello Alice, this is Bob.".toUTF8 1 29880000
 def grantB := grant c c c admission.id alice
 def removeB := remove c c c admission.id alice
 def removeA := remove c admission.id grantB.id c bob
@@ -41,9 +44,9 @@ def renamed := setName c c c [] 1 alice "Vacuity test community".toUTF8
 
 def before : List Op := [r, invitation, requestB, approval, admission, message, grantB, renamed]
 def after : List Op := before ++ [removeB, removeA]
-def rootFact := Fact.admission c c alice.pk (keyOf alice)
-def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob)
-def messageFact := Fact.message c requestB.id bob.pk "content-key-1".toUTF8
+def rootFact := Fact.admission c c alice.pk (keyOf alice) keyId
+def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob) keyId
+def messageFact := Fact.message c requestB.id bob.pk keyId
   "Hello Alice, this is Bob.".toUTF8 1 29880000
 
 

@@ -48,8 +48,8 @@ variable {C : Crypto}
 live again: no later admission, of any id into any user, undoes it. -/
 theorem cut_stays {ops ops' : Id → Option Op} {c : Id} {d : Key} (he : Extends ops ops')
     (h : Cut C ops c d) : Cut C ops' c d ∧ ¬ Live C ops' c d := by
-  obtain ⟨u, e, ⟨y, hy⟩, hr⟩ := h
-  have hc : Cut C ops' c d := ⟨u, e, ⟨y, valid_stays he hy⟩, removed_stays he hr⟩
+  obtain ⟨u, e, ⟨y, k, hy⟩, hr⟩ := h
+  have hc : Cut C ops' c d := ⟨u, e, ⟨y, k, valid_stays he hy⟩, removed_stays he hr⟩
   exact ⟨hc, cut_not_live hc⟩
 
 end Community

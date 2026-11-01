@@ -9,22 +9,22 @@ open Engine Codec
 theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
     {d k t : ByteArray} {n tm : Nat}
     (h : check C o b fs = some (.message c u d k t n tm)) :
-    ∃ s d0 e0 e, b = .post k t n tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
+    ∃ s d0 e0 e ka, b = .post k t n tm s ∧ fs = [.admission c c d0 e0 k, .admission c u d e ka] ∧
       o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   · rename_i b r a
-    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d', e, ka⟩
     simp only [Post.check] at h
     split at h
     · rename_i hc
       simp only [Option.map_some, Option.some.injEq, Fact.ofMessage.injEq, Post.Fact.mk.injEq, and_true] at h
       obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-      obtain ⟨h1, rfl, rfl, h4⟩ := hc
-      exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
+      obtain ⟨h1, rfl, rfl, rfl, h4⟩ := hc
+      exact ⟨_, _, _, _, _, rfl, rfl, h1, h4⟩
     · simp at h
   · rename_i b r a p
-    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d', e, ka⟩
     rcases p with ⟨c2, u2, d2, k2, t2, n2, tm2, _ | root⟩
     · simp only [Post.check] at h; split at h <;> simp at h
     · simp [Post.check] at h
@@ -34,16 +34,16 @@ root can be cited: the final fact's clump is explicitly `none`. -/
 theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root : Id}
     {d k t : ByteArray} {n tm : Nat}
     (h : check C o b fs = some (.message c u d k t n tm (some root))) :
-    ∃ s d0 e0 e d2 k2 t2 n2 tm2, b = .post k t n tm s ∧
-      fs = [.admission c c d0 e0, .admission c u d e, .message c u d2 k2 t2 n2 tm2 none] ∧
+    ∃ s d0 e0 e ka d2 k2 t2 n2 tm2, b = .post k t n tm s ∧
+      fs = [.admission c c d0 e0 k, .admission c u d e ka, .message c u d2 k2 t2 n2 tm2 none] ∧
       o.reqs.head? = some c ∧ root = o.reqs.getD 2 .empty ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   · rename_i b r a
-    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d', e, ka⟩
     simp only [Post.check] at h; split at h <;> simp at h
   · rename_i b r a p
-    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d', e, ka⟩
     rcases p with ⟨c2, u2, d2, k2, t2, n2, tm2, _ | root'⟩
     · simp only [Post.check] at h
       split at h
@@ -52,8 +52,8 @@ theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root 
         obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, hr⟩ := h
         try simp only [Option.some.injEq] at hr
         subst root
-        obtain ⟨h1, rfl, rfl, rfl, rfl, hs⟩ := hc
-        exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, hs⟩
+        obtain ⟨h1, rfl, rfl, rfl, rfl, rfl, hs⟩ := hc
+        exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, hs⟩
       · simp at h
     · simp [Post.check] at h
 open Engine Codec
@@ -63,21 +63,21 @@ variable {C : Crypto} {ops : Id → Option Op}
 author's user, and that device signed it. -/
 theorem message_authorized {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}
     (h : V C ops x (.message c u d k t n tm clump)) :
-    ∃ o s e y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
-      o.reqs.take 2 = [c, y] ∧ V C ops y (.admission c u d e) ∧
+    ∃ o s e ka y, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
+      o.reqs.take 2 = [c, y] ∧ V C ops y (.admission c u d e ka) ∧
       C.verify d (signed o (.post k t n tm s)) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
   cases clump with
   | none =>
-    obtain ⟨s, d0, e0, e, rfl, rfl, hh, hs⟩ := check_message hv
+    obtain ⟨s, d0, e0, e, ka, rfl, rfl, hh, hs⟩ := check_message hv
     obtain ⟨a, y, hreq, _, hy⟩ := all2_two hr
     rw [hreq] at hh; simp at hh; subst hh
-    exact ⟨o, s, e, y, hx, hb, by rw [hreq]; rfl, hy, hs⟩
+    exact ⟨o, s, e, ka, y, hx, hb, by rw [hreq]; rfl, hy, hs⟩
   | some root =>
-    obtain ⟨s, d0, e0, e, d2, k2, t2, n2, tm2, rfl, rfl, hh, _, hs⟩ := check_child hv
+    obtain ⟨s, d0, e0, e, ka, d2, k2, t2, n2, tm2, rfl, rfl, hh, _, hs⟩ := check_child hv
     obtain ⟨a, y, rest, hreq, _, hy, _⟩ := all2_cons2 hr
     rw [hreq] at hh; simp at hh; subst hh
-    exact ⟨o, s, e, y, hx, hb, by rw [hreq]; rfl, hy, hs⟩
+    exact ⟨o, s, e, ka, y, hx, hb, by rw [hreq]; rfl, hy, hs⟩
 
 /-- Every child has one Valid root by the same user in the same community.
 This is about the running validator and signed requirement graph. -/
@@ -85,7 +85,7 @@ theorem child_has_root {x c u root : Id} {d k t : ByteArray} {n tm : Nat}
     (h : V C ops x (.message c u d k t n tm (some root))) :
     ∃ d2 k2 t2 n2 tm2, V C ops root (.message c u d2 k2 t2 n2 tm2 none) := by
   obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
-  obtain ⟨_, _, _, _, d2, k2, t2, n2, tm2, _, rfl, _, he, _⟩ := check_child hv
+  obtain ⟨_, _, _, _, _, d2, k2, t2, n2, tm2, _, rfl, _, he, _⟩ := check_child hv
   obtain ⟨a, y, rest, hreq, _, _, hrest⟩ := all2_cons2 hr
   cases hrest with
   | cons hroot hnil =>
@@ -156,7 +156,7 @@ theorem order_local {M : List Op} (hf : Fed (family C) M s) {c x : Id} {sk : Byt
         n < countCap ∧ sk = msgKey n tm) ∨
       ∃ z o kid k clump, o ∈ M ∧ s.ops z = some o ∧ V C s.ops z (.received c kid x k clump) ∧ sk = recKey k x := by
   rcases hl with ⟨u, d, kid, sealed, n, tm, clump, hv, hn, rfl⟩ | ⟨z, kid, k, clump, hz, rfl⟩
-  · obtain ⟨o, sig, _, _, hx, hb, _⟩ := message_authorized hv
+  · obtain ⟨o, sig, _, _, _, hx, hb, _⟩ := message_authorized hv
     exact .inl ⟨o, kid, sealed, n, tm, sig, hx, hb, hn, rfl⟩
   · obtain ⟨o, hm, hx⟩ := local_fact_mine hf hz rfl
     exact .inr ⟨z, o, kid, k, clump, hm, hx, hz, rfl⟩
@@ -178,10 +178,10 @@ below the cap, a receipt's past it. -/
 theorem listed_cases {ops : Id → Option Op} {c x : Id} {sk : ByteArray} (hl : Listed C ops c x sk) :
     ∃ n tm, Posted ops x n tm ∧ (n < countCap ∧ sk = msgKey n tm ∨ countCap ≤ n ∧ ∃ k, sk = recKey k x) := by
   rcases hl with ⟨u, d, kid, sealed, n, tm, clump, hv, hn, rfl⟩ | ⟨z, kid, k, clump, hz, rfl⟩
-  · obtain ⟨o, sig, _, _, hx, hb, _⟩ := message_authorized hv
+  · obtain ⟨o, sig, _, _, _, hx, hb, _⟩ := message_authorized hv
     exact ⟨n, tm, ⟨o, kid, sealed, sig, hx, hb⟩, .inl ⟨hn, rfl⟩⟩
   · obtain ⟨_, u, d, sealed, n, tm, _, _, hn, hm⟩ := received_of_message hz
-    obtain ⟨o, sig, _, _, hx, hb, _⟩ := message_authorized hm
+    obtain ⟨o, sig, _, _, _, hx, hb, _⟩ := message_authorized hm
     exact ⟨n, tm, ⟨o, kid, sealed, sig, hx, hb⟩, .inr ⟨hn, k, rfl⟩⟩
 
 /-- **Devices holding the same posts order them alike, unless both are

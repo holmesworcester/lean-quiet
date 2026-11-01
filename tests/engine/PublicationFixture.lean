@@ -15,7 +15,7 @@ def writer (paused : Bool := false) : IO Writer :=
     ← IO.mkRef 0, ← IO.mkRef 0, ← IO.mkRef (0, none), ← IO.mkRef 0⟩
 
 def root (name : String) : Op :=
-  Community.root (Community.Device.named name) (Connection.sodium.suite.pub (sha256 name.toUTF8))
+  Community.root (Community.Device.named name) (Connection.sodium.suite.pub (sha256 name.toUTF8)) .empty
 
 def database (dir : String) : IO (String × Db) := do
   IO.FS.createDirAll dir

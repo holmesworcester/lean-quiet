@@ -117,7 +117,7 @@ def reader (ck : Checks) : IO Unit := do
   db.filings
   let c := "reader-cancellation".toUTF8
   for i in [0:40] do
-    let f : SF := .inl (.admission c s!"user-{i}".toUTF8 s!"device-{i}".toUTF8 s!"node-{i}".toUTF8)
+    let f : SF := .inl (.admission c s!"user-{i}".toUTF8 s!"device-{i}".toUTF8 s!"node-{i}".toUTF8 .empty)
     (show SqlM SF Unit from do
       Store.setStatus s!"admission-{i}".toUTF8 (.valid f)
       for k in fam.keys f do Store.index k s!"admission-{i}".toUTF8).run db

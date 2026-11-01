@@ -61,11 +61,12 @@ def postOpensConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
 
 /-- The approver's `wrapKey`, opened by the member's `unbox`
 (`wrapKey_opens`). -/
-def wrapOpensConditional := some (PLift.up (fun t : Trust.NativeCrypto => wrapKey_opens t room key esk rsk))
+def wrapOpensConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
+  wrapKey_opens t room admission room poster key esk rsk))
 
 /-- All four together (`member_reads`). -/
 def memberReadsConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
-  member_reads t room admission poster key esk rsk nonce text 1 29880000 none roomSize textFits))
+  member_reads t room admission room poster poster key esk rsk nonce text 1 29880000 none roomSize textFits))
 
 /-! ## The old unsized roundtrip, refuted by the native crates -/
 
@@ -90,8 +91,8 @@ def posted : Option (ByteArray × ByteArray) :=
 
 /-- The wrap the app writes to rsk's node key, decoded. -/
 def wrapped : Option (ByteArray × ByteArray) :=
-  match (Codec.decode (wrapKey room key esk (cryptoSeal.pub rsk)).body : Option Body) with
-  | some (.wrap k _ b) => some (k, b)
+  match (Codec.decode (wrapKey room admission room poster key esk (cryptoSeal.pub rsk)).body : Option Body) with
+  | some (.wrap b _) => some (kidOf cryptoSeal key, b)
   | _ => none
 
 def main : IO UInt32 := do

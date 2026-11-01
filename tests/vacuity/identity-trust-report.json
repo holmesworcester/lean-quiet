@@ -144,6 +144,6 @@
     "theorem": "Community.approveReq_wrap_admits",
     "witness": "Vacuity.IdentityTrust.wrapAdmits",
     "module": "tests.vacuity.IdentityTrust",
-    "detail": "Alice's actual approveReq over a Reach-built store holding her community, the invitation and Bob's signed request: the law is applied to the write the intent produces, and the write is not the bare approval, so it is her approval then the admission citing exactly it (the law's second case). Control: without the request in the store the write is the bare approval."
+    "detail": "Alice's actual approveReq over a Reach-built store holding her community, the invitation, Bob's signed request and her copy of the community key, with a 32-byte ephemeral secret: the law is applied to the write the intent produces, which is neither the bare approval nor approval and admission alone, so it is her approval, the admission citing it, and her wrap of the key currentKey reads (the law's third case). Controls: without the key the write is approval and admission; without the request it is the bare approval."
   }
 }

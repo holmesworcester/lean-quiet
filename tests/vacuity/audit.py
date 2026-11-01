@@ -22,6 +22,7 @@ RUNNERS = {
     'tests.vacuity.RoundExchange': 'vacuity_round_exchange',
     'tests.vacuity.Identity': 'vacuity_identity',
     'tests.vacuity.IdentityTrust': 'vacuity_identity_trust',
+    'tests.vacuity.CommunityKey': 'vacuity_community_key',
     'tests.vacuity.IdentityPeople': 'vacuity_identity_people',
     'tests.vacuity.IdentityMessages': 'vacuity_identity_messages',
     'tests.vacuity.IdentityConnection': 'vacuity_identity_connection',

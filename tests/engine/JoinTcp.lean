@@ -213,7 +213,7 @@ def pairUp (a b : Peer) : IO (Option (Id × Id)) := do
   let dA := Device.ofSeed a.seed
   a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
     (Bytes.digest "esk".toUTF8) a.nk)).ops
-  let c := (root dA a.key).id
+  let c := (root dA a.key (kidOf cryptoSeal (Bytes.digest "key".toUTF8))).id
   let _ ← waitFor 10000 (stored a c)
   let some (wi, link) ← viewOn a (inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr]) | return none
   a.run.write wi.ops
@@ -259,7 +259,7 @@ def main (args : List String) : IO UInt32 := do
   -- A founds and invites at its address; B joins from the link.
   a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
     (Bytes.digest "esk".toUTF8) a.nk)).ops
-  let c := (root dA a.key).id
+  let c := (root dA a.key (kidOf cryptoSeal (Bytes.digest "key".toUTF8))).id
   -- the runner owns the writes: read once the founding has landed
   let _ ← waitFor 10000 (stored a c)
   let stopAll : IO UInt32 := do
@@ -295,7 +295,7 @@ def main (args : List String) : IO UInt32 := do
   -- Sync over the sealed session.
   let admitted ← waitFor 20000 do return (← allowedOn b c b.key) && (← allowedOn b c a.key)
   t.ok "tcp: B is admitted by its own ops, and lets A in" admitted.isSome
-  let p := post c c dA "k".toUTF8 "hello B over TCP".toUTF8 1 5
+  let p := post c c dA (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "hello B over TCP".toUTF8 1 5
   a.run.write [p]
   let streamed ← waitFor 10000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
@@ -317,7 +317,7 @@ def main (args : List String) : IO UInt32 := do
   let without := modelRun (Community.family ed25519) (cops.filter (·.id != rm.id))
   t.ok "tcp: control: without the removal, the Community part lets B's node in"
     ((Community.allowPeer c b.key).eval without)
-  let p2 := post c c dA "k".toUTF8 "after the removal".toUTF8 2 6
+  let p2 := post c c dA (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "after the removal".toUTF8 2 6
   a.run.write [p2]
   -- Well past the time the earlier post took to stream.
   IO.sleep 3000
@@ -326,7 +326,7 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"jointcp: removal held in {cut} ms, B told in {told} ms, session cut in {closed} ms"
   -- The bare path takes only a join: the removed B dials A with a fresh
   -- post in its hello, on a new request from B's node key.
-  let q2 := post c admB dB "k".toUTF8 "pushed in a hello".toUTF8 4 8
+  let q2 := post c admB dB (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "pushed in a hello".toUTF8 4 8
   let e := sha256 "B's pushing ephemeral".toUTF8
   let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
     | t.ok "tcp: B composes a request" false; stopAll
@@ -370,7 +370,7 @@ def main (args : List String) : IO UInt32 := do
   let dA2 := Device.ofSeed seedA2
   a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (Bytes.digest "key Z".toUTF8)
     (Bytes.digest "esk Z".toUTF8) (Bytes.digest "unused".toUTF8))).ops
-  let c' := (root dA2 a.key).id
+  let c' := (root dA2 a.key (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8))).id
   let _ ← waitFor 10000 (stored a c')
   let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' dA2 (sha256 "bearer Z".toUTF8) [a.addr])
     | t.ok "tcp: A invites to Zed" false; stopAll
@@ -394,8 +394,8 @@ def main (args : List String) : IO UInt32 := do
   IO.sleep 1000
   t.ok "tcp: and the session stays open for Zed"
     ((← ests a).length == 1 && (← ests b).length == 1 && (← allowedOn b c' a.key))
-  let pZ := post c' c' dA2 "k".toUTF8 "still in Zed".toUTF8 1 9
-  let p4 := post c c dA "k".toUTF8 "Acme, after the second removal".toUTF8 5 9
+  let pZ := post c' c' dA2 (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8)) "still in Zed".toUTF8 1 9
+  let p4 := post c c dA (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "Acme, after the second removal".toUTF8 5 9
   a.run.write [p4, pZ]
   let zed ← waitFor 10000 (stored b pZ.id)
   t.ok "tcp: a post in Zed still reaches B" zed.isSome

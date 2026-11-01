@@ -99,7 +99,7 @@ theorem unscoped_signs_all {Signed : Key → ByteArray → Prop} {pk : Key}
 /-- Every admission was consented to by its device: the device signed
 the root that admits it (x = y), or the request its admit cites (x is
 y's slot 1). -/
-theorem admission_consented {y c u : Id} {d e : Key} (h : V C ops y (.admission c u d e)) :
+theorem admission_consented {y c u : Id} {d e kid : Key} (h : V C ops y (.admission c u d e kid)) :
     ∃ x o b s, (x = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = x) ∧
       ops x = some o ∧ (decode o.body : Option Body) = some b ∧ s ∈ b.sigs ∧
       C.verify d (signed o b) s = true := by
@@ -108,7 +108,7 @@ theorem admission_consented {y c u : Id} {d e : Key} (h : V C ops y (.admission 
   · exact ⟨y, o, _, s, Or.inl rfl, hx, hb, by simp [Body.sigs], hs⟩
   · obtain ⟨_, r, _, hreq, _, hrv, _⟩ := all2_cons2 hr
     obtain ⟨or, br, fsr, hor, hbr, _, hvr⟩ := valid_inv hrv
-    obtain ⟨cs, _, _, _, _, _, rfl, _, _, _, hcs, _⟩ := check_request hvr
+    obtain ⟨cs, _, _, _, _, _, _, rfl, _, _, _, hcs, _⟩ := check_request hvr
     exact ⟨r, or, _, cs, Or.inr ⟨o, hx, by rw [hreq]; rfl⟩, hor, hbr, by simp [Body.sigs], hcs⟩
 
 /-- **Impersonation is impossible.** If no signature in the store is
@@ -122,12 +122,12 @@ theorem no_impersonation {Signed : Key → ByteArray → Prop} (hU : Unforgeable
     (h : V C ops x (.message c u d k t n tm clump)) :
     ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
       Signed d (signed o (.post k t n tm s)) ∧
-      ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
+      ∃ y e ka z oz bz, V C ops y (.admission c u d e ka) ∧
         (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
         (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
-  obtain ⟨o, s, e, y, hx, hb, _, hy, hs⟩ := message_authorized h
+  obtain ⟨o, s, e, ka, y, hx, hb, _, hy, hs⟩ := message_authorized h
   obtain ⟨z, oz, bz, s', hz, hoz, hbz, hm', hs'⟩ := admission_consented hy
-  exact ⟨o, s, hx, hb, hU _ _ _ _ _ hx hb (by simp [Body.sigs]) hs, y, e, z, oz, bz, hy, hz,
+  exact ⟨o, s, hx, hb, hU _ _ _ _ _ hx hb (by simp [Body.sigs]) hs, y, e, ka, z, oz, bz, hy, hz,
     hoz, hbz, hU _ _ _ _ _ hoz hbz hm' hs'⟩
 
 /-- **Nobody can rename another user.** If no signature in the store is
@@ -139,17 +139,18 @@ theorem no_renaming {Signed : Key → ByteArray → Prop} (hU : Unforgeable C op
     (h : V C ops x (.profile c u n tm)) :
     ∃ o s d, ops x = some o ∧ (decode o.body : Option Body) = some (.profile n tm s) ∧
       Signed d (signed o (.profile n tm s)) ∧
-      ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
+      ∃ y e ka z oz bz, V C ops y (.admission c u d e ka) ∧
         (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
         (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
-  obtain ⟨o, s, d, e, y, hx, hb, _, hy, _, hs⟩ := profile_authorized h
+  obtain ⟨o, s, d, e, ka, y, hx, hb, _, hy, _, hs⟩ := profile_authorized h
   obtain ⟨z, oz, bz, s', hz, hoz, hbz, hm', hs'⟩ := admission_consented hy
-  exact ⟨o, s, d, hx, hb, hU _ _ _ _ _ hx hb (by simp [Body.sigs]) hs, y, e, z, oz, bz, hy, hz,
+  exact ⟨o, s, d, hx, hb, hU _ _ _ _ _ hx hb (by simp [Body.sigs]) hs, y, e, ka, z, oz, bz, hy, hz,
     hoz, hbz, hU _ _ _ _ _ hoz hbz hm' hs'⟩
 
-/-- **An admission's community has a Valid root.** -/
-theorem root_of_admission (hk : Keyed ops) {y c u : Id} {d e : Key} (h : V C ops y (.admission c u d e)) :
-    ∃ d0 e0, V C ops c (.admission c c d0 e0) := by
+/-- **An admission's community has a Valid root**, which names the key
+id the admission names: an admission copies its root's. -/
+theorem root_of_admission (hk : Keyed ops) {y c u : Id} {d e kid : Key} (h : V C ops y (.admission c u d e kid)) :
+    ∃ d0 e0, V C ops c (.admission c c d0 e0 kid) := by
   obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
   rcases check_admission hv with ⟨s, rfl, rfl, hc, hu, _⟩ | ⟨d0, e0, l, a, rfl, rfl, hh⟩
   · have h1 : c = y := hc.trans (hk y o hx)
@@ -162,28 +163,28 @@ theorem root_of_admission (hk : Keyed ops) {y c u : Id} {d e : Key} (h : V C ops
 
 theorem check_named {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {nm : ByteArray}
     {n : Nat} (h : check C o b fs = some (.named c u nm n)) :
-    ∃ s d0 e0 d e auth prev, b = .name n nm s ∧
-      fs = .admission c c d0 e0 :: .admission c u d e :: auth :: prev ∧ o.reqs.head? = some c ∧
+    ∃ s d0 e0 k0 d e k auth prev, b = .name n nm s ∧
+      fs = .admission c c d0 e0 k0 :: .admission c u d e k :: auth :: prev ∧ o.reqs.head? = some c ∧
       isAdmin c u auth = true ∧ nm.size ≤ 64 ∧ counterOk c n prev = true ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r a auth prev
-  rcases b with ⟨n', nm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩
+  rcases b with ⟨n', nm', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d, e, k⟩
   simp only [Rename.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofNamed.injEq, Rename.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, h4, h5, h6, h7⟩ := hc
-    exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h4, h5, h6, h7⟩
+    exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, h4, h5, h6, h7⟩
   · simp at h
 
 /-- **Only admins name a community.** -/
 theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.named c u nm n)) :
     IsAdmin C ops c u := by
   obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
-  obtain ⟨_, _, _, _, _, auth, _, rfl, rfl, _, ha, _⟩ := check_named hv
+  obtain ⟨_, _, _, _, _, _, _, auth, _, rfl, rfl, _, ha, _⟩ := check_named hv
   obtain ⟨_, _, t, _, _, _, hrest⟩ := all2_cons2 hr
   cases hrest with
   | cons hz _ => exact isAdmin_sound hz ha
@@ -296,14 +297,13 @@ theorem sealedPost_opens (t : Trust.NativeCrypto) (c adm : Id) (d : Device) (k :
 /-- **A running wrap opens at its recipient** (`unbox_box` at the
 running suite, through the approver's `wrapKey` and the member's
 `unwrap`): the wrap `wrapKey` writes to the node key of secret rsk,
-`unbox` opens with rsk to the content key, given the crates'
-correctness. -/
-theorem wrapKey_opens (t : Trust.NativeCrypto) (c : Id) (k esk rsk : Key32) :
-    ∃ kid bx, (Codec.decode (wrapKey c k esk (cryptoSeal.pub rsk)).body : Option Body) =
-      some (.wrap kid (cryptoSeal.pub rsk) bx) ∧ kid = kidOf cryptoSeal k ∧
-      unbox cryptoSeal rsk kid bx = some k := by
+`unbox` opens with rsk, under the key's own id, to the content key,
+given the crates' correctness. -/
+theorem wrapKey_opens (t : Trust.NativeCrypto) (c myAdm toAdm : Id) (d : Device) (k esk rsk : Key32) :
+    ∃ bx sg, (Codec.decode (wrapKey c myAdm toAdm d k esk (cryptoSeal.pub rsk)).body : Option Body) =
+      some (.wrap bx sg) ∧ unbox cryptoSeal rsk (kidOf cryptoSeal k) bx = some k := by
   have G := cryptoSeal_good t
-  refine ⟨_, _, body_mkOp _ _, rfl, unbox_box G rsk esk k _ ?_⟩
+  refine ⟨_, _, body_mkOp _ _, unbox_box G rsk esk k _ ?_⟩
   rw [show (kidOf cryptoSeal k).size = 32 from G.hash_size _]; decide
 
 /-- **An admitted device reads every post sealed under a key wrapped to
@@ -311,20 +311,247 @@ it**, through the functions the app runs: the approver's `wrapKey` to
 the device's node key, the member's `unbox`, the poster's `sealedPost`
 and the screen's `openStored`. The one premise left about the code is
 the crates' correctness (`member_opens` at the running suite). -/
-theorem member_reads (t : Trust.NativeCrypto) (c adm : Id) (d : Device) (k esk rsk : Key32) (nonce : Nonce24)
+theorem member_reads (t : Trust.NativeCrypto) (c adm toAdm : Id) (d w : Device) (k esk rsk : Key32) (nonce : Nonce24)
     (text : ByteArray) (n time : Nat) (clump : Option Id)
     (hc : c.size = 32) (ht : text.size < Crypto.maxPlaintext) :
-    ∃ kid bx sealed sg,
-      (Codec.decode (wrapKey c k esk (cryptoSeal.pub rsk)).body : Option Body) =
-        some (.wrap kid (cryptoSeal.pub rsk) bx) ∧
+    ∃ kid bx wsg sealed sg,
+      (Codec.decode (wrapKey c adm toAdm w k esk (cryptoSeal.pub rsk)).body : Option Body) =
+        some (.wrap bx wsg) ∧
       (Codec.decode (sealedPost c adm d k nonce text n time clump).body : Option Body) =
         some (.post kid sealed n time sg) ∧
       ((unbox cryptoSeal rsk kid bx).bind fun k' => openStored cryptoSeal c kid sealed k'.1) = some text := by
-  obtain ⟨kid, bx, hw, hk, hu⟩ := wrapKey_opens t c k esk rsk
+  obtain ⟨bx, wsg, hw, hu⟩ := wrapKey_opens t c adm toAdm w k esk rsk
   obtain ⟨kid', sealed, sg, hp, hk', ho⟩ := sealedPost_opens t c adm d k nonce text n time clump hc ht
-  subst hk hk'
-  exact ⟨_, bx, sealed, sg, hw, hp, by rw [hu, Option.bind_some, ho]⟩
+  subst hk'
+  exact ⟨_, bx, wsg, sealed, sg, hw, hp, by rw [hu, Option.bind_some, ho]⟩
 open Engine
+
+/-! ## One community key
+
+A community has one content key, made at founding: keys do not rotate
+yet. Its root names its id, and every admission copies it
+(`root_of_admission`), so every member agrees which key it is
+(`rootKid_unique`). The laws below hold of the code that runs: every
+Valid post and attachment is sealed under it (`post_community_key`,
+`attach_community_key`); the key a sender seals with is it
+(`currentKey_community`, `send_community_key`); a key filed under its id
+is it, up to a SHA-256 collision (`key_kid`); `unwrap` takes no other key
+(`unwrap_community`); a Valid wrap is an admitted device's, to an
+admitted node (`wrap_signed`, `no_wrap_forgery`); and an approval wraps
+it, beside the admission it gives (`approveReq_wrap_admits`). -/
+
+section
+variable (C : Crypto) (ops : Id → Option Op)
+
+/-- c's root names content key id kid. -/
+def RootKid (c : Id) (kid : ByteArray) : Prop := ∃ d e, V C ops c (.admission c c d e kid)
+end
+
+section
+variable {s : DB Fact} {C : Crypto} {ops : Id → Option Op}
+
+/-- **Every member agrees on the community key**: c's root names one key
+id, whatever store holds it. -/
+theorem rootKid_unique {c : Id} {k k' : ByteArray} (h : RootKid C ops c k) (h' : RootKid C ops c k') :
+    k = k' := by
+  obtain ⟨d, e, hv⟩ := h; obtain ⟨d', e', hv'⟩ := h'
+  have := spec_det hv hv'
+  simp only [Verdict.valid.injEq, Fact.admission.injEq] at this
+  exact this.2.2.2.2
+
+/-- **Every Valid post is sealed under the community key**: its key id is
+the one c's root names. A post sealed under any other key is Invalid. -/
+theorem post_community_key {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}
+    (h : V C ops x (.message c u d k t n tm clump)) : RootKid C ops c k := by
+  obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
+  cases clump with
+  | none =>
+    obtain ⟨_, d0, e0, _, _, _, rfl, hh, _⟩ := check_message hv
+    obtain ⟨y, _, hreq, hy, _⟩ := all2_two hr
+    rw [hreq] at hh; simp at hh; subst hh
+    exact ⟨d0, e0, hy⟩
+  | some root =>
+    obtain ⟨_, d0, e0, _, _, _, _, _, _, _, _, rfl, hh, _, _⟩ := check_child hv
+    obtain ⟨y, _, _, hreq, hy, _, _⟩ := all2_cons2 hr
+    rw [hreq] at hh; simp at hh; subst hh
+    exact ⟨d0, e0, hy⟩
+
+/-- **Every Valid attachment is sealed under the community key.** -/
+theorem attach_community_key {x c m u root : Id} {len : Nat} {kid sealed : ByteArray}
+    (h : V C ops x (.attachment c m u root len kid sealed)) : RootKid C ops c kid := by
+  obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
+  obtain ⟨_, d0, e0, _, _, _, _, _, _, _, _, _, _, rfl, hh, _⟩ := check_attach hv
+  obtain ⟨y, _, _, hreq, hy, _, _⟩ := all2_cons2 hr
+  rw [hreq] at hh; simp at hh; subst hh
+  exact ⟨d0, e0, hy⟩
+
+/-- **A key is filed under its own hash.** A Valid local key fact holds a
+32-byte key whose id is its `kidOf` (SHA-256). So a key under the
+community's id is the community's key, unless SHA-256 has a collision
+(not proven). -/
+theorem key_kid {x : Id} {c kid k : ByteArray} (h : V C ops x (.key c kid k)) :
+    ∃ k' : Key32, k'.1 = k ∧ kid = kidOf cryptoSeal k' := by
+  obtain ⟨o, b, fs, -, -, -, hv⟩ := valid_inv h
+  unfold check at hv
+  split at hv <;> (try (simp at hv; done))
+  rename_i b
+  rcases b with ⟨c', k'⟩
+  simp only [ContentKey.check] at hv
+  split at hv
+  · rename_i hs
+    simp only [Option.map_some, Option.some.injEq, Fact.ofKey.injEq, ContentKey.Fact.mk.injEq] at hv
+    obtain ⟨rfl, rfl, rfl⟩ := hv
+    exact ⟨⟨_, hs⟩, rfl, rfl⟩
+  · simp at hv
+
+theorem opKey_inj {x y : Id} (h : opKey x = opKey y) : x = y := by
+  have h1 := congrArg (fun b : ByteArray => b.data.toList) h
+  simp only [opKey, Array.toList_append, List.cons_append, List.nil_append, List.cons.injEq,
+    true_and] at h1
+  cases x; cases y
+  simp only [ByteArray.mk.injEq]
+  exact Array.toList_inj.1 h1
+
+/-- A row read under an op's own key, at rest, is that op's Valid fact. -/
+theorem own_row (h : Inv (family C) s) (hq : s.queue = []) {x : Id} {lim : Option Nat}
+    {pf : Pos × Fact} (hp : pf ∈ (Engine.eval s { key := opKey x, limit := lim }).rows) :
+    V C s.ops x pf.2 := by
+  obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 (mem_eval_matching hp)
+  obtain ⟨g, hg, hk⟩ := (h.idx _ y).1 hy
+  rw [hf] at hg; cases hg
+  have hyx : y = x := by
+    rcases List.mem_cons.1 hk with he | hk
+    · exact (opKey_inj he).symm
+    · exfalso
+      obtain ⟨r, hr, hra⟩ := List.mem_filterMap.1 (show opKey x ∈ keysOf rels f from hk)
+      cases ha : r.args f with
+      | none => simp [ha] at hra
+      | some as => simp only [ha, Option.map_some, Option.some.injEq] at hra; exact r.key_ne_opKey (rels_short r hr) as x hra
+  subst hyx
+  exact (status_iff_spec h hq y _).1 hf
+
+/-- **Every member reads the root's key id.** At rest, the key id
+`communityKid c` answers is the one c's root names. -/
+theorem communityKid_root (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArray}
+    (hk : (communityKid c).eval s = some kid) : RootKid C s.ops c kid := by
+  simp only [communityKid, View.eval_bind, View.eval_read, View.eval_pure] at hk
+  split at hk
+  · rename_i p c' u d e k hr
+    split at hk
+    · rename_i hc
+      cases hk; subst hc
+      have hv := own_row h hq (List.mem_of_mem_head? hr)
+      obtain ⟨d0, e0, hroot⟩ := root_of_admission h.key hv
+      exact ⟨d0, e0, hroot⟩
+    · cases hk
+  · cases hk
+
+/-- **The key a device seals with is the community's.** At rest, the key
+`currentKey c` answers hashes to the id c's root names: every member's
+`currentKey` answers a key of that one id (`rootKid_unique`). -/
+theorem currentKey_community (h : Inv (family C) s) (hq : s.queue = []) {c : Id} {k : Key32}
+    (hk : (currentKey c).eval s = some k) :
+    (communityKid c).eval s = some (kidOf cryptoSeal k) ∧ RootKid C s.ops c (kidOf cryptoSeal k) := by
+  simp only [currentKey, View.eval_bind] at hk
+  cases hc : (communityKid c).eval s with
+  | none => simp [hc] at hk
+  | some kid =>
+    simp only [hc, Rel.read, View.eval_read, View.eval_pure] at hk
+    obtain ⟨⟨p, f⟩, hrow, hf⟩ := Option.bind_eq_some_iff.1 hk
+    cases f <;> (try (rename_i x; cases x)) <;> simp only at hf <;> (try (cases hf; done))
+    rename_i c' kid' k'
+    obtain ⟨hv, hargs⟩ := row_filed (r := key.byId) (by simp [rels]) h hq (List.mem_of_mem_head? hrow)
+    simp [key.byId] at hargs
+    subst hargs
+    obtain ⟨k'', rfl, rfl⟩ := key_kid hv
+    have : k'' = k := by rw [Bytes.of?_val] at hf; exact Option.some.inj hf
+    subst this
+    exact ⟨rfl, communityKid_root h hq hc⟩
+
+/-- **No wrap plants a key.** Whatever the store holds, `unwrap c` writes
+nothing, or one op: a key whose id is the one `communityKid c` reads
+(c's root's, at rest: `communityKid_root`). A wrap holding any other key,
+from any member, is passed over. -/
+theorem unwrap_community (s : DB Fact) (c : Id) :
+    ((unwrap c).eval s).ops = [] ∨
+      ∃ k : Key32, (communityKid c).eval s = some (kidOf cryptoSeal k) ∧
+        ((unwrap c).eval s).ops = [contentKey c k.1] := by
+  simp only [unwrap, View.eval_bind]
+  split
+  · rename_i pk sk _
+    simp only [View.eval_bind]
+    split
+    · rename_i kid hkid
+      simp only [Rel.read, View.eval_bind, View.eval_read]
+      by_cases hz : (Engine.eval s (key.byId.query [kid] (some 0))).total = 0
+      · simp only [hz, ne_eq, not_true_eq_false, ↓reduceIte, View.eval_bind, View.eval_read,
+          View.eval_pure]
+        generalize hks : List.filterMap _ _ = ks
+        cases hh : ks.head? with
+        | none => exact Or.inl rfl
+        | some k =>
+          right
+          refine ⟨k, ?_, rfl⟩
+          have hm := List.mem_of_mem_head? hh
+          rw [← hks, List.mem_filterMap] at hm
+          obtain ⟨⟨_, f⟩, _, hf⟩ := hm
+          cases f <;> (try (rename_i x; cases x)) <;> simp only at hf <;> (try (cases hf; done))
+          obtain ⟨_, hp⟩ := Option.filter_eq_some_iff.1 hf
+          rw [hkid, of_decide_eq_true hp]
+      · simp only [hz, ne_eq, not_false_eq_true, ↓reduceIte, View.eval_pure]
+        exact Or.inl trivial
+    · exact Or.inl rfl
+  · exact Or.inl rfl
+
+/-- **A sender seals with the community key.** At rest, the first op the
+app's send writes, with the key `currentKey c` answers, is a post whose
+key id is the one c's root names: what the post validator requires
+(`post_community_key`), so a member never writes a post its peers
+refuse, nor one sealed under any other key. -/
+theorem send_community_key (h : Inv (family C) s) (hq : s.queue = []) {c myAdm : Id} {d : Device}
+    {k : Key32} (hk : (currentKey c).eval s = some k) (nonce : Nonce24) (text : ByteArray) (now : Nat)
+    (files : List NewFile) :
+    ∃ p rest kid sealed n sg, ((send c myAdm d k nonce text now files).eval s).ops = p :: rest ∧
+      (decode p.body : Option Body) = some (.post kid sealed n now sg) ∧ RootKid C s.ops c kid := by
+  simp only [send, View.eval_bind, View.eval_pure]
+  exact ⟨_, _, _, _, _, _, rfl, body_mkOp _ _, (currentKey_community h hq hk).2⟩
+
+/-- **Every post a member holds is sealed under the key it holds.** At
+rest, every Valid post of c in a store is sealed under the id of the key
+that store's `currentKey c` answers: the one key a member seals with is
+the one every post it holds needs. -/
+theorem post_sealed_current (h : Inv (family C) s) (hq : s.queue = []) {c : Id} {k : Key32}
+    (hk : (currentKey c).eval s = some k) {x u : Id} {d kid t : ByteArray} {n tm : Nat}
+    {clump : Option Id} (hp : V C s.ops x (.message c u d kid t n tm clump)) :
+    kid = kidOf cryptoSeal k :=
+  rootKid_unique (post_community_key hp) (currentKey_community h hq hk).2
+
+/-- **A Valid wrap is an admitted device's, of the community's key id, to
+an admitted node.** It carries the id c's root names; a device admitted
+into c signed it, as this exact op; and its recipient is the node key an
+admission into c names. -/
+theorem wrap_signed {x c : Id} {kid e bx : ByteArray} (h : V C ops x (.wrap c kid e bx)) :
+    RootKid C ops c kid ∧
+    (∃ o s y ua da ea ka, ops x = some o ∧ (decode o.body : Option Body) = some (.wrap bx s) ∧
+      o.reqs.take 2 = [c, y] ∧ V C ops y (.admission c ua da ea ka) ∧
+      C.verify da (signed o (.wrap bx s)) s = true) ∧
+    ∃ ut dt, Admitted C ops c ut dt e := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  obtain ⟨s, d0, e0, ua, da, ea, ka, ut, dt, kt, rfl, rfl, hh, hs⟩ := check_wrap hv
+  obtain ⟨r0, y, z, hreq, h0, hy, hz⟩ := all2_three hr
+  rw [hreq] at hh; simp at hh; subst hh
+  exact ⟨⟨d0, e0, h0⟩, ⟨o, s, y, ua, da, ea, ka, hx, hb, by rw [hreq]; rfl, hy, hs⟩, ut, dt, z, kt, hz⟩
+
+/-- **Only a member wraps.** If no signature in the store is forged, a
+Valid wrap was signed, as this exact op, by the holder of a device key
+admitted into c: no outsider, and no forged author, delivers a key. -/
+theorem no_wrap_forgery {Signed : Key → ByteArray → Prop} (hU : Unforgeable C ops Signed)
+    {x c : Id} {kid e bx : ByteArray} (h : V C ops x (.wrap c kid e bx)) :
+    ∃ o s y ua da ea ka, ops x = some o ∧ (decode o.body : Option Body) = some (.wrap bx s) ∧
+      V C ops y (.admission c ua da ea ka) ∧ Signed da (signed o (.wrap bx s)) := by
+  obtain ⟨_, ⟨o, s, y, ua, da, ea, ka, hx, hb, _, hy, hs⟩, _⟩ := wrap_signed h
+  exact ⟨o, s, y, ua, da, ea, ka, hx, hb, hy, hU _ _ _ _ _ hx hb (by simp [Body.sigs]) hs⟩
+end
 
 /-- **Joining is just ops, and only the request leaves the device.** The
 join intent writes the device's secret, the request, the acceptance and
@@ -339,9 +566,10 @@ key's wrap travel. -/
 theorem found_travels (C : Crypto) (s : DB Fact) (seed name myName : ByteArray) (time : Nat)
     (k esk fresh : Key32) :
     ((found seed name myName time k esk fresh).eval s).ops.filter (family C).shared =
-      let key := ((nodeKeyOr fresh).eval s).1; let d := Device.ofSeed seed; let r := root d key
+      let key := ((nodeKeyOr fresh).eval s).1; let d := Device.ofSeed seed
+      let r := root d key (kidOf cryptoSeal k)
       [r, setName r.id r.id r.id [] 1 d name, profile r.id r.id d myName time,
-        wrapKey r.id k esk key] := by
+        wrapKey r.id r.id r.id d k esk key] := by
   unfold found
   rw [View.eval_bind]
   simp only [View.eval_pure, List.filter_append, nodeKeyOr_local, List.nil_append]
@@ -458,7 +686,7 @@ theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id}
   unfold removeMember at ho
   simp only [Rel.read, View.eval_bind, View.eval_read] at ho
   split at ho
-  · rename_i p myAdm c' u dv ev hme
+  · rename_i p myAdm c' u dv ev kv hme
     simp only [View.eval_bind, View.eval_read] at ho
     split at ho
     · rename_i a pt ta g hauth htg
@@ -473,14 +701,14 @@ theorem removeMember_valid (h : Inv (family C) s) (hq : s.queue = []) {c t : Id}
         have hmeV := row_filed (r := admission.byDevice) (by simp [rels]) h hq
           (List.mem_of_mem_head? (by rw [hme]; rfl))
         obtain ⟨hmv, hma⟩ := hmeV
-        obtain ⟨u', e', hfe⟩ := byDevice_args.1 hma
+        obtain ⟨u', e', k', hfe⟩ := byDevice_args.1 hma
         simp only [Fact.admission.injEq] at hfe
-        obtain ⟨hc', _, hdv, _⟩ := hfe
+        obtain ⟨hc', _, hdv, _, _⟩ := hfe
         subst c'
         have htgV := row_filed (r := admission.byUser) (by simp [rels]) h hq
           (List.mem_of_mem_head? (by rw [htg]; rfl))
         obtain ⟨htv, hta⟩ := htgV
-        obtain ⟨dt, et, hg⟩ := admission_byUser_args.1 hta
+        obtain ⟨dt, et, kt, hg⟩ := admission_byUser_args.1 hta
         rw [hg] at htv
         obtain ⟨d0, e0, hroot⟩ := root_of_admission h.key hmv
         -- what makes u an admin
@@ -619,7 +847,7 @@ open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem all_args {c : Id} {f : Fact} :
-    admission.all.args f = some [c] ↔ ∃ u d e, f = .admission c u d e := by
+    admission.all.args f = some [c] ↔ ∃ u d e kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.all, Root.all, Rel.comap, Fact.admission?, eq_comm]
 
 theorem removals_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
@@ -663,19 +891,31 @@ theorem mem_cons_row {p : Pos} {f g : Fact} {t : List (Pos × Fact)} :
     · exact ⟨p, List.mem_cons_self ..⟩
     · exact ⟨q, List.mem_cons_of_mem _ hq⟩
 
+/-- A row of fact `P k`, for some k, among a cons: the head's, or the tail's. -/
+theorem mem_cons_rowK {p : Pos} {f : Fact} {t : List (Pos × Fact)} {P : ByteArray → Fact} :
+    (∃ q k, (q, P k) ∈ (p, f) :: t) ↔ (∃ k, f = P k) ∨ ∃ q k, (q, P k) ∈ t := by
+  constructor
+  · rintro ⟨q, k, hq⟩
+    rcases List.mem_cons.1 hq with hq | hq
+    · simp only [Prod.mk.injEq] at hq; exact Or.inl ⟨k, hq.2.symm⟩
+    · exact Or.inr ⟨q, k, hq⟩
+  · rintro (⟨k, rfl⟩ | ⟨q, k, hq⟩)
+    · exact ⟨p, k, List.mem_cons_self ..⟩
+    · exact ⟨q, k, List.mem_cons_of_mem _ hq⟩
+
 /-- `unremoved` holds of rows exactly when every admission into c among
 them is into a user whose removals count none. -/
 theorem unremoved_iff (c : Id) (rows : List (Pos × Fact)) :
     (unremoved c rows).eval s = true ↔
-      ∀ u d e, (∃ p, (p, .admission c u d e) ∈ rows) → (eval s (removals c u)).total = 0 := by
+      ∀ u d e, (∃ p k, (p, .admission c u d e k) ∈ rows) → (eval s (removals c u)).total = 0 := by
   induction rows with
   | nil => simp [unremoved, View.eval]
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
-    simp only [mem_cons_row]
+    simp only [mem_cons_rowK]
     cases f with
     | ofAdmission a =>
-      obtain ⟨c', u', d', e'⟩ := a
+      obtain ⟨c', u', d', e', k'⟩ := a
       by_cases hc : c' = c
       · subst hc
         show View.eval s (if c' = c' then _ else _) = true ↔ _
@@ -684,19 +924,19 @@ theorem unremoved_iff (c : Id) (rows : List (Pos × Fact)) :
         by_cases hz : (eval s (removals c' u')).total = 0
         · rw [if_pos hz, ih]
           constructor
-          · rintro hall u d e (he | hm)
-            · simp only [Fact.admission.injEq] at he; obtain ⟨_, rfl, _, _⟩ := he; exact hz
+          · rintro hall u d e (⟨k, he⟩ | hm)
+            · simp only [Fact.admission.injEq] at he; obtain ⟨_, rfl, _, _, _⟩ := he; exact hz
             · exact hall u d e hm
           · intro hall u d e hm; exact hall u d e (Or.inr hm)
         · rw [if_neg hz]
           show (false = true) ↔ _
           constructor
           · intro hf; cases hf
-          · intro hall; exact absurd (hall u' d' e' (Or.inl rfl)) hz
+          · intro hall; exact absurd (hall u' d' e' (Or.inl ⟨k', rfl⟩)) hz
       · show View.eval s (if c' = c then _ else _) = true ↔ _
         rw [if_neg hc, ih]
         constructor
-        · rintro hall u d e (he | hm)
+        · rintro hall u d e (⟨k, he⟩ | hm)
           · simp only [Fact.admission.injEq] at he; exact absurd he.1 hc
           · exact hall u d e hm
         · intro hall u d e hm; exact hall u d e (Or.inr hm)
@@ -710,16 +950,21 @@ theorem unremoved_iff (c : Id) (rows : List (Pos × Fact)) :
 users is removed. -/
 theorem deviceLive_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key) :
     (deviceLive c d).eval s = true ↔ Live C s.ops c d := by
-  have hrow : ∀ u e, (∃ p, (p, .admission c u d e) ∈ (eval s (admission.byDevice.query [c, d])).rows) ↔
+  have hrow : ∀ u e, (∃ p k, (p, .admission c u d e k) ∈ (eval s (admission.byDevice.query [c, d])).rows) ↔
       Admitted C s.ops c u d e := by
     intro u e
-    rw [exists_row h hq (by simp [rels])]
-    exact ⟨fun ⟨y, hv, _⟩ => ⟨y, hv⟩, fun ⟨y, hv⟩ => ⟨y, hv, byDevice_args.2 ⟨u, e, rfl⟩⟩⟩
-  have hd : ∀ u d' e, (∃ p, (p, .admission c u d' e) ∈ (eval s (admission.byDevice.query [c, d])).rows) →
+    constructor
+    · rintro ⟨p, k, hp⟩
+      obtain ⟨y, hv, _⟩ := (exists_row h hq (by simp [rels]) _ _).1 ⟨p, hp⟩
+      exact ⟨y, k, hv⟩
+    · rintro ⟨y, k, hv⟩
+      obtain ⟨p, hp⟩ := (exists_row h hq (by simp [rels]) _ _).2 ⟨y, hv, byDevice_args.2 ⟨u, e, k, rfl⟩⟩
+      exact ⟨p, k, hp⟩
+  have hd : ∀ u d' e, (∃ p k, (p, .admission c u d' e k) ∈ (eval s (admission.byDevice.query [c, d])).rows) →
       d' = d := by
-    rintro u d' e ⟨p, hp⟩
+    rintro u d' e ⟨p, k, hp⟩
     obtain ⟨_, hv, hk⟩ := (exists_row h hq (by simp [rels]) [c, d] _).1 ⟨p, hp⟩
-    obtain ⟨_, _, he⟩ := byDevice_args.1 hk
+    obtain ⟨_, _, _, he⟩ := byDevice_args.1 hk
     simp only [Fact.admission.injEq] at he; exact he.2.2.1
   have hev : (deviceLive c d).eval s =
       if (eval s (admission.byDevice.query [c, d])).rows.isEmpty then false
@@ -734,7 +979,7 @@ theorem deviceLive_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : 
   · rename_i he
     simp only [Bool.false_eq_true, false_iff]
     rintro ⟨⟨u, e, ha⟩, _⟩
-    obtain ⟨p, hp⟩ := (hrow u e).2 ha
+    obtain ⟨p, k, hp⟩ := (hrow u e).2 ha
     rw [List.isEmpty_iff] at he; rw [he] at hp; cases hp
   · rename_i he
     rw [unremoved_iff]
@@ -742,17 +987,17 @@ theorem deviceLive_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : 
     · intro hall
       obtain ⟨⟨p, f⟩, hm⟩ := List.exists_mem_of_ne_nil _ (by simpa using he)
       obtain ⟨_, hv, hk⟩ := (exists_row h hq (by simp [rels]) [c, d] f).1 ⟨p, hm⟩
-      obtain ⟨u, e, rfl⟩ := byDevice_args.1 hk
-      refine ⟨⟨u, e, _, hv⟩, fun u' e' ha => ?_⟩
+      obtain ⟨u, e, k, rfl⟩ := byDevice_args.1 hk
+      refine ⟨⟨u, e, _, _, hv⟩, fun u' e' ha => ?_⟩
       rw [← removals_iff h hq]
       exact fun hne => hne (hall u' d e' ((hrow u' e').2 ha))
     · rintro ⟨_, hall⟩ u d' e hm
       have := hd u d' e hm; subst this
       exact Decidable.of_not_not fun hne => hall u e ((hrow u e).1 hm) ((removals_iff h hq c u).1 hne)
 
-theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e : Key} {t : List (Pos × Fact)}
+theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e k : Key} {t : List (Pos × Fact)}
     (hc : c' = c) :
-    (live c ((p, .admission c' u d e) :: t)).eval s =
+    (live c ((p, .admission c' u d e k) :: t)).eval s =
       if (deviceLive c d).eval s then (u, d, e) :: (live c t).eval s
       else (live c t).eval s := by
   subst hc
@@ -762,15 +1007,15 @@ theorem eval_live_adm {c c' : Id} {p : Pos} {u : Id} {d e : Key} {t : List (Pos 
 
 theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
     (u, d, e) ∈ (live c rows).eval s ↔
-      (∃ p, (p, .admission c u d e) ∈ rows) ∧ (deviceLive c d).eval s = true := by
+      (∃ p k, (p, .admission c u d e k) ∈ rows) ∧ (deviceLive c d).eval s = true := by
   induction rows with
   | nil => simp [live, View.eval]
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
-    rw [mem_cons_row]
+    rw [mem_cons_rowK]
     cases f with
     | ofAdmission a =>
-      obtain ⟨c', u', d', e'⟩ := a
+      obtain ⟨c', u', d', e', k'⟩ := a
       by_cases hc : c' = c
       · rw [eval_live_adm hc]
         subst hc
@@ -779,26 +1024,26 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
           constructor
           · rintro (he | ⟨hq, hr⟩)
             · simp only [Prod.mk.injEq] at he; obtain ⟨rfl, rfl, rfl⟩ := he
-              exact ⟨Or.inl rfl, hz⟩
+              exact ⟨Or.inl ⟨k', rfl⟩, hz⟩
             · exact ⟨Or.inr hq, hr⟩
-          · rintro ⟨he | hq, hr⟩
+          · rintro ⟨⟨k, he⟩ | hq, hr⟩
             · simp only [Fact.admission.injEq] at he
-              obtain ⟨_, rfl, rfl, rfl⟩ := he; exact Or.inl rfl
+              obtain ⟨_, rfl, rfl, rfl, _⟩ := he; exact Or.inl rfl
             · exact Or.inr ⟨hq, hr⟩
         · rw [if_neg hz, ih]
           constructor
           · rintro ⟨hq, hr⟩; exact ⟨Or.inr hq, hr⟩
-          · rintro ⟨he | hq, hr⟩
+          · rintro ⟨⟨k, he⟩ | hq, hr⟩
             · simp only [Fact.admission.injEq] at he
-              obtain ⟨_, _, rfl, _⟩ := he; exact absurd hr hz
+              obtain ⟨_, _, rfl, _, _⟩ := he; exact absurd hr hz
             · exact ⟨hq, hr⟩
-      · have : (live c ((p, .admission c' u' d' e') :: t)).eval s = (live c t).eval s := by
+      · have : (live c ((p, .admission c' u' d' e' k') :: t)).eval s = (live c t).eval s := by
           show View.eval s (if c' = c then _ else _) = _
           rw [if_neg hc]
         rw [this, ih]
         constructor
         · rintro ⟨hq, hr⟩; exact ⟨Or.inr hq, hr⟩
-        · rintro ⟨he | hq, hr⟩
+        · rintro ⟨⟨k, he⟩ | hq, hr⟩
           · simp only [Fact.admission.injEq] at he; exact absurd he.1 hc
           · exact ⟨hq, hr⟩
     | _ =>
@@ -811,9 +1056,16 @@ its Valid admissions whose device is live. -/
 theorem live_iff (h : Inv (family C) s) (hq : s.queue = []) {r : Rel Fact} (hr : r ∈ rels)
     (as : List ByteArray) (c u : Id) (d e : Key) :
     (u, d, e) ∈ (live c (eval s (r.query as)).rows).eval s ↔
-      (∃ y, V C s.ops y (.admission c u d e) ∧ r.args (.admission c u d e) = some as) ∧
+      (∃ y k, V C s.ops y (.admission c u d e k) ∧ r.args (.admission c u d e k) = some as) ∧
         Live C s.ops c d := by
-  rw [mem_live, exists_row h hq hr, deviceLive_iff h hq]
+  rw [mem_live, deviceLive_iff h hq]
+  constructor
+  · rintro ⟨⟨p, k, hp⟩, hl⟩
+    obtain ⟨y, hv, ha⟩ := (exists_row h hq hr _ _).1 ⟨p, hp⟩
+    exact ⟨⟨y, k, hv, ha⟩, hl⟩
+  · rintro ⟨⟨y, k, hv, ha⟩, hl⟩
+    obtain ⟨p, hp⟩ := (exists_row h hq hr _ _).2 ⟨y, hv, ha⟩
+    exact ⟨⟨p, k, hp⟩, hl⟩
 
 /-- **Who we connect to.** At rest, the `allowPeer` view, read over the
 node's persisted tables, accepts node key e for community c exactly when
@@ -824,11 +1076,11 @@ theorem connect_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key
     decide_eq_true_eq]
   constructor
   · rintro ⟨⟨u, d, e'⟩, hm, rfl⟩
-    obtain ⟨⟨y, hv, _⟩, hl⟩ := (live_iff h hq (by simp [rels]) [c, e'] c u d e').1 hm
-    exact ⟨u, d, ⟨y, hv⟩, hl⟩
-  · rintro ⟨u, d, ⟨y, hv⟩, hl⟩
+    obtain ⟨⟨y, k, hv, _⟩, hl⟩ := (live_iff h hq (by simp [rels]) [c, e'] c u d e').1 hm
+    exact ⟨u, d, ⟨y, k, hv⟩, hl⟩
+  · rintro ⟨u, d, ⟨y, k, hv⟩, hl⟩
     exact ⟨(u, d, e), (live_iff h hq (by simp [rels]) [c, e] c u d e).2
-      ⟨⟨y, hv, byKey_args.2 ⟨u, d, rfl⟩⟩, hl⟩, rfl⟩
+      ⟨⟨y, k, hv, byKey_args.2 ⟨u, d, k, rfl⟩⟩, hl⟩, rfl⟩
 
 /-- **No connection to a node with no live device.** -/
 theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key)
@@ -843,13 +1095,13 @@ theorem refuse_nonmember (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e 
 admit op citing one approval of it lets in the key it names, unless one
 of its device's users is removed. -/
 theorem connect_admitted (h : Inv (family C) s) (hq : s.queue = []) {y c r x : Id} {o : Op}
-    {d0 e0 : Key} {u a : Id} {d e : Key} {l : Bool}
+    {d0 e0 k0 : Key} {u a : Id} {d e : Key} {l : Bool}
     (hy : s.ops y = some o) (hb : (Codec.decode o.body : Option Body) = some .admit)
-    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C s.ops c (.admission c c d0 e0))
+    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C s.ops c (.admission c c d0 e0 k0))
     (hr : V C s.ops r (.request c u d e l)) (hx : V C s.ops x (.approval c r a))
     (hnr : ∀ u' e', Admitted C s.ops c u' d e' → ¬ Removed C s.ops c u') :
     (allowPeer c e).eval s = true :=
-  have ha : Admitted C s.ops c u d e := ⟨y, admit_admits hy hb hkd hreq hc hr hx⟩
+  have ha : Admitted C s.ops c u d e := ⟨y, k0, admit_admits hy hb hkd hreq hc hr hx⟩
   (connect_iff h hq c e).2 ⟨u, d, ha, ⟨u, e, ha⟩, hnr⟩
 
 /-- **Only the founder's and approved devices' nodes are let in.** At
@@ -859,21 +1111,21 @@ naming that device and key and one Valid approval of it. A request
 alone never connects: requests sit under keys of their own. -/
 theorem connect_approved (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key)
     (ha : (allowPeer c e).eval s = true) :
-    ∃ u d y, V C s.ops y (.admission c u d e) ∧ Live C s.ops c d ∧
+    ∃ u d y k, V C s.ops y (.admission c u d e k) ∧ Live C s.ops c d ∧
       ((y = c ∧ u = c) ∨
         ∃ o r x a l, s.ops y = some o ∧ (Codec.decode o.body : Option Body) = some .admit ∧
           o.reqs = [c, r, x] ∧ V C s.ops r (.request c u d e l) ∧
           V C s.ops x (.approval c r a)) := by
-  obtain ⟨u, d, ⟨y, hy⟩, hl⟩ := (connect_iff h hq c e).1 ha
-  exact ⟨u, d, y, hy, hl, admission_approved h.key hy⟩
+  obtain ⟨u, d, ⟨y, k, hy⟩, hl⟩ := (connect_iff h hq c e).1 ha
+  exact ⟨u, d, y, k, hy, hl, admission_approved h.key hy⟩
 
 theorem mem_live_all (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (u : Id) (d e : Key) :
     (u, d, e) ∈ (live c (eval s (admission.all.query [c])).rows).eval s ↔
       Admitted C s.ops c u d e ∧ Live C s.ops c d := by
   rw [live_iff h hq (by simp [rels])]
   constructor
-  · rintro ⟨⟨y, hv, _⟩, hl⟩; exact ⟨⟨y, hv⟩, hl⟩
-  · rintro ⟨⟨y, hv⟩, hl⟩; exact ⟨⟨y, hv, all_args.2 ⟨u, d, e, rfl⟩⟩, hl⟩
+  · rintro ⟨⟨y, k, hv, _⟩, hl⟩; exact ⟨⟨y, k, hv⟩, hl⟩
+  · rintro ⟨⟨y, k, hv⟩, hl⟩; exact ⟨⟨y, k, hv, all_args.2 ⟨u, d, e, k, rfl⟩⟩, hl⟩
 
 /-- **Whom we dial.** At rest, `members` names exactly the live devices. -/
 theorem members_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : Key) :
@@ -951,82 +1203,82 @@ theorem byUser_ids (h : Inv (family C) s) (hq : s.queue = []) (c u x : Id) :
 
 theorem mem_removalsOf (h : Inv (family C) s) (hq : s.queue = []) (c x : Id) (rows : List (Pos × Fact)) :
     x ∈ (removalsOf c rows).eval s ↔
-      ∃ p c' u d e by_, (p, .admission c' u d e) ∈ rows ∧ V C s.ops x (.removal c u by_) := by
+      ∃ p c' u d e k by_, (p, .admission c' u d e k) ∈ rows ∧ V C s.ops x (.removal c u by_) := by
   induction rows with
   | nil => simp [removalsOf, View.eval]
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
     | ofAdmission x =>
-      obtain ⟨c', u, d, e⟩ := x
+      obtain ⟨c', u, d, e, k⟩ := x
       show x ∈ View.eval s ((removalsOf c t).bind _) ↔ _
       rw [View.eval_bind']
       simp only [View.eval, List.mem_append, ih, byUser_ids h hq, List.mem_cons, Prod.mk.injEq]
       constructor
-      · rintro (⟨r, hv⟩ | ⟨p', c'', u', d', e', r, hm, hv⟩)
-        · exact ⟨p, c', u, d, e, r, Or.inl ⟨rfl, rfl⟩, hv⟩
-        · exact ⟨p', c'', u', d', e', r, Or.inr hm, hv⟩
-      · rintro ⟨p', c'', u', d', e', r, ⟨_, he⟩ | hm, hv⟩
+      · rintro (⟨r, hv⟩ | ⟨p', c'', u', d', e', k', r, hm, hv⟩)
+        · exact ⟨p, c', u, d, e, k, r, Or.inl ⟨rfl, rfl⟩, hv⟩
+        · exact ⟨p', c'', u', d', e', k', r, Or.inr hm, hv⟩
+      · rintro ⟨p', c'', u', d', e', k', r, ⟨_, he⟩ | hm, hv⟩
         · simp only [Fact.admission.injEq] at he
-          obtain ⟨_, rfl, _, _⟩ := he
+          obtain ⟨_, rfl, _, _, _⟩ := he
           exact Or.inl ⟨r, hv⟩
-        · exact Or.inr ⟨p', c'', u', d', e', r, hm, hv⟩
+        · exact Or.inr ⟨p', c'', u', d', e', k', r, hm, hv⟩
     | _ =>
       show x ∈ (removalsOf c t).eval s ↔ _
       rw [ih]
       constructor
-      · rintro ⟨p', c'', u', d', e', r, hm, hv⟩; exact ⟨p', c'', u', d', e', r, List.mem_cons_of_mem _ hm, hv⟩
-      · rintro ⟨p', c'', u', d', e', r, hm, hv⟩
+      · rintro ⟨p', c'', u', d', e', k', r, hm, hv⟩; exact ⟨p', c'', u', d', e', k', r, List.mem_cons_of_mem _ hm, hv⟩
+      · rintro ⟨p', c'', u', d', e', k', r, hm, hv⟩
         rcases List.mem_cons.1 hm with he | hm
         · simp at he
-        · exact ⟨p', c'', u', d', e', r, hm, hv⟩
+        · exact ⟨p', c'', u', d', e', k', r, hm, hv⟩
 
 theorem mem_deviceRemovals (h : Inv (family C) s) (hq : s.queue = []) (c x : Id) (rows : List (Pos × Fact)) :
     x ∈ (deviceRemovals c rows).eval s ↔
-      ∃ p c' u0 d e, (p, .admission c' u0 d e) ∈ rows ∧
+      ∃ p c' u0 d e k, (p, .admission c' u0 d e k) ∈ rows ∧
         ∃ u e' by_, Admitted C s.ops c u d e' ∧ V C s.ops x (.removal c u by_) := by
   have hdev : ∀ d, x ∈ (removalsOf c (Engine.eval s (admission.byDevice.query [c, d])).rows).eval s ↔
       ∃ u e' by_, Admitted C s.ops c u d e' ∧ V C s.ops x (.removal c u by_) := by
     intro d
     rw [mem_removalsOf h hq]
     constructor
-    · rintro ⟨p, c', u, d', e', r, hm, hv⟩
+    · rintro ⟨p, c', u, d', e', k', r, hm, hv⟩
       obtain ⟨y, f, he, hy, hk⟩ := (mem_rows h hq (by simp [rels]) _).1 hm
       simp only [Prod.mk.injEq] at he; obtain ⟨_, rfl⟩ := he
-      obtain ⟨u'', e'', hf⟩ := byDevice_args.1 hk
-      simp only [Fact.admission.injEq] at hf; obtain ⟨rfl, rfl, rfl, rfl⟩ := hf
-      exact ⟨u, e', r, ⟨y, hy⟩, hv⟩
-    · rintro ⟨u, e', r, ⟨y, hy⟩, hv⟩
-      exact ⟨_, c, u, d, e', r, (mem_rows h hq (by simp [rels]) _).2
-        ⟨y, _, rfl, hy, byDevice_args.2 ⟨u, e', rfl⟩⟩, hv⟩
+      obtain ⟨u'', e'', k'', hf⟩ := byDevice_args.1 hk
+      simp only [Fact.admission.injEq] at hf; obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hf
+      exact ⟨u, e', r, ⟨y, k', hy⟩, hv⟩
+    · rintro ⟨u, e', r, ⟨y, k', hy⟩, hv⟩
+      exact ⟨_, c, u, d, e', k', r, (mem_rows h hq (by simp [rels]) _).2
+        ⟨y, _, rfl, hy, byDevice_args.2 ⟨u, e', k', rfl⟩⟩, hv⟩
   induction rows with
   | nil => simp [deviceRemovals, View.eval]
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
     | ofAdmission x =>
-      obtain ⟨c', u0, d, e⟩ := x
+      obtain ⟨c', u0, d, e, k⟩ := x
       show x ∈ View.eval s ((removalsOf c _).bind _) ↔ _
       rw [View.eval_bind', View.eval_bind']
       simp only [View.eval, List.mem_append, ih, hdev, List.mem_cons, Prod.mk.injEq]
       constructor
-      · rintro (hm | ⟨p', c'', u0', d', e', hm, rest⟩)
-        · exact ⟨p, c', u0, d, e, Or.inl ⟨rfl, rfl⟩, hm⟩
-        · exact ⟨p', c'', u0', d', e', Or.inr hm, rest⟩
-      · rintro ⟨p', c'', u0', d', e', ⟨_, he⟩ | hm, rest⟩
+      · rintro (hm | ⟨p', c'', u0', d', e', k', hm, rest⟩)
+        · exact ⟨p, c', u0, d, e, k, Or.inl ⟨rfl, rfl⟩, hm⟩
+        · exact ⟨p', c'', u0', d', e', k', Or.inr hm, rest⟩
+      · rintro ⟨p', c'', u0', d', e', k', ⟨_, he⟩ | hm, rest⟩
         · simp only [Fact.admission.injEq] at he
-          obtain ⟨_, _, rfl, _⟩ := he
+          obtain ⟨_, _, rfl, _, _⟩ := he
           exact Or.inl rest
-        · exact Or.inr ⟨p', c'', u0', d', e', hm, rest⟩
+        · exact Or.inr ⟨p', c'', u0', d', e', k', hm, rest⟩
     | _ =>
       show x ∈ (deviceRemovals c t).eval s ↔ _
       refine ih.trans ⟨?_, ?_⟩
-      · rintro ⟨p', c'', u0', d', e', hm, rest⟩
-        exact ⟨p', c'', u0', d', e', List.mem_cons_of_mem _ hm, rest⟩
-      · rintro ⟨p', c'', u0', d', e', hm, rest⟩
+      · rintro ⟨p', c'', u0', d', e', k', hm, rest⟩
+        exact ⟨p', c'', u0', d', e', k', List.mem_cons_of_mem _ hm, rest⟩
+      · rintro ⟨p', c'', u0', d', e', k', hm, rest⟩
         rcases List.mem_cons.1 hm with he | hm
         · simp at he
-        · exact ⟨p', c'', u0', d', e', hm, rest⟩
+        · exact ⟨p', c'', u0', d', e', k', hm, rest⟩
 
 /-- **The notices owed to a node (`removals_at`).** At rest,
 `removalsAt c e` lists exactly the Valid removals that cut a device
@@ -1041,15 +1293,15 @@ theorem removals_at (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key
   simp only [Rel.read, View.eval_read]
   rw [mem_deviceRemovals h hq]
   constructor
-  · rintro ⟨p, c', u0, d, e'', hm, u, e', r, ha, hv⟩
+  · rintro ⟨p, c', u0, d, e'', k'', hm, u, e', r, ha, hv⟩
     obtain ⟨y, f, he, hy, hk⟩ := (mem_rows h hq (by simp [rels]) _).1 hm
     simp only [Prod.mk.injEq] at he; obtain ⟨_, rfl⟩ := he
-    obtain ⟨u'', d'', hf⟩ := byKey_args.1 hk
-    simp only [Fact.admission.injEq] at hf; obtain ⟨rfl, rfl, rfl, rfl⟩ := hf
-    exact ⟨u0, d, u, e', r, ⟨y, hy⟩, ha, hv⟩
-  · rintro ⟨u0, d, u, e', r, ⟨y, hy⟩, ha, hv⟩
-    exact ⟨_, c, u0, d, e, (mem_rows h hq (by simp [rels]) _).2
-      ⟨y, _, rfl, hy, byKey_args.2 ⟨u0, d, rfl⟩⟩, u, e', r, ha, hv⟩
+    obtain ⟨u'', d'', k3, hf⟩ := byKey_args.1 hk
+    simp only [Fact.admission.injEq] at hf; obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := hf
+    exact ⟨u0, d, u, e', r, ⟨y, k'', hy⟩, ha, hv⟩
+  · rintro ⟨u0, d, u, e', r, ⟨y, k, hy⟩, ha, hv⟩
+    exact ⟨_, c, u0, d, e, k, (mem_rows h hq (by simp [rels]) _).2
+      ⟨y, _, rfl, hy, byKey_args.2 ⟨u0, d, k, rfl⟩⟩, u, e', r, ha, hv⟩
 
 theorem deviceLive_eval (c : Id) (d : Key) : (deviceLive c d).eval s =
     if (Engine.eval s (admission.byDevice.query [c, d])).rows.isEmpty then false
@@ -1064,8 +1316,8 @@ theorem deviceLive_eval (c : Id) (d : Key) : (deviceLive c d).eval s =
 theorem not_admitted_of_empty (h : Inv (family C) s) (hq : s.queue = []) {c : Id} {d : Key}
     (he : (Engine.eval s (admission.byDevice.query [c, d])).rows.isEmpty = true) :
     ∀ u e, ¬ Admitted C s.ops c u d e := by
-  rintro u e ⟨y, hy⟩
-  obtain ⟨p, hp⟩ := (exists_row h hq (by simp [rels]) [c, d] _).2 ⟨y, hy, byDevice_args.2 ⟨u, e, rfl⟩⟩
+  rintro u e ⟨y, k, hy⟩
+  obtain ⟨p, hp⟩ := (exists_row h hq (by simp [rels]) [c, d] _).2 ⟨y, hy, byDevice_args.2 ⟨u, e, k, rfl⟩⟩
   rw [List.isEmpty_iff] at he; rw [he] at hp; cases hp
 
 /-- At rest, d's admissions counted are nonzero exactly when d is admitted. -/
@@ -1076,10 +1328,10 @@ theorem admitted_total (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d : 
     total_rel (fam := family C) rfl rels_distinct (by simp [rels]) (rels_short _ (by simp [rels])) h hq]
   constructor
   · rintro ⟨y, f, hv, hk⟩
-    obtain ⟨u, e, rfl⟩ := byDevice_args.1 hk
-    exact ⟨u, e, y, hv⟩
-  · rintro ⟨u, e, y, hv⟩
-    exact ⟨y, _, hv, byDevice_args.2 ⟨u, e, rfl⟩⟩
+    obtain ⟨u, e, k, rfl⟩ := byDevice_args.1 hk
+    exact ⟨u, e, y, k, hv⟩
+  · rintro ⟨u, e, y, k, hv⟩
+    exact ⟨y, _, hv, byDevice_args.2 ⟨u, e, k, rfl⟩⟩
 
 theorem standing_eval (c : Id) (d : Key) (joins : List (Pos × Fact)) :
     (standing c d joins).eval s =
@@ -1327,29 +1579,38 @@ key, whatever the community holds. -/
 theorem approveReq_ops (c req myAdm : Id) (d : Device) (esk : ByteArray) :
     Always (fun w : Write => w.ops.length ≤ 3) (approveReq c req myAdm d esk) := by
   unfold approveReq
-  refine always_bind fun _ => always_bind fun _ => always_bind fun ks => ?_
+  refine always_bind fun _ => always_bind fun _ => always_bind (always_true fun _ => ?_)
   dsimp only
   repeat' split
   all_goals (try simp only [Always, pure_eq])
   all_goals (repeat' split)
   all_goals simp
 
-/-- **An approval wraps the key only beside its admission.** Whatever
-the store holds, an approval's write is the approval alone, or the
-approval, then the admission citing exactly it (`admit_admits`: Valid
-when the approval is), then the rest (at most one wrap: `approveReq_ops`).
-So no approval wraps the key to a requester the same write does not
-admit. -/
-theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray) :
-    Always (fun w : Write => w.ops = [approve c req myAdm d] ∨
-      ∃ rest, w.ops = approve c req myAdm d :: admit c req (approve c req myAdm d).id :: rest)
-      (approveReq c req myAdm d esk) := by
-  unfold approveReq
-  refine always_bind fun _ => always_bind fun _ => always_bind fun ks => ?_
-  dsimp only
-  repeat' split
-  all_goals (try simp only [Always, pure_eq])
-  all_goals simp
+/-- **An approval wraps the community's key, and only beside its
+admission.** Whatever the store holds, an approval's write is the
+approval alone; or the approval, then the admission citing exactly it
+(`admit_admits`: Valid when the approval is); or those two, then one
+wrap by the approving device of the key `currentKey` reads (the key
+under the id c's root names: `currentKey_community`), to the node key
+of the request it approves, citing that admission as its recipient's.
+So no approval wraps a key to a requester the same write does not
+admit, and none wraps any key but the community's. -/
+theorem approveReq_wrap_admits (s : DB Fact) (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    let ok := approve c req myAdm d
+    let adm := admit c req ok.id
+    ((approveReq c req myAdm d esk).eval s).ops = [ok] ∨
+      ((approveReq c req myAdm d esk).eval s).ops = [ok, adm] ∨
+      ∃ k esk' e, (currentKey c).eval s = some k ∧
+        ((approveReq c req myAdm d esk).eval s).ops = [ok, adm, wrapKey c myAdm adm.id d k esk' e] := by
+  intro ok adm
+  simp only [approveReq, View.eval_bind, View.eval_read]
+  split
+  · simp only [View.eval_pure]
+    split
+    · rename_i k esk' hk _
+      exact Or.inr (Or.inr ⟨k, esk', _, hk, rfl⟩)
+    · exact Or.inr (Or.inl (by simp [ok, adm]))
+  · exact Or.inl rfl
 
 /-- The mutant: an approval that wraps the key to every member. -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
@@ -1358,7 +1619,7 @@ def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Wri
   let rs ← recipients c
   return ⟨ok :: (match ks.rows.head? with
     | some (_, .key _ _ k) => match Bytes.of? k with
-      | some k => rs.map (wrapKey c k esk)
+      | some k => rs.map (wrapKey c myAdm c d k esk)
       | none => []
     | _ => [])⟩
 
@@ -1371,9 +1632,9 @@ theorem wrapAll_over (c req myAdm : Id) (d : Device) (esk : Key32) (p : Pos) (ki
   let none0 : Answer Fact := ⟨[], 0, 0⟩
   -- the key; c's admissions; then, per member, its device's admissions
   -- (it is live: one, into a user) and that user's removals (none)
-  let dev (u : Id) (d e : Key) : Answer Fact := ⟨[(p, .admission c u d e)], 1, 1⟩
+  let dev (u : Id) (d e : Key) : Answer Fact := ⟨[(p, .admission c u d e kid)], 1, 1⟩
   have := always_runWith [⟨[(p, .key c kid k.1)], 1, 1⟩,
-    ⟨[(p, .admission c u₁ d₁ e₁), (p, .admission c u₂ d₂ e₂), (p, .admission c u₃ d₃ e₃)], 3, 3⟩,
+    ⟨[(p, .admission c u₁ d₁ e₁ kid), (p, .admission c u₂ d₂ e₂ kid), (p, .admission c u₃ d₃ e₃ kid)], 3, 3⟩,
     dev u₁ d₁ e₁, none0, dev u₂ d₂ e₂, none0, dev u₃ d₃ e₃, none0] h (by
       simp only [approveWrapAll, recipients, live, deviceLive, unremoved, removals, Rel.read, View.read,
         bind_eq, pure_eq, View.bind, ite_true, runWith, none0, dev, List.isEmpty_cons,
@@ -2058,7 +2319,8 @@ structure Scene where
 namespace Scene
 variable (x : Scene)
 
-def r : Op := root x.A x.kA
+/-- The root; the scene posts nothing, so its content key id is empty. -/
+def r : Op := root x.A x.kA .empty
 def c : Id := x.r.id
 /-- The invitation and its link, as A's app issues them (Community.issue). -/
 def issued : Op × Invite := issue x.c x.c x.A x.kA x.secret []
@@ -2088,7 +2350,7 @@ def approval (n : Node) : Node :=
 
 /-- The four signed payloads in this five-op scene. The request has two
 signatures; the final admission is unsigned and checked by its dependencies. -/
-def rootMessage : ByteArray := toSign [] (.root x.A.pk x.kA .empty)
+def rootMessage : ByteArray := toSign [] (.root x.A.pk x.kA .empty .empty)
 def invitationMessage : ByteArray := toSign [x.c,x.c] (.invite x.K.pk false .empty)
 def requestMessage : ByteArray := toSign [x.c,x.inv.id] (.request x.B.pk x.kB .empty .empty)
 def approvalMessage : ByteArray := toSign [x.c,x.req.id,x.c] (.approve .empty)
@@ -2153,11 +2415,11 @@ include g hL
 
 theorem hd : Distinct L := distinct_sub g.distinct hL
 
-theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.kA) := by
+theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.kA .empty) := by
   refine spec_valid_of (table_of (hd g hL) h) (fs := []) .nil ?_
   show validate C x.r [] = _
   unfold validate
-  rw [show x.r = root x.A x.kA from rfl, root, body_mk]
+  rw [show x.r = root x.A x.kA .empty from rfl, root, body_mk]
   simp only [Body.tag, Op.make_kind, ↓reduceIte, check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check]
   rw [if_pos]
   · rfl
@@ -2166,7 +2428,7 @@ theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.
 theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
     V C (table L) x.inv.id (.invitation x.c x.c x.K.pk false) := by
   refine spec_valid_of (table_of (hd g hL) h2)
-    (fs := [.admission x.c x.c x.A.pk x.kA, .admission x.c x.c x.A.pk x.kA]) ?_ ?_
+    (fs := [.admission x.c x.c x.A.pk x.kA .empty, .admission x.c x.c x.A.pk x.kA .empty]) ?_ ?_
   · exact .cons (v_root g hL h1) (.cons (v_root g hL h1) .nil)
   · show validate C x.inv _ = _
     unfold validate
@@ -2189,7 +2451,7 @@ theorem v_appr (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) (h4 : x.ap
     (v_req g hL h1 h2 h3) (v_root g hL h1) (fun h => absurd h (by simp)) g.AB g.approvalSig
 
 theorem v_adm (h : ∀ o ∈ x.S, o ∈ L) :
-    V C (table L) x.adm.id (.admission x.c x.req.id x.B.pk x.kB) := by
+    V C (table L) x.adm.id (.admission x.c x.req.id x.B.pk x.kB .empty) := by
   have h1 := h x.r (by simp [S]); have h2 := h x.inv (by simp [S])
   have h3 := h x.req (by simp [S]); have h4 := h x.appr (by simp [S])
   have h5 := h x.adm (by simp [S])
@@ -2205,12 +2467,12 @@ theorem table_S {i : Id} {o : Op} (h : table L i = some o) : o ∈ x.S ∧ o ∈
 root; B, under its node key, by the admit. -/
 theorem admitted_inv {c' u : Id} {d e : Key} (h : Admitted C (table L) c' u d e) :
     (d = x.A.pk ∧ e = x.kA ∧ x.r ∈ L) ∨ (d = x.B.pk ∧ e = x.kB ∧ x.adm ∈ L) := by
-  obtain ⟨y, hy⟩ := h
+  obtain ⟨y, k, hy⟩ := h
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv hy
   obtain ⟨hS, hoL, _⟩ := table_S hL hx
   simp only [S, List.mem_cons, List.mem_nil_iff, or_false] at hS
   rcases hS with rfl | rfl | rfl | rfl | rfl
-  · rw [show x.r = root x.A x.kA from rfl, root, body_mk] at hb
+  · rw [show x.r = root x.A x.kA .empty from rfl, root, body_mk] at hb
     cases hb
     rcases check_admission hv with ⟨s, hb, _⟩ | ⟨_, _, _, _, hb, _⟩
     · cases hb; exact Or.inl ⟨rfl, rfl, hoL⟩
@@ -2238,7 +2500,7 @@ theorem admitted_inv {c' u : Id} {d e : Key} (h : Admitted C (table L) c' u d e)
       subst this
       rw [show x.req = request x.c x.inv.id x.B x.kB x.K.sk from rfl, request, body_mk] at hb'
       cases hb'
-      obtain ⟨_, _, _, _, _, _, hb'', _⟩ := check_request hv'
+      obtain ⟨_, _, _, _, _, _, _, hb'', _⟩ := check_request hv'
       cases hb''
       exact Or.inr ⟨rfl, rfl, hoL⟩
 
@@ -2248,11 +2510,11 @@ theorem not_removed {c' u : Id} : ¬ Removed C (table L) c' u := by
   rintro ⟨y, rr, hy⟩
   obtain ⟨o, b, fs, hx, hb, _, hv⟩ := valid_inv hy
   obtain ⟨hS, _, _⟩ := table_S hL hx
-  obtain ⟨s, _, _, _, _, _, _, _, hb', _⟩ := check_removal hv
+  obtain ⟨s, _, _, _, _, _, _, _, _, _, _, hb', _⟩ := check_removal hv
   subst hb'
   simp only [S, List.mem_cons, List.mem_nil_iff, or_false] at hS
   rcases hS with rfl | rfl | rfl | rfl | rfl
-  · rw [show x.r = root x.A x.kA from rfl, root, body_mk] at hb; cases hb
+  · rw [show x.r = root x.A x.kA .empty from rfl, root, body_mk] at hb; cases hb
   · rw [show x.inv = invite x.c x.c x.A x.K.pk false from rfl, invite, body_mk] at hb; cases hb
   · rw [show x.req = request x.c x.inv.id x.B x.kB x.K.sk from rfl, request, body_mk] at hb; cases hb
   · rw [show x.appr = approve x.c x.req.id x.c x.A from rfl, approve, body_mk] at hb; cases hb
@@ -2270,13 +2532,13 @@ theorem knownA : Known C L x.c x.kA ↔ x.r ∈ L := by
     rcases admitted_inv g hL h with ⟨_, _, h⟩ | ⟨_, hk, _⟩
     · exact h
     · exact absurd hk g.kAB
-  · intro h; exact ⟨_, _, _, v_root g hL h⟩
+  · intro h; exact ⟨_, _, _, _, v_root g hL h⟩
 
 theorem allowedA : Allowed C L x.c x.kA ↔ x.r ∈ L := by
   constructor
   · rintro ⟨u, d, h, _⟩; exact (knownA g hL).1 ⟨u, d, h⟩
   · intro h
-    have ha : Admitted C (table L) x.c x.c x.A.pk x.kA := ⟨_, v_root g hL h⟩
+    have ha : Admitted C (table L) x.c x.c x.A.pk x.kA := ⟨_, _, v_root g hL h⟩
     exact ⟨_, _, ha, live_of hL ha⟩
 
 /-- B's node is known exactly when its admission is held. -/
@@ -2293,7 +2555,7 @@ theorem allowedB (hall : x.adm ∈ L → ∀ o ∈ x.S, o ∈ L) :
   constructor
   · rintro ⟨u, d, h, _⟩; exact knownB g hL ⟨u, d, h⟩
   · intro h
-    have ha : Admitted C (table L) x.c x.req.id x.B.pk x.kB := ⟨_, v_adm g hL (hall h)⟩
+    have ha : Admitted C (table L) x.c x.req.id x.B.pk x.kB := ⟨_, _, v_adm g hL (hall h)⟩
     exact ⟨_, _, ha, live_of hL ha⟩
 
 end

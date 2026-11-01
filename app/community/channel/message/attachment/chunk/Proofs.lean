@@ -12,18 +12,18 @@ theorem check_chunk {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c att roo
     (h : check C o b fs = some (.chunk c att root len i)) :
     ∃ slice sibs, b = .chunk root len i slice sibs ∧ o.reqs.head? = some c ∧ att = o.reqs.getD 1 .empty ∧
       Merkle.verify sha256 root len i slice sibs = true ∧
-      ∃ d e m u k x, fs = [.admission c c d e, .attachment c m u root len k x] := by
+      ∃ d e kid m u k x, fs = [.admission c c d e kid, .attachment c m u root len k x] := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r t
-  rcases b with ⟨r', l, i', x, p⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases t with ⟨c2, m, u, r2, l2, k, x2⟩
+  rcases b with ⟨r', l, i', x, p⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases t with ⟨c2, m, u, r2, l2, k, x2⟩
   simp only [Chunk.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofChunk.injEq, Chunk.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, rfl, rfl, h6⟩ := hc
-    exact ⟨_, _, rfl, h1, rfl, h6, _, _, _, _, _, _, rfl⟩
+    exact ⟨_, _, rfl, h1, rfl, h6, _, _, _, _, _, _, _, rfl⟩
   · simp at h
 
 /-- No SHA-256 collision between what file ct's root hashes and what
@@ -65,7 +65,7 @@ theorem chunk_of_attachment {x c att root : Id} {len i : Nat}
     (h : V C ops x (.chunk c att root len i)) :
     ∃ o m u k s, ops x = some o ∧ o.reqs = [c, att] ∧ V C ops att (.attachment c m u root len k s) := by
   obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
-  obtain ⟨_, _, _, hhead, hatt, _, d, e, m, u, k, s, rfl⟩ := check_chunk hv
+  obtain ⟨_, _, _, hhead, hatt, _, d, e, _, m, u, k, s, rfl⟩ := check_chunk hv
   obtain ⟨r0, r1, rest, hreq, _, hav, hrest⟩ := all2_cons2 hr
   cases hrest
   rw [hreq] at hhead hatt; simp at hhead hatt; subst hhead; subst hatt

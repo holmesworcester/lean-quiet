@@ -235,7 +235,7 @@ def fixture (n : Nat) : Fixture := Id.run do
   let k := Bytes.digest "fresh content key".toUTF8
   let nk := Bytes.digest "fresh node key".toUTF8
   let w := (found seed "Fresh".toUTF8 "Ann".toUTF8 1 k (Bytes.digest "fresh esk".toUTF8) nk).eval DB.empty
-  let c := (root d (cryptoSeal.pub nk)).id
+  let c := (root d (cryptoSeal.pub nk) (kidOf cryptoSeal k)).id
   let mut files := []
   for i in [0:(n + 999) / 1000] do
     let p := sealedPost c c d k ((Bytes.fit 24 (sha256 s!"post nonce {i}".toUTF8))) s!"file {i}".toUTF8 (i + 1) (10 + i)

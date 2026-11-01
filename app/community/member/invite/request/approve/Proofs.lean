@@ -6,21 +6,21 @@ open Engine Codec
 
 theorem check_approval {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c r a : Id}
     (h : check C o b fs = some (.approval c r a)) :
-    ∃ s d0 e0 u d e l da ea, b = .approve s ∧
-      fs = [.admission c c d0 e0, .request c u d e l, .admission c a da ea] ∧
+    ∃ s d0 e0 k0 u d e l da ea ka, b = .approve s ∧
+      fs = [.admission c c d0 e0 k0, .request c u d e l, .admission c a da ea ka] ∧
       o.reqs.head? = some c ∧ r = o.reqs.getD 1 .empty ∧ (l = true → a = u) ∧ da ≠ d ∧
       C.verify da (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r q a
-  rcases b with ⟨s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases q with ⟨c1, u, d, e, l⟩; rcases a with ⟨c2, a', da, ea⟩
+  rcases b with ⟨s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases q with ⟨c1, u, d, e, l⟩; rcases a with ⟨c2, a', da, ea, ka⟩
   simp only [Approve.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofApproval.injEq, Approve.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, rfl, h5, h6, h7⟩ := hc
-    exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h5, h6, h7⟩
+    exact ⟨_, _, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h5, h6, h7⟩
   · simp at h
 
 open Engine Codec
@@ -33,22 +33,22 @@ the request is for a link. As with removals, its validity reads the
 cited facts only: an approval by a user removed since still counts
 (#1088 semantics). -/
 theorem approval_signed {x c r a : Id} (h : V C ops x (.approval c r a)) :
-    ∃ o s ra u d e l da ea, ops x = some o ∧
+    ∃ o s ra u d e l da ea ka, ops x = some o ∧
       (decode o.body : Option Body) = some (.approve s) ∧ o.reqs = [c, r, ra] ∧
-      V C ops r (.request c u d e l) ∧ V C ops ra (.admission c a da ea) ∧
+      V C ops r (.request c u d e l) ∧ V C ops ra (.admission c a da ea ka) ∧
       (l = true → a = u) ∧ da ≠ d ∧ C.verify da (signed o (.approve s)) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, u, d, e, l, da, ea, rfl, rfl, hh, hrr, hl, hd, hs⟩ := check_approval hv
+  obtain ⟨s, d0, e0, k0, u, d, e, l, da, ea, ka, rfl, rfl, hh, hrr, hl, hd, hs⟩ := check_approval hv
   obtain ⟨c', r', ra, hreq, _, hrv, hav⟩ := all2_three hr
   rw [hreq] at hh hrr; simp at hh hrr; subst hh; subst hrr
-  exact ⟨o, s, ra, u, d, e, l, da, ea, hx, hb, hreq, hrv, hav, hl, hd, hs⟩
+  exact ⟨o, s, ra, u, d, e, l, da, ea, ka, hx, hb, hreq, hrv, hav, hl, hd, hs⟩
 
 /-- **Nobody is admitted unapproved.** Every admission is the founder's
 (by the root itself), or is produced by an admit op y that cites
 exactly a Valid request r of c for that device and one Valid approval
 x of r (one approval admits: the user's decision, 2026-10-31). -/
-theorem admission_approved (hk : Keyed ops) {y c u : Id} {d e : Key}
-    (h : V C ops y (.admission c u d e)) :
+theorem admission_approved (hk : Keyed ops) {y c u : Id} {d e kid : Key}
+    (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
     ∃ o r x a l, ops y = some o ∧ (decode o.body : Option Body) = some .admit ∧
       o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧ V C ops x (.approval c r a) := by
@@ -62,14 +62,14 @@ theorem admission_approved (hk : Keyed ops) {y c u : Id} {d e : Key}
 
 /-- **An eligible member's signed approval is Valid**, whoever else has
 approved or been removed. -/
-theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u a : Id}
-    {d e da ea : Key} {l : Bool}
+theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 k0 : Key} {u a : Id}
+    {d e da ea ka : Key} {l : Bool}
     (hx : ops x = some o) (hb : (decode o.body : Option Body) = some (.approve s)) (hkd : o.kind = Body.tag (.approve s))
-    (hreq : o.reqs = [c, r, ra]) (hc : V C ops c (.admission c c d0 e0))
-    (hr : V C ops r (.request c u d e l)) (ha : V C ops ra (.admission c a da ea))
+    (hreq : o.reqs = [c, r, ra]) (hc : V C ops c (.admission c c d0 e0 k0))
+    (hr : V C ops r (.request c u d e l)) (ha : V C ops ra (.admission c a da ea ka))
     (hl : l = true → a = u) (hd : da ≠ d) (hs : C.verify da (signed o (.approve s)) s = true) :
     V C ops x (.approval c r a) := by
-  refine spec_valid_of hx (fs := [.admission c c d0 e0, .request c u d e l, .admission c a da ea])
+  refine spec_valid_of hx (fs := [.admission c c d0 e0 k0, .request c u d e l, .admission c a da ea ka])
     ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hr (.cons ha .nil))
   · show validate C o _ = _
@@ -80,13 +80,13 @@ theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u 
 Valid approval of it admits the requesting device: into the issuer's
 user for a link, into the user the request names for a member
 invitation. -/
-theorem admit_admits {y c r x : Id} {o : Op} {d0 e0 : Key} {u a : Id}
+theorem admit_admits {y c r x : Id} {o : Op} {d0 e0 k0 : Key} {u a : Id}
     {d e : Key} {l : Bool}
     (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit) (hkd : o.kind = Body.tag (.admit))
-    (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0))
+    (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0 k0))
     (hr : V C ops r (.request c u d e l)) (hx : V C ops x (.approval c r a)) :
-    V C ops y (.admission c u d e) := by
-  refine spec_valid_of hy (fs := [.admission c c d0 e0, .request c u d e l, .approval c r a]) ?_ ?_
+    V C ops y (.admission c u d e k0) := by
+  refine spec_valid_of hy (fs := [.admission c c d0 e0 k0, .request c u d e l, .approval c r a]) ?_ ?_
   · rw [hreq]; exact .cons hc (.cons hr (.cons hx .nil))
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]

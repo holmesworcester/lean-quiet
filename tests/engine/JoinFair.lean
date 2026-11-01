@@ -195,7 +195,7 @@ def main (args : List String) : IO UInt32 := do
     (← IO.getStdout).flush
     return result
   try
-    let c := (root (device "A") (nodeKey "A")).id
+    let c := (root (device "A") (nodeKey "A") (kidOf cryptoSeal key)).id
     a.run.write (← viewOn a (found (seed "A") "Fair join".toUTF8 "Alice".toUTF8 1 key
       (Bytes.digest "join-fair/esk".toUTF8) (nk "A"))).ops
     t.ok "founder commits through the real runner" (← waitFor 5000 (stored a c))

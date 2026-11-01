@@ -1092,8 +1092,9 @@ open Community (Admitted Removed)
 /-- Admitted among the node's Community ops: by a Valid admission in the
 node's own verdicts. -/
 theorem admitted_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} {d e : Community.Key} :
-    Admitted C (community C s).ops c u d e ↔ ∃ x, s.status x = some (.valid (.inl (.admission c u d e))) :=
-  exists_congr fun x => (sum_project_node h hq).2.2.2.1 x _
+    Admitted C (community C s).ops c u d e ↔
+      ∃ x k, s.status x = some (.valid (.inl (.admission c u d e k))) :=
+  exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
 
 /-- Removed among the node's Community ops: by a Valid removal in the
 node's own verdicts. -/

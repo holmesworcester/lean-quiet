@@ -61,12 +61,12 @@ def noticeThenCut (s : Session) :=
 -- premise to all stored verdicts, using Inv.sound to rule out hidden verdicts.
 def bobOwned (db : DB F) (x : Id) : Bool :=
   match db.status x with
-  | some (.valid (.inl (.admission c' u d e))) => decide ((c' = c ∧ e = pkB) → u = requestB.id ∧ d = bob.pk)
+  | some (.valid (.inl (.admission c' u d e _))) => decide ((c' = c ∧ e = pkB) → u = requestB.id ∧ d = bob.pk)
   | _ => true
 
 theorem onlyBob (db : DB F) (hi : Inv fam db)
     (hb : db.stored.all (bobOwned db) = true)
-    {x u d : Id} (hx : db.status x = some (.valid (.inl (.admission c u d pkB)))) :
+    {x u d k : Id} (hx : db.status x = some (.valid (.inl (.admission c u d pkB k)))) :
     u = requestB.id ∧ d = bob.pk := by
   obtain ⟨o,fs,ho,_⟩ := spec_valid_inv (hi.sound x _ hx)
   have hs : x ∈ db.stored := (hi.stored x).2 (by rw [ho]; rfl)
@@ -90,10 +90,10 @@ def roomsCutNode (s : Session) :=
                   intro peer he; rw [hp,List.mem_singleton] at he; subst peer
                   refine ⟨requestB.id,(removed_node (runInv (cutOps s)) hq).2 ⟨removeB.id,c,hr⟩,?_⟩
                   intro u d had
-                  obtain ⟨x,hx⟩ := (admitted_node (runInv (cutOps s)) hq).1 had
+                  obtain ⟨x,k,hx⟩ := (admitted_node (runInv (cutOps s)) hq).1 had
                   obtain ⟨hu,_⟩ := onlyBob db (runInv (cutOps s)) hb hx
                   subst u
-                  exact ⟨pkB,(admitted_node (runInv (cutOps s)) hq).2 ⟨x,hx⟩⟩)))
+                  exact ⟨pkB,(admitted_node (runInv (cutOps s)) hq).2 ⟨x,k,hx⟩⟩)))
             else none
           else none
         else none

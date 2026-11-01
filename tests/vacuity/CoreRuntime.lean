@@ -23,7 +23,7 @@ def twice := ingestS_twice message (load before)
 def runningTwice := ingest_twice message (load before)
 def loop := run_ingestEach before (DB.empty : DB Fact)
 def again := ingestAll_again before (DB.empty : DB Fact) (o := message) (by simp [before])
-def freshMessage := post c c alice "content-key-1".toUTF8 "Another message".toUTF8 2 29880002
+def freshMessage := post c c alice keyId "Another message".toUTF8 2 29880002
 def invariantIngest := inv_ingest (runInv before) freshMessage
 def invariantStep := inv_step (reach_inv (loadReach before))
 def reachableDrain := reach_drain (loadReach before) 400
@@ -74,7 +74,7 @@ def budgetDecreases := if hd : Distinct before then
 else none
 
 def localSecret := secret (sha256 "vacuity-purge-secret".toUTF8)
-def sharedDependent := post c localSecret.id alice "content-key-1".toUTF8 "malicious dependency".toUTF8 3 29880003
+def sharedDependent := post c localSecret.id alice keyId "malicious dependency".toUTF8 3 29880003
 def purgeOps := before ++ [localSecret, sharedDependent]
 def purgeIds := [localSecret.id]
 def pState := run purgeOps

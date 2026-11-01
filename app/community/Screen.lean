@@ -376,7 +376,7 @@ def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
       | some (_, .named _ _ n _) => (String.fromUTF8? n).getD "?"
       | _ => "Waiting to join"
     let admId := (adm.rows.head?.map (·.1.2)).getD .empty
-    let user := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
+    let user := match adm.rows.head? with | some (_, .admission _ u _ _ _) => u | _ => .empty
     -- waiting: this device's live join of c (the one Stop waiting stops)
     let mut joiningOp := ByteArray.empty
     let mut dialing := ""
@@ -544,7 +544,7 @@ theorem unremoved_lists (s : DB Fact) (c : Id) : ∀ (l : List (Pos × Fact)),
     have ih := unremoved_lists s c t
     cases f
     case ofAdmission x =>
-      obtain ⟨c', u, d, e⟩ := x
+      obtain ⟨c', u, d, e, k⟩ := x
       simp only [unremoved]
       split
       · simp only [View.listsAt, List.length_cons]
@@ -573,28 +573,28 @@ theorem deviceLive_lists (s : DB Fact) (c : Id) (d : Key) :
 removal. -/
 theorem unremoved_false (s : DB Fact) (c : Id) : ∀ (l : List (Pos × Fact)),
     (unremoved c l).eval s = false →
-      ∃ p u d e, (p, Fact.admission c u d e) ∈ l ∧ (Engine.eval s (removals c u)).total ≠ 0
+      ∃ p u d e k, (p, Fact.admission c u d e k) ∈ l ∧ (Engine.eval s (removals c u)).total ≠ 0
   | [] => by simp [unremoved, View.eval]
   | (p, f) :: t => by
     intro h
     have ih := unremoved_false s c t
     cases f
     case ofAdmission x =>
-      obtain ⟨c', u, d, e⟩ := x
+      obtain ⟨c', u, d, e, k⟩ := x
       by_cases hc : c' = c
       · subst hc
         by_cases h0 : (Engine.eval s (removals c' u)).total = 0
         · simp only [unremoved, ↓reduceIte, View.eval, h0] at h
-          obtain ⟨p', u', d', e', hm, hr⟩ := ih h
-          exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
-        · exact ⟨p, u, d, e, List.mem_cons_self .., h0⟩
+          obtain ⟨p', u', d', e', k', hm, hr⟩ := ih h
+          exact ⟨p', u', d', e', k', List.mem_cons_of_mem _ hm, hr⟩
+        · exact ⟨p, u, d, e, k, List.mem_cons_self .., h0⟩
       · simp only [unremoved, if_neg hc] at h
-        obtain ⟨p', u', d', e', hm, hr⟩ := ih h
-        exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+        obtain ⟨p', u', d', e', k', hm, hr⟩ := ih h
+        exact ⟨p', u', d', e', k', List.mem_cons_of_mem _ hm, hr⟩
     all_goals
       simp only [unremoved] at h
-      obtain ⟨p', u', d', e', hm, hr⟩ := ih h
-      exact ⟨p', u', d', e', List.mem_cons_of_mem _ hm, hr⟩
+      obtain ⟨p', u', d', e', k', hm, hr⟩ := ih h
+      exact ⟨p', u', d', e', k', List.mem_cons_of_mem _ hm, hr⟩
 
 /-- **A device is cut only by a removal read**: `deviceCut` holds only
 when the store holds one of the device's admissions into c and a removal
@@ -603,7 +603,7 @@ removed" (`Accepted.read`'s `removed`) only from a removal op: an
 admission not yet read, or a stale read of one, never makes it. -/
 theorem deviceCut_removal (s : DB Fact) (c : Id) (d : Key)
     (h : (deviceCut c d).eval s = true) :
-    ∃ p u d' e, (p, Fact.admission c u d' e) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
+    ∃ p u d' e k, (p, Fact.admission c u d' e k) ∈ ((admission.byDevice.read [c, d]).eval s).rows ∧
       (Engine.eval s (removals c u)).total ≠ 0 := by
   simp only [deviceCut] at h
   rw [View.eval_bind] at h
@@ -645,7 +645,7 @@ theorem live_lists_le (s : DB Fact) (c : Id) (D : Nat)
     have ih := live_lists_le s c D hD t
     cases f
     case ofAdmission x =>
-      obtain ⟨c', u, d, e⟩ := x
+      obtain ⟨c', u, d, e, k⟩ := x
       simp only [live]
       split
       · rw [View.listsAt_bind, View.listsAt_bind]
@@ -664,20 +664,20 @@ theorem live_lists_ge (s : DB Fact) (c : Id) :
     have ih := live_lists_ge s c t
     cases f
     case ofAdmission x =>
-      obtain ⟨c', u, d, e⟩ := x
+      obtain ⟨c', u, d, e, k⟩ := x
       by_cases hc : c' = c
-      · have hf : List.filter (admIn c) ((p, Fact.admission c' u d e) :: t) =
-            (p, Fact.admission c' u d e) :: List.filter (admIn c) t := by
+      · have hf : List.filter (admIn c) ((p, Fact.admission c' u d e k) :: t) =
+            (p, Fact.admission c' u d e k) :: List.filter (admIn c) t := by
           simp [List.filter_cons, admIn, hc]
-        have hl : live c ((p, Fact.admission c' u d e) :: t) = ((deviceLive c d).bind fun ok =>
+        have hl : live c ((p, Fact.admission c' u d e k) :: t) = ((deviceLive c d).bind fun ok =>
             (live c t).bind fun rest => View.pure (if ok = true then (u, d, e) :: rest else rest)) := by
           simp only [live, if_pos hc]
         rw [hf, hl, View.listsAt_bind, View.listsAt_bind, List.length_cons]
         have := (deviceLive_lists s c d).1
         omega
-      · have hf : List.filter (admIn c) ((p, Fact.admission c' u d e) :: t) = List.filter (admIn c) t := by
+      · have hf : List.filter (admIn c) ((p, Fact.admission c' u d e k) :: t) = List.filter (admIn c) t := by
           simp [List.filter_cons, admIn, hc]
-        have hl : live c ((p, Fact.admission c' u d e) :: t) = live c t := by simp only [live, if_neg hc]
+        have hl : live c ((p, Fact.admission c' u d e k) :: t) = live c t := by simp only [live, if_neg hc]
         rw [hf, hl]; exact ih
     all_goals simpa [live, List.filter_cons, admIn] using ih
 

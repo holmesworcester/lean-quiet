@@ -27,16 +27,30 @@ def certifyDB (ops : List Op) (o : Op) (f : Fact) : Option (PLift (V ed25519 (ru
 Bob's request. -/
 def pending : List Op := [r, invitation, requestB]
 
+/-- Alice's ephemeral secret for her wrap to Bob. -/
+def eskA : ByteArray := (Bytes.digest "vacuity-alice-esk".toUTF8).1
+
+/-- The store before Alice approves, holding her copy of the community's
+key (a local op, as `found` writes it). -/
+def keyed : List Op := pending ++ [contentKey c communityKey.1]
+
 /-- Alice's approval write over a store, as the intent runs it. -/
-def approvalWrite (ops : List Op) : Write := (approveReq c requestB.id c alice).eval (run ops)
+def approvalWrite (ops : List Op) (esk : ByteArray := .empty) : Write :=
+  (approveReq c requestB.id c alice esk).eval (run ops)
+
+def okB := approve c requestB.id c alice
+def admB := admit c requestB.id okB.id
 
 /-- `approveReq_wrap_admits` applied to Alice's actual approval of Bob's
-request over the real store: unless her write is the bare approval, it
-is her approval, then the admission citing exactly it, then the rest. -/
-def wrapAdmits (ops : List Op) : Option (PLift (∃ rest, (approvalWrite ops).ops =
-    approve c requestB.id c alice :: admit c requestB.id (approve c requestB.id c alice).id :: rest)) :=
-  if h : (approvalWrite ops).ops = [approve c requestB.id c alice] then none
-  else some ⟨(Engine.View.always_eval (run ops) (approveReq_wrap_admits c requestB.id c alice .empty)).resolve_left h⟩
+request over a real store holding the community's key: the write is
+neither the bare approval nor approval and admission alone, so it is her
+approval, the admission citing it, and her wrap of the key `currentKey`
+reads (the law's third case). -/
+def wrapAdmits : Option (PLift (∃ k esk' e, (currentKey c).eval (run keyed) = some k ∧
+    (approvalWrite keyed eskA).ops = [okB, admB, wrapKey c c admB.id alice k esk' e])) :=
+  if h1 : (approvalWrite keyed eskA).ops = [okB] then none
+  else if h2 : (approvalWrite keyed eskA).ops = [okB, admB] then none
+  else some ⟨((approveReq_wrap_admits (run keyed) c requestB.id c alice eskA).resolve_left h1).resolve_left h2⟩
 
 def connectIff := if hq : (run before).queue = [] then
   some (PLift.up (connect_iff (runInv before) hq c (keyOf bob))) else none
@@ -62,7 +76,7 @@ else none
 def cut : Option (PLift (Cut ed25519 (run after).ops c bob.pk)) := do
   let ⟨ha⟩ ← certifyDB after admission bobFact
   let ⟨hr⟩ ← certifyDB after removeB (.removal c requestB.id c)
-  pure ⟨requestB.id, keyOf bob, ⟨admission.id, ha⟩, ⟨removeB.id, c, hr⟩⟩
+  pure ⟨requestB.id, keyOf bob, ⟨admission.id, _, ha⟩, ⟨removeB.id, c, hr⟩⟩
 
 def cutConsented := applyLaw cut cut_consented
 
@@ -72,9 +86,9 @@ theorem nodeOnlyBob (hq : (run after).queue = [])
     (rows : (eval (run after) (admission.byKey.query [c, keyOf bob])).rows = nodeRows)
     (u : Id) (d : Key) (ha : Admitted ed25519 (run after).ops c u d (keyOf bob)) :
     u = requestB.id ∧ d = bob.pk := by
-  obtain ⟨y, hv⟩ := ha
+  obtain ⟨y, k, hv⟩ := ha
   obtain ⟨p, hp⟩ := (exists_row (runInv after) hq (by simp [rels]) [c, keyOf bob]
-    (.admission c u d (keyOf bob))).2 ⟨y,hv,byKey_args.2 ⟨u,d,rfl⟩⟩
+    (.admission c u d (keyOf bob) k)).2 ⟨y,hv,byKey_args.2 ⟨u,d,k,rfl⟩⟩
   rw [rows] at hp
   simp only [nodeRows, bobFact, List.mem_singleton, Prod.mk.injEq, Fact.admission.injEq] at hp
   exact ⟨hp.2.2.1, hp.2.2.2.1⟩
@@ -95,7 +109,7 @@ def removalCutsOff := do
     if rows : (eval (run after) (admission.byKey.query [c, keyOf bob])).rows = nodeRows then
       return PLift.up (removal_cuts_off (runInv after) hq
         (show Removed ed25519 (run after).ops c requestB.id from ⟨removeB.id,c,hr⟩)
-        (fun u d had => ⟨keyOf bob, admission.id, (nodeOnlyBob hq rows u d had).2 ▸ ha⟩))
+        (fun u d had => ⟨keyOf bob, admission.id, keyId, (nodeOnlyBob hq rows u d had).2 ▸ ha⟩))
     else none
   else none
 
@@ -181,13 +195,13 @@ def rejoined := after ++ [requestC,approvalC,admissionC]
 def newDeviceTrusted := do
   let ⟨ha⟩ ← certifyDB rejoined admission bobFact
   let ⟨hr⟩ ← certifyDB rejoined removeB (.removal c requestB.id c)
-  let ⟨hc⟩ ← certifyDB rejoined admissionC (.admission c requestC.id carol.pk (keyOf bob))
+  let ⟨hc⟩ ← certifyDB rejoined admissionC (.admission c requestC.id carol.pk (keyOf bob) keyId)
   if hq : (run rejoined).queue = [] then
     if hl : (deviceLive c carol.pk).eval (run rejoined) = true then
       return PLift.up (new_device_trusted (runInv rejoined) hq
-        (show Admitted ed25519 (run rejoined).ops c requestB.id bob.pk (keyOf bob) from ⟨admission.id,ha⟩)
+        (show Admitted ed25519 (run rejoined).ops c requestB.id bob.pk (keyOf bob) from ⟨admission.id,_,ha⟩)
         (show Removed ed25519 (run rejoined).ops c requestB.id from ⟨removeB.id,c,hr⟩)
-        (show Admitted ed25519 (run rejoined).ops c requestC.id carol.pk (keyOf bob) from ⟨admissionC.id,hc⟩)
+        (show Admitted ed25519 (run rejoined).ops c requestC.id carol.pk (keyOf bob) from ⟨admissionC.id,_,hc⟩)
         ((deviceLive_iff (runInv rejoined) hq c carol.pk).1 hl))
     else none
   else none
@@ -223,8 +237,10 @@ def main : IO UInt32 := do
   t.ok "Net.allowPeer_iff on real signed community" netAllowPeer.isSome
   t.ok "Net.allowPeer_settles from actual loaded ops" netAllowSettles.isSome
   t.ok "connect_iff with admitted Bob" connectIff.isSome
-  t.ok "approveReq_wrap_admits: Alice's approval of Bob's pending request writes the admission citing it"
-    (wrapAdmits pending).isSome
+  t.ok "approveReq_wrap_admits: Alice's approval of Bob's request writes the admission and her wrap of the community key"
+    wrapAdmits.isSome
+  t.ok "approveReq_wrap_admits control: without the community key there is no wrap"
+    (decide ((approvalWrite pending eskA).ops = [okB, admB]))
   t.ok "approveReq_wrap_admits control: without the request the write is the bare approval"
     (decide ((approvalWrite [r, invitation]).ops = [approve c requestB.id c alice]))
   t.ok "deviceLive_iff with admitted Bob" deviceLiveIff.isSome

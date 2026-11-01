@@ -152,7 +152,7 @@ def displayAgreement := do
         (Or.inl ⟨_, _, _, _, 1, 29880000, none, hxv', by decide +kernel, rfl⟩)
         (Or.inl ⟨_, _, _, _, 2, 1, none, hyv', by decide +kernel, rfl⟩)
         (Or.inl ⟨1, 29880000, (by
-          obtain ⟨o, sig, _, _, ho, hb, _⟩ := message_authorized hxv
+          obtain ⟨o, sig, _, _, _, ho, hb, _⟩ := message_authorized hxv
           exact ⟨o, _, _, sig, ho, hb⟩), by decide +kernel⟩))
     else none
   else none

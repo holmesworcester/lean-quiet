@@ -59,7 +59,7 @@ def main (args : List String) : IO UInt32 := do
   -- Phase 1: found, invite, request, approve and admit (every request
   -- needs an approval: the founder approves alice, bob, carol and the
   -- link), grant, post.
-  let r := root f1 (keyOf f1)
+  let r := root f1 (keyOf f1) "k1".toUTF8
   let c := r.id
   let invA := invite c c f1 (bearer "a").pk false
   let invB := invite c c f1 (bearer "b").pk false
@@ -145,7 +145,7 @@ def main (args : List String) : IO UInt32 := do
   let dial1 ← run (dialed c)
   t.ok "dials every member device, and nobody else"
     (dial1.length == 5 && [f1, f2, a1, b1, c1].all fun d => dial1.contains d.pk)
-  t.ok "a fact is read by its own key" ((← run (getFact joinA.id)) == some (.admission c reqA.id a1.pk (keyOf a1)))
+  t.ok "a fact is read by its own key" ((← run (getFact joinA.id)) == some (.admission c reqA.id a1.pk (keyOf a1) "k1".toUTF8))
   t.ok "a pending request has its own key too" ((← run (getFact reqD.id)) != none)
   t.ok "an Invalid op has no row under its key" ((← run (getFact sneak.id)) == none)
 

@@ -99,7 +99,7 @@ def main (args : List String) : IO UInt32 := do
   let kA := Bytes.digest "Acme's content key".toUTF8
   let nkA := Bytes.digest "node A".toUTF8
   let w := (found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (Bytes.digest "esk 1".toUTF8) nkA).eval DB.empty
-  let c := (root dA (cryptoSeal.pub nkA)).id
+  let c := (root dA (cryptoSeal.pub nkA) (kidOf cryptoSeal kA)).id
   -- A file whose ciphertext (the plaintext and a 16-byte tag) is exactly
   -- 100 slices.
   let plain := ByteArray.mk ((Array.range (100 * Merkle.sliceSize - 16)).map

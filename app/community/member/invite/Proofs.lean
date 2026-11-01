@@ -8,19 +8,19 @@ open Engine Codec
 
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
     {k : Key} {l : Bool} (h : check C o b fs = some (.invitation c issuer k l)) :
-    ∃ s d0 e0 d e, b = .invite k l s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
+    ∃ s d0 e0 k0 d e ka, b = .invite k l s ∧ fs = [.admission c c d0 e0 k0, .admission c issuer d e ka] ∧
       o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r a
-  rcases b with ⟨k', l', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c', u, d, e⟩
+  rcases b with ⟨k', l', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c', u, d, e, ka⟩
   simp only [Invitation.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofInvitation.injEq, Invitation.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, h5⟩ := hc
-    exact ⟨_, _, _, _, _, rfl, rfl, h1, h5⟩
+    exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h5⟩
   · simp at h
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -28,12 +28,12 @@ variable {C : Crypto} {ops : Id → Option Op}
 /-- Every invitation was signed by a device admitted into its issuer. -/
 theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool}
     (h : V C ops i (.invitation c issuer k l)) :
-    ∃ o b s z d e, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
-      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true := by
+    ∃ o b s z d e k, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
+      V C ops z (.admission c issuer d e k) ∧ C.verify d (signed o b) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, k0, d, e, k, rfl, rfl, _, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
-  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs⟩
+  exact ⟨o, _, s, z, d, e, k, hx, hb, hz, hs⟩
 
 /-- **Nobody is admitted without a member's approval.** Every admission
 is the founder's (the root itself), or its admit cites exactly a Valid
@@ -41,19 +41,19 @@ request for that very device and one Valid approval of it. The approval
 was signed by a device admitted into the approving user, other than the
 requesting device, and for a device link the approving user is the
 request's own. The bearer key alone admits nobody. -/
-theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
-    (h : V C ops y (.admission c u d e)) :
+theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e kid : Key}
+    (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
-    ∃ o r x a l da ea ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
-      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) ∧ da ≠ d ∧
+    ∃ o r x a l da ea ka ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
+      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea ka) ∧ da ≠ d ∧
       (l = true → a = u) := by
   rcases admission_approved hk h with h | ⟨o, r, x, a, l, hy, _, hreq, hr, hx⟩
   · exact Or.inl h
-  · obtain ⟨_, _, ra, u', d', e', l', da, ea, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+  · obtain ⟨_, _, ra, u', d', e', l', da, ea, ka, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
     have := spec_det hr hr'
     simp only [Verdict.valid.injEq, Fact.request.injEq] at this
     obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
-    exact Or.inr ⟨o, r, x, a, l, da, ea, ra, hy, hreq, hr, hx, hra, hd, hl⟩
+    exact Or.inr ⟨o, r, x, a, l, da, ea, ka, ra, hy, hreq, hr, hx, hra, hd, hl⟩
 open Engine Codec
 namespace Base62
 

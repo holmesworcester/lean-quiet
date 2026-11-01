@@ -334,7 +334,7 @@ control Engine.Mutants.rawNotified = Engine.Mutants.σ
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
-todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
+todo Community.recipients A wrap's recipient is now an admission's node key (`wrap_signed`), but no wrap writer reads `recipients`: an approval wraps to the one device it admits, not yet among them. A catch-up that wraps the community key to each live recipient holding no wrap would read it, and give a key to a member whose approver held none.
 todo Community.members = Community.recipients
 todo Net.Scene.approval Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement.
 todo Net.Scene.init = Net.Scene.approval

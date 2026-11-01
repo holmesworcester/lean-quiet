@@ -497,6 +497,9 @@ lean_lib Vacuity where
 lean_exe vacuity_identity_trust where
   root := `tests.vacuity.IdentityTrustMain
 
+lean_exe vacuity_community_key where
+  root := `tests.vacuity.CommunityKeyMain
+
 lean_exe vacuity_core where
   root := `tests.vacuity.CoreRuntimeMain
 

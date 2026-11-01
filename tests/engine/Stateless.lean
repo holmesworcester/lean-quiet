@@ -16,7 +16,7 @@ def fam := Community.family ed25519
 
 def history (count : Nat) : List Op × Id := Id.run do
   let d := Device.named "closure-founder"
-  let r := root d (Tests.keyOf d)
+  let r := root d (Tests.keyOf d) "k".toUTF8
   let old := (List.range count).map fun i => post r.id r.id d "k".toUTF8 s!"old-{i}".toUTF8 i (100 + i)
   let recent := old.zipIdx |>.map fun (o, i) => react r.id r.id o.id d "+1".toUTF8 (172800000 + i)
   return (r :: old ++ recent, r.id)

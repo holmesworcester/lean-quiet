@@ -62,7 +62,7 @@ the rest cite random or never-arriving ids, or carry the wrong
 signature or none. -/
 def workload (seed : Nat) (n : Nat) : List Op := Id.run do
   let devs := (List.range 8).map fun i => Device.named s!"dev-{seed}-{i}"
-  let r := root devs[0]! (keyOf devs[0]!)
+  let r := root devs[0]! (keyOf devs[0]!) "k".toUTF8
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut ids : Array Id := #[c]
@@ -122,7 +122,9 @@ def workload (seed : Nat) (n : Nat) : List Op := Id.run do
         post c a (signer dv) "k".toUTF8 s!"m{i}".toUTF8 (if w2 == 7 then countCap + k2 else k2 % 50) k3
       | 6 =>
         -- now and then a receipt, of any op (Valid only of a saturated post)
-        if w1 ≥ 6 then receipt (anyId k1) k2 else wrap c "k".toUTF8 (keyOf d) "box".toUTF8
+        if w1 ≥ 6 then receipt (anyId k1) k2 else
+        let (a, dv) := adm k1
+        wrap c a (adm k3).1 (signer dv) "box".toUTF8
       | _ =>
         if w2 < 4 then mkOp [c, anyId k1] (.post "k".toUTF8 "unsigned".toUTF8 0 0 .empty)
         else Op.make 9 [anyId k1] s!"junk-{seed}-{i}".toUTF8

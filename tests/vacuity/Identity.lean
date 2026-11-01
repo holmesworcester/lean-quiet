@@ -117,7 +117,7 @@ def mutualRemoval := do
 def validStays := applyLaw (certify before message messageFact)
   (valid_stays (table_append_extends before [removeB,removeA]))
 
-def laterMessage := post c c alice "content-key-1".toUTF8 "A later signed op".toUTF8 2 29880002
+def laterMessage := post c c alice keyId "A later signed op".toUTF8 2 29880002
 
 def removedStays := applyLaw (certify after removeB (.removal c requestB.id c))
   (fun h => removed_stays (table_append_extends after [laterMessage])
@@ -148,7 +148,7 @@ def main : IO UInt32 := do
   t.ok "removals do not erase Bob's history" (certify after message messageFact).isSome
   t.ok "actual extension has a new op" (table after laterMessage.id == none)
   t.ok "real content and counter" (!message.body.isEmpty && messageFact != rootFact)
-  let forged := post c admission.id mallory "content-key-1".toUTF8 "I am Bob".toUTF8 2 29880001
+  let forged := post c admission.id mallory keyId "I am Bob".toUTF8 2 29880001
   let bare := mkOp [c, requestB.id] .admit
   let selfApproval := approve c requestB.id admission.id bob
   let duplicateAdmission := mkOp [c, requestB.id, approval.id, approval.id] .admit

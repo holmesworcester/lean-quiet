@@ -19,8 +19,8 @@ def alice := Device.ofSeed seedA
 def bob := Device.ofSeed seedB
 def keyA := cryptoSeal.pub nkA
 def keyB := cryptoSeal.pub nkB
-def c := (root alice keyA).id
 def content := Bytes.digest "fair-witness/community-key".toUTF8
+def c := (root alice keyA (kidOf cryptoSeal content)).id
 
 def view {α} (w : World) (s : Connection.Execution.Side) (v : View Community.Fact α) : α :=
   ((v.liftL : View Connection.F α).run : M α) (w.peer s).memory |>.1
