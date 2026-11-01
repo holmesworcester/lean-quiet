@@ -2930,7 +2930,19 @@ interpreter once. These are transaction reads, never UI subscriptions. -/
 
 def transaction (action : Reader.RM α) : M α := do
   let s ← get
-  let (a, r) ← action.run { rd := s.rd, out := s.out, known := s.comms }
+  -- One snapshot, whoever calls: a savepoint opens a read transaction on
+  -- the frame's connection when none is open (a command run outside a
+  -- frame), and nests in the frame's when one is. Without it, each read
+  -- outside a frame saw the store as of that read, and the writer commits
+  -- between them: Accepted.read once found its own admission in one list
+  -- and not in the next, and told a founder "You're in."
+  s.rd.exec "SAVEPOINT one_shot"
+  let (a, r) ← try action.run { rd := s.rd, out := s.out, known := s.comms }
+    catch e => do
+      s.rd.exec "ROLLBACK TO one_shot"
+      s.rd.exec "RELEASE one_shot"
+      throw e
+  s.rd.exec "RELEASE one_shot"
   modify fun s => { s with intentReads := s.intentReads + r.live.reads }
   return a
 
