@@ -14,6 +14,17 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
+# Its checks are tests/app/parts.txt: stage, part, command.
+#   tests/app/run.sh                every stage, in order
+#   tests/app/run.sh --part P [C]   just part P (its case C), as ci/local.sh
+#                                   --full runs each in its own copy
+#   tests/app/run.sh --cases P      part P's cases, if it has them
+parts=tests/app/parts.txt
+if [ "${1:-}" = --cases ]; then
+  cmd=$(awk -F'\t' -v n="$2" '$2 == n { print $3 }' "$parts")
+  [ -n "$cmd" ] || { echo "no app part $2" >&2; exit 2; }
+  exec bash -c "$cmd --list"
+fi
 # Resume a failed stage during local iteration. The default always runs all
 # stages; the explicit resume is printed so it cannot look like a full run.
 start=${APP_TEST_FROM:-fonts}
@@ -44,78 +55,19 @@ stage() {
 [ -f assets/font.bin ] || tools/fetch_assets.sh
 tools/noto_assets.sh
 lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux
-if stage fonts; then
-tests/app/noto.sh
-bash tests/app/font_contract.sh
-mise run host:cjk
-tests/app/bidi.sh
-tests/app/bidi_host.sh
-fi
-if stage input; then
-mise run host:twin-demo
-mise run host:seam
-mise run host:seam-negative
-mise run host:slide
-mise run host:translate
-fi
-if stage network; then
-mise run host:write-admission
-.lake/build/bin/inkless
-tests/app/inkless_negative.sh
-.lake/build/bin/nodequeue
-.lake/build/bin/host "${MESSAGES:-500}" out/host
-.lake/build/bin/two_nodes out/two
-if [ "${SKIP_TCP:-0}" != 1 ]; then
-  mise run host:net-join
-  .lake/build/bin/cross out/cross
-else
-  echo "SKIP net_join cross (TCP sandbox; both built)"
-fi
-.lake/build/bin/arrival out/arrival
-if [ "${SKIP_TCP:-0}" != 1 ]; then .lake/build/bin/attach out/attach; else echo "SKIP attach (TCP sandbox; built)"; fi
-fi
-if stage desktop; then
-# the desktop root without a window, then the Linux shell under Xvfb
-mise run host:desktop
-mise run host:photo
-if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:e2e; mise run linux:links
-else platforms/linux/build.sh && echo "SKIP linux e2e and links (no local X sockets; the shell built)"; fi
-fi
-if stage navigation; then
-# navigation: each mutant of a rule must fail its law (app/app/NavLaws)
-tests/app/nav_negative.sh
-.lake/build/bin/pic_retry out/pic_retry
-tests/app/pic_retry_negative.sh
-.lake/build/bin/ux out/ux
-.lake/build/bin/ux out/ux-queued queued
-tests/app/ux_negative.sh
-tests/shipped/check.sh app
-fi
-if stage lifecycle; then
-mise run host:lifecycle
-mise run host:reader-request-negative
-mise run host:lifecycle-node
-mise run host:lifecycle-node-negative
-fi
-
-if stage appearance; then
-mise run host:theme-restart
-mise run host:theme-live
-mise run host:theme-negative
-fi
-
-if stage safety; then
-mise run host:safe
-mise run host:safe-negative
-mise run host:desktop-negative
-if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:links-negative
-else echo "SKIP linux links negative controls (no local X sockets)"; fi
-fi
-
-if stage components; then
-mise run test:hold-cache
-mise run host:mobile-switcher
-mise run test:people-reader
-mise run host:component-demand
-mise run host:component-demand-negative
-fi
+# One part, timed; a case, if given, goes to its command.
+part() {
+  local name=$1 cmd t0
+  shift
+  cmd=$(awk -F'\t' -v n="$name" '$2 == n { print $3 }' "$parts")
+  [ -n "$cmd" ] || { echo "no app part $name" >&2; return 2; }
+  echo "app part: $name${1:+ ($1)}"
+  t0=$(date +%s)
+  if [ $# -gt 0 ]; then bash -c "$cmd \"\$@\"" app-part "$@"; else bash -c "$cmd"; fi
+  echo "app part: $name${1:+ ($1)} ok ($(( $(date +%s) - t0 )) s)"
+}
+if [ "${1:-}" = --part ]; then shift; part "$@"; exit $?; fi
+for st in fonts input network desktop navigation lifecycle appearance safety components; do
+  stage "$st" || continue
+  for p in $(awk -F'\t' -v s="$st" '$1 == s { print $2 }' "$parts"); do part "$p"; done
+done

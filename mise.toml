@@ -683,6 +683,10 @@ description = "The app's programs on the headless twin, each in one process: ses
 depends = ["crypto"]
 run = "tests/app/headless.sh"
 
+[tasks."ci:nightly"]
+description = "The nightly release run: main's head in its own worktree, ci/local.sh --full -j 4; summary and logs in $TMPDIR/lean-quiet-nightly/<date> (cron 30 3 * * *)"
+run = "ci/nightly.sh"
+
 [tasks."ci:full"]
 description = "The gate, then every other part: mutants, TCP, X, qr, mdns, net, zoom, site, workspace (nightly, and before a release)"
 run = "ci/local.sh --full"
