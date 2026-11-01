@@ -15,10 +15,10 @@ def batches (seed : Nat) : List (List Op) :=
   let ops := workload seed 2000
   (List.range ((ops.length + 9) / 10)).map fun i => (ops.drop (10 * i)).take 10
 
+/-- The model after these batches: each the capped write turn SQLite's
+`receive` runs (`run_turnCapped`). -/
 def modelAfter (fam : Family Fact) (bs : List (List Op)) : DB Fact :=
-  bs.foldl (fun s b =>
-    let s := b.foldl (fun s o => ingestS o s) s
-    drainS fam (20 * b.length + 20) s) DB.empty
+  bs.foldl (fun s b => turnCappedS fam drainCap b s) DB.empty
 
 def main (args : List String) : IO UInt32 := do
   let fam := family ed25519

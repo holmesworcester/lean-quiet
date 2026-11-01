@@ -98,8 +98,10 @@ def fuel (s : DB F) : Nat :=
 
 def rest (fam : Family F) (s : DB F) : DB F := drainS fam (fuel s) s
 
+/-- A write turn on the model: the capped turn SQLite's `receive` runs
+(`run_turnCapped`). -/
 def recvM (fam : Family F) (ops : List Op) (s : DB F) : DB F :=
-  rest fam (ops.foldl (fun s o => ingestS o s) s)
+  turnCappedS fam drainCap ops s
 
 end
 
@@ -225,7 +227,7 @@ def differential (t : Checks) (dir : String) (seed : Nat) (st : Stats) : IO Stat
     (scrubSql (F := ByteArray) true).run db
     t.ok s!"seed {seed} turn {turn}: VACUUM and the checkpoint change no row" ((← snapshot db) == tx)
     let undrained := purgeS fam targets pre
-    m := rest fam undrained
+    m := purgeCappedS fam drainCap targets pre
     let tag := s!"seed {seed} turn {turn} purge"
     sameTables t tag db m ids0
     st := { st with purges := st.purges + 1, purged := st.purged + gone.eraseDups.length,
