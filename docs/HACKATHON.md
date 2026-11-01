@@ -27,7 +27,7 @@ line. [ci/proof-links.py](../ci/proof-links.py) writes that line from
 the code (`mise run readme:links`).
 
 <!-- hackathon:begin -->
-Computed by `ci/hackathon.py` from git alone, at [`91c27abb3b75`](https://github.com/holmesworcester/lean-quiet/commit/91c27abb3b75b7f0ec6c4f086cb4872806a21000) (committed 2026-11-01 14:48 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
+Computed by `ci/hackathon.py` from git alone, at [`9683fcca8bf3`](https://github.com/holmesworcester/lean-quiet/commit/9683fcca8bf3615a05d849e11d37bd35144dc164) (committed 2026-11-01 14:51 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
 
 | | Base | Head | Change |
 |---|--:|--:|--:|
@@ -48,8 +48,11 @@ Computed by `ci/hackathon.py` from git alone, at [`91c27abb3b75`](https://github
 - **Vacuity** at the head: of 747 declarations the README links, 517 have a concrete input checked by Lean's kernel and 183 one checked by running the code; 31 are conditional on a named assumption; 16 are pending: `converge`, `offline`, `grows`, `managed_nil`, `owes_queued_start`, `ix_covers_start`, `deliver_wants`, `deliver_queues`, `deliver_takes`, `onSealed_wants`, `onSealed_queues`, `onSealed_takes`, `onHold_wants`, `recv_asked`, `recv_owed`, `node_serve`.
 - **docs/CAUGHT.md** at the base: absent.
 - **docs/CAUGHT.md** at the head: "Caught by a law": 3 (Back to the switcher lost its backdrop (566e566, 2026-10-31); A replayed handshake retired a live session (found 2026-10-28; fix not on main); A crash kept a session's keys in the store for good (found 2026-10-31)). "Found otherwise, pinned by a law afterwards": 6, of which 3 say they are pinned by a test, not yet a law.
-- **Commits** since the base: 304, of which 66 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
-- **Files changed** since the base: 1,124 (+96,833 lines, -20,725 lines).
+- **Lean toolchain** (lean-toolchain): base v4.34.0; head v4.34.0.
+- **Build and judging files** at the base: no Makefile; no comparator.json; no LICENSE file.
+- **Build and judging files** at the head: no Makefile; no comparator.json; no LICENSE file.
+- **Commits** since the base: 306, of which 66 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
+- **Files changed** since the base: 1,124 (+96,854 lines, -20,725 lines).
 <!-- hackathon:end -->
 
 - A law is **about running code** when every definition its statement
