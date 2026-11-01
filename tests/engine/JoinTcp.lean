@@ -74,9 +74,9 @@ structure Peer where
   path : String
   run : Runner
 
-/-- The rooms hook with its notices dropped: synced rooms only. -/
+/-- The rooms hook with its notices dropped: synced and taken rooms only. -/
 def quietRooms (cid : Id) : SqlM F (List Room) := do
-  return (Room.syncs (← (rooms cid : SqlM F _))).map .sync
+  return (← (rooms cid : SqlM F _)).filter fun | .notice .. => false | _ => true
 
 /-- The sessions as they were before they read the rooms view: kept, one
 per peer, whatever they carry; and the rest retired. -/

@@ -174,7 +174,8 @@ theorem start_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix 
     simp only [Msg.offers, List.mem_flatMap, List.mem_map, Index.opening_fun] at hi
     obtain ⟨cl, ⟨q, _, rfl⟩, hi⟩ := hi
     obtain ⟨a, ha, rfl⟩ := opening_offers i hi
-    exact shown_item fam hx (List.mem_filter.mp hr').1 ha
+    obtain ⟨hs, ha⟩ := Conn.view_items ha
+    exact shown_item fam hx ((Engine.has_iff _ _).1 hs) ha
 
 /-- The responder's asks name rooms and offer no id. -/
 theorem ask_keeps (cfg : Config) {s : DB F} (c : Conn) (now : Nat) :
@@ -196,7 +197,7 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
     (c.onRbsr cfg ix r k cs now).conn.rooms = c.rooms ∧
       ∀ o ∈ (c.onRbsr cfg ix r k cs now).send, Discloses fam s c o := by
   unfold Conn.onRbsr
-  by_cases h1 : (!has c.rooms r) = true
+  by_cases h1 : (!has c.carried r) = true
   · rw [ite_eq_left h1]
     refine ⟨rfl, ?_⟩
     intro o ho
@@ -207,19 +208,18 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
   · rw [ite_eq_left stale]
     exact ⟨rfl, by simp⟩
   rw [ite_eq_right stale]
-  have hr : r ∈ c.rooms := by
-    simp only [Bool.not_eq_true', Bool.not_eq_false] at h1; exact (Engine.has_iff _ _).1 h1
   dsimp only
   by_cases h2 : cs.isEmpty = true
   · rw [ite_eq_left h2]; exact ⟨rfl, by simp⟩
   rw [ite_eq_right h2, Index.answer_fun]
-  generalize hos : cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r)) = outs
+  generalize hos : cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params ((Conn.view ix c r).items r)) = outs
   have hout : ∀ o ∈ outs, ∀ i ∈ o.offers, Shown fam s c i := by
     rw [← hos]
     intro o ho i hi
     obtain ⟨cl, _, ho⟩ := List.mem_flatMap.1 ho
     obtain ⟨a, ha, rfl⟩ := answer_offers ho i hi
-    exact shown_item fam hx hr ha
+    obtain ⟨hs, ha⟩ := Conn.view_items ha
+    exact shown_item fam hx ((Engine.has_iff _ _).1 hs) ha
   refine ⟨?_, ?_⟩
   · split <;> rfl
   · intro o hm
@@ -327,7 +327,7 @@ def wantStep (s : DB F) (c : Conn) (r : Id) (want : List Id) (i : Id) : List Id 
 /-- What `onHold` does, as data. -/
 theorem onHold_apply (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     (c.onHold fam cfg r ids : HeldM F Step) h =
-      (if (!has c.rooms r) = true then { conn := c } else
+      (if (!has c.carried r) = true then { conn := c } else
         if ids.length > cfg.maxIds then { conn := c } else
         let missing := ids.foldl (wantStep fam h.db c r) []
         let want := admitAsks cfg.maxKnown c.asked missing.reverse
@@ -336,11 +336,11 @@ theorem onHold_apply (cfg : Config) (c : Conn) (r : Id) (ids : List Id) (h : Hel
             known := (ids.filter fun i => !missing.contains i || want.contains i).foldl (remember cfg.maxKnown) c.known
             asked := want.foldl (·.insert ·) c.asked
             askTime := want.foldl (fun ts i => ts.insert i c.heard) c.askTime
-            short := if deferred cfg.maxKnown c.asked missing.reverse then noteRoom c.rooms.length c.short r
+            short := if deferred cfg.maxKnown c.asked missing.reverse then noteRoom c.carried.length c.short r
               else c.short },
           send := chunks cfg want .want }, h) := by
   unfold Conn.onHold
-  by_cases h0 : (!has c.rooms r) = true
+  by_cases h0 : (!has c.carried r) = true
   · rw [ite_eq_left h0, ite_eq_left h0]; rfl
   · rw [ite_eq_right h0, ite_eq_right h0]
     by_cases hm : ids.length > cfg.maxIds
@@ -601,17 +601,18 @@ theorem heldIn_local {rooms : List Id} {s t : DB F} (ha : RoomsAgree fam rooms s
         · have := (ha i p r hr hp).2 ht; rw [hs] at this; cases this; exact absurd hp ho
         · simp [ho, hp]
 
-/-- A have is answered from the connection's rooms only: two stores
-that hold the same ops of its rooms give the same reply. -/
+/-- A have is answered from the rooms the connection carries only (shown
+or taken): two stores that hold the same ops of those rooms give the
+same reply. -/
 theorem onHold_local (cfg : Config) (c : Conn) (r : Id) (ids : List Id) {h₁ h₂ : Held F}
-    (ha : RoomsAgree fam c.rooms h₁.db h₂.db) :
+    (ha : RoomsAgree fam c.carried h₁.db h₂.db) :
     ((c.onHold fam cfg r ids : HeldM F Step) h₁).1 = ((c.onHold fam cfg r ids : HeldM F Step) h₂).1 := by
   rw [onHold_apply, onHold_apply]
   dsimp only
-  by_cases h0 : (!has c.rooms r) = true
+  by_cases h0 : (!has c.carried r) = true
   · rw [ite_eq_left h0, ite_eq_left h0]
   · rw [ite_eq_right h0, ite_eq_right h0]
-    have hr : r ∈ c.rooms := by
+    have hr : r ∈ c.carried := by
       simp only [Bool.not_eq_true', Bool.not_eq_false] at h0; exact (Engine.has_iff _ _).1 h0
     have e : wantStep fam h₁.db c r = wantStep fam h₂.db c r := by
       funext w i; unfold wantStep; rw [heldIn_local fam ha hr i]
@@ -620,11 +621,13 @@ theorem onHold_local (cfg : Config) (c : Conn) (r : Id) (ids : List Id) {h₁ h�
 /-- **A peer's haves reveal nothing outside its rooms.** Whatever bytes
 of a have (for any room, naming any ids) a peer sends, the connection's
 reply is the same over any two stores that hold the same ops of the
-connection's rooms, and it changes neither. So a peer cannot learn
-whether this node holds an op of another room, or a local op. -/
+rooms the connection carries, shown or taken, and it changes neither.
+So a peer cannot learn whether this node holds an op of another room,
+or a local op. (Of a taken room, the reply's wants say which of the
+offered ids this node lacks: docs/TAKE-ROOM.md.) -/
 theorem hold_reply_local (cfg : Config) (ix : Index) (c : Conn) {bytes : ByteArray} (now : Nat)
     {o : Op} {r : Id} {ids : List Id} (hd : Op.decode bytes = some o) (hm : Msg.ofOp o = some (.hold r ids))
-    {h₁ h₂ : Held F} (ha : RoomsAgree fam c.rooms h₁.db h₂.db) :
+    {h₁ h₂ : Held F} (ha : RoomsAgree fam c.carried h₁.db h₂.db) :
     ((c.recv fam cfg ix bytes now : HeldM F Step) h₁).1 = ((c.recv fam cfg ix bytes now : HeldM F Step) h₂).1 ∧
       ((c.recv fam cfg ix bytes now : HeldM F Step) h₁).2 = h₁ ∧
       ((c.recv fam cfg ix bytes now : HeldM F Step) h₂).2 = h₂ := by
@@ -633,7 +636,7 @@ theorem hold_reply_local (cfg : Config) (ix : Index) (c : Conn) {bytes : ByteArr
   dsimp only
   rw [hm]
   dsimp only
-  have ha' : RoomsAgree fam ({ c with heard := now } : Conn).rooms h₁.db h₂.db := ha
+  have ha' : RoomsAgree fam ({ c with heard := now } : Conn).carried h₁.db h₂.db := ha
   split
   · exact ⟨rfl, rfl, rfl⟩
   refine ⟨?_, ?_, ?_⟩

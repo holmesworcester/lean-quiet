@@ -125,11 +125,12 @@ theorem keepalive_runs (dialer : Bool) :
       Conn.retryIds, Conn.start, Conn.ask, holdsOf, chunks, pieceIds, empty_filter] <;>
       split <;> simp [pieceIds]
 
-/-- An unshown room gets an empty end and leaves connection state alone. -/
+/-- A room neither shown nor taken gets an empty end and leaves
+connection state alone. -/
 theorem unshown_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim)
-    (hr : has c.rooms r = false) :
+    (hr : has c.rooms r = false) (ht : has c.takes r = false) :
     c.onRbsr cfg ix r k cs now = { conn := c, send := [(Msg.rbsr r k []).op] } := by
-  simp [Conn.onRbsr, hr]
+  simp [Conn.onRbsr, Conn.has_carried_eq, hr, ht]
 
 /-- Any shown room that is due starts, whatever other rooms' rounds are
 doing: the premise names room r only. -/
@@ -138,11 +139,13 @@ theorem room_independent (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
     (Msg.rbsr r (c.round + 1)
       ((window (max c.floor pf)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
       (c.start cfg ix now).send := by
-  have hm : r ∈ c.rooms.filter fun r => c.due cfg r now || c.retake cfg r := List.mem_filter.mpr ⟨hr, due⟩
-  have hne : (c.rooms.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
+  have hm : r ∈ c.carried.filter fun r => c.due cfg r now || c.retake cfg r :=
+    List.mem_filter.mpr ⟨List.mem_append_left _ hr, due⟩
+  have hne : (c.carried.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
     List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
-  simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map, Index.opening_fun]
-  exact ⟨r, hm, rfl⟩
+  have hv : Conn.view ix c r = ix := Conn.view_shown ((Engine.has_iff _ _).2 hr)
+  simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map]
+  exact ⟨r, hm, by rw [hv, Index.opening_fun]⟩
 
 /-- A shown room answers from the live index, whatever other rooms' rounds
 are doing. -/
@@ -152,6 +155,7 @@ theorem uncarried_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (
     (c.onRbsr cfg ix r k cs now).send.head? = some (Msg.rbsr r k
       ((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).filterMap
         fun | .claim x => some x | _ => none)).op := by
-  simp [Conn.onRbsr, hr, hc, fresh]; rfl
+  have hv : Conn.view ix c r = ix := Conn.view_shown hr
+  simp [Conn.onRbsr, Conn.has_carried_eq, hr, hc, fresh, hv]; rfl
 
 end Engine.Sync

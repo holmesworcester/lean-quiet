@@ -18,11 +18,15 @@ namespace Engine.Sync
 open Std
 
 /-- What a connection carries of a room, as its family reads it afresh
-on every step: the room, synced both ways; or a notice, op x of room r
-with its requirement closure, given once and never taken (a removed
-member's node is told its removal, and what it needs to judge it). -/
+on every step: the room, synced both ways; or taken, its ops taken from
+the peer and none of this side's shown (a node not yet let into a
+community learns of its admission from its inviter, and tells it
+nothing); or a notice, op x of room r with its requirement closure,
+given once and never taken (a removed member's node is told its
+removal, and what it needs to judge it). -/
 inductive Room where
   | sync (r : Id)
+  | take (r : Id)
   | notice (r x : Id)
   deriving Inhabited
 
@@ -30,12 +34,21 @@ inductive Room where
 def Room.syncs : List Room → List Id
   | [] => []
   | .sync r :: t => r :: Room.syncs t
+  | .take _ :: t => Room.syncs t
   | .notice .. :: t => Room.syncs t
+
+/-- The rooms taken. -/
+def Room.takes : List Room → List Id
+  | [] => []
+  | .sync _ :: t => Room.takes t
+  | .take r :: t => r :: Room.takes t
+  | .notice .. :: t => Room.takes t
 
 /-- The notices: (room, op). -/
 def Room.notices : List Room → List (Id × Id)
   | [] => []
   | .sync _ :: t => Room.notices t
+  | .take _ :: t => Room.notices t
   | .notice r x :: t => (r, x) :: Room.notices t
 
 @[simp] theorem Room.syncs_sync (l : List Id) : Room.syncs (l.map .sync) = l := by
@@ -44,10 +57,13 @@ def Room.notices : List Room → List (Id × Id)
 @[simp] theorem Room.notices_sync (l : List Id) : Room.notices (l.map .sync) = [] := by
   induction l <;> simp_all [Room.notices]
 
+@[simp] theorem Room.takes_sync (l : List Id) : Room.takes (l.map .sync) = [] := by
+  induction l <;> simp_all [Room.takes]
+
 /-- The connection carrying these rooms, as each step reads them afresh:
-a synced room no longer carried forgets its rounds. -/
+a synced or taken room no longer carried forgets its rounds. -/
 def Conn.carry (c : Conn) (rs : List Room) : Conn :=
-  { c.setRooms (Room.syncs rs) with notices := Room.notices rs }
+  { c.setRooms (Room.syncs rs) (Room.takes rs) with notices := Room.notices rs }
 
 /-- Step g, then step s on g's connection: s's connection, and both
 steps' sends, takes and notice acknowledgments in order. -/

@@ -30,7 +30,9 @@ session) and libquiet's request/vouch/admission:
   names, as long as its ops say nothing about that device yet. The
   responder applies this to the initiator, and the initiator to the
   responder. `allowPeer` has no exception: the link clause belongs to
-  the joiner, and ends at its admission.
+  the joiner, and ends at its admission. A session the link clause
+  alone lets in carries the community taken, not synced: the joiner
+  learns of its admission and sends none of it (docs/TAKE-ROOM.md).
 - **Bootstrap facts are local.** Accepting a community, the pending link
   and the sessions are all node-local, never ops. The wire cannot create
   them. Ops of other communities are dropped.

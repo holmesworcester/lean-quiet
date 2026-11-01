@@ -79,10 +79,10 @@ def oldRetired : SqlM F (List Id) := do
   let k := kept all
   return all.filterMap fun (cid, _) => if k.contains cid then none else some cid
 
-/-- The rooms hook with its notices dropped: synced rooms only. The
+/-- The rooms hook with its notices dropped: synced and taken rooms only. The
 negative control's. -/
 def quietRooms (cid : Id) : SqlM F (List Room) := do
-  return (Room.syncs (← (rooms cid : SqlM F _))).map .sync
+  return (← (rooms cid : SqlM F _)).filter fun | .notice .. => false | _ => true
 
 /-- A peer; with `old`, its sessions are the old ones (`oldSessions`);
 with `quiet`, its rooms hook gives no notices (`quietRooms`). -/

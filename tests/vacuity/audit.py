@@ -28,6 +28,7 @@ RUNNERS = {
     'tests.vacuity.IdentityLifecycle': 'vacuity_identity_lifecycle',
     'tests.vacuity.IdentityFrames': 'vacuity_identity_frames',
     'tests.vacuity.IdentityRejoin': 'vacuity_identity_rejoin',
+    'tests.vacuity.IdentityPreadmit': 'vacuity_identity_preadmit',
     'tests.vacuity.ChatPresentation': 'vacuity_chat_presentation',
     'tests.vacuity.Contracts': 'vacuity_contracts',
     'tests.vacuity.SealAudit': 'vacuity_seal_audit',

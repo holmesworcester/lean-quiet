@@ -77,7 +77,7 @@ theorem noticesNoProbe :
     ((conn.carry [.notice room msg.id] |>.recv fam cfg {} (Msg.hold room [msg.id]).op.bytes 100 : Model Unit Step).run held.db).1.take = [] ∧
     ((conn.carry [.notice room msg.id] |>.recv fam cfg {} (Msg.hold room [msg.id]).op.bytes 100 : Model Unit Step).run held.db).2 = held.db :=
   notice_no_holds fam cfg {} conn [.notice room msg.id] room [msg.id] _ 100 held.db
-    (Op.decode_bytes _) (ofOp_hold _ _) (by simp)
+    (Op.decode_bytes _) (ofOp_hold _ _) (by simp) (by simp)
 
 theorem noticeClosure : msg ∈ ((closureOps fam room cfg.walk [msg.id] [] : Model Unit (List Op)).run held.db).1 :=
   (closure fam held.db room msg.id cfg.walk).2 closureFits _ _ .refl stored rfl
@@ -92,7 +92,7 @@ theorem startsRoom : (Msg.rbsr room (roundConn.round + 1)
 def refused : Conn := { conn with rooms := [] }
 theorem refusesRound : refused.onRbsr cfg ix room 7 [.ids range [msg.id]] 100 =
     { conn := refused, send := [(Msg.rbsr room 7 []).op] } :=
-  unshown_room_answered cfg ix refused room 7 100 [.ids range [msg.id]] rfl
+  unshown_room_answered cfg ix refused room 7 100 [.ids range [msg.id]] rfl rfl
 
 theorem acceptsNewRound : (conn.onRbsr cfg ix room 7 [.ids range [msg.id]] 100).send.head? =
     some (Msg.rbsr room 7

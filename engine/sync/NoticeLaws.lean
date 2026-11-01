@@ -422,11 +422,53 @@ theorem mem_syncs {r : Id} : ∀ {rs : List Room}, r ∈ Room.syncs rs → Room.
     rcases h with rfl | h
     · exact List.mem_cons_self ..
     · exact List.mem_cons_of_mem _ (mem_syncs h)
+  | .take _ :: t, h => List.mem_cons_of_mem _ (mem_syncs (by simpa [Room.syncs] using h))
   | .notice .. :: t, h => List.mem_cons_of_mem _ (mem_syncs (by simpa [Room.syncs] using h))
+
+theorem mem_takes {r : Id} : ∀ {rs : List Room}, r ∈ Room.takes rs → Room.take r ∈ rs
+  | [], h => by cases h
+  | .sync _ :: t, h => List.mem_cons_of_mem _ (mem_takes (by simpa [Room.takes] using h))
+  | .take r' :: t, h => by
+    simp only [Room.takes, List.mem_cons] at h
+    rcases h with rfl | h
+    · exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (mem_takes h)
+  | .notice .. :: t, h => List.mem_cons_of_mem _ (mem_takes (by simpa [Room.takes] using h))
+
+theorem syncs_mem {r : Id} : ∀ {rs : List Room}, Room.sync r ∈ rs → r ∈ Room.syncs rs
+  | [], h => by cases h
+  | .sync r' :: t, h => by
+    rcases List.mem_cons.1 h with e | h
+    · cases e; exact List.mem_cons_self ..
+    · exact List.mem_cons_of_mem _ (syncs_mem h)
+  | .take _ :: t, h => by
+    rcases List.mem_cons.1 h with e | h
+    · cases e
+    · show r ∈ Room.syncs t; exact syncs_mem h
+  | .notice .. :: t, h => by
+    rcases List.mem_cons.1 h with e | h
+    · cases e
+    · show r ∈ Room.syncs t; exact syncs_mem h
+
+/-- The rooms a connection carrying rs takes: rs's take rooms it does
+not sync. -/
+theorem carry_takes (c : Conn) (rs : List Room) :
+    (c.carry rs).takes = (Room.takes rs).filter fun r => !has (Room.syncs rs) r := rfl
+
+theorem carry_rooms (c : Conn) (rs : List Room) : (c.carry rs).rooms = Room.syncs rs := rfl
+
+/-- A room a connection carrying rs takes is one of rs's take rooms. -/
+theorem mem_carry_takes {c : Conn} {rs : List Room} {r : Id} (h : r ∈ (c.carry rs).takes) :
+    Room.take r ∈ rs ∧ Room.sync r ∉ rs := by
+  rw [carry_takes, List.mem_filter] at h
+  refine ⟨mem_takes h.1, fun hs => ?_⟩
+  have : has (Room.syncs rs) r = true := (Engine.has_iff _ _).2 (syncs_mem hs)
+  simp [this] at h
 
 theorem mem_notices {r x : Id} : ∀ {rs : List Room}, (r, x) ∈ Room.notices rs → Room.notice r x ∈ rs
   | [], h => by cases h
   | .sync _ :: t, h => List.mem_cons_of_mem _ (mem_notices (by simpa [Room.notices] using h))
+  | .take _ :: t, h => List.mem_cons_of_mem _ (mem_notices (by simpa [Room.notices] using h))
   | .notice r' x' :: t, h => by
     simp only [Room.notices, List.mem_cons, Prod.mk.injEq] at h
     rcases h with ⟨rfl, rfl⟩ | h
@@ -434,21 +476,24 @@ theorem mem_notices {r x : Id} : ∀ {rs : List Room}, (r, x) ∈ Room.notices r
     · exact List.mem_cons_of_mem _ (mem_notices h)
 
 /-- **A notice room answers no holds (`notice_no_holds`).** On a
-connection carrying rooms rs, a have for a room rs does not sync (one it
-carries only as a notice, or not at all) is ignored: the reply sends
-nothing, takes nothing and reads nothing. So a removed member's node
-learns nothing of what this node holds of the community it is told it
-was removed from (`hold_reply_local` for the rooms it syncs). -/
+connection carrying rooms rs, a have for a room rs neither syncs nor
+takes (one it carries only as a notice, or not at all) is ignored: the
+reply sends nothing, takes nothing and reads nothing. So a removed
+member's node learns nothing of what this node holds of the community
+it is told it was removed from (`hold_reply_local` for the rooms it
+carries). -/
 theorem notice_no_holds (ix : Index) (c : Conn) (rs : List Room) (r : Id) (ids : List Id)
     (bytes : ByteArray) (now : Nat) (s : DB F) {o : Op} (hd : Op.decode bytes = some o)
-    (hm : Msg.ofOp o = some (.hold r ids)) (hr : Room.sync r ∉ rs) :
+    (hm : Msg.ofOp o = some (.hold r ids)) (hr : Room.sync r ∉ rs) (ht : Room.take r ∉ rs) :
     ((Conn.recv fam cfg ix (c.carry rs) bytes now : Model F Step).run s).1.send = [] ∧
     ((Conn.recv fam cfg ix (c.carry rs) bytes now : Model F Step).run s).1.take = [] ∧
     ((Conn.recv fam cfg ix (c.carry rs) bytes now : Model F Step).run s).2 = s := by
-  have hn : has (c.carry rs).rooms r = false := by
-    cases h : has (c.carry rs).rooms r
+  have hn : has (c.carry rs).carried r = false := by
+    cases h : has (c.carry rs).carried r
     · rfl
-    · exact absurd (mem_syncs ((Engine.has_iff _ _).1 h)) hr
+    · rcases (Conn.has_carried _ _).1 h with h | h
+      · exact absurd (mem_syncs h) hr
+      · exact absurd (mem_carry_takes h).1 ht
   unfold Conn.recv
   rw [hd]
   dsimp only
@@ -457,7 +502,7 @@ theorem notice_no_holds (ix : Index) (c : Conn) (rs : List Room) (r : Id) (ids :
   split
   · simp
   unfold Conn.onHold
-  have hn' : has ({ c.carry rs with heard := now } : Conn).rooms r = false := hn
+  have hn' : has ({ c.carry rs with heard := now } : Conn).carried r = false := hn
   simp [hn']
 
 /-! ## The node's steps -/

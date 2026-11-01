@@ -152,6 +152,23 @@ wired Connection.bare_takes_only_join
 wired Connection.rejoin_dials
 wired Connection.reconnect_dials
 
+# Before admission (docs/TAKE-ROOM.md): a link-trusted session takes the
+# community and sends none of it, over the running roomFor, Conn steps
+# and every entry point
+
+wired Connection.roomFor_law
+wired Connection.rooms_take
+wired Connection.rooms_complete_take
+wired Connection.refused_gets_only_notice
+wired Connection.preadmit_sends_nothing
+wired Connection.preadmit_reaches_session
+wired Engine.Sync.take_unshown
+wired Engine.Sync.start_take_blank
+wired Engine.Sync.onRbsr_take_blank
+wired Engine.Sync.take_opens
+wired Engine.Sync.take_round_offers
+wired Engine.Sync.recv_takes_taken
+
 ## Assumptions
 
 assume Community.Unforgeable Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean.
@@ -321,6 +338,7 @@ control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it,
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet
+control Connection.roomForShipped `roomFor` as shipped until preadmit: c synced wherever the trust rule takes the peer, its link clause included, so a node not live in c served its history to any key a link it opened named (`shipped_roomFor_shows`); tests/vacuity/IdentityPreadmit.lean reproduces it on real ops.
 control Connection.retiredShipped `retired` as shipped until fs-erase, reading `allSessions`: a dialer that crashed between `onFrame`'s two writes held a session neither open nor retired, its keys kept for good (`shipped_retired_misses`); tests/engine/ConnectionCheck.lean reproduces it on SQLite.
 control NavLaws.openStShipped `openSt` as 566e566 shipped it, emptying the switcher's backdrop on every other page: breaks `back_open` (`shipped_back_open_fails`), which caught it (docs/CAUGHT.md).
 control Live.RWorld.passEager The pass as first written, checking staleness while reading: stale for ever (`eager_stale`); its example world (`Eager.w1`) shows the marking pass fresh.

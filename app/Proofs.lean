@@ -91,6 +91,20 @@ theorem established_agrees (K : Keys) (G : K.suite.Good)
           · simp [hm] at hRc
 open Engine Engine.Sync
 
+/-- **The link clause holds only before admission (`linked_live`).**
+Where a live device of c is admitted under this node's key, the link
+clause takes no peer. -/
+theorem linked_live (s : DB F) {c me peer : B}
+    (h : ((Community.allowPeer c me).liftL : View F Bool).eval s = true) :
+    ((linked c me peer).liftL : View F Bool).eval s = false := by
+  unfold linked
+  rw [eval_liftL_bind]
+  dsimp only
+  split
+  · rfl
+  · rw [eval_liftL_bind, h, eval_liftL_bind]
+    simp [eval_liftL_pure]
+
 /-- **For a live member, the trust rule is `allowPeer`.** The link
 clause (trust the inviter a pending join names) holds only before this
 device is admitted. -/
@@ -102,18 +116,56 @@ theorem trusts_live (s : DB F) {c me peer : B}
   rw [eval_liftL_bind]
   cases hp : ((Community.allowPeer c peer).liftL : View F Bool).eval s
   · simp only [Bool.false_eq_true, ite_false]
-    rw [eval_liftL_bind]
-    split
-    · rfl
-    · rw [eval_liftL_bind, h, eval_liftL_bind]
-      simp [eval_liftL_pure]
+    exact linked_live s h
   · rfl
+
+/-- What the link clause reads last: no admission under the peer's key
+in c is known here. -/
+theorem linked_unknown (s : DB F) {c me peer : B}
+    (h : ((linked c me peer).liftL : View F Bool).eval s = true) :
+    (Engine.eval s (Community.admission.byKey.query [c, peer] (limit := some 0))).total = 0 := by
+  unfold linked at h
+  rw [eval_liftL_bind] at h
+  dsimp only at h
+  split at h
+  · cases h
+  · rw [eval_liftL_bind, eval_liftL_bind] at h
+    simp only [eval_liftL_pure, Bool.and_eq_true, decide_eq_true_eq] at h
+    exact h.2
+
+/-- **The link clause holds only before admission, as a premise:** a
+peer the link clause takes means this node is not live in c. -/
+theorem linked_unlive (s : DB F) {c me peer : B}
+    (h : ((linked c me peer).liftL : View F Bool).eval s = true) :
+    ((Community.allowPeer c me).liftL : View F Bool).eval s = false := by
+  cases hl : ((Community.allowPeer c me).liftL : View F Bool).eval s
+  · rfl
+  · rw [linked_live s hl] at h; cases h
+
+/-- With no admission under key e in c known, nothing is owed to e's
+node: there is no device under e to cut. -/
+theorem removalsAt_unknown (s : DB F) {c e : B}
+    (h : (Engine.eval s (Community.admission.byKey.query [c, e] (limit := some 0))).total = 0) :
+    ((Community.removalsAt c e).liftL : View F (List Id)).eval s = [] := by
+  have hm : matching s (Community.admission.byKey.query [c, e]) = [] :=
+    List.eq_nil_of_length_eq_zero h
+  have hr : (Engine.eval s (Community.admission.byKey.query [c, e])).rows = [] := by
+    unfold Engine.eval
+    simp only [hm, List.filter_nil, List.reverse_nil, ite_self, ListQ.cut]
+    split <;> simp
+  have ha : (((Community.admission.byKey.read [c, e]).liftL : View F (Answer Community.Fact)).eval s).rows = [] := by
+    show List.filterMap _ (Engine.eval s _).rows = []
+    rw [hr]; rfl
+  unfold Community.removalsAt
+  rw [eval_liftL_bind, ha]
+  rfl
 
 theorem eval_roomFor (s : DB F) (given : List Id) (c peer : B) :
     (roomFor given c peer).eval s =
       match (meV c).eval s with
       | some me =>
-        if ((trusts c me peer).liftL : View F Bool).eval s then [Room.sync c]
+        if ((Community.allowPeer c peer).liftL : View F Bool).eval s then [Room.sync c]
+        else if ((linked c me peer).liftL : View F Bool).eval s then [Room.take c]
         else ((((Community.removalsAt c peer).liftL : View F (List Id)).eval s).filter
           fun x => !has given x).map (Room.notice c)
       | none => [] := by
@@ -123,7 +175,63 @@ theorem eval_roomFor (s : DB F) (given : List Id) (c peer : B) :
   | none => rfl
   | some me =>
     simp only [View.eval_bind]
+    cases ((Community.allowPeer c peer).liftL : View F Bool).eval s with
+    | true => simp
+    | false =>
+      cases hk : ((linked c me peer).liftL : View F Bool).eval s <;> simp [View.eval_bind, hk]
+
+theorem eval_roomForShipped (s : DB F) (given : List Id) (c peer : B) :
+    (roomForShipped given c peer).eval s =
+      match (meV c).eval s with
+      | some me =>
+        if ((trusts c me peer).liftL : View F Bool).eval s then [Room.sync c]
+        else ((((Community.removalsAt c peer).liftL : View F (List Id)).eval s).filter
+          fun x => !has given x).map (Room.notice c)
+      | none => [] := by
+  unfold roomForShipped
+  rw [View.eval_bind]
+  cases (meV c).eval s with
+  | none => rfl
+  | some me =>
+    simp only [View.eval_bind]
     cases ((trusts c me peer).liftL : View F Bool).eval s <;> simp [View.eval_bind]
+
+/-- **What a session carries of a community, by peer (`roomFor_law`).**
+Each room `roomFor` gives for community c and peer key `peer`, read
+from the code: this node is a device of c, as its key `me`; and the
+room is c synced, only where `allowPeer` takes the peer (a live device
+of c is admitted under its key, by this node's ops, whatever this
+node's own standing); or c taken, only where `allowPeer` refuses it and
+the link clause takes it (so this node is not live in c,
+`linked_unlive`); or a notice of c, of a removal cutting a device under
+the peer's key and not given yet, where neither takes it. -/
+theorem roomFor_law (s : DB F) {given : List Id} {c peer : B} {rm : Room}
+    (h : rm ∈ (roomFor given c peer).eval s) :
+    ∃ me, (meV c).eval s = some me ∧
+      ((rm = .sync c ∧ ((Community.allowPeer c peer).liftL : View F Bool).eval s = true) ∨
+       (rm = .take c ∧ ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
+          ((linked c me peer).liftL : View F Bool).eval s = true) ∨
+       (∃ x, rm = .notice c x ∧ ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
+          ((linked c me peer).liftL : View F Bool).eval s = false ∧
+          x ∈ ((Community.removalsAt c peer).liftL : View F (List Id)).eval s ∧ has given x = false)) := by
+  unfold roomFor at h
+  rw [View.eval_bind] at h
+  cases hme : (meV c).eval s with
+  | none => simp only [hme] at h; cases h
+  | some me =>
+    refine ⟨me, rfl, ?_⟩
+    simp only [hme, View.eval_bind] at h
+    cases ha : ((Community.allowPeer c peer).liftL : View F Bool).eval s
+    · cases hk : ((linked c me peer).liftL : View F Bool).eval s
+      · simp only [ha, hk, Bool.false_eq_true, ite_false, View.eval_bind, View.eval_pure,
+          List.mem_map, List.mem_filter, Bool.not_eq_true'] at h
+        obtain ⟨x, ⟨hx, hg⟩, rfl⟩ := h
+        exact Or.inr (Or.inr ⟨x, rfl, rfl, rfl, hx, hg⟩)
+      · simp only [ha, Bool.false_eq_true, ite_false, View.eval_bind, hk, ite_true, View.eval_pure,
+          List.mem_singleton] at h
+        exact Or.inr (Or.inl ⟨h, rfl, rfl⟩)
+    · simp only [ha, ite_true, View.eval_pure, List.mem_singleton] at h
+      exact Or.inl ⟨h, rfl⟩
 
 theorem eval_roomsOf (s : DB F) (given : List Id) (ps : List (B × B)) :
     (roomsOf given ps).eval s = ps.flatMap fun (c, peer) => (roomFor given c peer).eval s := by
@@ -148,41 +256,119 @@ theorem mem_roomsV (s : DB F) {cid : Id} {rm : Room} (h : rm ∈ (roomsV cid).ev
 open Engine Engine.Sync Codec
 
 /-- **A removed member's connection carries only notices
-(`rooms_removed`).** If this node is a live member of c and the trust
-rule refuses every peer cid names in c, cid carries no synced room c,
-and each notice of c it carries is of a removal owed to the peer. -/
-theorem rooms_removed (s : DB F) {cid c : B} (hl : LiveIn s c) (hr : Refused s cid c) :
+(`rooms_removed`).** If `allowPeer` refuses, for c, every peer cid
+names, whatever this node's own standing in c, cid carries no synced
+room c, and each notice of c it carries is of a removal owed to the
+peer. (It may take c, from a peer its link names: `rooms_take`.) -/
+theorem rooms_removed (s : DB F) {cid c : B} (hr : Refused s cid c) :
     ∀ rm ∈ (roomsV cid).eval s, match rm with
       | .sync r => r ≠ c
+      | .take _ => True
       | .notice r x => r = c → Owed s cid c x := by
   intro rm hm
   obtain ⟨c', peer, hpeer, _, hm⟩ := mem_roomsV s hm
-  rw [eval_roomFor] at hm
-  cases hme : (meV c').eval s with
-  | none => simp only [hme, List.not_mem_nil] at hm
-  | some me =>
-    cases ht : ((trusts c' me peer).liftL : View F Bool).eval s
-    · simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map, List.mem_filter] at hm
-      obtain ⟨x, ⟨hx, _⟩, rfl⟩ := hm
-      intro hc; subst hc
-      exact ⟨peer, hpeer, hx⟩
-    · simp only [hme, ht, ite_true, List.mem_singleton] at hm
-      subst hm
-      intro hc; subst hc
-      rw [trusts_live s (hl me hme), hr peer hpeer] at ht
-      cases ht
+  obtain ⟨_, _, ⟨rfl, ha⟩ | ⟨rfl, _⟩ | ⟨x, rfl, _, _, hx, _⟩⟩ := roomFor_law s hm
+  · intro hc; subst hc
+    rw [hr peer hpeer] at ha
+    cases ha
+  · trivial
+  · intro hc; subst hc
+    exact ⟨peer, hpeer, hx⟩
+
+/-- **A take room only before admission, only for the link's peer
+(`rooms_take`).** If connection cid carries community c taken, this node
+holds c and is in it as `me`, is not live in c (`allowPeer` refuses its
+own key), and one of cid's peers is one only the link clause lets in:
+the inviter a pending join names, of which this node knows no
+admission. -/
+theorem rooms_take (s : DB F) {cid c : B} (h : Room.take c ∈ (roomsV cid).eval s) :
+    ∃ peer me, peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])) ∧ c ∈ heldV.eval s ∧
+      (meV c).eval s = some me ∧
+      ((Community.allowPeer c me).liftL : View F Bool).eval s = false ∧
+      ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
+      ((linked c me peer).liftL : View F Bool).eval s = true := by
+  obtain ⟨c', peer, hpeer, hheld, hm⟩ := mem_roomsV s h
+  obtain ⟨me, hme, ⟨e, _⟩ | ⟨e, ha, hk⟩ | ⟨x, e, _⟩⟩ := roomFor_law s hm
+  · cases e
+  · cases e
+    exact ⟨peer, me, hpeer, hheld, hme, linked_unlive s hk, ha, hk⟩
+  · cases e
 
 /-- **The session keeps its other communities (`rooms_complete`).** A
 connection carries, synced, every community c this node holds and is
-in whose peer the trust rule takes. -/
+in whose peer `allowPeer` takes. -/
 theorem rooms_complete (s : DB F) {cid c me peer : B} (hm : (meV c).eval s = some me)
     (hp : peer ∈ peersOf (Engine.eval s (established.byConn.query [cid]))) (hh : c ∈ heldV.eval s)
-    (ht : ((trusts c me peer).liftL : View F Bool).eval s = true) :
+    (ht : ((Community.allowPeer c peer).liftL : View F Bool).eval s = true) :
     Room.sync c ∈ (roomsV cid).eval s := by
   simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap]
   refine ⟨(c, peer), ?_, ?_⟩
   · exact ⟨peer, hp, List.mem_map.2 ⟨c, hh, rfl⟩⟩
   · rw [eval_roomFor]; simp [hm, ht]
+
+/-- **The joiner keeps its inviter (`rooms_complete_take`).** A
+connection carries, taken, every community c this node holds and is in
+whose peer only the link clause takes: so the joiner still learns of its
+admission from the inviter. -/
+theorem rooms_complete_take (s : DB F) {cid c me peer : B} (hm : (meV c).eval s = some me)
+    (hp : peer ∈ peersOf (Engine.eval s (established.byConn.query [cid]))) (hh : c ∈ heldV.eval s)
+    (ha : ((Community.allowPeer c peer).liftL : View F Bool).eval s = false)
+    (hl : ((linked c me peer).liftL : View F Bool).eval s = true) :
+    Room.take c ∈ (roomsV cid).eval s := by
+  simp only [roomsV, View.eval_bind, View.eval_read, eval_roomsOf, List.mem_flatMap]
+  refine ⟨(c, peer), ?_, ?_⟩
+  · exact ⟨peer, hp, List.mem_map.2 ⟨c, hh, rfl⟩⟩
+  · rw [eval_roomFor]; simp [hm, ha, hl]
+
+/-- Where `allowPeer` refuses, for c, every peer cid names, an op the
+connection as the store gives its rooms may show is not of c. -/
+theorem refused_unshown (fam : Family F) (s : DB F) {cid c : B} (conn : Conn) (hr : Refused s cid c)
+    (o : Op) (ho : (conn.carry ((roomsV cid).eval s)).shows fam o = true) : fam.room o ≠ some c := by
+  intro hc
+  simp only [Conn.shows, hc] at ho
+  exact rooms_removed s hr _ (mem_syncs ((Engine.has_iff _ _).1 ho)) rfl
+
+/-- Where `allowPeer` refuses, for c, every peer cid names, a notice op
+of the connection is of another room, or of an owed removal of c. -/
+theorem refused_notice (fam : Family F) (s : DB F) {cid c : B} (conn : Conn) (hr : Refused s cid c)
+    (o : Op) (ho : NoticeOp fam s (conn.carry ((roomsV cid).eval s)) o) : NoticeOnly fam s cid c o := by
+  obtain ⟨r, x, hm, _, y, hy, hroom, hreach⟩ := ho
+  by_cases hrc : r = c
+  · subst hrc
+    exact Or.inr (Or.inr ⟨x, rooms_removed s hr _ (mem_notices hm) rfl, y, hy, hreach⟩)
+  · exact Or.inr (Or.inl (by rw [hroom]; exact fun h => hrc (Option.some.inj h)))
+
+/-- **Of c, nothing but the notice, whatever this node's standing
+(`refused_gets_only_notice`).** If `allowPeer` refuses, for c, every
+peer cid names (a removed member's node, or a stranger its link names),
+then on the connection as each step reads it afresh (`Node.refresh`:
+`carry` of `roomsV`): opening says hello only; and of community c, a
+frame received, ops just stored (`filedGive`) and the clock
+(`tickGive`) send only sync wire ops and stored ops in the requirement
+closure of a removal owed to the peer. -/
+theorem refused_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B)
+    (conn : Conn) (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool)
+    (hr : Refused s cid c) :
+    let k := conn.carry ((roomsV cid).eval s)
+    (∀ rs, ∀ o ∈ (Conn.open dialer rs floor now).send, isWire o.kind = true) ∧
+    (∀ o ∈ ((Conn.recv fam cfg ix k bytes now : Model F Step).run s).1.send,
+      NoticeOnly fam s cid c o) ∧
+    (∀ o ∈ ((Conn.filedGive fam cfg k ids : Model F Step).run s).1.send, NoticeOnly fam s cid c o) ∧
+    (∀ o ∈ ((Conn.tickGive fam cfg ix k now : Model F Step).run s).1.send, NoticeOnly fam s cid c o) := by
+  intro k
+  refine ⟨fun rs o ho => ?_, fun o ho => ?_, fun o ho => ?_, fun o ho => ?_⟩
+  · simp only [Conn.open, List.mem_singleton] at ho
+    subst ho; exact msg_wire _
+  · rcases recv_send fam cfg ix k bytes now s o ho with h | h
+    · exact Or.inl h
+    · exact Or.inr (Or.inl (refused_unshown fam s conn hr o h))
+  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_self ..)).1 o ho with h | h
+    · exact Or.inl h
+    · exact refused_notice fam s conn hr o h
+  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))).1 o ho
+      with h | h
+    · exact Or.inl h
+    · exact refused_notice fam s conn hr o h
 
 /-- **Nothing but the notice (`removed_gets_only_notice`).** If this
 node is a live member of c and the trust rule refuses every peer cid
@@ -190,8 +376,9 @@ names in c, then on the connection as each step reads it afresh
 (`Node.refresh`: `carry` of `roomsV`): opening says hello only; and of
 community c, a frame received, ops just stored (`filedGive`) and the
 clock (`tickGive`) send only sync wire ops and stored ops in the
-requirement closure of a removal owed to the peer. A frame received
-hands the writer nothing of c. -/
+requirement closure of a removal owed to the peer
+(`refused_gets_only_notice`). A frame received hands the writer nothing
+of c: a live member takes no room (`rooms_take`). -/
 theorem removed_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B)
     (conn : Conn) (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool)
     (hl : LiveIn s c) (hr : Refused s cid c) :
@@ -203,34 +390,94 @@ theorem removed_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s
     (∀ o ∈ ((Conn.filedGive fam cfg k ids : Model F Step).run s).1.send, NoticeOnly fam s cid c o) ∧
     (∀ o ∈ ((Conn.tickGive fam cfg ix k now : Model F Step).run s).1.send, NoticeOnly fam s cid c o) := by
   intro k
-  have hrm := rooms_removed s hl hr
-  -- an op k may show is of a synced room, so not of c
-  have hshow : ∀ o, k.shows fam o = true → fam.room o ≠ some c := by
-    intro o ho hc
-    simp only [Conn.shows, hc] at ho
-    have := hrm _ (mem_syncs ((Engine.has_iff _ _).1 ho))
-    exact this rfl
-  -- a notice op of k is of another room, or of an owed removal of c
-  have hnote : ∀ o, NoticeOp fam s k o → NoticeOnly fam s cid c o := by
-    rintro o ⟨r, x, hm, _, y, hy, hroom, hreach⟩
-    by_cases hrc : r = c
-    · subst hrc
-      exact Or.inr (Or.inr ⟨x, hrm _ (mem_notices hm) rfl, y, hy, hreach⟩)
-    · exact Or.inr (Or.inl (by rw [hroom]; exact fun h => hrc (Option.some.inj h)))
-  refine ⟨fun rs o ho => ?_, fun o ho => ?_, fun o ho => ?_, fun o ho => ?_, fun o ho => ?_⟩
-  · simp only [Conn.open, List.mem_singleton] at ho
-    subst ho; exact msg_wire _
-  · rcases recv_send fam cfg ix k bytes now s o ho with h | h
+  obtain ⟨h1, h2, h3, h4⟩ := refused_gets_only_notice fam cfg ix s cid c conn bytes ids now floor dialer hr
+  refine ⟨h1, h2, fun o ho hc => ?_, h3, h4⟩
+  have ht := (recv_take fam cfg ix k bytes now s o ho).2
+  rw [Bool.or_eq_true] at ht
+  rcases ht with h | h
+  · exact refused_unshown fam s conn hr o h hc
+  · simp only [Conn.takesOp, hc] at h
+    obtain ⟨hm, _⟩ := mem_carry_takes ((Engine.has_iff _ _).1 h)
+    obtain ⟨_, me, _, _, hme, hu, _⟩ := rooms_take s hm
+    rw [hl me hme] at hu
+    cases hu
+
+/-- Every peer key connection cid names is, for c, one only the link
+clause lets in (`linked`): this node is a device of c and not yet live
+in it, and the peer is the inviter a pending join names, of which this
+node knows no admission. -/
+def LinkOnly (s : DB F) (cid c : B) : Prop :=
+  ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
+    ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
+      ∃ me, (meV c).eval s = some me ∧ ((linked c me peer).liftL : View F Bool).eval s = true
+
+theorem linkOnly_refused {s : DB F} {cid c : B} (h : LinkOnly s cid c) : Refused s cid c :=
+  fun peer hp => (h peer hp).1
+
+/-- **Nothing is owed to a link's peer (`link_owes_nothing`).** No
+admission under its key is known here, so no removal cuts a device under
+it. -/
+theorem link_owes_nothing {s : DB F} {cid c x : B} (h : LinkOnly s cid c) : ¬ Owed s cid c x := by
+  rintro ⟨peer, hp, hx⟩
+  obtain ⟨_, me, _, hk⟩ := h peer hp
+  rw [removalsAt_unknown s (linked_unknown s hk)] at hx
+  cases hx
+
+/-- **Before admission, a session sends nothing of the community
+(`preadmit_sends_nothing`).** If every peer key connection cid names is,
+for c, one only the link clause lets in (`LinkOnly`: so this node is
+not live in c, `linked_unlive`), then on the connection as each step
+reads it afresh (`Node.refresh`: `carry` of `roomsV`): opening says
+hello only, and a frame received, ops just stored (`filedGive`) and the
+clock (`tickGive`) send only sync wire ops and ops of other rooms. No
+op of c goes out, this node's join request included: that travels in
+the hello (`dialOne`). Of c, the connection is a take room only
+(`rooms_take`), whose rounds answer from the empty index
+(`take_unshown`, `take_claims_empty`). -/
+theorem preadmit_sends_nothing (fam : Family F) (cfg : Config) (ix : Index) (s : DB F) (cid c : B)
+    (conn : Conn) (bytes : B) (ids : List Id) (now floor : Nat) (dialer : Bool)
+    (hk : LinkOnly s cid c) :
+    let k := conn.carry ((roomsV cid).eval s)
+    (∀ rs, ∀ o ∈ (Conn.open dialer rs floor now).send, isWire o.kind = true) ∧
+    (∀ o ∈ ((Conn.recv fam cfg ix k bytes now : Model F Step).run s).1.send,
+      isWire o.kind = true ∨ fam.room o ≠ some c) ∧
+    (∀ o ∈ ((Conn.filedGive fam cfg k ids : Model F Step).run s).1.send,
+      isWire o.kind = true ∨ fam.room o ≠ some c) ∧
+    (∀ o ∈ ((Conn.tickGive fam cfg ix k now : Model F Step).run s).1.send,
+      isWire o.kind = true ∨ fam.room o ≠ some c) := by
+  intro k
+  obtain ⟨h1, h2, h3, h4⟩ :=
+    refused_gets_only_notice fam cfg ix s cid c conn bytes ids now floor dialer (linkOnly_refused hk)
+  have drop : ∀ o, NoticeOnly fam s cid c o → isWire o.kind = true ∨ fam.room o ≠ some c := by
+    rintro o (h | h | ⟨x, hx, _⟩)
     · exact Or.inl h
-    · exact Or.inr (Or.inl (hshow o h))
-  · exact hshow o (recv_take fam cfg ix k bytes now s o ho).2
-  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_self ..)).1 o ho with h | h
-    · exact Or.inl h
-    · exact hnote o h
-  · rcases (notice_send fam cfg ix s k ids now _ (List.mem_cons_of_mem _ (List.mem_cons_self ..))).1 o ho
-      with h | h
-    · exact Or.inl h
-    · exact hnote o h
+    · exact Or.inr h
+    · exact absurd hx (link_owes_nothing hk)
+  exact ⟨h1, fun o ho => drop o (h2 o ho), fun o ho => drop o (h3 o ho), fun o ho => drop o (h4 o ho)⟩
+
+/-- **The shipped room selection syncs with a link's peer
+(`shipped_roomFor_shows`, a negative control).** As shipped
+(`roomForShipped`), a node in c whose link clause takes the peer carried
+c synced: the connection showed the peer every op of c, whatever this
+node's own standing, so a removed member's node that opened a
+stranger's link served it c's history (`preadmit_sends_nothing` is
+false of it; tests/vacuity/IdentityPreadmit.lean runs it). -/
+theorem shipped_roomFor_shows (s : DB F) {given : List Id} {c me peer : B}
+    (hm : (meV c).eval s = some me) (hk : ((linked c me peer).liftL : View F Bool).eval s = true)
+    (conn : Conn) :
+    (roomForShipped given c peer).eval s = [Room.sync c] ∧
+      ∀ (fam : Family F) (o : Op), fam.room o = some c →
+        (conn.carry ((roomForShipped given c peer).eval s)).shows fam o = true := by
+  have ht : ((trusts c me peer).liftL : View F Bool).eval s = true := by
+    unfold trusts; rw [eval_liftL_bind]
+    cases ((Community.allowPeer c peer).liftL : View F Bool).eval s
+    · simp only [Bool.false_eq_true, ite_false]; exact hk
+    · rfl
+  have hr : (roomForShipped given c peer).eval s = [Room.sync c] := by
+    rw [eval_roomForShipped]; simp [hm, ht]
+  refine ⟨hr, fun fam o ho => ?_⟩
+  rw [hr]
+  simp [Conn.shows, Conn.carry, Conn.setRooms, Room.syncs, ho, has]
 
 /-- A connection carries nothing once, for every community this node
 is in, the trust rule refuses its peer and every removal owed to it is
@@ -247,9 +494,9 @@ theorem roomsV_nil (s : DB F) {cid : B}
   | none => simp only [hme, List.not_mem_nil] at hm
   | some me =>
     obtain ⟨hl, hr, hg⟩ := h c me hme
-    have ht : ((trusts c me peer).liftL : View F Bool).eval s = false := by
-      rw [trusts_live s (hl me hme), hr peer hpeer]
-    simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map, List.mem_filter] at hm
+    have ha := hr peer hpeer
+    have hk : ((linked c me peer).liftL : View F Bool).eval s = false := linked_live s (hl me hme)
+    simp only [hme, ha, hk, Bool.false_eq_true, ite_false, List.mem_map, List.mem_filter] at hm
     obtain ⟨x, ⟨hx, hn⟩, _⟩ := hm
     rw [has_of_mem (hg x ⟨peer, hpeer, hx⟩)] at hn
     cases hn
@@ -1087,60 +1334,55 @@ theorem removed_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} :
   exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
 open Engine Engine.Sync
 
-/-- **A room is carried synced only if trusted.** If connection cid
-carries room c synced, this node holds c and is in it as its key `me`,
-one of cid's established facts names a peer key, and the trust rule
-takes it. -/
+/-- **A room is carried synced only with a live member's node.** If
+connection cid carries room c synced, this node holds c and is in it as
+its key `me`, one of cid's established facts names a peer key, and
+`allowPeer` takes it: a live device of c is admitted under it, by this
+node's ops, whatever this node's own standing (so the trust rule takes
+it too). The link clause alone carries c only taken (`rooms_take`). -/
 theorem rooms_trusted (s : DB F) {cid c : Id} (h : Room.sync c ∈ (roomsV cid).eval s) :
     ∃ peer me, peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])) ∧
       c ∈ heldV.eval s ∧
-      (meV c).eval s = some me ∧ ((trusts c me peer).liftL : View F Bool).eval s = true := by
+      (meV c).eval s = some me ∧ ((Community.allowPeer c peer).liftL : View F Bool).eval s = true ∧
+      ((trusts c me peer).liftL : View F Bool).eval s = true := by
   obtain ⟨c', peer, hpeer, hheld, hm⟩ := mem_roomsV s h
-  rw [eval_roomFor] at hm
-  cases hme : (meV c').eval s with
-  | none => simp only [hme, List.not_mem_nil] at hm
-  | some me =>
-    cases ht : ((trusts c' me peer).liftL : View F Bool).eval s
-    · simp only [hme, ht, Bool.false_eq_true, ite_false, List.mem_map] at hm
-      obtain ⟨_, _, hn⟩ := hm; cases hn
-    · simp only [hme, ht, ite_true, List.mem_singleton, Room.sync.injEq] at hm
-      subst hm
-      exact ⟨peer, me, hpeer, hheld, hme, ht⟩
+  obtain ⟨me, hme, ⟨e, ha⟩ | ⟨e, _⟩ | ⟨x, e, _⟩⟩ := roomFor_law s hm
+  · cases e
+    have ht : ((trusts c me peer).liftL : View F Bool).eval s = true := by
+      unfold trusts; rw [eval_liftL_bind, ha]; rfl
+    exact ⟨peer, me, hpeer, hheld, hme, ha, ht⟩
+  · cases e
+  · cases e
 
-/-- **A live member's connection carries no synced room whose peer
-`allowPeer` refuses.** If this node is a live member of c, and
-`allowPeer` refuses, for c, every peer key cid's established facts name,
-then cid carries no room c synced: no step of it sends an op of c by
-sync or takes one (`recv_send`, `recv_take`). It may carry c's notices
-(`rooms_removed`). -/
+/-- **A connection carries no synced room whose peer `allowPeer`
+refuses.** If `allowPeer` refuses, for c, every peer key cid's
+established facts name, then cid carries no room c synced, whatever
+this node's own standing: no step of it sends an op of c by sync
+(`recv_send`). It may carry c's notices (`rooms_removed`), or take c
+from a peer its link names (`rooms_take`). -/
 theorem rooms_cut (s : DB F) {cid c : Id}
-    (hme : ∀ me, (meV c).eval s = some me →
-      ((Community.allowPeer c me).liftL : View F Bool).eval s = true)
     (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
       ((Community.allowPeer c peer).liftL : View F Bool).eval s = false) :
     Room.sync c ∉ (roomsV cid).eval s := by
   intro h
-  obtain ⟨peer, me, hp, _, hm, ht⟩ := rooms_trusted s h
-  rw [trusts_live s (hme me hm), hpeer peer hp] at ht
-  cases ht
+  obtain ⟨peer, me, hp, _, _, ha, _⟩ := rooms_trusted s h
+  rw [hpeer peer hp] at ha
+  cases ha
 open Engine
 variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
 
-/-- **A removal ends a live session's sync, in the running node.** At
-rest, if this node is let into c (a device admitted under its key is
-live), and each peer connection cid's established facts name in c has
-only devices admitted into a removed user u, then cid carries no sync
-room of c: no step of it sends an op of c or takes one (`recv_send`,
-`recv_take`). -/
+/-- **A removal ends a session's sync, in the running node.** At rest,
+if each peer connection cid's established facts name in c has only
+devices admitted into a removed user u, then cid carries no sync room of
+c, whatever this node's own standing: no step of it sends an op of c by
+sync (`recv_send`). -/
 theorem rooms_cut_node (h : Inv (node C K) s) (hq : s.queue = []) {cid c : Id}
-    (hme : ∀ me, (meV c).eval s = some me →
-      ∃ u d, Admitted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
     (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
       ∃ u, Removed C (community C s).ops c u ∧
         ∀ u' d, Admitted C (community C s).ops c u' d peer → ∃ e', Admitted C (community C s).ops c u d e') :
     Engine.Sync.Room.sync c ∉ (roomsV cid).eval s :=
-  rooms_cut s (fun me hm => (connect_iff_node h hq c me).2 (hme me hm)) fun peer hp =>
+  rooms_cut s fun peer hp =>
     let ⟨_, hr, only⟩ := hpeer peer hp
     removal_cuts_off_node h hq hr only
 open Engine Engine.Sync
@@ -2994,16 +3236,19 @@ way, on the session's connection as that store gave its rooms. Here the
 hooks are the family's (`hooks`), which only read (`hooks_reads`), and
 whose rooms are `roomsV` read afresh (`rooms_held`). Each step, run on
 held data, answers as on the model's tables (engine/sync/SimLaws.lean), so
-the per-step law `removed_gets_only_notice` (and `serveOwed_shown` for a
-session's queue) applies at that store: there, if this node is live in c
-and the trust rule refuses the peer, the op is a sync wire op, an op of
-another community, or in the requirement closure of a removal owed to
-the peer (`sent_mayGo`).
+the per-step law `refused_gets_only_notice` (and `serveOwed_shown` for a
+session's queue) applies at that store: there, if `allowPeer` refuses
+the peer, whatever this node's own standing, the op is a sync wire op,
+an op of another community, or in the requirement closure of a removal
+owed to the peer (`sent_mayGo`).
 
 So `removal_reaches_session`: once a removal is stored, every later step
 on the session reads it, and nothing of c but the removal's notice goes
-out, whatever entry point runs. The fresh bytes the hooks draw are
-assumed to leave the store as it is (`hfr`), as the OS's do.
+out, whatever entry point runs. And `preadmit_reaches_session`: on a
+session whose peer only a link lets in (a node not yet live in c, as a
+removed member's is after it opens a link), nothing of c goes out at
+all. The fresh bytes the hooks draw are assumed to leave the store as
+it is (`hfr`), as the OS's do.
 -/
 
 namespace Connection
@@ -3023,29 +3268,30 @@ theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F Byt
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs⟩
 
 /-- What may go out on session cid at store h, as of community c: if
-this node is live in c and the trust rule refuses cid's peer, only a sync
-wire op, an op of another community, or an op in the requirement
-closure of a removal owed to the peer (`NoticeOnly`). -/
+`allowPeer` refuses cid's peer (a removed member's node, or a stranger
+a link names), whatever this node's own standing, only a sync wire op,
+an op of another community, or an op in the requirement closure of a
+removal owed to the peer (`NoticeOnly`). -/
 def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
-  LiveIn h.db c → Refused h.db cid c → NoticeOnly fam h.db cid c o
+  Refused h.db cid c → NoticeOnly fam h.db cid c o
 
 /-- **Each fresh step's send may go** (`sent_mayGo`): every op a
 connection step sends, run where the node runs it, on the connection as
 the store gives its rooms, is one `MayGo` allows at that store. -/
 theorem sent_mayGo [Fresh (HeldM F)] (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
     {h : Held F} {cid : Id} {o : Op} (hs : Sent x h cid o) (c : B) : MayGo x.fam h cid c o := by
-  intro hl hr
+  intro hr
   have hR : ((x.hooks.rooms cid).run h).1 = (roomsV cid).eval h.db := by
     simp only [hx, hooks, rooms_held]
-  have hrm := rooms_removed h.db hl hr
+  have hrm := rooms_removed h.db hr
   rcases hs with ⟨conn, ix, bytes, now, ho⟩ | ⟨conn, ids, ho⟩ | ⟨conn, ix, now, ho⟩ |
       ⟨conn, budget, first, ho⟩ | ⟨dialer, floor, now, ho⟩ | ⟨conn, cat, cursor, room, _, ho⟩
   · rw [hR, recv_held] at ho
-    exact (removed_gets_only_notice x.fam x.cfg ix h.db cid c conn bytes [] now 0 false hl hr).2.1 o ho
+    exact (refused_gets_only_notice x.fam x.cfg ix h.db cid c conn bytes [] now 0 false hr).2.1 o ho
   · rw [hR, filedGive_held] at ho
-    exact (removed_gets_only_notice x.fam x.cfg {} h.db cid c conn .empty ids 0 0 false hl hr).2.2.2.1 o ho
+    exact (refused_gets_only_notice x.fam x.cfg {} h.db cid c conn .empty ids 0 0 false hr).2.2.1 o ho
   · rw [hR, tickGive_held] at ho
-    exact (removed_gets_only_notice x.fam x.cfg ix h.db cid c conn .empty [] now 0 false hl hr).2.2.2.2 o ho
+    exact (refused_gets_only_notice x.fam x.cfg ix h.db cid c conn .empty [] now 0 false hr).2.2.2 o ho
   · rw [hR] at ho
     have hsh := (serveOwed_shown x.fam x.cfg (conn.carry ((roomsV cid).eval h.db)) budget first h o ho).1
     refine Or.inr (Or.inl fun hc => ?_)
@@ -3066,10 +3312,10 @@ runs (a frame, the clock, a write, a socket closing), from any store:
 it changes the store only by write turns and purges, and every frame it
 sends is a bare op or a bundle sealed for one session cid, each of whose
 payloads is an op that, at the store a connection step sent it from,
-`MayGo` allows for every community: where this node is live in c and the
-trust rule refuses cid's peer, only a sync wire op, an op of another
-community, or one in the requirement closure of a removal owed to the
-peer. -/
+`MayGo` allows for every community: where `allowPeer` refuses cid's
+peer, whatever this node's own standing, only a sync wire op, an op of
+another community, or one in the requirement closure of a removal owed
+to the peer. -/
 theorem removal_reaches_session [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
     (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
     (hc : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i))
@@ -3081,6 +3327,31 @@ theorem removal_reaches_session [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : He
       FramesBy x (fun h' cid o => ∀ c, MayGo x.fam h' cid c o) h ((E n).run h).2 ((E n).run h).1.2 := by
   obtain ⟨m, ok⟩ := entry_fresh (hooks_readOnly hfr x K listen hx hc hs) hE n h
   exact ⟨m, ok.mono fun _ _ _ hs c => sent_mayGo x K listen hx hs c⟩
+
+/-- **Before admission, nothing of the community goes out
+(`preadmit_reaches_session`).** Run with the Connection family's hooks,
+whatever entry point the node runs, from any store: every payload of
+every frame it seals for a session cid is, at the store a connection
+step sent it from, for every community c whose peers on cid only the
+link clause lets in (`LinkOnly`: this node not yet live in c, the peer
+the inviter its pending join names), a sync wire op or an op of another
+community. A node not live in c sends no op of c on a link-trusted
+session; its request travels only in the hello. -/
+theorem preadmit_reaches_session [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
+    (hc : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i))
+    (hs : ∀ store, x.retryStore = some store →
+      (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor)))
+    {E : Engine.Sync.Node → HeldM F (Engine.Sync.Node × Effects)} (hE : Entry x E)
+    (n : Engine.Sync.Node) (h : Held F) :
+    FramesBy x (fun h' cid o => ∀ c, LinkOnly h'.db cid c → isWire o.kind = true ∨ x.fam.room o ≠ some c)
+      h ((E n).run h).2 ((E n).run h).1.2 := by
+  obtain ⟨_, ok⟩ := entry_fresh (hooks_readOnly hfr x K listen hx hc hs) hE n h
+  refine ok.mono fun _ _ _ hs c hk => ?_
+  rcases sent_mayGo x K listen hx hs c (linkOnly_refused hk) with h | h | ⟨_, hx', _⟩
+  · exact Or.inl h
+  · exact Or.inr h
+  · exact absurd hx' (link_owes_nothing hk)
 
 end Connection
 

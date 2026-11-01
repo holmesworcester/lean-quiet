@@ -1,0 +1,232 @@
+/-
+Take rooms (docs/TAKE-ROOM.md), proven of `Conn`'s code:
+
+- `take_unshown`: an op of a room the connection does not show is never
+  shown, however the room is carried; so no step offers, serves or
+  streams it (`recv_send`, `serveOwed_send`, `have_shown`).
+- `start_take_blank`, `onRbsr_take_blank`: the rounds of a room the
+  connection does not show are opened and answered from the empty
+  index: every claim they send is an empty id claim (`.ids q []`), no
+  fingerprint, and they send no have. A take room's round says nothing
+  of what this side holds.
+- `take_opens`: a take room that is due opens like any other, with one
+  empty id claim per window range.
+- `take_round_offers`: the peer that syncs the room answers that opening
+  by ending the round and offering, as haves, every id it holds in the
+  window; `recv_takes_taken`: a take room's ops received are taken. So a
+  take room learns all the peer may show it: a joiner learns of its
+  admission.
+-/
+import engine.sync.OfferLaws
+import engine.sync.ConnLaws
+
+namespace Engine.Sync
+
+/-- A round message's op names its room, epoch and claims. -/
+theorem rbsr_op_inj {r r' : Id} {k k' : Nat} {cs cs' : List Claim}
+    (e : (Msg.rbsr r' k' cs').op = (Msg.rbsr r k cs).op) : r' = r ∧ k' = k ∧ cs' = cs := by
+  have h1 : Msg.ofOp (Msg.rbsr r' k' cs').op = some (.rbsr r' k' cs') := by
+    simp [Msg.ofOp, Msg.op, kRbsr, Codec.decode_encode]
+  have h2 : Msg.ofOp (Msg.rbsr r k cs).op = some (.rbsr r k cs) := by
+    simp [Msg.ofOp, Msg.op, kRbsr, Codec.decode_encode]
+  rw [e, h2] at h1
+  simp only [Option.some.injEq, Msg.rbsr.injEq] at h1
+  exact ⟨h1.1.symm, h1.2.1.symm, h1.2.2.symm⟩
+
+section
+variable {F : Type} (fam : Family F) (cfg : Config)
+
+/-- **A room not shown shows nothing (`take_unshown`).** -/
+theorem take_unshown (c : Conn) {r : Id} (hr : has c.rooms r = false) {o : Op}
+    (ho : fam.room o = some r) : c.shows fam o = false := by
+  simp [Conn.shows, ho, hr]
+
+/-- The claim this side opens a round of a room it does not show with:
+an empty id claim over the range. -/
+theorem view_opening (ix : Index) (c : Conn) {r : Id} (hr : has c.rooms r = false) (P : Params)
+    (w : Range) : (Conn.view ix c r).opening P r w = .ids w [] := by
+  simp [Conn.view, hr, Index.opening_eq, opening, within]
+
+/-- What this side answers a claim with in a room it does not show: as
+from the empty index, so no claim back but an empty id claim, and no
+have. -/
+theorem view_answer (ix : Index) (c : Conn) {r : Id} (hr : has c.rooms r = false) (P : Params)
+    (cl : Claim) :
+    ∀ o ∈ (Conn.view ix c r).answer P r cl, (∃ q, o = .claim (.ids q [])) ∨ o = .hold [] ∨ ∃ xs, o = .want xs := by
+  intro o ho
+  simp only [Conn.view, hr, Bool.false_eq_true, ite_false, Index.answer_eq, Index.items_empty] at ho
+  cases cl with
+  | fp q n l =>
+    simp only [answer, within, List.filter_nil, List.length_nil, Nat.zero_le, ite_true,
+      List.map_nil] at ho
+    by_cases hf : fp Prod.fst Prod.snd sha256 ([] : List Item) = (n, l)
+    · rw [ite_eq_left hf] at ho; cases ho
+    · rw [ite_eq_right hf] at ho
+      exact Or.inl ⟨q, List.mem_singleton.1 ho⟩
+  | ids q xs =>
+    simp only [answer, within, List.filter_nil, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at ho
+    rcases ho with rfl | rfl
+    · exact Or.inr (Or.inl rfl)
+    · exact Or.inr (Or.inr ⟨_, rfl⟩)
+
+/-- A data op's message: none. -/
+theorem ofOp_data {o : Op} (hw : isWire o.kind = false) : Msg.ofOp o = none := by
+  simp only [isWire, Bool.or_eq_false_iff] at hw
+  obtain ⟨⟨h1, h2⟩, h3⟩ := hw
+  simp [Msg.ofOp, h1, h2, h3]
+
+/-- **A take room takes (`recv_takes_taken`).** A data op of a room the
+connection takes, received, is handed to the writer: so a joiner's
+session with its inviter takes the inviter's ops of the community, its
+own admission among them. -/
+theorem recv_takes_taken (ix : Index) (c : Conn) (now : Nat) (s : DB F) {o : Op} {r : Id}
+    (hroom : fam.room o = some r) (ht : has c.takes r = true) (hw : isWire o.kind = false) :
+    ((Conn.recv fam cfg ix c o.bytes now : Model F Step).run s).1.take = [o] := by
+  rw [recv_cases fam cfg ix c o.bytes now s o (Op.decode_bytes o)]
+  dsimp only
+  rw [ofOp_data hw]
+  dsimp only
+  have hk : Conn.takesOp fam ({ c with heard := now } : Conn) o = true := by
+    simp [Conn.takesOp, hroom, ht]
+  rw [ite_eq_right (by simp [hw, hk])]
+
+/-- **A take room's rounds open blank (`start_take_blank`).** Every
+round `start` opens in a room the connection does not show claims only
+empty id lists. -/
+theorem start_take_blank (ix : Index) (c : Conn) (now : Nat) {r : Id} (hr : has c.rooms r = false)
+    {k : Nat} {cs : List Claim} (ho : (Msg.rbsr r k cs).op ∈ (c.start cfg ix now).send) :
+    ∀ cl ∈ cs, ∃ q, cl = .ids q [] := by
+  unfold Conn.start at ho
+  split at ho
+  · cases ho
+  · dsimp only at ho
+    split at ho
+    · cases ho
+    · simp only [List.mem_map] at ho
+      obtain ⟨r', _, e⟩ := ho
+      obtain ⟨rfl, _, rfl⟩ := rbsr_op_inj e
+      intro cl hcl
+      simp only [List.mem_map] at hcl
+      obtain ⟨q, _, rfl⟩ := hcl
+      exact ⟨q, view_opening ix c hr cfg.params q⟩
+
+/-- **A take room's rounds answer blank (`onRbsr_take_blank`).** A round
+message about a room the connection does not show is answered with a
+round message whose every claim is an empty id list, and with wants; no
+have, no fingerprint. -/
+theorem onRbsr_take_blank (ix : Index) (c : Conn) {r : Id} (k now : Nat) (cs : List Claim)
+    (hr : has c.rooms r = false) :
+    ∀ o ∈ (c.onRbsr cfg ix r k cs now).send,
+      (∃ cs', o = (Msg.rbsr r k cs').op ∧ ∀ cl ∈ cs', ∃ q, cl = .ids q []) ∨
+        o = (Msg.hold r []).op ∨ ∃ ids, o = (Msg.want ids).op := by
+  intro o ho
+  unfold Conn.onRbsr at ho
+  split at ho
+  · simp only [List.mem_singleton] at ho
+    exact Or.inl ⟨[], ho, by simp⟩
+  split at ho
+  · cases ho
+  dsimp only at ho
+  split at ho
+  · cases ho
+  have hv := view_answer ix c hr cfg.params
+  simp only [List.mem_cons, List.mem_append] at ho
+  rcases ho with rfl | ho | ho
+  · refine Or.inl ⟨_, rfl, fun cl hcl => ?_⟩
+    simp only [List.mem_filterMap, List.mem_flatMap] at hcl
+    obtain ⟨out, ⟨cl', _, hout⟩, e⟩ := hcl
+    rcases hv cl' out hout with ⟨q, rfl⟩ | rfl | ⟨xs, rfl⟩
+    · cases e; exact ⟨q, rfl⟩
+    · cases e
+    · cases e
+  · simp only [chunks, List.mem_map] at ho
+    obtain ⟨l, hl, rfl⟩ := ho
+    refine Or.inr (Or.inl ?_)
+    have : l = [] := by
+      apply List.eq_nil_iff_forall_not_mem.2
+      intro i hi
+      have := mem_pieceIds hl i hi
+      simp only [List.mem_flatMap] at this
+      obtain ⟨out, ⟨cl', _, hout⟩, hi⟩ := this
+      rcases hv cl' out hout with ⟨q, rfl⟩ | rfl | ⟨xs, rfl⟩ <;> simp at hi
+    rw [this]
+  · simp only [chunks, List.mem_map] at ho
+    obtain ⟨l, _, rfl⟩ := ho
+    exact Or.inr (Or.inr ⟨l, rfl⟩)
+
+/-- **A take room that is due opens (`take_opens`).** Its round is
+opened like a shown room's, one empty id claim per window range. -/
+theorem take_opens (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
+    (hp : c.peerFloor = some pf) (hr : r ∈ c.takes) (hn : has c.rooms r = false)
+    (due : (c.due cfg r now || c.retake cfg r) = true) :
+    (Msg.rbsr r (c.round + 1) ((window (max c.floor pf)).map fun q => .ids q [])).op ∈
+      (c.start cfg ix now).send := by
+  have hm : r ∈ c.carried.filter fun r => c.due cfg r now || c.retake cfg r :=
+    List.mem_filter.mpr ⟨List.mem_append_right _ hr, due⟩
+  have hne : (c.carried.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
+    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
+  have hv : (Conn.view ix c r).opening cfg.params r = fun q => .ids q [] :=
+    funext (view_opening ix c hn cfg.params)
+  simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map]
+  exact ⟨r, hm, by rw [hv]⟩
+
+/-- An answer batch's claims, haves and wants, as `onRbsr` sends them. -/
+def outClaims (outs : List Out) : List Claim := outs.filterMap fun | .claim x => some x | _ => none
+def outHolds (outs : List Out) : List Id := outs.flatMap fun | .hold xs => xs | _ => []
+def outWants (outs : List Out) : List Id := outs.flatMap fun | .want xs => xs | _ => []
+
+theorem blank_claims (P : Params) (Y : List Item) : ∀ w : List Range,
+    outClaims ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) = []
+  | [] => rfl
+  | q :: t => by simpa [outClaims, answer] using blank_claims P Y t
+
+theorem blank_holds (P : Params) (Y : List Item) : ∀ w : List Range,
+    outHolds ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) =
+      w.flatMap fun q => (within Prod.fst q Y).map Prod.snd
+  | [] => rfl
+  | q :: t => by
+    have ih := blank_holds P Y t
+    have ht : (within Prod.fst q Y).filter (fun _ => true) = within Prod.fst q Y := List.filter_eq_self.2 (by simp)
+    simp only [outHolds] at ih ⊢
+    simp [answer, ht, ih]
+
+theorem blank_wants (P : Params) (Y : List Item) : ∀ w : List Range,
+    outWants ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) = []
+  | [] => rfl
+  | q :: t => by simpa [outWants, answer] using blank_wants P Y t
+
+/-- **The peer that syncs a room answers a take room's opening with all
+it holds there (`take_round_offers`).** A round of r opened with one
+empty id claim per range of w, at a side that shows r, ends there, and
+offers as haves every id of r's live index in those ranges; it wants
+nothing. -/
+theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : List Range)
+    (hr : has p.rooms r = true) (fresh : p.oldRound r k = false) (hw : w ≠ []) :
+    (p.onRbsr cfg ix r k (w.map fun q => .ids q []) now).send =
+      (Msg.rbsr r k []).op ::
+        (chunks cfg (w.flatMap fun q => (within Prod.fst q (ix.items r)).map Prod.snd) (.hold r) ++
+          chunks cfg [] .want) := by
+  have hc : (w.map fun q => Claim.ids q []).isEmpty = false := by
+    cases w with
+    | nil => exact absurd rfl hw
+    | cons _ _ => rfl
+  simp only [Conn.onRbsr, Conn.has_carried_eq, hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
+    ite_false, fresh, hc, Conn.view_shown hr, Index.answer_fun]
+  have e : (Msg.rbsr r k []).op ::
+      (chunks cfg (w.flatMap fun q => (within Prod.fst q (ix.items r)).map Prod.snd) (.hold r) ++
+        chunks cfg [] .want) =
+      (Msg.rbsr r k (outClaims ((w.map fun q => Claim.ids q []).flatMap
+          (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))).op ::
+        (chunks cfg (outHolds ((w.map fun q => Claim.ids q []).flatMap
+            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r)))) (.hold r) ++
+          chunks cfg (admitAsks cfg.maxKnown p.asked (outWants ((w.map fun q => Claim.ids q []).flatMap
+            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))) .want) := by
+    rw [blank_claims, blank_holds, blank_wants]
+    simp [admitAsks]
+  rw [e]
+  dsimp only [outClaims, outHolds, outWants]
+  split <;> rfl
+
+end
+
+end Engine.Sync

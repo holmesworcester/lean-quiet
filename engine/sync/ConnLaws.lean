@@ -3,9 +3,9 @@ What a connection may send and take, proven of `Conn`'s code run on
 the model store:
 
 - `recv_take`: an op `recv` hands the writer is a data op (never a
-  sync wire op) in one of the connection's rooms, so shared: `intake`
-  keeps it, and no local or conn op, nor an op of a room the peer may
-  not see, is ever taken from a session.
+  sync wire op) in one of the connection's rooms, shown or taken, so
+  shared: `intake` keeps it, and no local or conn op, nor an op of a
+  room the session does not carry, is ever taken from a session.
 - `recv_send`, `filed_send`, `tick_send`, `start_send`: everything a
   connection sends is a sync wire op, or an op the peer may see (in one
   of the connection's rooms). In particular a want for an op of another
@@ -32,10 +32,13 @@ theorem chunks_wire (ids : List Id) (mk : List Id → Msg) : ∀ o ∈ chunks cf
 /-- What a connection may send: a sync wire op, or an op the peer may see. -/
 def Sendable (c : Conn) (o : Op) : Prop := isWire o.kind = true ∨ c.shows fam o = true
 
-/-- What a connection may hand the writer: a data op the peer may see. -/
-def Takeable (c : Conn) (o : Op) : Prop := isWire o.kind = false ∧ c.shows fam o = true
+/-- What a connection may hand the writer: a data op of a room it shows
+or takes. -/
+def Takeable (c : Conn) (o : Op) : Prop :=
+  isWire o.kind = false ∧ (c.shows fam o || c.takesOp fam o) = true
 
 theorem shows_heard (c : Conn) (now : Nat) (o : Op) : ({ c with heard := now } : Conn).shows fam o = c.shows fam o := rfl
+theorem takesOp_heard (c : Conn) (now : Nat) (o : Op) : ({ c with heard := now } : Conn).takesOp fam o = c.takesOp fam o := rfl
 
 theorem start_send (ix : Index) (c : Conn) (now : Nat) :
     (∀ o ∈ (c.start cfg ix now).send, isWire o.kind = true) ∧ (c.start cfg ix now).take = [] := by
@@ -77,7 +80,7 @@ theorem onRbsr_send (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
     (∀ o ∈ (c.onRbsr cfg ix r k cs now).send, isWire o.kind = true) ∧
       (c.onRbsr cfg ix r k cs now).take = [] := by
   unfold Conn.onRbsr
-  by_cases h1 : (!has c.rooms r) = true
+  by_cases h1 : (!has c.carried r) = true
   · simp [h1, msg_wire]
   · rw [if_neg h1]
     by_cases stale : c.oldRound r k = true
@@ -135,12 +138,12 @@ theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : 
     ((Conn.recv fam cfg ix c bytes now : Model F Step).run s).1 =
       match Msg.ofOp o with
       | some (.hello f) => (if c'.dialer then
-          ({ c' with peerFloor := some f, session := c'.session.hearHello } : Conn).start cfg ix now else { conn := { c' with peerFloor := some f, session := c'.session.hearHello, rounded := c'.rooms.map (·, now) }, send := [(Msg.hello c'.floor).op] })
+          ({ c' with peerFloor := some f, session := c'.session.hearHello } : Conn).start cfg ix now else { conn := { c' with peerFloor := some f, session := c'.session.hearHello, rounded := c'.carried.map (·, now) }, send := [(Msg.hello c'.floor).op] })
       | some (.rbsr r k cs) => (c'.onRbsr cfg ix r k cs now)
       | some (.hold r ids) => if ids.isEmpty then { conn := c'.onAsk r }
           else ((c'.onHold fam cfg r ids : Model F Step).run s).1
       | some (.want ids) => c'.onWant cfg ix ids
-      | none => if isWire o.kind || !c'.shows fam o then { conn := c' }
+      | none => if isWire o.kind || !(c'.shows fam o || c'.takesOp fam o) then { conn := c' }
           else ((Step.mk { c' with asked := c'.asked.erase o.id, askTime := c'.askTime.erase o.id, known := remember cfg.maxKnown c'.known o.id }
             [] [o] [] false)) := by
   intro c'
@@ -148,10 +151,14 @@ theorem recv_cases (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : 
   rw [hd]
   dsimp only
   cases Msg.ofOp o with
-  | none => by_cases hw : (isWire o.kind || !c'.shows fam o) = true <;> simp [hw, c']
+  | none =>
+    by_cases hw : (isWire o.kind || !(c'.shows fam o || c'.takesOp fam o)) = true
+    · rw [if_pos hw]; simp only [c'] at hw; rw [if_pos hw]; rfl
+    · rw [if_neg hw]; simp only [c'] at hw; rw [if_neg hw]; rfl
   | some m =>
     cases m with
     | hold r ids => by_cases he : ids.isEmpty = true <;> simp [he, Model.run_bind, Model.run_pure, c']
+    | hello f => by_cases hdl : c.dialer = true <;> simp only [hdl, c', ite_true, ite_false, Bool.false_eq_true] <;> rfl
     | _ => simp [Model.run_bind, Model.run_pure, c']
 
 /-- **A session hands the writer only data ops the peer may see.** -/
@@ -164,14 +171,14 @@ theorem recv_take (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
     dsimp only
     cases Msg.ofOp o with
     | none =>
-      by_cases hw : (isWire o.kind || !c.shows fam o) = true
-      · rw [if_pos (show (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw)]; simp
-      · rw [if_neg (show ¬ (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw)]
+      by_cases hw : (isWire o.kind || !(c.shows fam o || c.takesOp fam o)) = true
+      · rw [if_pos (show (isWire o.kind || !(Conn.shows fam ({ c with heard := now } : Conn) o || Conn.takesOp fam ({ c with heard := now } : Conn) o)) = true by rw [shows_heard, takesOp_heard]; exact hw)]; simp
+      · rw [if_neg (show ¬ (isWire o.kind || !(Conn.shows fam ({ c with heard := now } : Conn) o || Conn.takesOp fam ({ c with heard := now } : Conn) o)) = true by rw [shows_heard, takesOp_heard]; exact hw)]
         intro p hp
         have hpo : p = o := by simpa using hp
         subst hpo
         simp only [Bool.or_eq_true, Bool.not_eq_true', not_or, Bool.not_eq_false] at hw
-        exact ⟨by simpa using hw.1, hw.2⟩
+        exact ⟨by simpa using hw.1, by simpa using hw.2⟩
     | some m =>
       cases m with
       | hello f =>
@@ -197,9 +204,9 @@ theorem recv_send (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (s : D
     dsimp only
     cases Msg.ofOp o with
     | none =>
-      by_cases hw : (isWire o.kind || !c.shows fam o) = true
-      · rw [if_pos (show (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw)]; simp
-      · rw [if_neg (show ¬ (isWire o.kind || !Conn.shows fam ({ c with heard := now } : Conn) o) = true by rw [shows_heard]; exact hw)]; simp
+      by_cases hw : (isWire o.kind || !(c.shows fam o || c.takesOp fam o)) = true
+      · rw [if_pos (show (isWire o.kind || !(Conn.shows fam ({ c with heard := now } : Conn) o || Conn.takesOp fam ({ c with heard := now } : Conn) o)) = true by rw [shows_heard, takesOp_heard]; exact hw)]; simp
+      · rw [if_neg (show ¬ (isWire o.kind || !(Conn.shows fam ({ c with heard := now } : Conn) o || Conn.takesOp fam ({ c with heard := now } : Conn) o)) = true by rw [shows_heard, takesOp_heard]; exact hw)]; simp
     | some m =>
       cases m with
       | hello f =>

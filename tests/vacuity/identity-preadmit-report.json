@@ -1,0 +1,107 @@
+{
+  "preadmit_sends_nothing": {
+    "status": "runtime-witness",
+    "theorem": "Connection.preadmit_sends_nothing",
+    "witness": "Vacuity.IdentityPreadmit.sendsNothing",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "preadmit_reaches_session": {
+    "status": "runtime-witness",
+    "theorem": "Connection.preadmit_reaches_session",
+    "witness": "Vacuity.IdentityPreadmit.reachesSession",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "roomFor_law": {
+    "status": "runtime-witness",
+    "theorem": "Connection.roomFor_law",
+    "witness": "Vacuity.IdentityPreadmit.roomForLaw",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "rooms_take": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_take",
+    "witness": "Vacuity.IdentityPreadmit.roomsTake",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "linked_unlive": {
+    "status": "runtime-witness",
+    "theorem": "Connection.linked_unlive",
+    "witness": "Vacuity.IdentityPreadmit.linkedUnlive",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "link_owes_nothing": {
+    "status": "runtime-witness",
+    "theorem": "Connection.link_owes_nothing",
+    "witness": "Vacuity.IdentityPreadmit.linkOwesNothing",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "refused_gets_only_notice": {
+    "status": "runtime-witness",
+    "theorem": "Connection.refused_gets_only_notice",
+    "witness": "Vacuity.IdentityPreadmit.refusedOnlyNotice",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "take_unshown": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.take_unshown",
+    "witness": "Vacuity.IdentityPreadmit.takeUnshown",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "start_take_blank": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.start_take_blank",
+    "witness": "Vacuity.IdentityPreadmit.startBlank",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "onRbsr_take_blank": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.onRbsr_take_blank",
+    "witness": "Vacuity.IdentityPreadmit.rbsrBlank",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "take_opens": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.take_opens",
+    "witness": "Vacuity.IdentityPreadmit.takeOpens",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "take_round_offers": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.take_round_offers",
+    "witness": "Vacuity.IdentityPreadmit.roundOffers",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "recv_takes_taken": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.recv_takes_taken",
+    "witness": "Vacuity.IdentityPreadmit.takesTaken",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "rooms_complete_take": {
+    "status": "runtime-witness",
+    "theorem": "Connection.rooms_complete_take",
+    "witness": "Vacuity.IdentityPreadmit.completeTake",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  },
+  "shipped_roomFor_shows": {
+    "status": "runtime-witness",
+    "theorem": "Connection.shipped_roomFor_shows",
+    "witness": "Vacuity.IdentityPreadmit.shippedShows",
+    "module": "tests.vacuity.IdentityPreadmit",
+    "detail": "Bob's node holds Alice's signed community (admissions, his message, a name, a wrap) and its own removal; it opens a link Mallory made naming her own key and a real Noise KK session to it is established. On the node's own store the rooms view gives that session only Room.take c; the running steps (Mallory's hello, a fingerprint round, an id round, a want for every op of c Bob holds and the served queue, filedGive, tickGive) and a whole Node.onTick with the family's hooks, its sealed frame opened with Bob's send key, send no op of c and only empty id claims about c, while Mallory's op of c is wanted and taken. The shipped selection, on the same store, syncs c and serves Bob's message. Then Dave, admitted after Bob's removal, invites him: that session takes c, takes Bob's new admission, and once Dave's ops are held c is synced and Bob live."
+  }
+}

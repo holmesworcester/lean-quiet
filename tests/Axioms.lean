@@ -29,6 +29,7 @@ import engine.sync.ServeLaws
 import engine.sync.ClosureDelivery
 import engine.sync.RoundRun
 import engine.sync.EventLaws
+import engine.sync.TakeLaws
 import engine.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
@@ -724,6 +725,21 @@ end net
 #print axioms Connection.hooks_readOnly
 #print axioms Connection.sent_mayGo
 #print axioms Connection.removal_reaches_session
+#print axioms Connection.preadmit_sends_nothing
+#print axioms Connection.preadmit_reaches_session
+#print axioms Connection.roomFor_law
+#print axioms Connection.rooms_take
+#print axioms Connection.rooms_complete_take
+#print axioms Connection.linked_unlive
+#print axioms Connection.link_owes_nothing
+#print axioms Connection.refused_gets_only_notice
+#print axioms Connection.shipped_roomFor_shows
+#print axioms Engine.Sync.take_unshown
+#print axioms Engine.Sync.start_take_blank
+#print axioms Engine.Sync.onRbsr_take_blank
+#print axioms Engine.Sync.take_opens
+#print axioms Engine.Sync.take_round_offers
+#print axioms Engine.Sync.recv_takes_taken
 #print axioms Engine.Sync.notify_bounded
 
 section windows

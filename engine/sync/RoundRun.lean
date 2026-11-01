@@ -48,8 +48,8 @@ theorem conn_answers_claims (cfg : Config) (ix : Index) (c : Conn)
         (chunks cfg (roundHolds outs) (.hold r) ++
           chunks cfg (admitAsks cfg.maxKnown c.asked (roundWants outs)) .want) := by
   have hc : cs.isEmpty = false := List.isEmpty_eq_false_iff.mpr hne
-  simp only [Conn.onRbsr, has_of_mem hr, Bool.not_true, Bool.false_eq_true,
-    ite_false, fresh, hc, Index.answer_fun]
+  simp only [Conn.onRbsr, Conn.has_carried_eq, has_of_mem hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
+    ite_false, fresh, hc, Conn.view_shown (has_of_mem hr), Index.answer_fun]
   dsimp only [nextClaims, roundHolds, roundWants]
   split <;> rfl
 
@@ -58,7 +58,7 @@ theorem conn_ignores_old_round (cfg : Config) (ix : Index) (c : Conn)
     (r : Id) (k now : Nat) (cs : List Claim)
     (hr : r ∈ c.rooms) (old : c.oldRound r k = true) :
     c.onRbsr cfg ix r k cs now = { conn := c } := by
-  simp [Conn.onRbsr, has_of_mem hr, old]
+  simp [Conn.onRbsr, Conn.has_carried_eq, has_of_mem hr, old]
 
 /-- An old room's still-active reply cannot rewind the connection-wide
 counter or clear newer-round closure work. -/
@@ -82,14 +82,15 @@ theorem conn_round_continues (cfg : Config) (ix : Index) (c : Conn)
     let d := (c.onRbsr cfg ix r k cs now).conn
     d.oldRound r k = false ∧ d.rooms = c.rooms := by
   have hc : cs.isEmpty = false := List.isEmpty_eq_false_iff.mpr hne
-  have hp : 0 < c.rooms.length := List.length_pos_of_mem hr
+  have hp : 0 < c.rooms.length + c.takes.length := by
+    have := List.length_pos_of_mem hr; omega
   obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hp)
-  simp only [Conn.onRbsr, has_of_mem hr, Bool.not_true, Bool.false_eq_true,
-    ite_false, fresh, hc, Index.answer_fun]
+  simp only [Conn.onRbsr, Conn.has_carried_eq, has_of_mem hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
+    ite_false, fresh, hc, Conn.view_shown (has_of_mem hr), Index.answer_fun]
   split
   · rename_i h
     exact False.elim (more (List.isEmpty_iff.mp h))
-  · simp [Conn.oldRound, Conn.beginRound, noteEpoch, hn]
+  · simp [Conn.oldRound, Conn.beginRound, noteEpoch, Conn.carried, hn]
 
 /-- Decode the next claim batch from the actual handler output. -/
 def returnedClaims (send : List Op) : List Claim :=
@@ -635,19 +636,19 @@ def initial (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) : State :=
 
 theorem initial_ready (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     Both r 1 (initial cfg r ix iy now) := by
-  simp [Both, Ready, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound, Conn.oldRound, noteEpoch]
+  simp [Both, Ready, initial, Conn.start, Conn.carried, Conn.due, Conn.roundedAt, Conn.beginRound, Conn.oldRound, noteEpoch]
 
 theorem initial_claim (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     (initial cfg r ix iy now).pending =
       [opening Prod.fst Prod.snd sha256 cfg.params (iy.items r) fullRange] := by
-  simp [initial, Conn.start, Conn.due, Conn.roundedAt, window, returnedClaims, fullRange, Index.opening_fun]
+  simp [initial, Conn.start, Conn.carried, Conn.view, has, Conn.due, Conn.roundedAt, window, returnedClaims, fullRange, Index.opening_fun]
 
 /-- All initialized asks are empty; the causality proof can therefore
 trace every later pending ask to a real want on this round's wire. -/
 theorem initial_asks (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
     (initial cfg r ix iy now).receiving.asked = ∅ ∧
     (initial cfg r ix iy now).waiting.asked = ∅ := by
-  simp [initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound]
+  simp [initial, Conn.start, Conn.carried, Conn.due, Conn.roundedAt, Conn.beginRound]
 
 /-- Step t's items, when the two ends' indices are fixed at X (even
 steps) and Y (odd). -/

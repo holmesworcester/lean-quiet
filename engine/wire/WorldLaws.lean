@@ -552,7 +552,7 @@ theorem hold_wants (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (r i : Id)
       p.1.2.send = [(src, plainFrame cid [(Msg.want [i]).op.bytes])] ∧ p.2 = h := by
   have hs' := has_of_mem hs
   simp [Node.onFrame, Node.onSealed, plainOpen, Codec.decode_encode, Node.conn?, Node.setAddr, hc,
-    Conn.recv, Op.decode_bytes, Conn.onHold, holdsIn, hs', hq, hn, Node.apply, finish_run, hm,
+    Conn.recv, Op.decode_bytes, Conn.onHold, Conn.carried, holdsIn, hs', hq, hn, Node.apply, finish_run, hm,
     split_one, Node.serveOwed, hq0, Node.sent,
     admit_one _ _ _ hq hasked, remember_bounded,
     chunks_one _ _ _ hmax, Node.addr?, Conn.setRooms, sends, hasked, show ¬S.cfg.maxIds < 1 by omega]
@@ -676,7 +676,7 @@ theorem want_sends (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (
     { c.setRooms (S.rooms s cid) with notices := [], heard := t, owed := [o.id], owing := c.owing.insert o.id }
     ((cid, src) :: List.filter (fun p => !Decidable.decide (p.fst = cid)) n.addrs) o h t
     (by simp) (by simp [hw0]) hn (by simp [Conn.shows, Conn.setRooms, hr, hs']) hb
-  simp only [Conn.setRooms] at e1 e2 e3 e4
+  simp only [Conn.setRooms, List.filter_nil, List.append_nil, has_nil, Bool.false_and, Bool.or_false] at e1 e2 e3 e4
   simp [Node.apply, Conn.setRooms]
   rw [e1, e4, finish_run _ _ _ _ _ _ (by rw [e2, hm])]
   refine ⟨[], by simp, ?_⟩
@@ -1537,8 +1537,8 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
   refine ⟨_, _, rfl, ?_, exchange_ids (P := cfg.params) 0 X Y rg _ rfl⟩
   have hr' := has_of_mem hr
   subst hX
-  simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
-    List.flatMap_nil, List.append_nil, List.isEmpty_cons]
+  simp only [Conn.onRbsr, fresh, Conn.has_carried_eq, hr', Bool.true_or, Bool.not_true, Bool.false_eq_true,
+    ite_false, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.isEmpty_cons, Conn.view_shown hr']
   simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound]
 
 end Engine.Sync

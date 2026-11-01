@@ -536,6 +536,9 @@ lean_exe vacuity_identity_frames where
 lean_exe vacuity_identity_rejoin where
   root := `tests.vacuity.IdentityRejoinMain
 
+lean_exe vacuity_identity_preadmit where
+  root := `tests.vacuity.IdentityPreadmitMain
+
 target stop_probe.o pkg : FilePath := do
   let src ← inputTextFile <| pkg.dir / "tests" / "engine" / "stop_probe.c"
   buildO (pkg.buildDir / "native" / "stop_probe.o") src

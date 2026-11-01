@@ -75,7 +75,7 @@ theorem laterEmpty (n : Nat) : (states (n + 2)).pending = [] := by
 
 theorem bounded (t : Nat) : (states t).receiving.Bounded cfg ∧ (states t).waiting.Bounded cfg :=
   run_bounded cfg room 1 times ixs states runs
-    (by simp [states, execute, first, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound,
+    (by simp [states, execute, first, initial, Conn.start, Conn.carried, Conn.due, Conn.roundedAt, Conn.beginRound,
       Conn.Bounded, cfg]) t
 
 theorem capacity (t : Nat) : Capacity cfg room (states t) := by

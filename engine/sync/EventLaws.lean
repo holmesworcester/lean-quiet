@@ -153,7 +153,7 @@ theorem shown_due (c : Conn) (rs : List Id) (r : Id) (now : Nat) (hnew : r ∉ c
     simp only [Option.map_eq_none_iff, List.find?_eq_none, decide_eq_true_eq]
     intro p hp e
     have := (List.mem_filter.1 (List.mem_of_mem_take hp)).2
-    simp only [Bool.and_eq_true] at this
+    simp only [List.filter_nil, has_nil, Bool.false_and, Bool.or_false, Bool.and_eq_true] at this
     exact hnew (e ▸ (Engine.has_iff _ _).1 this.2)
   exact ⟨hn, by unfold Conn.due; rw [hn]⟩
 
@@ -171,11 +171,11 @@ theorem responder_asks (ix : Index) (c : Conn) (r : Id) (now pf : Nat) (h : Held
   simp only [HeldM.bind_apply, HeldM.pure_apply]
   rw [ed, if_neg (by rw [e1, hd]; simp)]
   apply List.mem_append_left
-  have hm : r ∈ d.rooms.filter fun r => (d.roundedAt r).isNone || d.retake cfg r := by
-    refine List.mem_filter.2 ⟨by rw [e4]; exact hr, ?_⟩
+  have hm : r ∈ d.carried.filter fun r => (d.roundedAt r).isNone || d.retake cfg r := by
+    refine List.mem_filter.2 ⟨List.mem_append_left _ (by rw [e4]; exact hr), ?_⟩
     have : d.roundedAt r = c.roundedAt r := by unfold Conn.roundedAt; rw [e6]
     rw [this, fresh]; rfl
-  have hne : (d.rooms.filter fun r => (d.roundedAt r).isNone || d.retake cfg r).isEmpty = false :=
+  have hne : (d.carried.filter fun r => (d.roundedAt r).isNone || d.retake cfg r).isEmpty = false :=
     List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
   unfold Conn.ask
   rw [e2, hp]
@@ -195,7 +195,7 @@ theorem ask_due (ix : Index) (c : Conn) (r : Id) (now later : Nat) (h : Held F)
   have hn : d.conn.roundedAt r = none := by
     rw [hd']
     unfold Conn.onAsk
-    rw [if_pos (by simp [hd, has_of_mem hr, idle])]
+    rw [if_pos (by simp [hd, Conn.has_carried_eq, has_of_mem hr, idle])]
     unfold Conn.roundedAt
     simp
   refine ⟨by rw [hd'], hn, ?_⟩

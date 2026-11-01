@@ -126,7 +126,7 @@ def roomsComplete (s : Session) :=
   if hm : (meV c).eval (run (activeOps s)) = some pkA then
     if hp : peersOf (eval (run (activeOps s)) (Connection.established.byConn.query [s.reply.id])) = [pkB] then
       if hh : (heldV.eval (run (activeOps s))).any (fun r => decide (r = c)) = true then
-        if ht : ((trusts c pkA pkB).liftL : View F Bool).eval (run (activeOps s)) = true then
+        if ht : ((Community.allowPeer c pkB).liftL : View F Bool).eval (run (activeOps s)) = true then
           some (PLift.up (rooms_complete (run (activeOps s)) hm (by rw [hp]; exact List.mem_singleton_self _)
             (by obtain ⟨r,hr,he⟩ := List.any_eq_true.1 hh; exact (of_decide_eq_true he) ▸ hr) ht))
         else none
@@ -149,14 +149,12 @@ def refused (s : Session) : Option (PLift (Refused (run (cutOps s)) s.reply.id c
   else none
 
 def roomsCut (s : Session) := do
-  let ⟨hl⟩ ← liveIn s
   let ⟨hr⟩ ← refused s
-  pure (PLift.up (rooms_cut (run (cutOps s)) hl hr))
+  pure (PLift.up (rooms_cut (run (cutOps s)) hr))
 
 def roomsRemoved (s : Session) := do
-  let ⟨hl⟩ ← liveIn s
   let ⟨hr⟩ ← refused s
-  pure (PLift.up (rooms_removed (run (cutOps s)) hl hr))
+  pure (PLift.up (rooms_removed (run (cutOps s)) hr))
 
 def openedEndpoint (s : Session) :=
   if h : check sodium (opened s) .opened [.inr (.request pkA pkB s.m1), .inl (.endpoint pkA staticA)] =

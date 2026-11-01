@@ -700,6 +700,11 @@ description = "Actual Runner exception ownership, retained native handoff and no
 depends = ["crypto"]
 run = "bash tests/engine/runner_ownership.sh"
 
+[tasks."test:preadmit"]
+description = "Pre-admission sessions: a removed node opening a stranger's link takes the community and sends none of it; mutants restoring the leak are rejected inside their laws"
+depends = ["crypto"]
+run = "bash tests/engine/preadmit.sh"
+
 [tasks."test:node-uniqueness"]
 description = "Actual Node ID/retry invariants, kernel witnesses and native mutation controls"
 depends = ["crypto"]
