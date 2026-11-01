@@ -81,7 +81,7 @@
     "theorem": "Community.connect_admitted",
     "witness": "Vacuity.IdentityTrust.connectAdmitted",
     "module": "tests.vacuity.IdentityTrust",
-    "detail": "Actual root/request/approval premises, a singleton distinct-approver proof, and deviceLive-derived unremoved premise accept Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+    "detail": "Actual root/request/approval premises, a singleton distinct-approver proof, and deviceLive-derived unremoved premise accept Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. Alice's approval counts, read by the counts view and counts_iff."
   },
   "endpoint_signed": {
     "status": "runtime-witness",
@@ -109,7 +109,7 @@
     "theorem": "Community.new_device_trusted",
     "witness": "Vacuity.IdentityTrust.newDeviceTrusted",
     "module": "tests.vacuity.IdentityTrust",
-    "detail": "Carol is a new device/user admitted under removed Bob's node key; Carol becomes live while Bob stays cut. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+    "detail": "Alice removes Bob, then approves Carol, a new device/user on Bob's node key: a current member's approval, so Carol's admission is trusted (trusted view), Carol becomes live, and Bob stays cut. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
   },
   "mine_not_removed": {
     "status": "runtime-witness",
@@ -145,5 +145,90 @@
     "witness": "Vacuity.IdentityTrust.wrapAdmits",
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Alice's actual approveReq over a Reach-built store holding her community, the invitation and Bob's signed request: the law is applied to the write the intent produces, and the write is not the bare approval, so it is her approval then the admission citing exactly it (the law's second case). Control: without the request in the store the write is the bare approval."
+  },
+  "no_self_readmission": {
+    "status": "runtime-witness",
+    "theorem": "Community.no_self_readmission",
+    "witness": "Vacuity.IdentityTrust.noSelfReadmission",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Alice removes Bob citing his chain head (his approval of Dave); Bob, removed, invites and approves a fresh device naming his own node key, one place past the head. Every Valid approval naming Bob's key is checked from the store: for Bob's own device (cut), or by Bob outside the cut; the law then refuses Bob's node. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "outside_cut_admits_none": {
+    "status": "runtime-witness",
+    "theorem": "Community.outside_cut_admits_none",
+    "witness": "Vacuity.IdentityTrust.outsideCut",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob's actual approval past Alice's cut: the cut view refuses it on the real store, inCut_iff turns that into not InCut, and the law gives that neither it nor anything above it counts. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "inside_cut_stays": {
+    "status": "runtime-witness",
+    "theorem": "Community.inside_cut_stays",
+    "witness": "Vacuity.IdentityTrust.insideCutStays",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob's approval of Dave counts before Alice's removal (counts view on the store Alice had seen) and, with its up-path kept by the removal's cut (kept view after the removal, path walked by Above), still counts after: no cascade. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "trust_agree": {
+    "status": "runtime-witness",
+    "theorem": "Community.trust_agree",
+    "witness": "Vacuity.IdentityTrust.trustAgree",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "The cut store and its reversed arrival order hold the same ops; trusted and allowPeer agree for Bob's fresh device on his node key. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "trust_order_free": {
+    "status": "runtime-witness",
+    "theorem": "Community.trust_order_free",
+    "witness": "Vacuity.IdentityTrust.trustOrderFree",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Reach-built stores from the cut ops in two arrival orders, distinctness checked; the law gives equal trust and trust-rule verdicts. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "trusted_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.trusted_iff",
+    "witness": "Vacuity.IdentityTrust.trustedIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Applied at rest to the cut store for Bob's fresh device on his own node key (the view answers false there). Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "counts_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.counts_iff",
+    "witness": "Vacuity.IdentityTrust.countsIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Applied to Bob's actual approval of Dave (depth 1, up Alice's approval of Bob) on the cut store. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "kept_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.kept_iff",
+    "witness": "Vacuity.IdentityTrust.keptIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Applied to Bob's actual approval past the cut, on the store holding Alice's removal of Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "inCut_iff": {
+    "status": "runtime-witness",
+    "theorem": "Community.inCut_iff",
+    "witness": "Vacuity.IdentityTrust.inCutIff",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Applied to Bob's approval of Dave and Alice's actual removal citing it as Bob's chain head. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "approval_links": {
+    "status": "runtime-witness",
+    "theorem": "Community.approval_links",
+    "witness": "Vacuity.IdentityTrust.approvalLinks",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob's actual approval past the cut: depth 1 (up Alice's approval of Bob) and place 1 (prev his approval of Dave). Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "removal_cut": {
+    "status": "runtime-witness",
+    "theorem": "Community.removal_cut",
+    "witness": "Vacuity.IdentityTrust.removalCut",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Alice's actual removal of Bob, as the remover flow writes it: its cut names Bob's approval of Dave at place 0. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application."
+  },
+  "removeMember_keeps": {
+    "status": "conditional",
+    "theorem": "Community.removeMember_keeps",
+    "witness": "Vacuity.IdentityTrust.removeKeeps",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Alice's actual remover flow over the store she had seen writes the removal of Bob citing his chain head; settled store, the write, the extension, the stored op, the heads cap, Bob's places below 2^64 and his unforked chain are all checked from the store, and the law keeps Bob's approval of Dave inside the cut. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it, as removeMember_valid is.",
+    "exercise": true
   }
 }

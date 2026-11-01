@@ -492,6 +492,10 @@ run = "tests/engine/read_plan.sh"
 description = "Actual RBSR at logarithmic depth, its checked laws, and runtime mutation controls"
 run = "tests/engine/claim_tree.sh"
 
+[tasks."test:cut"]
+description = "The causal cut of removals on SQLite (cut_check), and its mutants (bare counter, no cut, no chain to the founder), each failing cut_check and refused by its law"
+run = "tests/engine/cut.sh"
+
 [tasks."test:people-reader"]
 description = "Bounded people header, full membership list, cached removal invalidation and controls"
 run = "tests/app/people_reader.sh"

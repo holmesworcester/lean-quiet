@@ -9,6 +9,7 @@ fresh	tests/engine/fresh.sh
 clumps	mise run test:clumps
 read-plan	mise run test:read-plan
 claim-tree	mise run test:claim-tree
+cut	mise run test:cut
 fairness	mise run test:fairness
 catalog-retry	mise run test:catalog-retry
 reserved-retry	mise run test:reserved-retry

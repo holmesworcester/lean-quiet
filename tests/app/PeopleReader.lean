@@ -45,7 +45,7 @@ def run (ck : Checks) : IO Unit := do
   sh.setWants #[.people small]
   let (_, s) ← (Reader.pass sh).run { rd := db }
   ck.ok "reader publishes the exact initial count" (((← sh.board.get).get? (.people small)).map (·.1) == some (.people 2 true))
-  file db "remove-user-0" (.removal small (bytes "user-0") small)
+  file db "remove-user-0" (.removal small (bytes "user-0") small [])
   commits.modify (· + 1)
   let (_, s) ← (Reader.pass sh).run s
   ck.ok "removal commit invalidates cached header and cuts all user devices"

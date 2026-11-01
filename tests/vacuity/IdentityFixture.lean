@@ -45,6 +45,11 @@ def rootFact := Fact.admission c c alice.pk (keyOf alice)
 def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob)
 def messageFact := Fact.message c requestB.id bob.pk "content-key-1".toUTF8
   "Hello Alice, this is Bob.".toUTF8 1 29880000
+/-- Alice's approval of Bob: the founder's device's first, so no links. -/
+def approvalF : Approve.Fact := ⟨c, requestB.id, c, alice.pk, requestB.id, bob.pk, keyOf bob, .empty, 0, .empty, 0⟩
+def approvalFact := Fact.ofApproval approvalF
+def removeBFact := Fact.removal c requestB.id c []
+def removeAFact := Fact.removal c c requestB.id []
 
 
 end Vacuity.Identity

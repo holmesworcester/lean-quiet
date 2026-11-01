@@ -121,6 +121,9 @@ wired Demand.remount_rejects
 holds Demand.Plan.BeforeNext Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile.
 wired Community.connect_iff
 wired Community.removal_cuts_off
+wired Community.no_self_readmission
+wired Community.outside_cut_admits_none
+wired Community.trust_agree
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
 
