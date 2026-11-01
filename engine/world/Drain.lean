@@ -797,6 +797,116 @@ theorem step_waits (E : Q.Run) (k : Nat) (a b : Fin Q.n) (cid x : Id) (o : Op) (
     rw [hact] at hlegal
     exact absurd hlegal.1 (by simp [noAdv])
 
+/-- **The holder's tick moves a waiting id strictly forward, or sends
+its op to the peer.** -/
+theorem tick_moves_world (E : Q.Run) (k : Nat) (a b : Fin Q.n) (cid x : Id) (o : Op) (r : Id) (t : Nat)
+    (hact : E.act k = .tick a t) (c : Conn) (hc : ((E.world k).node a).conn? cid = some c) (hxc : x ∈ c.owed)
+    (hm : ((E.world k).node a).managed = []) (ha : ((E.world k).node a).addr? cid = some (Q.addr b))
+    (hg : ((E.world k).box a).db.ops x = some o) (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms a cid)
+    (hb : 0 < Q.cfg.burst) :
+    ((E.world (k + 1)).node a).conn? cid = none ∨
+      (∃ c', ((E.world (k + 1)).node a).conn? cid = some c' ∧ x ∈ c'.owed ∧ c'.owed.idxOf x < c.owed.idxOf x) ∨
+      ∃ sr g, o.bytes ∈ g ∧
+        (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (k + 1)).now⟩ : Packet Q.n) ∈
+          (E.world (k + 1)).flight := by
+  rw [Exec.world_succ, hact]
+  rcases onTick_moves (Q.two a) .a ((E.world k).node a) t ((E.world k).box a) cid x o r c (Q.addr b) hc hxc hm ha hg hr
+      hs hb with e1 | ⟨c', hc', hxc', hlt⟩ | ⟨g, hg', hf⟩
+  · left; simp only [World.step]; rw [enter_self_node]; exact e1
+  · right; left; refine ⟨c', ?_, hxc', hlt⟩; simp only [World.step]; rw [enter_self_node]; exact hc'
+  · right; right
+    obtain ⟨sr, hsr⟩ := enter_sends (E.world k) a t (fun nd => nd.onTick ((Q.two a).sync .a) t) _ _ hf
+    refine ⟨sr, g, hg', ?_⟩
+    simp only [World.step]
+    simp only [World.enter] at hsr ⊢
+    exact hsr
+
+/-- **The queue drains in ticks.** At its holder a, from step k after gst,
+x waits at position p of session cid's queue; a holds x's op in a room the
+session shows, stays online, keeps the session open to b, and nobody
+reopens cid at a; the session's frames come from b. Then within
+(p + 1) · τ, x's op is in flight from a to b on the session. -/
+theorem drain (E : Q.Run) {N : Net Q.n} (hN : N.Admits E) {a b : Fin Q.n} {cid r x : Id} {o : Op} {k T : Nat}
+    (hJ : ∀ m, k ≤ m → (((E.world m).node a).conn? cid).isSome = true)
+    (haddr : ∀ m, k ≤ m → ((E.world m).node a).addr? cid = some (Q.addr b))
+    (hm : ∀ m, ((E.world m).node a).managed = [])
+    (hnc : ∀ m j dl t, k ≤ m → E.act m ≠ .connect a j cid dl t) (hfp : FromPeer E a b cid k)
+    (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o) (hr : Q.fam.room o = some r)
+    (hs : r ∈ Q.rooms a cid) (hb : 0 < Q.cfg.burst) (hgst : N.gst ≤ (E.world k).now) (hup : N.Up a (E.world k).now T) :
+    ∀ (p : Nat), (∀ c, ((E.world k).node a).conn? cid = some c → Waits x p c) →
+      (E.world k).now + (p + 1) * N.τ ≤ T →
+      ∃ m sr g, k ≤ m ∧ (E.world (m + 1)).now ≤ (E.world k).now + (p + 1) * N.τ ∧ o.bytes ∈ g ∧
+        (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (m + 1)).now⟩ : Packet Q.n) ∈
+          (E.world (m + 1)).flight := by
+  have tick_now : ∀ k1 t1, E.act k1 = .tick a t1 → (E.world (k1 + 1)).now = t1 := by
+    intro k1 t1 h1; rw [Exec.world_succ, h1]; simp only [World.step, World.enter]
+  suffices H : ∀ p k', k ≤ k' → (∀ c, ((E.world k').node a).conn? cid = some c → Waits x p c) →
+      (E.world k').now + (p + 1) * N.τ ≤ T →
+      ∃ m sr g, k' ≤ m ∧ (E.world (m + 1)).now ≤ (E.world k').now + (p + 1) * N.τ ∧ o.bytes ∈ g ∧
+        (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (m + 1)).now⟩ : Packet Q.n) ∈
+          (E.world (m + 1)).flight by
+    intro p hw hT
+    obtain ⟨m, sr, g, hkm, ht, hg', hf⟩ := H p k (Nat.le_refl _) hw hT
+    exact ⟨m, sr, g, hkm, ht, hg', hf⟩
+  intro p
+  induction p using Nat.strongRecOn with
+  | ind p ih =>
+  intro k' hk' hw hT
+  have hnow : (E.world k).now ≤ (E.world k').now := Exec.now_mono E hk'
+  have hg' : N.gst ≤ (E.world k').now := Nat.le_trans hgst hnow
+  have hupk : N.Up a (E.world k').now ((E.world k').now + N.τ) := fun t h1 h2 =>
+    hup t (by omega) (by have := Nat.le_mul_of_pos_left N.τ (show 0 < p + 1 by omega); omega)
+  obtain ⟨k1, t1, hk1, hact1, ht1⟩ := hN.ticks a k' hg' hupk
+  -- until the tick, x keeps waiting, or its op goes out
+  have walk : ∀ d, k' + d ≤ k1 → (∀ c, ((E.world (k' + d)).node a).conn? cid = some c → Waits x p c) ∨
+      ∃ m sr g, k' ≤ m ∧ m < k' + d ∧ o.bytes ∈ g ∧
+        (⟨sr, some a, Q.addr a, Q.addr b, plainFrame cid g, (E.world (m + 1)).now⟩ : Packet Q.n) ∈
+          (E.world (m + 1)).flight := by
+    intro d
+    induction d with
+    | zero => intro _; exact Or.inl hw
+    | succ d ihd =>
+      intro hd
+      rcases ihd (by omega) with hwd | ⟨m, sr, g, h1, h2, hg2, hf2⟩
+      · rcases step_waits E (k' + d) a b cid x o r p (hm _) hwd (hx _ (by omega)) hr hs hb
+            (fun j dl t => hnc _ j dl t (by omega))
+            (fun m idx t q hmq => hfp m idx t q (by omega)) (haddr _ (by omega)) (hJ _ (by omega)) with
+          e | ⟨sr, g, hg2, hf2⟩
+        · left; rw [show k' + (d + 1) = k' + d + 1 by omega]; exact e
+        · exact Or.inr ⟨k' + d, sr, g, by omega, by omega, hg2, hf2⟩
+      · exact Or.inr ⟨m, sr, g, h1, by omega, hg2, hf2⟩
+  have hk1' : k1 = k' + (k1 - k') := by omega
+  have hnow1 : (E.world k1).now ≤ t1 := by
+    have := E.legal k1; rw [hact1] at this; exact this
+  rcases walk (k1 - k') (by omega) with hw1 | ⟨m, sr, g, h1, h2, hg2, hf2⟩
+  · rw [← hk1'] at hw1
+    obtain ⟨c1, hc1⟩ := Option.isSome_iff_exists.1 (hJ k1 (by omega))
+    obtain ⟨hxc1, hic1⟩ := hw1 c1 hc1
+    rcases tick_moves_world E k1 a b cid x o r t1 hact1 c1 hc1 hxc1 (hm k1) (haddr k1 (by omega)) (hx k1 (by omega))
+        hr hs hb with hn | ⟨c', hc', hxc', hlt⟩ | ⟨sr, g, hg2, hf2⟩
+    · have := hJ (k1 + 1) (by omega); rw [hn] at this; cases this
+    · -- strictly forward: one position fewer, from the step after the tick
+      have hp : 0 < p := by omega
+      have hw2 : ∀ c, ((E.world (k1 + 1)).node a).conn? cid = some c → Waits x (p - 1) c := by
+        intro c hc; rw [hc'] at hc; cases hc; exact ⟨hxc', by omega⟩
+      have hT2 : (E.world (k1 + 1)).now + (p - 1 + 1) * N.τ ≤ T := by
+        rw [tick_now k1 t1 hact1, show p - 1 + 1 = p by omega]
+        have : (p + 1) * N.τ = p * N.τ + N.τ := Nat.succ_mul p N.τ
+        omega
+      obtain ⟨m, sr, g, h1, h2, hg2, hf2⟩ := ih (p - 1) (by omega) (k1 + 1) (by omega) hw2 hT2
+      refine ⟨m, sr, g, by omega, ?_, hg2, hf2⟩
+      rw [tick_now k1 t1 hact1, show p - 1 + 1 = p by omega] at h2
+      have : (p + 1) * N.τ = p * N.τ + N.τ := Nat.succ_mul p N.τ
+      omega
+    · refine ⟨k1, sr, g, by omega, ?_, hg2, hf2⟩
+      rw [tick_now k1 t1 hact1]
+      have := Nat.le_mul_of_pos_left N.τ (show 0 < p + 1 by omega)
+      omega
+  · refine ⟨m, sr, g, h1, ?_, hg2, hf2⟩
+    have h3 : (E.world (m + 1)).now ≤ (E.world k1).now := Exec.now_mono E (by omega)
+    have := Nat.le_mul_of_pos_left N.τ (show 0 < p + 1 by omega)
+    omega
+
 end Plain
 
 end Engine.World
