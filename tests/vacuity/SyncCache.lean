@@ -103,10 +103,10 @@ theorem acceptsNewRound : (conn.onRbsr cfg ix room 7 [.ids range [msg.id]] 100).
       (([Claim.ids range [msg.id]].flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items room))).filterMap
         fun | .claim x => some x | _ => none)).op :=
   uncarried_room_answered cfg ix conn room 7 100 [.ids range [msg.id]]
-    (by simp [conn, Conn.open, has]) rfl rfl
+    (by simp [conn, Conn.open, has]) rfl rfl rfl
 
 def answersIds := conn_answers_ids cfg ix conn room 7 range (ix.items room)
-  [(⟨0, 1⟩, "remote-message-id".toUTF8)] 100 (by simp [conn, Conn.open]) rfl
+  [(⟨0, 1⟩, "remote-message-id".toUTF8)] 100 (by simp [conn, Conn.open]) rfl rfl
 
 theorem retryBound : (retried ((asking.work fam cfg ix 1500 : HeldM Unit Step) held).1.send).length ≤ cfg.maxIds :=
   work_retry_bounded fam cfg ix asking 1500 held

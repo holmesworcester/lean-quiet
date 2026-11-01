@@ -16,9 +16,11 @@ theorem round_session (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List 
   unfold Conn.onRbsr
   split
   · rfl
-  · dsimp only; split
+  · split
     · rfl
-    · split <;> rfl
+    · dsimp only; split
+      · rfl
+      · split <;> rfl
 
 theorem hold_session (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     ((c.onHold fam cfg r ids : HeldM F Step) h).1.conn.session = c.session := by

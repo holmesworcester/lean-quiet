@@ -198,6 +198,10 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
     obtain rfl := List.mem_singleton.mp ho
     exact Or.inl ⟨_, rfl, by simp [Msg.offers]⟩
   rw [ite_eq_right h1]
+  by_cases stale : c.oldRound r k = true
+  · rw [ite_eq_left stale]
+    exact ⟨rfl, hs, by simp⟩
+  rw [ite_eq_right stale]
   have hr : r ∈ c.rooms := by
     simp only [Bool.not_eq_true', Bool.not_eq_false] at h1; exact (Engine.has_iff _ _).1 h1
   dsimp only

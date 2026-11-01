@@ -25,9 +25,9 @@ theorem round_no_drop (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List 
   unfold Conn.onRbsr
   split
   · rfl
-  · dsimp only; split
+  · split
     · rfl
-    · rfl
+    · dsimp only; split <;> rfl
 
 theorem hold_no_drop (c : Conn) (r : Id) (ids : List Id) (h : Held F) :
     ((c.onHold fam cfg r ids : HeldM F Step) h).1.drop = false := by

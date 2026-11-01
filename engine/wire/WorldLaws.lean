@@ -1489,20 +1489,16 @@ theorem stream_offered_runs (r cid : Id) :
 
 /-! ## The round, at one connection -/
 
-/-- **`conn_runs_exchange`, its first case: a claim of ids.** What
-`conn_runs_exchange` is to say: in any run of the world, a round the
-dialer opens in a room is `exchange` (`RoundLaws.lean`) between the two
-sides' snapshots of the room, whatever order its frames arrive in. The
-ids one side offers, or the other asks for, are exactly the ids
-`exchange` sends from that side. Here is its base case, at the
-connection that answers. It answers round k's claim listing ids, the
-claimant's items in range rg (an honest claim). It offers exactly the
-first side of `exchange` from the round's snapshot X, and asks for
-the admitted part of the second. Deferred wants return on a later round. Those are the ids X holds in rg that the claimant
-lacks, and the ids the claimant holds there that X lacks
-(`exchange_ids`). It sends no claim back, so the round ends there. -/
+/-- An accepted id-claim batch is the base case of the connection's
+round exchange. It answers from the captured snapshot X, offers exactly
+the first side of `exchange`, and requests the admitted part of the
+second. Deferred wants require later service or another round. The
+epoch premise excludes stale or unstarted replies. General finite batch
+execution is proved in `ops.sync.RoundRun`; this pointwise statement does
+not assume arbitrary delivery order preserves a complete round. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
     (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)
+    (fresh : c.oldRound r k = false)
     (hX : X = ((c.snaps.find? fun p => Decidable.decide (p.1 = (r, k))).map (·.2)).getD (ix.items r)) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
         (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
@@ -1514,7 +1510,7 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
           named Prod.snd (within Prod.fst rg X) i = false) := by
   refine ⟨_, _, rfl, ?_, exchange_ids (P := cfg.params) 0 X Y rg _ rfl⟩
   have hr' := has_of_mem hr
-  simp only [Conn.onRbsr, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
+  simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
   simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound]
   cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with

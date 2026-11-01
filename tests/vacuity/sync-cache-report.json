@@ -95,14 +95,14 @@
     "theorem": "Engine.Sync.uncarried_room_answered",
     "witness": "Vacuity.SyncCache.acceptsNewRound",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Shown room receives a nonempty id claim with no existing snapshot; prove all premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Shown room receives a nonempty id claim with no existing snapshot; prove shown-room, nonempty-claim, missing-snapshot, and accepted-epoch premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "conn_answers_ids": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.conn_answers_ids",
     "witness": "Vacuity.SyncCache.answersIds",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Actual shown-room index containing chat plus remote singleton item; prove allowed-room and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Actual shown-room index containing chat plus remote singleton item; prove allowed-room, accepted-epoch, and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "work_retry_bounded": {
     "status": "kernel-witness",

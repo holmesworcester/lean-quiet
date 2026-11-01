@@ -50,9 +50,11 @@ theorem round_bounded (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Clai
   unfold Conn.onRbsr
   split
   · exact hb
-  · dsimp only; split
+  · split
     · exact hb
-    · split <;> exact ⟨hb.1, admitAsks_bounded _ _ _ hb.2⟩
+    · dsimp only; split
+      · exact hb
+      · split <;> exact ⟨hb.1, admitAsks_bounded _ _ _ hb.2⟩
 
 theorem hold_bounded (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Bounded cfg) :
     ((c.onHold fam cfg r ids : HeldM F Step) h).1.conn.Bounded cfg := by

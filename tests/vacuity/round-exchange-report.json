@@ -1,0 +1,170 @@
+{
+  "conn_runs_exchange": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.conn_runs_exchange",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs/snapshots, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. This isolates an unreset delivered round with fixed indices; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed."
+  },
+  "successor": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.successor",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Actual emitted fingerprint response is decoded into the next claim batch in the three-item fixture. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "ready_next": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.ready_next",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The nonempty fingerprint-to-ID reply preserves active epochs and the original snapshots on both sides. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "discovers": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.discovers",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The certificate applies bounded discovery to each of three missing IDs, including have and want outcomes. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "pending_source": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.pending_source",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "A checked nonempty Alice ask at step 2 yields an actual earlier want emitted by the handler. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "discovers_wire": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.discovers_wire",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Every concrete missing ID obtains a finite-step actual wire witness; previously pending asks have source witnesses. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "execute_runs": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.execute_runs",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The executable fixture starts with actual Conn.start and recursively calls the actual onRbsr handler. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "advance_empty": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.advance_empty",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The terminal batch remains empty through later actual-handler steps; the native suite checks step 10. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "run_empty": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.run_empty",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Kernel induction proves all batches after step 2 are empty, supporting the all-times capacity premise. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "run_bounded": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.run_bounded",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Both actual connection states retain known/asked bounds, including the nonempty pending Alice ask. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "holds_announced": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.holds_announced",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Bob1 and Bob2 each obtain an actual emitted have witness, with one ID per wire chunk. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "wants_seen": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.wants_seen",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Alice obtains an actual emitted want witness under the proved free-slot bound. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "collisionCheck_sound": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.collisionCheck_sound",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Production SHA256 is checked on the finite set of all subset-tree inputs; a constant-hash control fails. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "sound_of_check": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.sound_of_check",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Exhaustive filtered-subset enumeration lifts the finite native SHA check to all possible range restrictions. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "initial_claim": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.initial_claim",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Actual Conn.start emits a fingerprint for Bob's two entries under leaf size 1. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "initial_ready": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.initial_ready",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Actual Conn.start and the fresh responder prove shown rooms, active epochs, and exact initial snapshots. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "initial_asks": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.initial_asks",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Both fresh connection states have empty asks; later nonempty asks must have actual wire origins. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "next_mem": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.next_mem",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The actual fingerprint-to-ID successor batch contains the child claim used by finite-rank discovery. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "answer_rank": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.answer_rank",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The unequal 1-versus-2 fingerprint counts force an ID child with strictly smaller rank. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "filter_in_subsets": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.filter_in_subsets",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Every possible range filter of the three concrete entries is among the enumerated subsets. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "conn_answers_claims": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.conn_answers_claims",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The arbitrary-batch theorem is applied along the fingerprint and ID handler steps, with exact wire chunks. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "conn_round_continues": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.conn_round_continues",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "A nonterminal actual response pins its original snapshot and retains an accepted active epoch. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "conn_returns_claims": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.conn_returns_claims",
+    "witness": "Vacuity.RoundExchange.exchangeCertificate",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The successor claim is decoded from the actual encoded output, rather than supplied as a model response. Synthetic isolated-round fixture; full Node/TCP composition is separate."
+  },
+  "terminates": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.RoundRun.terminates",
+    "witness": "Vacuity.RoundExchange.terminates",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "Three distinct synthetic entries, leaf size 1, and an actual Conn.start execution force a nonempty fingerprint-to-ID path. Sorted snapshots, Ready, exact handler transitions and rank bound are proved; termination has no hash-soundness or assumed-progress premise."
+  }
+}
