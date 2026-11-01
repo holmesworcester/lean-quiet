@@ -94,6 +94,7 @@ open Engine Community
 #print axioms Engine.status_iff_spec
 #print axioms Engine.order_free
 #print axioms Engine.reach_drain
+#print axioms Engine.reach_inv
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
@@ -199,6 +200,7 @@ open Engine Community
 #print axioms Engine.purge_undecides
 #print axioms Engine.mem_purgeSet
 #print axioms Engine.purge_inv
+#print axioms Engine.run_purge
 #print axioms Engine.perm_sortPos
 #print axioms Engine.sortPos_eq_fast
 #print axioms Engine.matching_nodup
@@ -475,6 +477,9 @@ section app
 #print axioms Nav.swap_inv
 #print axioms Nav.depth
 #print axioms NavLaws.back_open
+#print axioms NavLaws.back_open_all
+#print axioms NavLaws.open_keeps_backdrop
+#print axioms NavLaws.shipped_back_open_fails
 #print axioms NavLaws.back_root
 #print axioms NavLaws.back_switch
 #print axioms NavLaws.draft_open
@@ -1295,6 +1300,14 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_claim
 #print axioms Engine.Sync.RoundRun.initial_asks
 #print axioms Engine.Sync.conn_runs_exchange
+
+#print axioms Connection.secret_unfiled
+#print axioms Connection.purge_forgets
+#print axioms Connection.forget_stays
+#print axioms Connection.close_forgets
+#print axioms Connection.retired_complete
+#print axioms Connection.retired_open
+#print axioms Connection.shipped_retired_misses
 
 #print axioms App.WriteAdmission.admitted_frames
 #print axioms App.WriteAdmission.admitted_count

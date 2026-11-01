@@ -79,8 +79,7 @@ output, and local CI fails when it goes stale.
 - **Assumption:** an `assume` of tests/wiring.txt, with the laws that
   take it as a hypothesis or are stated over it (directly, or through a
   bridge); and a `holds`, a premise laws take that the running node
-  keeps only as its note says (`Inv`, through purges only by
-  `purge_inv`, a model).
+  keeps only as its note says.
 - **Copies:** a `copy` restates running code instead of naming it: a
   law (a model until it names the code), or a definition (a model,
   until the code calls it). The README lists them.
@@ -128,7 +127,7 @@ nothing calls), laws that must be negative controls (a mutant over its
 budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.render]
 def models : List Name :=
-  [`Net.Scene.bootstrap, `Pic.render_wellFormed, `Engine.stored_local, `Heights.T.findM_cost]
+  [`Net.Scene.bootstrap, `Pic.render_wellFormed, `ViewLaws.row_marked, `Heights.T.findM_cost]
 /-- Laws that must be negative controls: a mutant over its budget. -/
 def controlLaws : List Name := [`Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/

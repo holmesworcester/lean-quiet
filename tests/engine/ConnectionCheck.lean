@@ -245,6 +245,37 @@ def removalCut (old quiet : Bool := false) : IO (Bool × Bool × Bool) := do
       p.n.conns.isEmpty
   return (← stored w.b rm.id, ← closed w.b, ← closed w.a)
 
+/-- A dialer that crashed between `onFrame`'s two writes: its connection
+stored, its arrival record not (deleted here, as the crash would have
+left it). With `shipped`, B retires sessions as before fs-erase
+(`retiredShipped`). Gives whether the session was unplaced (neither
+open, nor retired by the shipped rule) and whether, after the nodes
+run, B's store holds none of that session's key rows: its established
+fact (the transport keys) and the ephemeral drawn for its request. -/
+def crashedDial (shipped : Bool) : IO (Bool × Bool) := do
+  let (w, c, req) ← setup 0
+  let w ← w.run 20
+  let w ← approveOnA w c req
+  let w ← w.run 20
+  let some cid := (← ests w.b).findSome? (fun | .established i .. => some i | _ => none)
+    | return (false, false)
+  let some co ← (Store.getOp cid : SqlM F _).run w.b.db | return (false, false)
+  let r := co.reqs.headD .empty
+  for (x, _) in ← (rows recv.byOp [cid] : SqlM F _).run w.b.db do
+    (do Store.undecide (F := F) x; Store.deleteOp (F := F) x : SqlM F Unit).run w.b.db
+  let unplaced := !((← (retiredShipped : SqlM F (List Id)).run w.b.db).contains cid) &&
+    !((← (sessions : SqlM F (List (Id × ByteArray × Bool))).run w.b.db).any (·.1 == cid))
+  let b := if shipped then
+      { w.b with x := { w.b.x with hooks := { w.b.x.hooks with retired := retiredShipped } } }
+    else w.b
+  -- The crash restarts B: its node boots from its store, as the runner's
+  -- does (Tcp.lean), holding nothing of the session in memory.
+  let b := { b with n := Node.boot b.x.fam (← (dumpOps (F := F)).run b.db) w.now, inbox := [] }
+  let w ← ({ w with b } : World).run 20
+  let keyed := (← ests w.b).any (fun | .established i .. => i == cid | _ => false) ||
+    (← cnt w.b eph.byOf [r]) > 0
+  return (unplaced, !keyed)
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let (w, c, req) ← setup 0
@@ -437,4 +468,12 @@ def main : IO UInt32 := do
   let (toldO, bClosedO, aClosedO) ← removalCut (old := true)
   t.ok "negative control: with sessions not reading the rooms view, B is told but neither side closes"
     (toldO && !bClosedO && !aClosedO)
+  -- fs-erase: a session whose arrival record a crash lost is retired, and
+  -- its keys and ephemeral leave the store (`retired_complete`,
+  -- `close_forgets`); as shipped, they stayed for good.
+  let (unplaced, gone) ← crashedDial false
+  t.ok "a dialer that crashed between its two writes holds a session the shipped rule never placed" unplaced
+  t.ok "it is retired, and none of its key rows stays in the dialer's store" gone
+  let (_, goneShipped) ← crashedDial true
+  t.ok "negative control: with retired as shipped, its transport keys and ephemeral stay" (!goneShipped)
   t.finish "connection_check"

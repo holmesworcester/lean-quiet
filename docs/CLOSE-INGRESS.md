@@ -119,3 +119,11 @@ reference labels have evidence, including 14 explicitly conditional entries.
 This does not add a distinct placeholder theorem. Broad combined app, Android
 and desktop suites remain separate validation; these component gates are not a
 whole-app convergence proof.
+
+The subsequent merge with `4bac90d` preserves the store-backed purge bridge,
+session-key erasure fixes and switcher backdrop changes. The combined source
+passes all 1,342 audited laws, all 689 witness dependency/axiom checks and
+runtime certificates, and the retry, close and expiry gates with every control
+and restoration again. Logs: `out/ci/transport-purge-merge-*.log`. A completed
+close is the erasure boundary; admitted-input grace and native IO completion
+do not establish a universal 90-second wall-clock deadline.

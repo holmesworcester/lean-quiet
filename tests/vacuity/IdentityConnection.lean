@@ -214,6 +214,40 @@ def foundTravels := Community.found_travels ed25519 (DB.empty : DB Community.Fac
   (sha256 "vacuity-founder".toUTF8) "New test community".toUTF8 "Founder".toUTF8 1
   (sha256 "vacuity-content".toUTF8) eA staticA
 
+/-! ## A session's end forgets its keys (`Connection.close_forgets` and the purge laws)
+
+The real Noise session above, with its ephemeral and transport keys stored
+(`eph`, `established`); its close step purges the connection and the request
+it answers. -/
+
+instance : Fresh (HeldM F) := ⟨pure eA⟩
+
+/-- What the close step purges for this session (`closing`). -/
+def closeIds (s : Session) : List Id := s.reply.id :: s.reply.reqs
+def heldOf (s : Session) : Held F := { db := run (activeOps s) }
+/-- The running node's driver over this store: the family's own hooks, so
+its `closing` is the one that runs. -/
+def nodeSync : Sync F (HeldM F) := { fam, hooks := Connection.hooks fam sodium "127.0.0.1:7447".toUTF8 }
+def purged (s : Session) := drainS fam 500 (purgeS fam (closeIds s) (run (activeOps s)))
+def closed (s : Session) := ((Node.endSession nodeSync s.reply.id : HeldM F Effects) (heldOf s)).2
+
+def purgeForgets (s : Session) :=
+  some (PLift.up (purge_forgets (C := ed25519) (K := sodium) (runInv (activeOps s)) (closeIds s) 500))
+def forgetStays (s : Session) :=
+  some (PLift.up (forget_stays (C := ed25519) (K := sodium)
+    (inv_drainS (purge_inv (runInv (activeOps s)) (closeIds s)) 500)
+    (purge_uncited (runInv (activeOps s)) (closeIds s) 500) [message.id] 500))
+def closeForgets (s : Session) :=
+  some (PLift.up (close_forgets (C := ed25519) (K := sodium) nodeSync rfl rfl (heldOf s)
+    (runInv (activeOps s)) s.reply.id))
+def retiredComplete (s : Session) :=
+  let row := ((established s).id, Fact.established s.reply.id c pkB s.hash s.sendKey s.recvKey false)
+  if hy : ((rows Connection.established.all [] : Model F _).run (run (activeOps s))).1.any
+      (fun r => decide (r = row)) = true then
+    some (PLift.up (retired_complete (run (activeOps s))
+      (by obtain ⟨r, hr, he⟩ := List.any_eq_true.1 hy; exact (of_decide_eq_true he) ▸ hr)))
+  else none
+
 def main : IO UInt32 := do
   let t ← Checks.new
   let some s := session | IO.eprintln "Could not construct real Noise session"; return 1
@@ -226,8 +260,19 @@ def main : IO UInt32 := do
       ("rooms model",(roomsModel s).isSome),("opened endpoint",(openedEndpoint s).isSome),
       ("established endpoint",(establishedEndpoint s).isSome),
       ("trusted answer",(answerTrusted s).isSome),("trusted resend",(resendTrusted s).isSome),
-      ("bare path join",(bareJoin s).isSome)] do
+      ("bare path join",(bareJoin s).isSome),("purge forgets",(purgeForgets s).isSome),
+      ("forgotten stays",(forgetStays s).isSome),("close forgets",(closeForgets s).isSome),
+      ("established kept open or retired",(retiredComplete s).isSome)] do
     t.ok label ok
+  let keyRows := [(established s).id, (eph s).id]
+  t.ok "the session's key rows are stored before it ends"
+    (keyRows.all fun y => ((run (activeOps s)).ops y).isSome)
+  t.ok "the close step, as the node runs it, deletes them"
+    (keyRows.all fun y => ((closed s).db.ops y).isNone)
+  t.ok "the purge of the closing ids deletes them" (keyRows.all fun y => ((purged s).ops y).isNone)
+  t.ok "a later purge leaves them gone"
+    (keyRows.all fun y => ((drainS fam 500 (purgeS fam [message.id] (purged s))).ops y).isNone)
+  t.ok "the community's ops stay" (((closed s).db.ops message.id).isSome)
   t.ok "active session syncs real community" ((roomsV s.reply.id).eval (run (activeOps s)) == [Room.sync c])
   t.ok "removed peer gets only actual removal notice" ((roomsV s.reply.id).eval (run (cutOps s)) == [Room.notice c removeB.id])
   t.ok "node admits Bob before removal" (((Community.allowPeer c pkB).liftL : View F Bool).eval (run (activeOps s)))

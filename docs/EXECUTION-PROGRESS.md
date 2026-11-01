@@ -153,9 +153,9 @@ input, ownership and polling and reject replenishment; native handler failures
 retire ownership before best-effort store cleanup. This does not protect bytes
 still outside the mailbox or prove durable erasure when SQLite refuses writes.
 See [CLOSE-INGRESS.md](CLOSE-INGRESS.md). The combined source passes all
-1,330 audited laws, 29 retry and 40 close checks with their runtime/kernel
+1,342 audited laws after merging the store-backed purge bridge, 29 retry and 40 close checks with their runtime/kernel
 controls, and the original 29-check expiry gate with both controls. The
-684-reference evidence inventory has no pending entries; 14 entries retain
+689-reference evidence inventory has no pending entries; 14 entries retain
 explicit conditional premises. Full app/platform integration remains open.
 
 ## Obstructions found by the stronger target

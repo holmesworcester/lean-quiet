@@ -81,6 +81,10 @@ def pState := run purgeOps
 
 def purgeInvariant := purge_inv (runInv purgeOps) purgeIds
 
+-- The engine's purge, run on this store, is purgeS and returns purgeSet:
+-- a nonempty purge (a local secret and the shared op citing it).
+def runPurge := run_purge (family ed25519) purgeIds pState
+
 def purgeMembership := mem_purgeSet (runInv purgeOps) purgeIds localSecret.id
 
 def purgeGone := if h : has (purgeSet (family ed25519) pState purgeIds) localSecret.id = true then
