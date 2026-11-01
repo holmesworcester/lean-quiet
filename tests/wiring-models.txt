@@ -47,14 +47,8 @@ Connection.ProgressTape.run_fresh
 Connection.ProgressTape.run_get
 Connection.ProgressTape.run_view
 
-# app.community.Op
-Community.openBody_sealBody
-Community.unbox_box
-
 # app.community.Proofs
-Community.member_opens
 Community.members_iff
-Community.openSealed_seal
 Community.recipients_iff
 Community.unscoped_signs_all
 Net.FairExecution.fair

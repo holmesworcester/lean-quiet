@@ -21,9 +21,10 @@ def post (c adm : Id) (by_ : Device) (ckey text : ByteArray) (n time : Nat) (clu
 
 /-- A post whose text is sealed under content key k with a fresh
 24-byte nonce: its sealed bytes are the nonce, then the ciphertext. -/
-def sealedPost (c adm : Id) (by_ : Device) (k nonce text : ByteArray) (n time : Nat) (clump : Option Id := none) : Op :=
+def sealedPost (c adm : Id) (by_ : Device) (k : Key32) (nonce : Nonce24) (text : ByteArray) (n time : Nat)
+    (clump : Option Id := none) : Op :=
   let kid := kidOf cryptoSeal k
-  post c adm by_ kid (nonce ++ sealBody cryptoSeal k nonce c kid text) n time clump
+  post c adm by_ kid (nonce.1 ++ sealBody cryptoSeal k nonce c kid text) n time clump
 end Community
 namespace Community.Clump
 open Engine
@@ -63,7 +64,7 @@ and its chunks. The post claims one more than the highest counter this
 device holds in c, up to the cap, so it sorts after every message here
 (`send_after`); its time is `now` as given. Everything is ops; no bytes
 live beside the store. -/
-def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (now : Nat)
+def send (c myAdm : Id) (d : Device) (k : Key32) (nonce : Nonce24) (text : ByteArray) (now : Nat)
     (files : List NewFile := []) : View Fact Write := do
   let clump ← Clump.choose c myAdm now
   let p := sealedPost c myAdm d k nonce text (min ((← topCount c) + 1) countCap) now clump

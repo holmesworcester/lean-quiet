@@ -91,6 +91,21 @@ theorem established_agrees (K : Keys) (G : K.suite.Good)
           · simp [hm] at hRc
 open Engine Engine.Sync
 
+/-- **Both ends of a running connection hold one session**
+(`established_agrees` at the running keys, `sodium`): the suite's
+correctness is the crypto trust file's (`Noise.suite_good`), so no
+premise about the suite is left but the crates'. -/
+theorem established_agrees_sodium (t : Trust.NativeCrypto)
+    {oR oI : Op} {r m2 to frm m1 ofR ofI pkR pkI f e skR skI : B}
+    {cidR cR pR hR sR kR cidI cI pI hI sI kI : B}
+    (hto : to = sodium.suite.pub skR) (hfrm : frm = sodium.suite.pub skI) (hne : to ≠ frm)
+    (hRc : check sodium oR .established [.inr (.connection r m2), .inr (.request to frm m1),
+      .inr (.eph ofR pkR f), .inl (.endpoint to skR)] = some (.established cidR cR pR hR sR kR false))
+    (hIc : check sodium oI .established [.inr (.connection r m2), .inr (.request to frm m1),
+      .inr (.eph ofI pkI e), .inl (.endpoint frm skI)] = some (.established cidI cI pI hI sI kI true)) :
+    hR = hI ∧ cR = cI ∧ sR = kI ∧ kR = sI ∧ pR = frm ∧ pI = to :=
+  established_agrees sodium (Noise.suite_good t) hto hfrm hne hRc hIc
+
 /-- **For a live member, the trust rule is `allowPeer`.** The link
 clause (trust the inviter a pending join names) holds only before this
 device is admitted. -/
