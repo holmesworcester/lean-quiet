@@ -21,6 +21,7 @@ selected() { index=$((index + 1)); (( index > start )); }
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ux-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
+. tests/slot.sh
 snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app platforms/headless Quiet.lean assets
 # The copy a control works in is $w (the caller's), its logs beside it.
 build() {  # build ux in $w; 0 when it builds
@@ -56,7 +57,7 @@ PY
 spawn() {  # function args...
   ran=$((ran + 1))
   while [ "$(jobs -rp | wc -l)" -ge "${UX_NC_JOBS:-6}" ]; do wait -n || true; done
-  (label="control-$index"; w=$tmp/w.$index; "$@"; rm -rf -- "$w") > "$tmp/m.$(printf %03d $index).log" 2>&1 &
+  (slot_hold; label="control-$index"; w=$tmp/w.$index; "$@"; rm -rf -- "$w") > "$tmp/m.$(printf %03d $index).log" 2>&1 &
 }
 law() { selected || return 0; spawn law_one "$@"; }
 suite() { selected || return 0; spawn suite_one "$@"; }

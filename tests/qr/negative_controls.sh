@@ -21,6 +21,7 @@ trap 'rm -rf -- "$tmp"' EXIT
 # holds QR's sources and tests, and their part of the built tree
 # (tests/snapshot.sh).
 . tests/snapshot.sh
+. tests/slot.sh
 snapshot "$tmp/base" engine/renderer/qr engine/renderer/pic tests/qr
 
 # the copy itself must build and pass, or every mutant would look killed
@@ -76,7 +77,7 @@ n=0
 mutant() {
   n=$((n + 1))
   while [ "$(jobs -rp | wc -l)" -ge "${QR_NC_JOBS:-6}" ]; do wait -n || true; done
-  (mutant_one "$@") > "$tmp/m.$(printf %03d $n).log" 2>&1 &
+  (slot_hold; mutant_one "$@") > "$tmp/m.$(printf %03d $n).log" 2>&1 &
 }
 
 # data stream (the laws)
