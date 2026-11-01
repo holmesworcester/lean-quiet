@@ -32,9 +32,24 @@ def scrollGrab (d : Driver) (x y : Nat) : Option Nat :=
   if d.ui.switching then none else
   (scrollbar d.layout d.app).bind fun bar => Scrollbar.grab bar x y
 
-def scrollDrag (d : Driver) (grab y : Nat) : IO Unit := do
-  if let some bar := scrollbar d.layout d.app then
-    d.app.io.scrollTo (seekOffset d.app (Scrollbar.seek bar grab y)).toFloat
+/-- A drag seeks the rank under the pointer. Within the root at the
+screen's bottom edge (whose pixels are the app's) that is a scroll to its
+exact pixels; to any other root the app reads that root's position from the
+engine and anchors its window there (`App.St.seek`, `Reader.Want.rankPos`),
+the thumb drawn at the rank meanwhile: rows beyond the screen are only
+estimated, so a pixel offset there lands among the wrong roots. -/
+def scrollDrag (d : Driver) (grab y : Nat) : IO Driver := do
+  let some bar := scrollbar d.layout d.app | return d
+  let q := Scrollbar.seek bar grab y
+  let (n, k, r) := _root_.Scrollbar.ranks (column d.app) d.app.b (App.geom d.app).viewNow
+  let top := (App.bottoms d.app).2 - (App.geom d.app).viewNow
+  let here := d.app.seek.isNone && q / _root_.Scrollbar.unit == r / _root_.Scrollbar.unit
+  match (if q = 0 then some 0 else if q + k ≥ n then some top
+         else if here then _root_.Scrollbar.pixelAt (column d.app) q else none) with
+  | some p =>
+    d.app.io.scrollTo p.toFloat
+    return { d with app := { d.app with seek := none } }
+  | none => return { d with app := { d.app with seek := some (q, false) } }
 
 /-- Native cursor choice follows the same topmost hit geometry as actions.
 No pointer is synthesized from a touch or from a window's initial (0,0). -/

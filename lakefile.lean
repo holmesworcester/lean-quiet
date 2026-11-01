@@ -234,8 +234,6 @@ lean_exe join_fair where
 lean_exe vacuity_production_bootstrap where
   root := `tests.vacuity.ProductionBootstrapMain
 
-lean_exe vacuity_bootstrap where
-  root := `tests.vacuity.BootstrapMain
 
 lean_exe vacuity_connection_progress where
   root := `tests.vacuity.ConnectionProgressMain

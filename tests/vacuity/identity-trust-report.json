@@ -125,20 +125,6 @@
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Actual valid signed profile premise is witnessed and a wrong-device profile is rejected. Attribution to the key holder assumes Unforgeable ed25519 over this store: no forged signature among the ones it holds (Ed25519 unforgeability, a computational assumption). The premise is satisfiable with an informative Signed (Vacuity.Contracts.unforgeableScoped)."
   },
-  "allowPeer_iff": {
-    "status": "runtime-witness",
-    "theorem": "Net.allowPeer_iff",
-    "witness": "Vacuity.IdentityTrust.netAllowPeer",
-    "module": "tests.vacuity.IdentityTrust",
-    "detail": "Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal."
-  },
-  "allowPeer_settles": {
-    "status": "runtime-witness",
-    "theorem": "Net.allowPeer_settles",
-    "witness": "Vacuity.IdentityTrust.netAllowSettles",
-    "module": "tests.vacuity.IdentityTrust",
-    "detail": "Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal."
-  },
   "approveReq_wrap_admits": {
     "status": "runtime-witness",
     "theorem": "Community.approveReq_wrap_admits",

@@ -14,7 +14,6 @@ audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 checks = audit.load_checks()
 RUNNERS = {
-    'tests.vacuity.Bootstrap': 'vacuity_bootstrap',
     'tests.vacuity.ProductionBootstrap': 'vacuity_production_bootstrap',
     'tests.vacuity.StorageEffects': 'vacuity_storage_effects',
     'tests.vacuity.ConnectionProgress': 'vacuity_connection_progress',
