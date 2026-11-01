@@ -4,7 +4,7 @@
     "theorem": "Engine.Sync.conn_runs_exchange",
     "witness": "Vacuity.RoundExchange.exchangeCertificate",
     "module": "tests.vacuity.RoundExchange",
-    "detail": "Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs/snapshots, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. This isolates an unreset delivered round with fixed indices; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed."
+    "detail": "Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. The two ends' indices are fixed, so this is the fixed-index case of live_round_complete; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed."
   },
   "successor": {
     "status": "runtime-witness",
@@ -166,5 +166,12 @@
     "witness": "Vacuity.RoundExchange.terminates",
     "module": "tests.vacuity.RoundExchange",
     "detail": "Three distinct synthetic entries, leaf size 1, and an actual Conn.start execution force a nonempty fingerprint-to-ID path. Sorted snapshots, Ready, exact handler transitions and rank bound are proved; termination has no hash-soundness or assumed-progress premise."
+  },
+  "RoundRun.terminates": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.RoundRun.terminates",
+    "witness": "Vacuity.RoundExchange.terminates",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The same actual two-party execution: every index the run reads is one of the two fixtures, so their union bounds it; RoundRun.terminates ends the round within 8 batches, with the run and its currency derived from the actual handlers."
   }
 }

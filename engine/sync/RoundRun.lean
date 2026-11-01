@@ -127,6 +127,14 @@ def State.result (cfg : Config) (r : Id) (k now : Nat) (s : State) : Step :=
 this step. -/
 def State.items (r : Id) (s : State) : List Item := s.index.items r
 
+/-- A step's result is the running handler's, on the step's receiver,
+its live index and its claims. -/
+theorem result_eq (cfg : Config) (r : Id) (k now : Nat) (s : State) :
+    s.result cfg r k now = s.receiving.onRbsr cfg s.index r k s.pending now := rfl
+
+/-- A step's items are its live index's. -/
+theorem items_eq (r : Id) (s : State) : s.items r = s.index.items r := rfl
+
 /-- A round run: each step's claims are what the previous step's actual
 handler returned. Everything else is free at every step: the receiving
 connection and its live index (between two of the round's messages a

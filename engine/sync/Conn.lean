@@ -629,13 +629,14 @@ def Conn.tick (ix : Index) (c : Conn) (now : Nat) : m Step := do
   if c.heard + cfg.live < now then return { conn := { c with session := c.session.close }, drop := true }
   return (← c.work fam cfg ix now).pulse cfg c.sent now
 
-/-- The rooms the peer may see changed: forget the others' rounds, so a
-room shown again is due again. -/
+/-- The rooms the peer may see changed: forget the others' rounds. A
+room's round record is kept only if it was shown before and is still,
+so a room the session starts showing is due (`shown_due`). -/
 def Conn.setRooms (c : Conn) (rooms : List Id) : Conn :=
   { c with
     rooms
     active := (c.active.filter fun p => has rooms p.1).take rooms.length
-    rounded := (c.rounded.filter fun p => has rooms p.1).take rooms.length
+    rounded := (c.rounded.filter fun p => has rooms p.1 && has c.rooms p.1).take rooms.length
     short := (c.short.filter fun r => has rooms r).take rooms.length
     epochs := (c.epochs.filter fun p => has rooms p.1).take rooms.length }
 

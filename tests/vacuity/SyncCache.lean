@@ -1,5 +1,6 @@
 import tests.vacuity.SyncMore
 import engine.sync.NoticeLaws
+import engine.sync.EventLaws
 
 namespace Vacuity.SyncCache
 open Engine Engine.Sync Vacuity.Network Vacuity.SyncMore
@@ -102,6 +103,40 @@ theorem acceptsNewRound : (conn.onRbsr cfg ix room 7 [.ids range [msg.id]] 100).
 
 def answersIds := conn_answers_ids cfg ix conn room 7 range (ix.items room)
   [(⟨0, 1⟩, "remote-message-id".toUTF8)] 100 (by simp [conn, Conn.open]) rfl rfl
+
+-- Event rounds on a session whose peers' floors are known: the dialer,
+-- and the responder, each with the room shown and no round in it yet.
+def dialerConn : Conn := { conn with dialer := true, peerFloor := some 0 }
+def responderConn : Conn := { conn with peerFloor := some 0 }
+
+theorem dueRoundOpens : (Msg.rbsr room (dialerConn.round + 1)
+    ((window (max dialerConn.floor 0)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items room)))).op ∈
+    ((dialerConn.tick fam cfg ix 100 : HeldM Unit Step) held).1.send :=
+  round_due fam cfg ix dialerConn room 100 0 held rfl rfl (by simp [dialerConn, conn, Conn.open])
+    (by simp [dialerConn, conn, Conn.open, cfg]) (by simp [Conn.due, Conn.roundedAt, dialerConn, conn, Conn.open])
+
+theorem responderAsks : (Msg.hold room []).op ∈ ((responderConn.tick fam cfg ix 100 : HeldM Unit Step) held).1.send :=
+  responder_asks fam cfg ix responderConn room 100 0 held rfl rfl (by simp [responderConn, conn, Conn.open])
+    (by simp [responderConn, conn, Conn.open, cfg]) (by simp [Conn.roundedAt, responderConn, conn, Conn.open])
+
+def askMakesDue :=
+  ask_due fam cfg ix dialerConn room 100 200 held rfl (by simp [dialerConn, conn, Conn.open])
+    (by simp [dialerConn, conn, Conn.open])
+
+def joinRound :=
+  join_round fam cfg ix ix dialerConn responderConn room 100 200 300 0 0 held held rfl rfl rfl rfl
+    (by simp [dialerConn, conn, Conn.open]) (by simp [responderConn, conn, Conn.open])
+    (by simp [Conn.roundedAt, responderConn, conn, Conn.open]) (by simp [dialerConn, conn, Conn.open])
+    (by simp [responderConn, conn, Conn.open, cfg]) (by simp [cfg])
+
+def shownDue := shown_due cfg { conn with rooms := [] } [room] room 100 (by simp)
+
+-- The room's round opened at 50: none again before the safety period.
+def quietConn : Conn := { dialerConn with rounded := [(room, 50)] }
+theorem quietUntilSafety (k : Nat) (cs : List Claim) :
+    (Msg.rbsr room k cs).op ∉ ((quietConn.tick fam cfg ix 100 : HeldM Unit Step) held).1.send :=
+  no_round_before_safety fam cfg ix quietConn 100 held room 50 (by simp [Conn.roundedAt, quietConn])
+    (by simp [cfg]) rfl k cs
 
 theorem retryBound : (retried ((asking.work fam cfg ix 1500 : HeldM Unit Step) held).1.send).length ≤ cfg.maxIds :=
   work_retry_bounded fam cfg ix asking 1500 held

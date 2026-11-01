@@ -481,7 +481,7 @@ description = "Full and capped window syncs on real Nodes/SQLite, peaks and nega
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
-description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, event-driven rounds (a joiner's room opens a round within a tick, none before the safety period, no per-round copy at a hub), secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
 
 [tasks."test:read-plan"]

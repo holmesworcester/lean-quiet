@@ -29,6 +29,7 @@ import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
 import engine.sync.ClosureDelivery
 import engine.sync.RoundRun
+import engine.sync.EventLaws
 import engine.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
@@ -1312,6 +1313,8 @@ end cost
 #print axioms Engine.Sync.noteEpoch_bounded
 #print axioms Engine.Sync.conn_round_continues
 #print axioms Engine.Sync.conn_returns_claims
+#print axioms Engine.Sync.RoundRun.result_eq
+#print axioms Engine.Sync.RoundRun.items_eq
 #print axioms Engine.Sync.RoundRun.successor
 #print axioms Engine.Sync.RoundRun.next_pending
 #print axioms Engine.Sync.RoundRun.piece_misses
@@ -1343,6 +1346,31 @@ end cost
 #print axioms Engine.Sync.RoundRun.par_alt
 #print axioms Engine.Sync.conn_runs_exchange
 #print axioms Engine.Sync.live_round_complete
+#print axioms Engine.Sync.walkN_frame
+#print axioms Engine.Sync.queue_frame
+#print axioms Engine.Sync.pulse_mem
+#print axioms Engine.Sync.due_iff
+#print axioms Engine.Sync.retake_fewer
+#print axioms Engine.Sync.work_base
+#print axioms Engine.Sync.tick_work
+#print axioms Engine.Sync.round_due
+#print axioms Engine.Sync.roundedAt_note
+#print axioms Engine.Sync.shown_due
+#print axioms Engine.Sync.responder_asks
+#print axioms Engine.Sync.ask_due
+#print axioms Engine.Sync.rbsr_room
+#print axioms Engine.Sync.rbsr_not_hold
+#print axioms Engine.Sync.rbsr_not_want
+#print axioms Engine.Sync.rbsr_not_chunk
+#print axioms Engine.Sync.work_no_rbsr
+#print axioms Engine.Sync.tick_no_rbsr
+#print axioms Engine.Sync.ask_no_rbsr
+#print axioms Engine.Sync.responder_opens_none
+#print axioms Engine.Sync.no_round_before_safety
+#print axioms Engine.Sync.join_round
+#print axioms Engine.Sync.shipped_responder_silent
+#print axioms Engine.Sync.shipped_dialer_waits
+#print axioms Engine.Sync.shipped_controls_apply
 
 #print axioms Connection.secret_unfiled
 #print axioms Connection.purge_forgets

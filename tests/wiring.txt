@@ -225,6 +225,8 @@ bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
+bridge Engine.Sync.RoundRun.State.result Engine.Sync.RoundRun.result_eq
+bridge Engine.Sync.RoundRun.State.items Engine.Sync.RoundRun.items_eq
 # The bytes a validator checks a signature over (each op type's
 # `signedBy o b.unsigned`, the family's `signed` by `signedBy_ofX`) are the
 # bytes the writer signs (`toSign`, in `sig`).
@@ -243,6 +245,12 @@ spec NodeOffer.run A run of the app's sends and frames' re-offers, against the n
 spec NodeOffer.submitted The writes a run submits, in order.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
+spec Engine.Sync.returnedClaims The claims a round message carries, read off a step's actual sends.
+spec Engine.Sync.nextClaims The claims among a batch's answers.
+spec Engine.Sync.roundWants The ids a batch's answers want.
+spec Engine.Sync.roundHolds The ids a batch's answers offer.
+spec Engine.Sync.RoundRun.outputs A batch's answers, as `answer` gives them over a list of items.
+spec Engine.Sync.RoundRun.rankIn A claim's rank over a bounding list of items, for a round's bound.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
@@ -303,6 +311,7 @@ world Connection.Execution.dequeued = Connection.Execution.fairRun
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.
 
+control Engine.Sync.Conn.workShipped `Conn.work` as main shipped it until event rounds (b4d103a): the dialer rounds only on its connection-wide timer, the responder never asks; it breaks `responder_asks` and `round_due` (`shipped_responder_silent`, `shipped_dialer_waits`).
 control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
