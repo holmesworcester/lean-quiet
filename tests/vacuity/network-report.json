@@ -88,7 +88,7 @@
     "theorem": "Engine.Sync.serveOwed_hot",
     "witness": "Vacuity.Network.servesFresh",
     "module": "tests.vacuity.Network",
-    "detail": "A stored shown op in both the wanted and fresh-write sets is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
+    "detail": "A stored shown op is the one selected hot id from the wanted and fresh-write sets, so it is sent urgently even with zero bulk budget. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport."
   },
   "serveOwed_head": {
     "status": "kernel-witness",

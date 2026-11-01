@@ -26,8 +26,13 @@ def Worker.start (sh : Shared) (s : St) : IO Worker := do
   let done ← IO.asTask (prio := .dedicated) (work sh stopped { s with enabled := return !(← stopped.get) })
   return ⟨stopped, done⟩
 
+/-- Publish cancellation through Ref.take/restore, so an overlapping native
+Ref.get cannot restore an old false value over a completed stop request. -/
+def Worker.requestStop (w : Worker) : IO Unit :=
+  w.stopped.modify (fun _ => true)
+
 def Worker.stop (w : Worker) : IO (Option St) := do
-  w.stopped.set true
+  w.requestStop
   match ← IO.wait w.done with
   | .ok s => return some s
   | .error e => throw e

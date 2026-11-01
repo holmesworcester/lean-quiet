@@ -21,6 +21,7 @@ reaches that step (ops/connection/EgressLaws.lean).
 -/
 import engine.wire.WorldLaws
 import ops.sync.OfferLaws
+import ops.sync.SweepLaws
 
 namespace Engine.Sync
 
@@ -121,6 +122,10 @@ structure ReadOnly (x : Sync F (HeldM F)) : Prop where
   established : Reads x.hooks.established
   sealFor : ∀ cid b, Reads (x.hooks.sealFor cid b)
   openFrame : ∀ b, Reads (x.hooks.openFrame b)
+  catalog : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i)
+  retryKey : ∀ cid, Reads (x.hooks.retryKey cid)
+  retryStore : ∀ store, x.retryStore = some store →
+    (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor))
 
 /-! ## Connection steps, run where the node runs them -/
 
@@ -137,7 +142,10 @@ def Sent (x : Sync F (HeldM F)) (h : Held F) (cid : Id) (o : Op) : Prop :=
   (∃ (c : Conn) (budget : Nat) (first : List Id),
       o ∈ (((c.carry (((x.hooks.rooms cid).run h).1)).serveOwed x.fam x.cfg budget first : HeldM F _).run h).1.2.1 ∨
       o ∈ (((c.carry (((x.hooks.rooms cid).run h).1)).serveOwed x.fam x.cfg budget first : HeldM F _).run h).1.2.2) ∨
-  (∃ (dialer : Bool) (floor now : Nat), o ∈ (Conn.open dialer (Room.syncs (((x.hooks.rooms cid).run h).1)) floor now).send)
+  (∃ (dialer : Bool) (floor now : Nat), o ∈ (Conn.open dialer (Room.syncs (((x.hooks.rooms cid).run h).1)) floor now).send) ∨
+  (∃ (c : Conn) (cat : Catalog (HeldM F)) (cursor : Sweep) (room : Nat),
+    x.catalog = some cat ∧ o ∈ ((Sweep.run cat cursor
+      ((c.carry (((x.hooks.rooms cid).run h).1)).shows x.fam) room : HeldM F _).run h).1.2.toList)
 
 /-- Every session send in out, run from h0 to h1, is the bytes of a fresh
 step's send at a store on the way. -/
@@ -146,6 +154,16 @@ def ActsOk (x : Sync F (HeldM F)) (h0 h1 : Held F) (out : Acts) : Prop :=
     ∃ o h, b = o.bytes ∧ Moves x.fam h0 h ∧ Moves x.fam h h1 ∧ Sent x h cid o
 
 variable {x : Sync F (HeldM F)}
+
+/-- Flow-control reservations change no store hook or authorization input. -/
+theorem ReadOnly.afterActs {x : Sync F (HeldM F)} (hr : ReadOnly x) (n : Node) (out : Acts) :
+    ReadOnly (n.afterActs x out) :=
+  ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
+    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
+
+theorem sent_afterActs (x : Sync F (HeldM F)) (n : Node) (out : Acts) (h : Held F) (cid : Id) (o : Op) :
+    Sent (n.afterActs x out) h cid o ↔ Sent x h cid o := Iff.rfl
+
 
 theorem ActsOk.empty (h0 h1 : Held F) : ActsOk x h0 h1 {} := by
   intro cid b hb; rcases hb with hb | hb <;> exact absurd hb (List.not_mem_nil)
@@ -273,6 +291,102 @@ theorem serveOwed_reads' (fam : Family F) (cfg : Config) (c : Conn) (budget : Na
     Reads (c.serveOwed fam cfg budget first : HeldM F _) :=
   fun h => (serveOwed_run fam cfg c budget first h).2.2
 
+theorem sweep_reads (cat : Catalog (HeldM F)) (hc : Reads cat.ceiling)
+    (hr : ∀ i, Reads (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
+    Reads (Sweep.run cat cursor shows room : HeldM F _) := by
+  unfold Sweep.run
+  keeps [hc, hr]
+
+theorem sweep_step_shown (cursor : Sweep) (ceiling : Nat) (op : Option Op) (shows : Op → Bool) (room : Nat)
+    {o : Op} (ho : o ∈ (cursor.step ceiling op shows room).2.toList) : shows o = true := by
+  have he : (cursor.step ceiling op shows room).2 = some o := by simpa using ho
+  exact (Sweep.next_sent he).2.1
+
+private theorem result_bind {α β : Type} (p : HeldM F α) (k : α → HeldM F β)
+    (P : β → Prop) (hk : ∀ a h, P ((k a).run h).1) :
+    ∀ h, P (((p >>= k).run h).1) := fun h => hk _ _
+
+theorem sweep_shown (cat : Catalog (HeldM F)) (cursor : Sweep) (shows : Op → Bool)
+    (room : Nat) (h : Held F) {o : Op}
+    (ho : o ∈ ((Sweep.run cat cursor shows room : HeldM F _).run h).1.2.toList) : shows o = true := by
+  have result : ∀ h, ∀ o ∈ ((Sweep.run cat cursor shows room : HeldM F _).run h).1.2.toList,
+      shows o = true := by
+    unfold Sweep.run
+    dsimp only
+    split <;> apply result_bind (P := fun r : Sweep × Option Op => ∀ o ∈ r.2.toList, shows o = true)
+    all_goals
+      intro ceiling
+      split
+      · intro h o ho
+        exact sweep_step_shown _ _ _ _ _ ho
+      · apply result_bind (P := fun r : Sweep × Option Op => ∀ o ∈ r.2.toList, shows o = true)
+        intro found
+        cases found <;>
+          apply result_bind (P := fun r : Sweep × Option Op => ∀ o ∈ r.2.toList, shows o = true)
+        all_goals
+          intro op h o ho
+          exact sweep_step_shown _ _ _ _ _ ho
+  exact result h o ho
+
+/-- An actual catalog retry reads the current rooms and emits only that
+Sweep.run call's result, without changing the store. -/
+theorem sweep_ok (hr : ReadOnly x) (n : Node) (cid : Id) : Egress x (n.sweep x cid) := by
+  intro h
+  cases hcat : x.catalog with
+  | none =>
+    simp only [Node.sweep, hcat]
+    exact ⟨.refl _, ActsOk.empty _ _⟩
+  | some cat =>
+    cases hconn : n.conn? cid with
+    | none =>
+      simp only [Node.sweep, hcat, hconn]
+      exact ⟨.refl _, ActsOk.empty _ _⟩
+    | some c =>
+      obtain ⟨hc, hrd⟩ := hr.catalog cat hcat
+      simp only [Node.sweep, hcat, hconn, HeldM.run_bind, refresh_carry hr, hr.retryKey cid h]
+      cases hkey : ((x.hooks.retryKey cid).run h).1 with
+      | none => exact ⟨.refl _, ActsOk.empty _ _⟩
+      | some peer =>
+        dsimp only
+        cases hstore : x.retryStore with
+        | none =>
+          simp only [HeldM.run_bind, HeldM.run_pure]
+          have he := sweep_reads cat hc hrd (((n.sweeps.find? (fun p => p.1 == cid)).map Prod.snd).getD {})
+            ((c.carry (((x.hooks.rooms cid).run h).1)).shows x.fam)
+            (if x.deferredRetries then ((n.addr? cid).bind x.retryRoom).getD 0
+              else ((n.addr? cid).bind x.room).getD maxFrame) h
+          generalize hs : HeldM.run (Sweep.run cat _ _ _) h = result at he ⊢
+          obtain ⟨⟨cursor, offered⟩, h'⟩ := result
+          dsimp only at he
+          subst he
+          refine ⟨.refl _, ?_⟩
+          intro other b hb
+          simp only [HeldM.run_pure, List.mem_map, Prod.mk.injEq, Route.conn.injEq] at hb
+          rcases hb with hb | ⟨o, ho, rfl, rfl⟩
+          · exact absurd hb List.not_mem_nil
+          · exact ⟨o, h', rfl, .refl _, .refl _, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+              ⟨c, cat, _, _, hcat, by rw [hs]; exact ho⟩))))⟩
+        | some store =>
+          simp only [HeldM.run_bind, HeldM.run_pure, (hr.retryStore store hstore).1 peer h]
+          have he := sweep_reads cat hc hrd ((store.load peer).run h).1
+            ((c.carry (((x.hooks.rooms cid).run h).1)).shows x.fam)
+            (if x.deferredRetries then ((n.addr? cid).bind x.retryRoom).getD 0
+              else ((n.addr? cid).bind x.room).getD maxFrame) h
+          generalize hs : HeldM.run (Sweep.run cat _ _ _) h = result at he ⊢
+          obtain ⟨⟨cursor, offered⟩, h'⟩ := result
+          dsimp only at he
+          subst he
+          split
+          all_goals
+            simp only [HeldM.run_bind, HeldM.run_pure, (hr.retryStore store hstore).2 peer cursor h']
+            refine ⟨.refl _, ?_⟩
+            intro other b hb
+            simp only [HeldM.run_pure, List.mem_map, Prod.mk.injEq, Route.conn.injEq] at hb
+            rcases hb with hb | ⟨o, ho, rfl, rfl⟩
+            · exact absurd hb List.not_mem_nil
+            · exact ⟨o, h', rfl, .refl _, .refl _, Or.inr (Or.inr (Or.inr (Or.inr (Or.inr
+                ⟨c, cat, _, _, hcat, by rw [hs]; exact ho⟩))))⟩
+
 theorem fanout_ok (hr : ReadOnly x) (n : Node) (ids : List Id) : Egress x (n.fanout x ids) := by
   intro h
   unfold Node.fanout
@@ -384,7 +498,7 @@ theorem open_ok (hr : ReadOnly x) (n : Node) (cid : Id) (addr : ByteArray) (dial
   simp only [HeldM.run_bind, HeldM.run_pure]
   have e := hr.rooms cid h
   refine ⟨.of_eq e.symm, ActsOk.sends (.refl _) (.of_eq e.symm) fun o ho =>
-    Or.inr (Or.inr (Or.inr (Or.inr ⟨dialer, n.floor, now, ho⟩)))⟩
+    Or.inr (Or.inr (Or.inr (Or.inr (Or.inl ⟨dialer, n.floor, now, ho⟩))))⟩
 
 theorem follow_ok (hr : ReadOnly x) (n : Node) (now : Nat) : Egress x (n.follow x now) := by
   intro h
@@ -424,6 +538,13 @@ def SealedOk (x : Sync F (HeldM F)) (h : Held F) (out : Acts) (e : ByteArray × 
   (∃ b, (Route.bare e.1, b) ∈ out.send ∧ e.2 = tagged bareTag b) ∨
   ∃ (cid : Id) (g : List ByteArray) (f : ByteArray), e.2 = tagged sealedTag f ∧
     ((x.hooks.sealFor cid (Codec.encode g)).run h).1 = some f ∧ ∀ q ∈ g, (Route.conn cid, q) ∈ out.send
+
+/-- Changing grouping or transport lanes cannot authorize new payloads. -/
+theorem SealedOk.mono {h : Held F} {a b : Acts} {e : ByteArray × ByteArray}
+    (ok : SealedOk x h a e) (subset : ∀ p ∈ a.send, p ∈ b.send) : SealedOk x h b e := by
+  rcases ok with ⟨p, hp, he⟩ | ⟨cid, g, f, he, hf, hg⟩
+  · exact Or.inl ⟨p, subset _ hp, he⟩
+  · exact Or.inr ⟨cid, g, f, he, hf, fun q hq => subset _ (hg q hq)⟩
 
 theorem seal_ok (hr : ReadOnly x) (n : Node) (out : Acts) (h : Held F) :
     ((n.seal x out).run h).2 = h ∧ ∀ e ∈ ((n.seal x out).run h).1, SealedOk x h out e := by
@@ -481,6 +602,36 @@ theorem seal_ok (hr : ReadOnly x) (n : Node) (out : Acts) (h : Held F) :
   simp only [HeldM.run_pure]
   rw [e2]
   exact ⟨rfl, fun e he => ok2 e (List.mem_reverse.1 he)⟩
+
+/-- The reserved lane seals only supplied, already authorized payloads.
+Ticket bookkeeping leaves Held unchanged and adds no alternate emitter. -/
+theorem sealRetries_ok (hr : ReadOnly x) (n : Node) (retries : List RetryOffer)
+    (out : Acts) (h : Held F)
+    (authorized : ∀ r ∈ retries, (Route.conn r.cid, r.payload) ∈ out.send) :
+    ((n.sealRetries x retries).run h).2 = h ∧
+      ∀ e ∈ ((n.sealRetries x retries).run h).1.1, SealedOk x h out e := by
+  unfold Node.sealRetries
+  simp only [HeldM.run_bind]
+  generalize hR : HeldM.run (forIn (m := HeldM F) retries
+    (([], []) : List (ByteArray × ByteArray) × List RetryTicket) _) h = R
+  have pR := forIn_inv hR (fun h' (st : List (ByteArray × ByteArray) × List RetryTicket) =>
+      h' = h ∧ ∀ e ∈ st.1, SealedOk x h out e)
+    ⟨rfl, fun _ he => False.elim (List.not_mem_nil he)⟩
+    (fun r hr' st h' ⟨he, prior⟩ => by
+      subst he
+      simp only [HeldM.run_bind, HeldM.run_pure]
+      obtain ⟨hs, fresh⟩ := seal_ok hr n { send := [(.conn r.cid, r.payload)] } h'
+      rw [hs]
+      refine ⟨rfl, fun e hm => ?_⟩
+      rcases List.mem_append.1 hm with old | new
+      · exact prior e old
+      · exact (fresh e new).mono (by
+          intro p hp
+          have eq : p = (.conn r.cid, r.payload) := List.mem_singleton.mp hp
+          rw [eq]
+          exact authorized r hr'))
+  simp only [HeldM.run_pure]
+  exact pR
 
 theorem effectsPurge_goes (ids : List Id) (scrub : Bool) : Goes x.fam (Effects.purge x ids scrub) := by
   unfold Effects.purge
@@ -554,23 +705,38 @@ theorem finish_ok (hr : ReadOnly x) (n : Node) (out : Acts) (now : Nat) {h0 h : 
     intro cid b hb
     obtain ⟨o, h', e, m1, m2, hs⟩ := hok cid b (g2 cid b hb)
     exact ⟨o, h', e, m1, m2.trans mB, hs⟩
-  obtain ⟨s1, t1⟩ := seal_ok hr N
-    { send := (B.1.2 ++ A.1.2).send, drop := (B.1.2 ++ A.1.2).drop ++ ret, serve := (B.1.2 ++ A.1.2).serve } B.2
+  let merged := B.1.2 ++ A.1.2
+  let out' := { merged with drop := merged.drop ++ ret }
+  let retries := merged.retry.filter fun r => merged.serve.contains (.conn r.cid, r.payload)
+  let ordinary := merged.serve.filter fun p => !retries.any fun r => p == (.conn r.cid, r.payload)
+  obtain ⟨s1, t1⟩ := seal_ok hr N out' B.2
   rw [s1]
-  obtain ⟨s2, t2⟩ := seal_ok hr N { send := (B.1.2 ++ A.1.2).serve } B.2
+  obtain ⟨s2, t2⟩ := seal_ok hr N { send := ordinary } B.2
   rw [s2]
+  have authorized : ∀ r ∈ retries, (Route.conn r.cid, r.payload) ∈ merged.serve := by
+    letI : LawfulBEq ByteArray := byteArray_lawfulBEq
+    intro r hr'
+    exact List.contains_iff_mem.mp (List.mem_filter.1 hr').2
+  obtain ⟨s3, t3⟩ := sealRetries_ok hr N retries { send := merged.serve } B.2 authorized
+  rw [s3]
   generalize hR : HeldM.run (forIn (m := HeldM F) ((B.1.2 ++ A.1.2).drop ++ ret) (_ : List Id) _) B.2 = R
   have pR := forIn_inv hR (fun h' (_ : List Id) => Moves x.fam B.2 h') (.refl _) (fun cid _ l h' hm => by
     simp only [HeldM.run_bind, HeldM.run_pure]; exact hm.trans (endSession_goes hr cid h'))
   simp only [HeldM.run_pure]
   refine ⟨mB.trans pR, fun a p hp => ?_⟩
   rcases List.mem_append.1 hp with hp | hp
-  · rcases t1 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
-    · exact Or.inl ⟨b, e⟩
-    · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
-      obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inl (hq q hq'))
-      exact ⟨o, h', e', m1, m2.trans pR, hs⟩
-  · rcases t2 (a, p) hp with ⟨b, hb, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+  · rcases List.mem_append.1 hp with hp | hp
+    · rcases t1 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+      · exact Or.inl ⟨b, e⟩
+      · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
+        obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inl (hq q hq'))
+        exact ⟨o, h', e', m1, m2.trans pR, hs⟩
+    · rcases t2 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
+      · exact Or.inl ⟨b, e⟩
+      · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
+        obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inr (List.mem_filter.1 (hq q hq')).1)
+        exact ⟨o, h', e', m1, m2.trans pR, hs⟩
+  · rcases t3 (a, p) hp with ⟨b, _, e⟩ | ⟨cid, g, f, e, hf, hq⟩
     · exact Or.inl ⟨b, e⟩
     · refine Or.inr ⟨cid, g, f, B.2, e, m0.trans mB, pR, hf, fun q hq' => ?_⟩
       obtain ⟨o, h', e', m1, m2, hs⟩ := okO cid q (Or.inr (hq q hq'))
@@ -615,16 +781,28 @@ theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
       · exact ⟨hm, hok⟩
       · rename_i c _
         simp only [HeldM.run_bind, refresh_carry hr]
-        have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
-        generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
-        rw [e]
-        obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
-          Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
-        generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
-        obtain ⟨g3, g4⟩ := serveOwed_ok hr B.1.1 a.1 now B.2
-        simp only [HeldM.run_pure]
-        exact ⟨hm.trans (g1.trans g3), ((hok.right (g1.trans g3)).append ((g2.left hm).right g3)).append
-          (g4.left (hm.trans g1))⟩)
+        split
+        · exact ⟨hm, hok⟩
+        · simp only [HeldM.run_bind]
+          have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
+          generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
+          rw [e]
+          obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
+            Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
+          generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
+          obtain ⟨g3, g4⟩ := sweep_ok (hr.afterActs B.1.1 (st.2 ++ B.1.2)) B.1.1 a.1 B.2
+          change Moves x.fam B.2 _ at g3
+          change ActsOk x B.2 _ _ at g4
+          generalize HeldM.run (Node.sweep _ B.1.1 a.1) B.2 = C at g3 g4 ⊢
+          obtain ⟨g5, g6⟩ := serveOwed_ok (hr.afterActs C.1.1 (st.2 ++ B.1.2 ++ C.1.2)) C.1.1 a.1 now C.2
+          change Moves x.fam C.2 _ at g5
+          change ActsOk x C.2 _ _ at g6
+          simp only [HeldM.run_pure]
+          refine ⟨hm.trans (g1.trans (g3.trans g5)), ?_⟩
+          exact (((hok.right (g1.trans (g3.trans g5))).append
+            ((g2.left hm).right (g3.trans g5))).append
+            ((g4.left (hm.trans g1)).right g5)).append
+            (g6.left (hm.trans (g1.trans g3))))
   obtain ⟨mR, okR⟩ := pR
   obtain ⟨m2, ok2⟩ := finish_ok hr R.1.1 R.1.2 now mR okR
   exact ⟨mR.trans m2, ok2⟩

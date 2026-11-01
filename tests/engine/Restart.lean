@@ -11,10 +11,12 @@ open Engine Engine.Sync Tests Harden Std.Async
 def localClose (t : Checks) : IO Unit := do
   let native ← listenerFixture
   let ch ← eventChannel {}
+  let (ingress, _) ← Ingress.Hub.new ({} : RunConfig).maxSocks
+  let turnCounters ← IO.mkRef ({} : TurnCounters)
   let r : Runner := {
-    events := ch, writes := ← Std.CloseableChannel.Sync.new (some 1), port := 0, done := Task.pure (.ok ()), stopped := ← IO.mkRef false,
+    events := ch, writes := ← Std.CloseableChannel.Sync.new (some 1), port := 0, done := Task.pure (.ok ()), stopped := ← StopFlag.new,
     listening := Task.pure (.ok ()), slots := ← Std.Mutex.new [],
-    listener := native, closing := ← Std.Mutex.new false }
+    listener := native, closing := ← Std.Mutex.new false, ingress, turnCounters }
   let held ← IO.mkRef r
   let n ← closedFixtures
   r.stop

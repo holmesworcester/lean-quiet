@@ -155,7 +155,8 @@ target host.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "headless" / "host.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   -- C11: in C23 mode the system's glibc headers bind sscanf to a symbol
   -- the glibc Lean links against lacks.
@@ -288,6 +289,21 @@ lean_exe invite_link where
 lean_exe net_join where
   root := `platforms.headless.NetJoin
 
+lean_exe write_admission where
+  root := `platforms.headless.WriteAdmission
+
+lean_exe vacuity_storage_effects where
+  root := `tests.vacuity.StorageEffectsMain
+
+lean_exe catalog_retry where
+  root := `tests.engine.CatalogRetry
+
+lean_exe reserved_retry where
+  root := `tests.engine.ReservedRetry
+
+lean_exe ingress_tcp where
+  root := `tests.engine.IngressTcp
+
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
   root := `platforms.headless.Cross
@@ -358,7 +374,8 @@ target linux.o pkg : FilePath := do
   let source ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
   let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
   let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
-  let srcJob := (source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread
+  let publication ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let srcJob := ((source.zipWith (fun s _ => s) translate).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) publication
   let weakArgs := #["-I", (← getLeanIncludeDir).toString]
   buildO oFile srcJob weakArgs #["-fPIC", "-O2", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
 
@@ -509,3 +526,55 @@ lean_exe vacuity_identity_frames where
 
 lean_exe vacuity_identity_rejoin where
   root := `tests.vacuity.IdentityRejoinMain
+
+target stop_probe.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "engine" / "stop_probe.c"
+  buildO (pkg.buildDir / "native" / "stop_probe.o") src
+    #["-I", (← getLeanIncludeDir).toString] #["-fPIC", "-O2", "-g"] "cc"
+
+lean_exe stop_flag where
+  root := `tests.engine.StopFlag
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe native_lifetime where
+  root := `tests.engine.NativeLifetime
+
+lean_exe reader_stop where
+  root := `tests.engine.ReaderStop
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe checkpoint_ack where
+  root := `tests.engine.CheckpointAck
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_resume where
+  root := `tests.engine.WriterResume
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe prune_ack where
+  root := `tests.engine.PruneAck
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_fairness where
+  root := `tests.engine.WriterFairness
+
+lean_exe desktop_presentation where
+  root := `tests.app.DesktopPresentationMain
+
+target desktop_presentation_native.o pkg : FilePath := do
+  let src ← inputTextFile <| pkg.dir / "tests" / "app" / "desktop_presentation_native.c"
+  let shell ← inputTextFile <| pkg.dir / "platforms" / "linux" / "shell.c"
+  let metadata ← inputTextFile <| pkg.dir / "platforms" / "native" / "desktop_publication.h"
+  let thread ← inputTextFile <| pkg.dir / "platforms" / "native" / "thread.h"
+  let translate ← inputTextFile <| pkg.dir / "platforms" / "native" / "translate.h"
+  let job := (((src.zipWith (fun s _ => s) shell).zipWith (fun s _ => s) metadata).zipWith (fun s _ => s) thread).zipWith (fun s _ => s) translate
+  buildO (pkg.buildDir / "native" / "desktop_presentation_native.o") job
+    #["-I", (← getLeanIncludeDir).toString] #["-O2", "-fPIC", "-std=gnu11", "-Wall", "-Wextra", "-Werror"] "cc"
+
+lean_exe desktop_native_presentation where
+  root := `tests.app.DesktopNativePresentation
+  moreLinkObjs := #[desktop_presentation_native.o]
+  moreLinkArgs := #["/usr/lib/x86_64-linux-gnu/libxcb.so.1", "/usr/lib/x86_64-linux-gnu/libxcb-shm.so.0", "/usr/lib/x86_64-linux-gnu/libxcb-sync.so.1"]
+
+lean_exe epoch_ingress where
+  root := `tests.engine.EpochIngress

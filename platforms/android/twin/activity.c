@@ -66,11 +66,36 @@ static uint32_t        ba_pos[4];
 
 static JavaVM*   ba_vm;
 static jobject   ba_act;
+static ANativeActivity* ba_owner;
 static jmethodID ba_appearance_m;
 static bool ba_system_dark;
 static jmethodID ba_show_ime, ba_copy_text, ba_scan_m, ba_set_text_m;
 static jmethodID ba_bars_m, ba_pick_photo_m;
 static LqPhoto ba_photo = LQ_PHOTO_INIT;
+
+// A caller owns a local Java reference, independent of Activity replacement.
+// Only the first Activity initializes method IDs, before Lean's thread starts.
+typedef struct { JNIEnv* env; jobject activity; bool attached; } BaJava;
+static BaJava ba_target(void) {
+  BaJava j = {0};
+  if (!ba_vm) return j;
+  j.attached = (*ba_vm)->GetEnv(ba_vm, (void**)&j.env, JNI_VERSION_1_6) != JNI_OK;
+  if (j.attached && (*ba_vm)->AttachCurrentThread(ba_vm, &j.env, NULL) != JNI_OK) {
+    j.env = NULL; j.attached = false; return j;
+  }
+  pthread_mutex_lock(&ba_mu);
+  if (ba_act) j.activity = (*j.env)->NewLocalRef(j.env, ba_act);
+  pthread_mutex_unlock(&ba_mu);
+  return j;
+}
+static void ba_target_done(BaJava j) {
+  if (j.activity) (*j.env)->DeleteLocalRef(j.env, j.activity);
+  if (j.attached) (*ba_vm)->DetachCurrentThread(ba_vm);
+}
+// The caller holds ba_mu; stale Java callbacks cannot affect a new owner.
+static bool ba_current(JNIEnv* env, jobject activity) {
+  return ba_act && (*env)->IsSameObject(env, activity, ba_act);
+}
 
 // The newest camera frame's Y plane, until Lean takes it (ba_take_luma).
 static bool     ba_camera_wanted;
@@ -151,6 +176,7 @@ int32_t ba_dpi(void) {
 
 static void ba_window_created(ANativeActivity* act, ANativeWindow* win) {
   pthread_mutex_lock(&ba_mu);
+  if (ba_owner != act) { pthread_mutex_unlock(&ba_mu); return; }
   ba_win = win;
   ba_w   = ANativeWindow_getWidth(win);
   ba_h   = ANativeWindow_getHeight(win);
@@ -167,6 +193,7 @@ static void ba_window_resized(ANativeActivity* act, ANativeWindow* win) {
 // Returns only once Lean's thread is not drawing to the surface.
 static void ba_window_destroyed(ANativeActivity* act, ANativeWindow* win) {
   pthread_mutex_lock(&ba_mu);
+  if (ba_owner != act || ba_win != win) { pthread_mutex_unlock(&ba_mu); return; }
   ba_win = NULL;
   ba_event(11, 0, 0, 0);
   bl_window_gone();
@@ -175,6 +202,7 @@ static void ba_window_destroyed(ANativeActivity* act, ANativeWindow* win) {
 
 static void ba_pause(ANativeActivity* act) {
   pthread_mutex_lock(&ba_mu);
+  if (ba_owner != act) { pthread_mutex_unlock(&ba_mu); return; }
   ba_resumed = false;
   ba_camera_wanted = false;
   free(ba_luma); ba_luma = NULL; ba_luma_n = 0;
@@ -188,6 +216,7 @@ static void ba_pause(ANativeActivity* act) {
 
 static void ba_resume(ANativeActivity* act) {
   pthread_mutex_lock(&ba_mu);
+  if (ba_owner != act) { pthread_mutex_unlock(&ba_mu); return; }
   ba_resumed = true;
   ba_event(10, 0, 0, 0);
   pthread_cond_broadcast(&ba_cv);
@@ -195,10 +224,25 @@ static void ba_resume(ANativeActivity* act) {
 }
 
 static void ba_destroy(ANativeActivity* act) {
+  JNIEnv* env = act->env;
+  jclass cls = (*env)->GetObjectClass(env, act->clazz);
+  jmethodID changing = (*env)->GetMethodID(env, cls, "isChangingConfigurations", "()Z");
+  bool recreate = changing && (*env)->CallBooleanMethod(env, act->clazz, changing);
+  if ((*env)->ExceptionCheck(env)) { (*env)->ExceptionClear(env); recreate = false; }
+  (*env)->DeleteLocalRef(env, cls);
   pthread_mutex_lock(&ba_mu);
-  ba_closing = true;
-  pthread_cond_broadcast(&ba_cv);
+  if (ba_owner == act) {
+    ba_owner = NULL;
+    ba_resumed = false;
+    ba_win = NULL;
+    bl_window_gone();
+    if (ba_act) { (*env)->DeleteGlobalRef(env, ba_act); ba_act = NULL; }
+    // Configuration destruction replaces the Android owner, not Lean's run.
+    if (!recreate) ba_closing = true;
+    pthread_cond_broadcast(&ba_cv);
+  }
   pthread_mutex_unlock(&ba_mu);
+  __android_log_print(ANDROID_LOG_INFO, "lean", "activity destroyed: configuration=%d", recreate);
 }
 
 // Events from the Java half
@@ -235,9 +279,9 @@ char* ba_text(uint32_t pos[4]) {
   return s;
 }
 
-static void JNICALL ba_n_appearance(JNIEnv* env, jclass cls, jboolean dark, jint text_dpi) {
-  (void)env; (void)cls;
+static void JNICALL ba_n_appearance(JNIEnv* env, jobject activity, jboolean dark, jint text_dpi) {
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { pthread_mutex_unlock(&ba_mu); return; }
   ba_system_dark = dark;
   if (text_dpi > 0 && text_dpi <= 2560) ba_text_dpi = text_dpi;
   pthread_mutex_unlock(&ba_mu);
@@ -251,20 +295,22 @@ bool ba_dark(void) {
 }
 
 void ba_appearance(bool dark, uint32_t background) {
-  if (!ba_vm || !ba_act || !ba_appearance_m) return;
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-      && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return;
-  (*env)->CallVoidMethod(env, ba_act, ba_appearance_m, (jboolean)dark, (jint)background);
+  if (!ba_appearance_m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
+  (*env)->CallVoidMethod(env, j.activity, ba_appearance_m, (jboolean)dark, (jint)background);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
-static void JNICALL ba_n_insets(JNIEnv* env, jclass cls, jint top, jint bottom, jint ime,
+static void JNICALL ba_n_insets(JNIEnv* env, jobject activity, jint top, jint bottom, jint ime,
     jint left, jint right, jint cl, jint ct, jint cr, jint cb) {
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { pthread_mutex_unlock(&ba_mu); return; }
   bool kb = ime != ba_kb;
   ba_top    = top;
   ba_bottom = bottom;
@@ -318,10 +364,11 @@ static char* ba_utf8(JNIEnv* env, jstring text) {
   return s;
 }
 
-static void JNICALL ba_n_text(JNIEnv* env, jclass cls, jstring text, jint ss, jint se,
+static void JNICALL ba_n_text(JNIEnv* env, jobject activity, jstring text, jint ss, jint se,
   jint cs, jint ce) {
   char* s = ba_utf8(env, text);
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { free(s); pthread_mutex_unlock(&ba_mu); return; }
   free(ba_txt);
   ba_txt    = s;
   ba_pos[0] = (uint32_t)ss;
@@ -332,16 +379,22 @@ static void JNICALL ba_n_text(JNIEnv* env, jclass cls, jstring text, jint ss, ji
   pthread_mutex_unlock(&ba_mu);
 }
 
-static void JNICALL ba_n_photo(JNIEnv* env, jclass cls, jint token, jint status,
+static void JNICALL ba_n_photo(JNIEnv* env, jobject activity, jint token, jint status,
     jint w, jint h, jbyteArray rgba) {
-  (void)cls;
-  if (status == 4) { lq_photo_selected(&ba_photo, (uint32_t)token); return; }
+  if (status == 4) {
+    pthread_mutex_lock(&ba_mu);
+    if (ba_current(env, activity)) lq_photo_selected(&ba_photo, (uint32_t)token);
+    pthread_mutex_unlock(&ba_mu);
+    return;
+  }
   jsize n = rgba ? (*env)->GetArrayLength(env, rgba) : 0;
   if (status == 1 && (w <= 0 || h <= 0 || w > 2048 || h > 2048 || n != (int64_t)w*h*4)) return;
   jbyte* bytes = rgba ? (*env)->GetByteArrayElements(env, rgba, NULL) : NULL;
   if (rgba && !bytes) return;
-  lq_photo_publish(&ba_photo, (uint32_t)token, (uint32_t)status, (uint32_t)w, (uint32_t)h,
+  pthread_mutex_lock(&ba_mu);
+  if (ba_current(env, activity)) lq_photo_publish(&ba_photo, (uint32_t)token, (uint32_t)status, (uint32_t)w, (uint32_t)h,
       (const unsigned char*)bytes, (size_t)n);
+  pthread_mutex_unlock(&ba_mu);
   if (bytes) (*env)->ReleaseByteArrayElements(env, rgba, bytes, JNI_ABORT);
 }
 
@@ -351,18 +404,18 @@ bool ba_take_photo(uint32_t header[4], uint8_t** bytes, size_t* size) {
 
 bool ba_pick_photo(uint32_t token) {
   lq_photo_begin(&ba_photo, token);
-  if (!ba_vm || !ba_act || !ba_pick_photo_m) return false;
-  JNIEnv* env = NULL;
-  bool attached = (*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK;
-  if (attached && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return false;
-  (*env)->CallVoidMethod(env, ba_act, ba_pick_photo_m, (jint)token);
+  if (!ba_pick_photo_m) return false;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return false; }
+  JNIEnv* env = j.env;
+  (*env)->CallVoidMethod(env, j.activity, ba_pick_photo_m, (jint)token);
   bool ok = !(*env)->ExceptionCheck(env);
   if (!ok) (*env)->ExceptionClear(env);
-  if (attached) (*ba_vm)->DetachCurrentThread(ba_vm);
+  ba_target_done(j);
   return ok;
 }
 
-static void JNICALL ba_n_luma(JNIEnv* env, jclass cls, jobject buf, jint w, jint h, jint stride,
+static void JNICALL ba_n_luma(JNIEnv* env, jobject activity, jobject buf, jint w, jint h, jint stride,
   jint orient) {
   const uint8_t* y = (*env)->GetDirectBufferAddress(env, buf);
   jlong          n = (*env)->GetDirectBufferCapacity(env, buf);
@@ -370,6 +423,7 @@ static void JNICALL ba_n_luma(JNIEnv* env, jclass cls, jobject buf, jint w, jint
     return;
   }
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { pthread_mutex_unlock(&ba_mu); return; }
   if (!ba_camera_wanted || !ba_resumed) { pthread_mutex_unlock(&ba_mu); return; }
   uint8_t* p = realloc(ba_luma, (size_t)n);
   if (p != NULL) {
@@ -395,32 +449,30 @@ uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]) {
   return p;
 }
 
-static void JNICALL ba_n_action(JNIEnv* env, jclass cls, jint kind, jint code, jint action) {
+static void JNICALL ba_n_action(JNIEnv* env, jobject activity, jint kind, jint code, jint action) {
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { pthread_mutex_unlock(&ba_mu); return; }
   ba_event(kind, code, action, 0);
   pthread_mutex_unlock(&ba_mu);
 }
 
 // Calls into the Java half, from any thread (they post to the UI thread).
-// A thread attached here stays attached (Lean's thread is, for scroll.c).
+// Newly attached worker calls detach after releasing their local reference.
 static void ba_call(jmethodID m, bool arg) {
-  if (ba_vm == NULL || ba_act == NULL || m == NULL) {
-    return;
-  }
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
-    return;
-  }
+  if (!m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
   if (m == ba_show_ime) {
-    (*env)->CallVoidMethod(env, ba_act, m, (jboolean)arg);
+    (*env)->CallVoidMethod(env, j.activity, m, (jboolean)arg);
   } else {
-    (*env)->CallVoidMethod(env, ba_act, m);
+    (*env)->CallVoidMethod(env, j.activity, m);
   }
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
 void ba_ime(bool show) {
@@ -433,61 +485,53 @@ void ba_scan(bool on) {
   ba_camera_wanted = on;
   free(ba_luma); ba_luma = NULL; ba_luma_n = 0;
   pthread_mutex_unlock(&ba_mu);
-  if (ba_vm == NULL || ba_act == NULL || ba_scan_m == NULL) {
-    return;
-  }
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
-    return;
-  }
-  (*env)->CallVoidMethod(env, ba_act, ba_scan_m, (jboolean)on);
+  if (!ba_scan_m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
+  (*env)->CallVoidMethod(env, j.activity, ba_scan_m, (jboolean)on);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
 void ba_copy(const char* utf8) {
-  if (ba_vm == NULL || ba_act == NULL || ba_copy_text == NULL) {
-    return;
-  }
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
-    return;
-  }
+  if (!ba_copy_text) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
   jstring s = (*env)->NewStringUTF(env, utf8);
-  (*env)->CallVoidMethod(env, ba_act, ba_copy_text, s);
+  (*env)->CallVoidMethod(env, j.activity, ba_copy_text, s);
   (*env)->DeleteLocalRef(env, s);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
 void ba_set_text(const char* utf8) {
-  if (ba_vm == NULL || ba_act == NULL || ba_set_text_m == NULL) {
-    return;
-  }
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-    && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) {
-    return;
-  }
+  if (!ba_set_text_m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
   jstring s = (*env)->NewStringUTF(env, utf8);
-  (*env)->CallVoidMethod(env, ba_act, ba_set_text_m, s);
+  (*env)->CallVoidMethod(env, j.activity, ba_set_text_m, s);
   (*env)->DeleteLocalRef(env, s);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
 // URL delivery is independent of the debug control socket.
-static void JNICALL ba_n_link(JNIEnv* env, jclass cls, jstring text) {
+static void JNICALL ba_n_link(JNIEnv* env, jobject activity, jstring text) {
   char* url = ba_utf8(env, text);
   pthread_mutex_lock(&ba_mu);
+  if (!ba_current(env, activity)) { free(url); pthread_mutex_unlock(&ba_mu); return; }
   if (ba_nlinks < 32) ba_links[ba_nlinks++] = url;
   else free(url);
   pthread_mutex_unlock(&ba_mu);
@@ -505,16 +549,17 @@ char* ba_take_link(void) {
 }
 
 void ba_bars(uint32_t top, uint32_t bottom, bool light_top, bool light_bottom) {
-  if (ba_vm == NULL || ba_act == NULL || ba_bars_m == NULL) return;
-  JNIEnv* env;
-  if ((*ba_vm)->GetEnv(ba_vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK
-      && (*ba_vm)->AttachCurrentThread(ba_vm, &env, NULL) != JNI_OK) return;
-  (*env)->CallVoidMethod(env, ba_act, ba_bars_m, (jint)top, (jint)bottom,
+  if (!ba_bars_m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
+  (*env)->CallVoidMethod(env, j.activity, ba_bars_m, (jint)top, (jint)bottom,
       (jboolean)light_top, (jboolean)light_bottom);
   if ((*env)->ExceptionCheck(env)) {
     (*env)->ExceptionDescribe(env);
     (*env)->ExceptionClear(env);
   }
+  ba_target_done(j);
 }
 
 static void ba_java(ANativeActivity* act) {
@@ -534,22 +579,32 @@ static void ba_java(ANativeActivity* act) {
     __android_log_write(ANDROID_LOG_ERROR, "lean", "cannot register the Java half's natives");
     return;
   }
-  if (ba_act != NULL) {
-    (*env)->DeleteGlobalRef(env, ba_act);
+  if (ba_vm == NULL) {
+    ba_vm = act->vm;
+    ba_appearance_m = (*env)->GetMethodID(env, cls, "appearance", "(ZI)V");
+    ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
+    ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
+    ba_set_text_m = (*env)->GetMethodID(env, cls, "setText", "(Ljava/lang/String;)V");
+    ba_pick_photo_m = (*env)->GetMethodID(env, cls, "pickPhoto", "(I)V");
+    ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
+    ba_bars_m     = (*env)->GetMethodID(env, cls, "applyBars", "(IIZZ)V");
+    if ((*env)->ExceptionCheck(env)) {
+      (*env)->ExceptionClear(env);
+      ba_appearance_m = ba_pick_photo_m = ba_show_ime = ba_copy_text = ba_scan_m = ba_set_text_m = ba_bars_m = NULL;
+    }
   }
-  ba_vm         = act->vm;
-  ba_act        = (*env)->NewGlobalRef(env, act->clazz);
-  ba_appearance_m = (*env)->GetMethodID(env, cls, "appearance", "(ZI)V");
-  ba_show_ime   = (*env)->GetMethodID(env, cls, "showIme", "(Z)V");
-  ba_copy_text  = (*env)->GetMethodID(env, cls, "copyText", "(Ljava/lang/String;)V");
-  ba_set_text_m = (*env)->GetMethodID(env, cls, "setText", "(Ljava/lang/String;)V");
-  ba_pick_photo_m = (*env)->GetMethodID(env, cls, "pickPhoto", "(I)V");
-  ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
-  ba_bars_m     = (*env)->GetMethodID(env, cls, "applyBars", "(IIZZ)V");
-  if ((*env)->ExceptionCheck(env)) {
-    (*env)->ExceptionClear(env);
-    ba_show_ime = ba_copy_text = ba_scan_m = ba_set_text_m = ba_bars_m = NULL;
+  pthread_mutex_lock(&ba_mu);
+  if (ba_owner != act) {
+    ba_win = NULL;
+    ba_resumed = false;
+    bl_window_gone();
   }
+  if (ba_act) (*env)->DeleteGlobalRef(env, ba_act);
+  ba_act = (*env)->NewGlobalRef(env, act->clazz);
+  ba_owner = act;
+  pthread_mutex_unlock(&ba_mu);
+  (*env)->DeleteLocalRef(env, cls);
+
 }
 
 // Touches
@@ -743,7 +798,8 @@ static void* ba_run(void* arg) {
   fflush(stdout);
   fflush(stderr);
   __android_log_print(ANDROID_LOG_INFO, "lean", "main returned %d", code);
-  exit(code);
+  // Android/HWUI threads still run. Never run their global destructors here.
+  _Exit(code);
 }
 
 static void ba_spawn(void* (*fn)(void*), void* arg, size_t stack) {

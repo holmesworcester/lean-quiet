@@ -20,6 +20,8 @@ structure Memory where
   /-- An input, not a claim that deterministic fixtures are secure randomness. -/
   entropy : Nat → ByteArray
   cursor : Nat := 0
+  /-- Durable per-peer retry metadata, kept across disposable sessions. -/
+  retries : Id → Option Sweep := fun _ => none
 
 def M (α : Type) := Memory → α × Memory
 
@@ -87,8 +89,16 @@ structure Setup where
   room : Side → ByteArray → Option Nat := fun _ _ => none
 
 def Setup.sync (S : Setup) (side : Side) : Sync F M :=
-  { fam := family, cfg := S.cfg, hooks := Connection.hooks family sodium (S.addr side),
-    room := S.room side }
+  { fam := family
+    cfg := S.cfg
+    hooks := Connection.hooks family sodium (S.addr side)
+    room := S.room side
+    catalog := some {
+      ceiling := lift (Catalog.held family).ceiling
+      read := fun seq => lift ((Catalog.held family).read seq) }
+    retryStore := some {
+      load := fun peer s => ((s.retries peer).getD {}, s)
+      save := fun peer cursor s => ((), { s with retries := fun p => if p = peer then some cursor else s.retries p }) } }
 
 def World.peer (w : World) : Side → Peer
   | .a => w.a

@@ -80,23 +80,28 @@ that witness, but their composition still needs to be proved:
 4. Connect reaction writes, validation and session following through the entire
    bootstrap, and state the store/transport refinement boundary explicitly.
 
-Unqualified fairness is insufficient. An execution can schedule both peers
-forever while every useful connection fails, capacity never becomes available,
-authorization is repeatedly revoked, or packets arrive only after their round
-has expired. A meaningful whole-app theorem needs an eventual stable interval,
-usable reachable addresses (currently IPv4 literals), completed I/O, positive
-sync budgets and adequate capacity, correct primitive
-crypto and collision-compatible retained data. Those assumptions should be
-stated about environment behavior, rather than as “bootstrap eventually works.”
+The earlier round/closure components have stronger premises about stable
+sessions, room/capacity and delivery. Those are **not accepted environment
+assumptions for the strengthened goal**: the running app must supply its own
+fair service and persistent retries. A durable per-authenticated-peer catalog
+cursor now retries actual authorized op bytes across changing session IDs,
+without relying on delivery of a round opening, have or want. The cursor law
+allows continuing inserts and zero-room stalls; deriving its recurring output
+reservation from the complete native runner is still open. Revoked/private
+data, unsupported bytes and missing prerequisites require explicit domain
+boundaries, not an assumption that bootstrap eventually succeeds.
 
-Transport capacity includes a per-frame byte bound. `App.textInto` retains the
-whole draft and `App.sendNow` only trims it before calling `Community.send`
-([App.lean](../App.lean)); that intent and the post validator impose no text-size
-limit. A signed draft above 1 MiB can therefore pass the same local validation
-as Send while its encrypted frame is rejected by the production TCP reader.
-The regression checks this boundary and a small positive control without
-publishing the oversized op. For a 32-byte session id and 24-byte nonce, the
-tagged frame has `74 + Codec.encode(bundle).size` bytes, so its encoded bundle
-must fit **1,048,502 bytes** under `maxFrame = 1,048,576`
-([Frame.lean](../engine/wire/Frame.lean), [connection frame](../ops/connection/Frame.lean)).
-This is a delivery precondition, not a proven application message-size policy.
+Transport capacity includes a per-frame byte bound. The low-level send intent
+and validator still accept a signed post above 1 MiB, but `App.writeAll` now
+refuses it before optimistic display or submission. Send retains the draft
+and reports the reason. With a 32-byte session id and 24-byte nonce, a tagged
+frame has `74 + Codec.encode(bundle).size` bytes; the admission check requires
+each op's singleton bundle to fit **1,048,502 bytes** under the 1 MiB limit.
+It also refuses new batches exceeding 8,192 pending ops or 128 MiB of pending
+encoded data. `host:write-admission` runs actual Send against SQLite, checks
+refusal and recovery, and rejects three mutations of the proven bounds.
+These checks cover that app entrypoint, not historical/imported data or all
+other submission paths.
+
+The strengthened, no-quiescence execution target and the unresolved whole-app
+resource/UI obligations are tracked in [EXECUTION-PROGRESS.md](EXECUTION-PROGRESS.md).

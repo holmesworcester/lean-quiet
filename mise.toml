@@ -31,7 +31,42 @@ run = "bash tests/engine/fairness.sh"
 
 [tasks."test:bootstrap-progress"]
 description = "Bootstrap progress PR gate: native certificates, TCP retry/fairness and sync epoch/claim-tree mutation controls"
-run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree"
+run = "mise run test:fairness && mise run test:simplify && mise run test:claim-tree && mise run test:catalog-retry && mise run test:reserved-retry && mise run test:ingress && mise run test:native-lifetimes && mise run test:ref-publications && mise run test:writer-fairness && mise run test:expiry-grace"
+
+[tasks."test:catalog-retry"]
+description = "Actual Node/SQLite durable retry under dropped control/data traffic and continuing writes, including a no-retry mutation"
+depends = ["crypto"]
+run = "bash tests/engine/catalog_retry.sh"
+
+[tasks."test:expiry-grace"]
+description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
+depends = ["crypto"]
+run = "bash tests/engine/expiry_grace.sh"
+
+[tasks."test:writer-fairness"]
+description = "Actual writer loop FIFO/local-priority fairness with SQLite, reused kernel service bounds and four compiling starvation/copy controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_fairness.sh"
+
+[tasks."test:ref-publications"]
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/ref_publications.sh"
+
+[tasks."test:native-lifetimes"]
+description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/native_lifetime.sh"
+
+[tasks."test:ingress"]
+description = "Real per-peer TCP mailbox bounds, UI priority, quota reuse and cancellation; reject eight compiling mutations"
+depends = ["crypto"]
+run = "bash tests/engine/ingress.sh"
+
+[tasks."test:reserved-retry"]
+description = "Real Runner/TCP retry under zero ordinary window, oversized hot batches and continuing posts; delayed cursor and transport mutations"
+depends = ["crypto"]
+run = "bash tests/engine/reserved_retry.sh"
 
 [tasks.bench]
 description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk op's encode, decode and validation, 100 chunks into SQLite, a 48 KiB frame bundle"
@@ -169,9 +204,14 @@ depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
 
 [tasks."host:net-join"]
-description = "Two apps, each its own database and node (the engine's Runner with the Connection family), joined over real TCP on loopback by their own pages: invite, paste, agree, the request over TCP, approve, admission by sync, a post back"
+description = "Two actual apps join through their pages over TCP, then commit, read back and paint local writes during sustained incoming sync"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+
+[tasks."host:write-admission"]
+description = "Actual app Send rejects unframable posts and exhausted pending queues, preserves drafts, and commits after capacity clears"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build write_admission && .lake/build/bin/write_admission out/write-admission && python3 tests/app/write_admission_negative.py"
 
 [tasks."host:cross"]
 description = "Two apps over real TCP, two communities both named club, each app in both, everyone named Ann: every entry reachable by a tap, each home right, a second join to one community and Stop waiting on it"
@@ -205,6 +245,10 @@ description = "Build/setup a private Android emulator; drive system photo picker
 depends = ["android:apk"]
 run = "platforms/android/test/photo_e2e.sh"
 
+[tasks."android:photo-lifecycle-e2e"]
+description = "Build/setup owned Android; actual picker/decoder recreation cancellation and stale owner controls against Main and SQLite"
+run = "bash platforms/android/test/photo_lifecycle/run.sh"
+
 [tasks."android:scan-e2e"]
 description = "Join with QR code on this suite's own emulator (lean-quiet-scan, emulator-5590): a real invite's code on the virtual scene's wall, scanned by the app's camera; it must land on Choose a name with exactly that link"
 depends = ["android:apk"]
@@ -218,6 +262,10 @@ run = "platforms/android/twin/build_apk.sh out/twin-demo.apk com.holmes.leanquie
 [tasks."android:twin-demo-e2e"]
 description = "Build the runtime and APK, then test a provisioned x86_64 emulator (SERIAL, default emulator-5644): keyboard, insets, scrolling, taps, control socket; retains failure artifacts"
 run = "tests/app/mobile.sh android"
+
+[tasks."android:lifecycle-e2e"]
+description = "Build/setup an owned API36 emulator; actual Activity recreation, stale JNI callbacks, IME focus/hide and clean process finish, with six compiling controls"
+run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]
 description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
@@ -513,3 +561,13 @@ run = "platforms/windows/ship.sh e2e"
 [tasks."windows:run"]
 description = "Build, install a desktop shortcut and launch Lean Quiet in Windows"
 run = "platforms/windows/ship.sh run"
+
+[tasks."host:desktop-presentation"]
+description = "Build the actual desktop publication step; delay/reject native completion through real composer/SQLite frames, then reject nine compiled controls"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation.sh"
+
+[tasks."linux:presentation"]
+description = "Build and run actual desktop publication under private Xvfb with MIT-SHM and PutImage; exact receipts, hidden/resize/input-pressure controls and real composer"
+depends = ["crypto"]
+run = "tests/app/desktop_presentation_native.sh"

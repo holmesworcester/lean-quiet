@@ -204,7 +204,7 @@ def unmountState (s : St) : St :=
 on the old refs, but no subsequent query or publication is authorized. -/
 def stopReader : M Unit := do
   let s ← get
-  if let some w := s.reader then w.stopped.set true
+  if let some w := s.reader then w.requestStop
   parkDone s.sh
   let out ← s.sh.out.get
   s.sh.acts.set #[]
@@ -355,7 +355,7 @@ def suspend (budget : Nat := 250) : M Unit := do
     let stopping ← IO.asTask (prio := .dedicated) (stopNodes s.netBoot s.net)
     modify fun s => { s with netStop := some stopping }
   modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
-  s.wr.paused.set false
+  s.wr.setPaused false
   leavePage
   saveCheckpoint
   discard <| waitFor deadline do

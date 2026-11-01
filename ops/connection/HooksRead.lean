@@ -189,6 +189,9 @@ theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
     Reads (onArrival via addr o at_ : HeldM F (List Op)) := by
   unfold onArrival; keeps [count_reads, view_reads, rows_reads, resendConns_reads]
 
+theorem retryKey_reads (cid : Id) : Reads (retryKey cid : HeldM F (Option Id)) := by
+  unfold retryKey; keeps [rows_reads]
+
 /-- **The Connection family's hooks only read the store.** Run on held
 data, each leaves the store as it is: what the family would store it
 returns as ops for the node to write, and what it would forget it
@@ -198,8 +201,8 @@ theorem hooks_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteAr
     let k := (hooks fam K listen : Hooks F (HeldM F))
     (∀ cid, Reads (k.rooms cid)) ∧ (∀ via a o t, Reads (k.recv via a o t)) ∧ Reads k.outbox ∧
     (∀ cid, Reads (k.closing cid)) ∧ Reads k.retired ∧ Reads k.react ∧ (∀ t, Reads (k.dial t)) ∧
-    Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) :=
+    Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) ∧ (∀ cid, Reads (k.retryKey cid)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K⟩
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K, retryKey_reads⟩
 
 end Connection

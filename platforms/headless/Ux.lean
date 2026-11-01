@@ -162,7 +162,7 @@ def main (args : List String) : IO UInt32 := do
     let count := max (2 * half + 5) (oldRange / est + half + 5)
     let photoId := (s.rows.toList.find? fun (_, r) => !r.lay.pics.isEmpty).map (·.1)
     let burst ← incoming ((List.range count).map fun i => s!"Burst message {i}")
-    s.wr.paused.set true
+    s.wr.setPaused true
     let pendingBurst ← writeAll ⟨burst⟩
     -- Inspect the first published frame, before another frame can sample
     -- and repair a native offset that was clamped to the stale range.
@@ -174,7 +174,7 @@ def main (args : List String) : IO UInt32 := do
     check "pending burst preserves the visible anchor in App.b and native Sim.b on its first frame"
       (pendingState.total == 82 + count && position pendingState anchor == before &&
         position { pendingState with b := nativeB } anchor == before)
-    s.wr.paused.set false
+    s.wr.setPaused false
     waitIdle sm
     check s!"a burst larger than the reader's window retains the visible message ({(← get).total}, {position (← get) anchor} vs {before}, b {(← get).b}, newer {(← get).newer}, ids {(← get).ids.size})"
       ((← get).total == 82 + count && position (← get) anchor == before)

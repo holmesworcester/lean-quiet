@@ -57,10 +57,13 @@ def scenario : Option Scenario := do
   let after := trace setup initial (approved ++ drive 240)
   let message := sealedPost c c alice content ((entropy "message-nonce" 0).extract 0 24)
     "Bob, this arrived through the production hooks.".toUTF8 1 1
-  let completed := approved ++ drive 240 ++ [.write .a [message]] ++ drive 120
+  -- The durable catalog also emits background retry traffic. This finite
+  -- witness services enough FIFO deliveries for the new post to reach Bob;
+  -- the number is a fixture length, not a runtime latency bound.
+  let completed := approved ++ drive 240 ++ [.write .a [message]] ++ drive 1320
   let recoveryMessage := sealedPost c c alice content ((entropy "recovery-message-nonce" 0).extract 0 24)
     "Bob, this new message crossed the replacement session.".toUTF8 2 2
-  let recovered := completed ++ [.close] ++ drive 240 ++ [.write .a [recoveryMessage]] ++ drive 120
+  let recovered := completed ++ [.close] ++ drive 240 ++ [.write .a [recoveryMessage]] ++ drive 1320
   -- Ensure preparation itself did not substitute a completed store.
   if after.a.memory.held.log.isEmpty then none
   else some { request, message, recoveryMessage, startup, approved, completed, recovered }

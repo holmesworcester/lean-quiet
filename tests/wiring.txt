@@ -72,8 +72,9 @@ door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
 # threads it starts, makes no blocking send to a bounded channel (the
 # local-write queue can be full while sync is busy), and waits on no other thread's task. The frame offers
 # instead (App.offerAll: trySend, the rest kept in St.toNode).
-# Runner.write waits through channel.send; App offers with trySend instead.
+# Runner.write waits for capacity with cancellation; App offers with trySend instead.
 block Engine.Sync.enqueue a send that waits while the node's channel is full
+block Engine.Sync.Runner.write a public write that waits for queue capacity or cancellation
 block Std.CloseableChannel.Sync.send a channel send that waits while the channel is full
 block IO.wait waiting on another thread's task
 thread Engine.Sync.Runner.start
@@ -469,3 +470,6 @@ spec Connection.Progress.Exchange.connection The expected connection op, equated
 spec Engine.Sync.ServiceRun.emitted Urgent and ordinary outputs of actual Conn.serveOwed calls; ServiceRun.next constrains the intervening queue updates.
 world Connection.Execution.lift Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value.
 todo Engine.Sync.absentStep Proof decomposition of Node.write's actual deduplication/read loop, related by write_store. Public write_takes and write_preserves_op name Node.write directly.
+
+# Byte count of the retained production retry payload, used only in specifications.
+spec Engine.Sync.RetrySlot.bytes The retained retry payload size in the actual Outbox state.

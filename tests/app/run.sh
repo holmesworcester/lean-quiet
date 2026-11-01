@@ -46,6 +46,7 @@ mise run host:slide
 mise run host:translate
 fi
 if stage network; then
+mise run host:write-admission
 .lake/build/bin/inkless
 tests/app/inkless_negative.sh
 .lake/build/bin/nodequeue

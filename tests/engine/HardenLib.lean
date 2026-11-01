@@ -226,7 +226,8 @@ def closeEffectsChecks (t : Checks) : IO Unit := do
   let (n, e) ← (n.onClose x "peer".toUTF8 1).run db
   let slots : Slots ← Std.Mutex.new []
   let ch ← eventChannel { queue := 2 }
-  let st : RunState := { db, node := n, slots }
+  let (ingress, _) ← Ingress.Hub.new ({} : RunConfig).maxSocks
+  let st : RunState := { db, node := n, slots, ingress }
   let st ← RunState.finishClose x ch (fun _ => pure ()) {} (st, e) 1
   t.ok "close effects retain a shipped courier for transport" (st.pending.any (·.1 == addr))
   let mut dialed := false
@@ -303,11 +304,13 @@ def sharedSocketChecks (t : Checks) : IO Unit := do
   let slots : Slots ← Std.Mutex.new []
   let ch ← eventChannel { queue := 4 }
   let c ← Std.Async.TCP.Socket.Client.mk
-  let stopped ← IO.mkRef false
+  let stopped ← StopFlag.new
   let out ← Std.Mutex.new {}
   let wake ← Std.Condvar.new
-  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()) }
-  let st : RunState := { db, node := n, slots, socks := [sock], next := 1 }
+  let (ingress, _) ← Ingress.Hub.new ({} : RunConfig).maxSocks
+  let some input ← ingress.reserve | throw (IO.userError "shared socket source admission")
+  let sock : Sock := { id := 0, client := c, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()), input := some input }
+  let st : RunState := { db, node := n, slots, socks := [sock], next := 1, ingress }
   let st ← RunState.apply x ch (fun _ => pure ()) {} st { drop := [session.id] } 1
   t.ok "shared socket: a dropped session leaves the socket up"
     (st.socks.any (·.id == 0) && !(← stopped.get))

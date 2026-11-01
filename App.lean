@@ -24,6 +24,7 @@ Everything the platform does goes through `Io`, so tests drive the same
 code without a window (QTests).
 -/
 import AppLife
+import ops.app.WriteAdmission
 
 namespace App
 open Engine Community Data Paint Font Row
@@ -199,6 +200,40 @@ run; the wiring check must catch it. -/
 def submitWaits (j : Job) : M Unit := do
   if let some r := (← get).net then r.write j.ops
 
+/-- Position an admitted message exactly as the Reader's ordered views do.
+Saturated counters use this device's receipt, including a receipt in this
+same write; they never invent a position from the display timestamp. -/
+def presentationPosition (ps : Array Pending) (message : Id) (fact : Fact) : M (Option Pos) := do
+  let .message _ _ _ _ _ n _ _ := fact | return none
+  if n < countCap then return some (sortOf fact, message)
+  let receipt := ps.find? fun p => match p.fact with
+    | .received _ _ m _ _ => m == message
+    | _ => false
+  if let some p := receipt then return some (sortOf p.fact, message)
+  let stored ← intentView (Community.received.byMsg.read [message] (limit := some 1))
+  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
+
+def presentationEntry (ps : Array Pending) (p : Pending) : M (Option Presentation.Entry) := do
+  let s ← get
+  let .message c _ _ _ _ _ _ parent := p.fact | return none
+  let some position ← presentationPosition ps p.op.id p.fact | return none
+  let root ← match parent with
+    | none => pure (some position)
+    | some id => do
+      let fact ← match ps.find? (·.op.id == id) with
+        | some p => pure (some p.fact)
+        | none => intentView (Community.Clump.fact id)
+      match fact with
+      | some f => presentationPosition ps id f
+      | none => pure none
+  return root.map fun root => ⟨s.cur, c, root, position⟩
+
+def presentationRefusal : M Bool := do
+  let now ← IO.monoMsNow
+  let message := "Your earlier messages are still being shown. Try sending again shortly."
+  modify fun s => { s with toast := Toast.raise now message }
+  return false
+
 /-- A user action's write (an intent's ops): each op is
 judged in order against what is decided and the ops before it in the
 same write. Valid ops show at once, pending. An op whose requirements are
@@ -206,27 +241,28 @@ not all here yet (a join's request cites the community's ops, which come
 by sync) shows nothing and waits in the store, as the engine waits for
 any op. An Invalid op refuses the whole write. Otherwise the ops go in as one job
 of this node's own (`submit`). -/
-def writeAll (w : Community.Write) : M Bool := do
+def writeAll (w : Community.Write) (present := false) : M Bool := do
   let s ← get
   if !s.life.allows s.life.lease then return false
-  let mut mine : Std.HashMap Id (Verdict SF) := {}
-  let mut pend := #[]
-  for o in w.ops do
-    let mut sts := []
-    for r in o.reqs do
-      sts := sts ++ [← match mine[r]? with
-        | some v => pure (some v)
-        | none => Data.status s.rd r]
-    match judge fam o sts with
-    | some (.valid (.inl f)) =>
-      mine := mine.insert o.id (.valid (.inl f))
-      pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
-    | some (.valid v) => mine := mine.insert o.id (.valid v)
-    | none => pure ()
-    | some .invalid =>
-      (← get).io.log s!"write refused: an op is Invalid"
-      return false
-  modify fun s => { s with out := s.out ++ pend }
+  let present := present && s.page == .chat
+  if let some reason := WriteAdmission.refusal {} s.queuedWrites w.ops then
+    let now ← IO.monoMsNow
+    modify fun s => { s with toast := Toast.raise now reason }
+    return false
+  if present && s.ownSends.entries.length ≥ Presentation.capacity then return ← presentationRefusal
+  let some pend ← Reader.judgeWrite s.rd s.out w | do
+    s.io.log "write refused: an op is Invalid"
+    return false
+  let mut ownSends := s.ownSends
+  if present then
+    for p in pend do
+      if let .message c user _ _ _ _ _ _ := p.fact then
+        if c == s.me.c && user == s.me.user then
+          let some entry ← presentationEntry pend p | return ← presentationRefusal
+          let some next := ownSends.offer entry | return ← presentationRefusal
+          ownSends := next
+    if ownSends.entries.length == s.ownSends.entries.length then return ← presentationRefusal
+  modify fun s => { s with out := s.out ++ pend, ownSends }
   s.sh.out.modify (· ++ pend)
   noticeLocal pend.toList
   submit ⟨w.ops, true⟩
@@ -422,13 +458,64 @@ def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
     modify fun s => { s with imgWaiting := {} }
   return b
 
+/-- Select pixels that actually communicate the sent content. Blank/inkless
+text lines do not acknowledge a body below the viewport. A photo-only send
+waits for an actual preview/file bitmap, not its empty text band or placeholder. -/
+def findPresentationBand (s : St) (r : RowSt) : Option (Nat × Nat) := Id.run do
+  let some bitmap := r.shown | return none
+  let ground := if r.data.selected then Paint.solid (Palette.color s.dim.theme .selected) s.W
+    else if s.dim.hover.isSome then Paint.solid (Palette.gray03 s.dim.theme) s.W else s.bgRow
+  let left := 4 * s.dim.textX
+  let right := 4 * (s.W - s.dim.pad)
+  let backdrop := ground.extract left right
+  for i in [0:r.lay.text.size] do
+    let y := r.lay.textY + Row.bodyHeight s.dim r.data i
+    let h := min (max 1 s.dim.lineH) (bitmap.rows.size - y)
+    if (bitmap.rows.extract y (y + h)).any (fun row => row.extract left right != backdrop) then
+      return some (y, h)
+  if let some box := r.lay.pics[0]? then
+    if r.painted.2[1]?.getD false then
+      return some (box.y, min box.h (max 1 s.dim.lineH))
+  return none
+
+/-- Constant-size lookup; a changed ticket invalidates the cached band. -/
+def presentationBand (_s : St) (r : RowSt) : Option (Nat × Nat) := do
+  let (ticket, band) ← r.presentation
+  if r.paintFlight.map (·.handle.ticket) == some ticket then band else none
+
+/-- Initially pin the measured row; once its pixels exist, pin its first
+visible content band. This also handles a tall inkless prefix. -/
+def presentationOffset (s : St) (x : Id) : Nat :=
+  match s.rows[x]? with
+  | some r => match presentationBand s r with
+    | some (y, _) => min r.lay.h (y + (geom s).viewNow)
+    | none => min (heightOf s x) (geom s).viewNow
+  | none => min (heightOf s x) (geom s).viewNow
+
+/-- Keep the admitted first committed body and its measured layout together.
+Child queries still run; their latest answers are adopted after publication.
+Only ancillary name/reaction changes may wait. Access/content/global display
+changes immediately leave this path. -/
+def deferRowPaint (s : St) (x : Id) (r : RowSt) (next : RowData) : Bool :=
+  r.data.own && !r.data.pending && (!r.shownCommitted || s.ownSends.contains x) &&
+  r.paintFlight.any (fun old => old.stamp ==
+    Raster.RowPaint.stamp s.life.generation x s.W s.dim s.bgRow next old.stamp.ready)
+
 /-- Row x from the board (Reader's row want), laid out again when its
 version moved; nothing while the board has none (the frame shows the
 row's placeholder, Cover). Its time is shown in the local timezone. -/
 def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := do
   let s ← get
   if s.page != .chat || !s.life.mounted then return
-  let some (.row (some d), ver) := bd.get? (.row s.me.c s.me.adm x) | return
+  let answer := bd.get? (.row s.me.c s.me.adm x)
+  if let some (.row none, _) := answer then
+    if let some old := s.rows[x]? then retireRow old
+    modify fun s => { s with
+      rows := s.rows.erase x,
+      ownSends := s.ownSends.keep (·.message.2 != x),
+      presenting := s.presenting.filter (·.message != x) }
+    return
+  let some (.row (some d), ver) := answer | return
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
   let d := { d with time := (d.time + tz).toNat, wide := s.wide, own := d.author == s.me.user }
@@ -449,7 +536,7 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   | some r =>
     if r.data == d then
       modify fun s => { s with rows := s.rows.insert x { r with bver := ver } }
-    else
+    else if !deferRowPaint s x r d then
       let lay := Row.layout s.font s.dim s.W d
       modify fun s => { s with rows := s.rows.insert x { r with data := d, lay, bver := ver, ver := r.ver + 1 },
                                 heights := s.heights.insert x lay.h }
@@ -505,7 +592,7 @@ def mountChildren (x : Id) (bottom offset viewport : Nat) : M Unit := do
         else pure old
       next := next ++ [t]
     d := { d with tallies := next }
-  if d != r.data then
+  if d != r.data && !deferRowPaint s x r d then
     let lay := Row.layout s.font s.dim s.W d
     modify fun s => { s with
       rows := s.rows.insert x { r with data := d, lay, ver := r.ver + 1 },
@@ -546,15 +633,27 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
   let selected := s.selected == some x
   if r.data.selected != selected then
     r := { r with data := { r.data with selected }, ver := r.ver + 1 }
-  let key := Raster.Key.row s.life.generation x r.ver ready s.dim.theme
   let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
-  let handle ← rasterRequest owner key visible (fun _ => pure (some (Row.paint f dm W bgRow d l av imgs)))
-  let value ← handle.value
-  if r.painted != (r.ver, ready) then modify fun s => { s with paints := s.paints + 1 }
+  let stamp := Raster.RowPaint.stamp s.life.generation x W dm bgRow d ready
+  let first := d.own && !d.pending && (!r.shownCommitted || s.ownSends.contains x)
+  let (flight, value) ← Raster.RowPaint.request s.raster owner visible first r.paintFlight
+    stamp r.ver d l imgs (fun _ => pure (some (Row.paint f dm W bgRow d l av imgs)))
+  -- Presentation must keep the admitted snapshot's key, not a newer
+  -- cosmetic version which would revoke the first paint before publication.
+  modify fun s => { s with rasterNeeds := s.rasterNeeds.push ⟨owner, flight.handle.ticket.key, visible⟩ }
+  if (r.paintFlight.map (·.handle.ticket)) != some flight.handle.ticket then
+    modify fun s => { s with paints := s.paints + 1 }
   r := { r with
-    task := if value.isSome then none else some handle,
-    painted := (r.ver, ready), shown := value.orElse fun _ => r.shown,
-    pixels := if !s.mobile && value.isSome then some ⟨d, l, imgs, r.ver, ready⟩ else r.pixels }
+    task := if value.isSome then none else some flight.handle,
+    paintFlight := some flight,
+    painted := if value.isSome then (flight.version, flight.stamp.ready) else r.painted,
+    shown := value.orElse fun _ => r.shown,
+    shownCommitted := r.shownCommitted || (value.isSome && !flight.data.pending),
+    pixels := if !s.mobile && value.isSome then
+      some ⟨flight.data, flight.lay, flight.images, flight.version, flight.stamp.ready⟩ else r.pixels }
+  if value.isSome && r.presentation.map (·.1) != some flight.handle.ticket then
+    r := { r with presentation := some (flight.handle.ticket,
+      findPresentationBand s { r with data := flight.data, lay := flight.lay }) }
   if s.selected.isSome && !selected then
     if let some bmp := r.shown then
       let key := Raster.Key.dim s.life.generation x r.ver ready s.dim.theme
@@ -796,7 +895,7 @@ stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
   let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
-  let s := { s with heights := {}, rows := {}, selected := none, sheet := none }
+  let s := { s with heights := {}, rows := {}, selected := none, sheet := none, ownSends := {}, presenting := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
 /-- The communities as the reader's board has them (Reader.Want.comms):
@@ -907,7 +1006,7 @@ def takeChanges : M (Array Filing × Array (Id × Bool)) := do
   let (fs, vs, top) ← s.rd.filingsSince s.seen
   modify fun s => { s with seen := top }
   -- taken by the frame and the reader: the writer may delete them
-  s.wr.read.set (min top (← s.sh.seen.get))
+  s.wr.noticed (min top (← s.sh.seen.get))
   return (fs, vs)
 
 /-- Join with QR code: the camera on while the page shows; each new
@@ -1248,6 +1347,20 @@ def closeSheet : M Unit := do
     s.io.ime false
   modify fun s => { s with sheet := none, selected := none }
 
+/-- The same shaping and glyph painter as a message body, at its current
+width/theme. This runs once per composer action and stops at the first
+visible line; completely inkless drafts have no presentation to promise. -/
+def composerHasInk (s : St) (text : String) : Bool := Id.run do
+  let font := s.font.atSize (s.dim.px (if s.wide then 14 else 15))
+  let width := s.W - s.dim.textX - s.dim.pad
+  let canvas := Bitmap.blank width (max 1 s.dim.lineH) (s.bgRow.extract 0 (4 * width))
+  for paragraph in text.splitOn "\n" do
+    for line in Text.layoutFine font width paragraph do
+      let pixels := canvas.line font (Row.flush line) 0 (s.dim.px (if s.wide then 3 else 5))
+        (Palette.color s.dim.theme .fg)
+      if pixels.rows != canvas.rows then return true
+  return false
+
 /-- Send what the composer holds: its text and photos, as the engine's
 send intent (the post sealed under the community's current key, then
 each photo's attachment and chunks), one write. -/
@@ -1256,6 +1369,14 @@ def sendNow : M Unit := do
   if s.photoRequest.isSome then say "Finishing the selected photo…"; return
   let t := s.text.trimAscii.toString
   if t.isEmpty && s.chips.isEmpty then return
+  -- String stores its UTF-8 byte length. Reject an impossible payload
+  -- before allocating/shaping it merely to check whether it has ink.
+  if t.utf8ByteSize > Sync.maxFrame then
+    say "This message is too large to send. Shorten it and try again."
+    return
+  if s.chips.isEmpty && !composerHasInk s t then
+    say "Add visible text or a photo."
+    return
   let k? ← intentView (Community.currentKey s.me.c)
   let some k := k? | say "This community's key hasn't arrived yet."; return
   let mut files := []
@@ -1266,7 +1387,7 @@ def sendNow : M Unit := do
                           metaNonce := ← newBytes 24 } : Community.NewFile)]
   let nonce ← newBytes 24
   let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
-  if ← writeAll w then
+  if ← writeAll w (present := true) then
     modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "" }
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
@@ -1540,7 +1661,9 @@ def onEvent : Event → M Bool
     sendNow
     return true
   | .ime h => do modify fun s => { s with imeH := h.toNat, chromeKey := "", pageKey := none }; return true
-  | .scrolling _ => return true
+  | .scrolling on => do
+    if on then modify fun s => { s with ownSends := {}, presenting := none }
+    return true
   | .drag ph x y => do
     if ph == 3 then
       modify fun s => { s with sheet := s.sheet.map fun sh => { sh with drag := none, vel := 0 } }
@@ -1692,8 +1815,8 @@ def command (line : String) : M Bool := do
     let st ← get
     s.io.ctlReply (String.intercalate " | " (st.comms.toList.map fun m => s!"{m.name}{if m.c == st.me.c then "*" else ""}"))
   | "asking" => s.io.ctlReply s!"asking {(← get).asking.size}"
-  | "pause" => s.wr.paused.set true; s.io.ctlReply "writer paused"
-  | "resume" => s.wr.paused.set false; s.io.ctlReply "writer resumed"
+  | "pause" => s.wr.setPaused true; s.io.ctlReply "writer paused"
+  | "resume" => s.wr.setPaused false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
   | "scroll" =>
     s.io.scrollTo ((ws[1]? >>= String.toNat?).getD 0).toFloat; s.io.ctlReply "ok"
@@ -1863,6 +1986,36 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
     (Hold.messagePlane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow) (Hold.period s.dim)
   let lastDisplay ← saved.get
   modify fun s => { s with input := result.state, lastDisplay }
+  -- Session retains the new serial only when the native publication was
+  -- accepted; Android can return a failed publication without throwing.
+  let published := result.accepted
+  if published && s.page == .chat && s.sheet.isNone then
+    if let some e := s.ownSends.head then
+      if let some row := s.rows[e.message.2]? then
+        let current := row.paintFlight.map (·.handle.ticket)
+        let committed := row.shownCommitted && !row.data.pending && row.shown.isSome &&
+          row.task.isNone && row.painted.1 == row.ver
+        let prior := s.presenting.filter fun p => p.message == e.message.2 &&
+          p.generation == s.life.generation && current == some p.ticket && committed
+        let mut candidate : Option PresentationCandidate := none
+        if let some bottom := rowBottom s e.message.2 then
+          if let some (bodyY, bodyH) := presentationBand s row then
+            let bodyTop := bottom + row.lay.h - bodyY
+            let visible := bodyH > 0 && b + bodyH ≤ bodyTop && bodyTop ≤ b + (geom s).viewNow
+            let drawn := row.shown.any fun bitmap =>
+              let body := bitmap.rows.extract bodyY (bodyY + bodyH)
+              let frameRow := over + (b + viewH s - bodyTop)
+              !body.isEmpty && fr.extract frameRow (frameRow + body.size) == body
+            if visible && committed && drawn then
+              candidate := current.map fun ticket =>
+                ⟨e.message.2, result.publication, s.life.generation, ticket⟩
+        let receipt (c : Option PresentationCandidate) :=
+          Presentation.acknowledge (c.map fun p => (p.frame, p.message))
+            ((result.completed.filter fun receipt => receipt.2 == 0).map Prod.fst)
+        if (receipt prior <|> receipt candidate) == some e.message.2 then
+          modify fun s => { s with ownSends := s.ownSends.pop, presenting := none }
+        else
+          modify fun s => { s with presenting := candidate }
   return result.events
 
 /-- Lifecycle polling uses the same raw decoder, even with no surface. -/
@@ -1895,7 +2048,10 @@ def projectClumps (offset viewport : Nat) (heldRoot : Option Id := none) : M Uni
     -- corrected the offset; only then can geometry decide visibility.
     let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2
     let scope : Component.Scope := ⟨["community".toUTF8, s.me.c, "clump".toUTF8, root.2],
-      Raster.near bottom span offset viewport 0⟩
+      s.ownSends.head.any (·.root.2 == root.2) || Raster.near bottom span offset viewport 0⟩
+    let pinned := s.ownSends.head.filter (fun e => e.root.2 == root.2)
+    let old := if let some e := pinned then
+      { old with anchor := if e.message.2 == root.2 then none else some e.message } else old
     let old := if s.restoreAnchor && s.anchor.map (·.2) == some root.2 && old.anchor.isNone then
       { old with anchor := s.restorePos.filter (fun p => p.2 != root.2) } else old
     let group ← if near then ClumpList.observe scope s.me.c root.2 old half else pure old
@@ -1930,6 +2086,7 @@ def followClumps (offset viewport : Nat) : M Unit := do
   let hi := offset + viewport + over + viewport
   let mut groups := s.clumps
   for root in s.roots do
+    if s.ownSends.head.any (·.root.2 == root.2) then continue
     let some group := groups[root.2]? | continue
     let some first := group.ids[0]? | continue
     let some last := group.ids.back? | continue
@@ -1945,6 +2102,12 @@ def followClumps (offset viewport : Nat) : M Unit := do
 
 /-- Read and paint only the mounted conversation. -/
 def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
+  modify fun s => { s with
+    ownSends := s.ownSends.keep (fun e => e.acceptance == s.cur && e.community == s.me.c) }
+  modify fun s => { s with presenting := s.presenting.filter fun p =>
+    p.generation == s.life.generation && s.ownSends.head.any (·.message.2 == p.message) }
+  if let some e := (← get).ownSends.head then
+    modify fun s => { s with anchor := some e.root }
   -- 3. the list's ids and counts
   let s ← get
   -- the conversation: the messages this device can read (Community.readable,
@@ -1993,8 +2156,11 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   modify fun s => { s with input }
   let b := input.offset
   -- the anchor: the row at the viewport's bottom edge, and how far into it
-  let mut anchor := if s.restoreAnchor then s.mark else captureAnchor { s with b }
-  let heldRoot := anchor.bind fun (x, _) => s.cellRoot[x]? <|> s.anchor.map (·.2)
+  let mut anchor := if let some e := s.ownSends.head then
+    some (e.message.2, presentationOffset s e.message.2)
+    else if s.restoreAnchor then s.mark else captureAnchor { s with b }
+  let heldRoot := s.ownSends.head.map (·.root.2) <|>
+    (anchor.bind fun (x, _) => s.cellRoot[x]? <|> s.anchor.map (·.2))
   -- a new window: in place now; the viewport, in its offsets, is where
   -- the anchor row went (`bv`; the native offset `b` follows in 5)
   let mut b := b
@@ -2007,7 +2173,7 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   -- Child-count changes can move a message even when the outer root list
   -- is unchanged. Resolve its new coordinate before choosing the child
   -- window, queries and paints for this frame.
-  if b > 4 || s.restoreAnchor then
+  if b > 4 || s.restoreAnchor || s.ownSends.head.isSome then
     let s ← get
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
@@ -2030,8 +2196,11 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     let bot := bots0[i]!
     if bot > hi then break
     if bot + heightOf s s.ids[i]!.2 ≥ lo && !s.spacers.contains s.ids[i]!.2 then win := win.push s.ids[i]!.2
+  if let some e := s.ownSends.head then
+    win := #[e.message.2] ++ win.filter (· != e.message.2)
   for x in win do
-    let visible := Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
+    let visible := s.ownSends.head.any (·.message.2 == x) ||
+      Raster.near ((s.ids.findIdx? (·.2 == x)).map (fun i => bots0[i]!) |>.getD 0)
       (heightOf s x) bv vh 0
     discard <| query ⟨Raster.messageOwner s.me.c x, visible⟩ (.row s.me.c s.me.adm x)
     -- A collection already knows its owning message's identity. Mount
@@ -2071,18 +2240,20 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
     let next := Lifecycle.follow s.anchor s.newer (bv ≤ 4) near
       ((rowAt s bv).bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))
       (if bv < winLo then s.roots[0]? else s.roots.back?)
-    if next != s.anchor then modify fun s => { s with anchor := next }
+    if s.ownSends.head.isNone && next != s.anchor then modify fun s => { s with anchor := next }
   followClumps bv vh
   let tMount ← (← get).io.nowUs
   -- 5. keep the anchor still (unless pinned to the newest)
-  if b > 4 || s.restoreAnchor then
+  if let some e := s.ownSends.head then
+    anchor := some (e.message.2, presentationOffset s e.message.2)
+  if b > 4 || s.restoreAnchor || s.ownSends.head.isSome then
     if let some (x, off) := anchor then
       if let some i := s.ids.findIdx? (·.2 == x) then
         let b' := Lifecycle.offset (bots[i]! + heightOf s x) off
         if b' != b then
           -- the content's new range first (a new window, its placeholders):
           -- a shell clamps a shift to the range it was last told
-          let cur ← s.io.scroll (bottoms s).2.toUInt32 vh.toUInt32
+          let cur ← s.io.scroll (bottoms s).2.toUInt32 (geom s).viewNow.toUInt32
           s.io.scrollBy (b'.toFloat - cur)
           b := b'
   -- 6. paint what the frame shows
@@ -2312,15 +2483,14 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
   saveCheckpoint
   return r
 
-/-- Foreground assembly suspends admission; the pool can run while the
-native shell presents. Finally also releases it on suspend or errors. -/
+/-- Raster work remains enabled during frame assembly. Repeated frames
+must not revoke its service opportunity; demand tickets still revoke obsolete
+publication, and the worker never holds its bookkeeping lock during paint. -/
 def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M (Option (List Event)) := do
-  let pool := (← get).raster
-  pool.pause true
   modify fun s => { s with
     rasterNeeds := #[], queryNeeds := roots,
     querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
-  try stepCore evs finally pool.pause false
+  stepCore evs
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with

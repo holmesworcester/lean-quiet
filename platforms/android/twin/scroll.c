@@ -60,7 +60,14 @@ void bs_init(JavaVM* vm, jobject activity) {
   if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK) {
     return;
   }
-  bs_ctx = (*env)->NewGlobalRef(env, activity);
+  // Physics belongs to the process, not to an Activity that Android may
+  // destroy and replace while Lean keeps running.
+  jclass cls = (*env)->GetObjectClass(env, activity);
+  jmethodID context = (*env)->GetMethodID(env, cls, "getApplicationContext", "()Landroid/content/Context;");
+  jobject app = (*env)->CallObjectMethod(env, activity, context);
+  bs_ctx = (*env)->NewGlobalRef(env, app);
+  (*env)->DeleteLocalRef(env, app);
+  (*env)->DeleteLocalRef(env, cls);
 }
 
 // JNI on the vsync thread, set up at its first use.

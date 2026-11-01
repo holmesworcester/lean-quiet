@@ -54,8 +54,8 @@ theorem servedShown : queued.shows fam msg = true ∧
   serveOwed_shown fam cfg queued 1024 [] held msg (Or.inr servesHead)
 
 theorem servesFresh : msg ∈ ((queued.serveOwed fam cfg 0 [msg.id] : HeldM Unit _) held).1.2.1 :=
-  serveOwed_hot fam cfg queued 0 [msg.id] held msg.id msg (by simp)
-    (by simp [queued]) stored shown
+  serveOwed_hot fam cfg queued 0 [msg.id] held msg.id msg
+    (by simp [Conn.hotOf, queued, List.eraseDups_cons, List.take_succ_cons]) stored shown
 
 theorem drains : (Nat.repeat (fun c => ((c.serveOwed fam cfg 1024 [] : HeldM Unit _) held).1.1)
     queued.owed.length queued).owed = [] := owed_within fam cfg 1024 held (by decide) queued

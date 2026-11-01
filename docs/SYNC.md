@@ -115,8 +115,8 @@ room (`sync.want`), and wanted ops are sent as their own bytes. A want
 for an id outside the connection's rooms, a local or conn op, or an
 unknown id, is ignored silently. `authorize ix c ids` filters ids against
 only the connection's shown rooms in the index before `Store.getOp`.
-Authorized ids join a bounded responder queue. `serveOwed` reads fresh
-local ids first, then `serve` reads from the queue until the transport
+Authorized ids join a bounded responder queue. `serveOwed` selects at most
+one requested fresh local id first, then `serve` reads from the queue until the transport
 budget is reached. The last op goes whole, so bulk payloads are bounded
 by that budget plus one op, excluding transport envelopes. Unserved ids
 stay queued for later steps.
@@ -558,9 +558,10 @@ Still to prove:
 - `walk` closure steps per call (the rest continues on the next tick).
 - `burst` serve bytes per native write after the urgent frames;
   `window` bytes queued per socket (both lanes) past which its sessions
-  are served nothing more; `sockCap` bytes queued per socket, past which
-  it is closed; `stallMs` for a writer's write, past which its socket is
-  closed (`RunConfig`). `urgentIds` ids for a wire op to stay urgent,
+  are served nothing more; separate normal/control queues each have
+  `sockCap` bytes and `sockFrames` entries, plus one maxFrame retry slot.
+  `stallMs` is the native writer deadline on supported POSIX targets
+  (`RunConfig`). `urgentIds` ids for a wire op to stay urgent,
   and `hotMs`, `hotCap` for this node's fresh writes (`Config`).
 - `leaf` and `fan` bound a message's claims.
 
@@ -590,7 +591,8 @@ engine/wire/Lanes.lean, Tcp):
 - **The paced responder queue** (item 3, simplification 3 of
   docs/PROOFS.md; "Have and want" above). A want is queued whole, never
   truncated; each step serves the queue in order within its budget,
-  after the ops this node wrote within `hotMs`, which go urgent. Repeat
+  after one selected op this node wrote within `hotMs`, which goes urgent.
+  Other hot ids stay in the FIFO. Repeat
   wants are deduplicated; the existing bounded ask retries and expiry
   remain, so dropped or deferred work can be rediscovered.
 - **Two lanes per socket.**
@@ -605,24 +607,25 @@ engine/wire/Lanes.lean, Tcp):
     sealed in frames of their own, the serve lane's last;
     `Effects.serve` counts them, so every reader of `send` still sees
     every frame.
-- **A writer task per socket** owns its sends, on its own thread, from
-  the socket's `Lanes`. Each native write (`Lanes.take`) is every urgent
-  frame, then serve frames up to `burst` bytes, at least one. The run
-  loop only pushes frames onto lanes, so no send blocks it, and a slow
-  socket blocks only its own writer. A closed socket's writer shuts it
-  down once its write under way is done; the frames still in its lanes
-  are dropped on transport failure (`Sock.stop`). Protocol retirement
-  drains queued final notices before shutdown (`Sock.drain`), so removal
-  messages survive the asynchronous handoff.
-- **Local writes have their own bounded channel.** `Inbox.next` alternates
-  preference between writes and network/control events, with immediate fallback
-  when the preferred queue is empty. Either queue's head receives service within
-  two completed polls; an entry with `p` predecessors within `2 * (p + 1)` polls,
+- **A writer task per socket** owns its sends. The actual `Outbox.take`
+  puts local urgent frames first, then protected controls, one reserved
+  catalog retry, then the ordinary serve burst. Normal and control queues
+  have independent byte/frame caps. The retry slot remains occupied until
+  native completion is recorded in durable cursor metadata. Protocol
+  retirement drains its final notice; the writer also owns the stalled-send
+  deadline after retirement removes it from the loop's socket list.
+- **Local writes have their own bounded channel.** `Inbox.Priority.next`
+  prefers local work in three of four polls and reserves the fourth for
+  network/control events, with immediate fallback when the preferred queue is
+  empty. A local head is selected within two completed polls and a network
+  head within four; with `p` predecessors the bounds are `2 * (p + 1)` and
+  `4 * (p + 1)` respectively,
   even while producers append more work. The app offers with `writes.trySend` through `offerAll`;
   a full queue retains the unaccepted suffix in `toNode`, in submission
   order, for later frames and across suspension. `Runner.write` is the
-  blocking interface for background callers. `write_within` and `event_within`
-  use the chooser the actual runner calls. `Tick.cofinal` proves recurring tick
+  blocking interface for background callers. `Priority.write_within` and
+  `Priority.event_within` use the chooser the actual runner calls.
+  `Tick.cofinal` proves recurring tick
   decisions if completed iterations sample unbounded time. These are iteration
   bounds, conditional on completion of native channel, store and I/O operations.
 - **Flow control.** The runner tells the node what each socket's lanes,
@@ -631,24 +634,28 @@ engine/wire/Lanes.lean, Tcp):
   serving leaves a socket's lanes within `window` and one op
   (`room_window`), whatever the backlog. The queue keeps the ids, not
   the bytes: an id not yet served waits there, not in the lanes.
-- **The socket cap.** Every push goes through `Lanes.admit`: if a
-  socket's lanes would then hold more than `sockCap` bytes (16 MiB), the
-  push is refused and the runner closes the socket through the close
-  path, as for any other end. So no socket ever holds more than
-  `sockCap` here (`lanes_bounded`), whatever its peer sends: the urgent
-  lane too, which the window does not pace (a peer that never reads,
-  asking again and again for this node's fresh writes, or a node writing
-  faster than a peer takes). Serving alone stays within `window` and one
-  op, so an honest peer that reads never reaches the cap.
+- **Socket output bounds.** Normal and protected-control queues each
+  admit at most `sockCap` bytes and `sockFrames` frames. A separate retry
+  slot admits one payload of at most `maxFrame` bytes. `OutboxLaws` bounds
+  the exact native batch, including every four-byte transport prefix.
+  Ordinary overflow drops an optimization batch while preserving control
+  and retry work; control-cap exhaustion explicitly closes the transport.
+  This is not a bound on prior Node allocations or notice-closure work.
+  [Reserved retry transport](RETRY-RESERVATION.md) states the limits and
+  remaining multiplexing/session-lifetime obligations.
+
 - **Stalls.** A writer marks when its write under way began
-  (`Outbox.since`). The loop's clock closes a socket whose write is not
-  done in `stallMs` (30 s; `shut`, `stall_closes`), through the close
-  path: the node ends its sessions there and the lanes are dropped. A
-  native write cannot be cancelled in Lean's TCP (`shutdown` waits for
-  pending writes), so the writer stays on that write until the peer
-  takes it or the connection dies, and only then shuts the socket down
-  and releases the socket's slot. So `maxSocks` caps such writers, and
-  `Runner.stop` waits for writers to end at most `stopMs`.
+  (`Outbox.since`). On supported POSIX hosts the writer itself enforces
+  `stallMs` (30 s), including after retirement removes its socket from
+  the loop. A captured socket capability aborts stalled native writes;
+  the writer releases its slot only after the SDK promise and callback
+  have settled. A full or closed notification queue cannot block this
+  release, and due-tick reaping recovers a lost closed notification.
+  The loop also closes stalled sessions (`shut`, `stall_closes`).
+  Native scheduling and cancellation are tested runtime boundaries,
+  not Lean termination proofs. Windows retains the original graceful
+  drain behavior and has no cancellation bound from this adapter.
+  `Runner.stop` waits for writers at most `stopMs`.
 
 `burst` is uiprio's `idleBatchBytes` on the send side (one native write
 of several frames, `sendMany`, as uiprio's). When Schedule's Params
@@ -661,7 +668,7 @@ over the functions the node and the runner call):
   `onWant_authorized` (only ids of the shown rooms' index, no read),
   `serveOwed_head` and `serveOwed_fifo` (each step serves the front, in
   order), `owed_within` (a queue of p ids is served within p steps),
-  `serveOwed_budget` (the budget and one op), `serveOwed_hot` (a fresh
+  `serveOwed_budget` (the budget and one op), `serveOwed_hot` (the one selected fresh
   write the peer wants is served first, whatever the budget),
   `serveOwed_shown`, `serveOwed_blind` (only shown ops; nothing outside
   the queue read), `onWant_bounded_owed` (the queue within `maxKnown`),
@@ -672,8 +679,8 @@ over the functions the node and the runner call):
   retry traffic).
 - In the world: `want_sends` (a want on an empty queue is answered in
   the same step, the pilot's 3Δ hop again), `fresh_served`.
-- The runner: `write_first` (a write on a write-preferred turn),
-  `write_within` and `event_within` (both queues receive bounded service despite
+- The runner: `Priority.local_share` (three local-preferred turns in four),
+  `Priority.write_within` and `Priority.event_within` (both queues receive bounded service despite
   continuing arrivals), `Tick.cofinal` (ticks recur under advancing sampled time), `urgent_ahead`
   and `ahead_bytes` (an urgent frame goes out in its socket's next
   native write, after only the urgent frames before it, ahead of every

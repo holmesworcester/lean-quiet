@@ -70,15 +70,19 @@ class Relay:
                         if stream in self.pairs:
                             self.stats["forced_disconnects"] += 1
                             self.close_pair(stream)
-                if mode == "backpressure":
+                if mode in ("backpressure-fill", "backpressure"):
                     self.stats["throttled_buffered_steps"] += int(any(
                         self.pending[s] for s in self.slow_targets))
-                    self.stats["backpressure_read_pauses"] += sum(
+                    paused = sum(
                         len(self.pending[self.pairs[s]]) >= 65536 for s in self.slow_sources)
-                forwarding = mode in ("open", "backpressure")
+                    self.stats["backpressure_read_pauses"] += paused
+                    if paused:
+                        (self.directory / "backpressure-ready").write_text("bounded relay stopped reading\n")
+                forwarding = mode in ("open", "backpressure-fill", "backpressure")
                 readable = [self.listener] + [s for s in self.pairs
                     if not forwarding or len(self.pending[self.pairs[s]]) < 65536]
                 writable = [s for s in self.pairs if forwarding and self.pending[s] and
+                    (mode != "backpressure-fill" or s not in self.slow_targets) and
                     (mode != "backpressure" or s not in self.slow_targets or
                      time.monotonic() >= self.next_send.get(s, 0))]
                 reads, writes, _ = select.select(readable, writable, [], .01)
@@ -183,6 +187,7 @@ def main():
         parser.error("a valid invite supports at most seven dead hints plus the live hint")
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "relay-mode").write_text("pause")
+    (args.out / "backpressure-ready").unlink(missing_ok=True)
     dead = []
     for _ in range(args.dead_hints):
         stream = socket.socket()
@@ -229,10 +234,15 @@ def main():
     if any(marker in text for marker in ["PANIC", "panic", "network runner stopped:", "join-fair exception:"]):
         raise SystemExit(f"native/runtime failure; see {log_path}")
     if args.expect_starvation or args.expect_hint_starvation:
-        expected = ("FAIL: released bare join reaches founder" if args.expect_hint_starvation else
-                    "FAIL: peer message progresses while write queue stays nonempty")
+        expected = (["FAIL: released bare join reaches founder"] if args.expect_hint_starvation else [
+            "FAIL: shared turn prioritizes local work while advancing its bounded phase",
+            "FAIL: shared turn guarantees the reserved network slot despite ready local work",
+            "FAIL: stop dispatch cleans up once and bypasses an otherwise due timer",
+            "FAIL: empty preferred event queue immediately falls back to a local write",
+            "FAIL: peer message progresses while write queue stays nonempty",
+        ])
         failures = [line for line in text.splitlines() if line.startswith("FAIL:")]
-        if result.returncode == 0 or failures != [expected]:
+        if result.returncode == 0 or failures != expected:
             raise SystemExit(f"runtime control survived or failed for another reason; see {log_path}")
         print("runtime negative control rejected by its specific progress assertion")
     elif result.returncode != 0:

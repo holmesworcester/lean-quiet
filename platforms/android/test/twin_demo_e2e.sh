@@ -37,10 +37,20 @@ finish() {
   exit "$status"
 }
 trap finish EXIT
+old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')
+# Unbind the selected old IME before replacing its service APK.
+"${adb[@]}" shell ime reset > "$art/ime-reset.txt"
 "$root/platforms/android/test/ime/build.sh" "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/testime.apk" >/dev/null
 "${adb[@]}" install -r "$root/out/twin-demo.apk" >/dev/null
-old_ime=$("${adb[@]}" shell settings get secure default_input_method | tr -d '\r')
+# Installation returns before package broadcasts update the running IME service.
+# Observe actual setup completion before starting the unchanged UI deadlines.
+"${adb[@]}" shell am wait-for-broadcast-idle --flush-broadcast-loopers > "$art/package-broadcast-barrier.txt"
+for _ in $(seq 50); do
+  "${adb[@]}" shell ime list -a -s | grep -q '^com.holmes.testime/.TestIme' && break
+  sleep .1
+done
+"${adb[@]}" shell ime list -a -s | grep -q '^com.holmes.testime/.TestIme'
 "${adb[@]}" shell ime enable com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell ime set com.holmes.testime/.TestIme >/dev/null
 "${adb[@]}" shell setprop debug.lean.trace 1
@@ -81,8 +91,8 @@ tap 300 $((H - 63 - 70))
 sleep 1.2
 ime=$(field ime)
 ok "a composer tap opens the keyboard (ime=$ime)" '[ "${ime:-0}" -gt 300 ]'
-steps=$("${adb[@]}" logcat -d -s leantrace:* | awk '{for(i=1;i<=NF;i++) if($i=="shift") print $(i+1)}' | sort -un | wc -l)
-ok "the composer follows the keyboard's animation ($steps distinct shifts)" '[ "$steps" -ge 6 ]'
+steps=$("${adb[@]}" logcat -d -s leantrace:* | awk '{for(i=1;i<=NF;i++) if($i=="composer-y") print $(i+1)}' | sort -un | wc -l)
+ok "the composer follows the keyboard's animation ($steps completed composer positions)" '[ "$steps" -ge 6 ]'
 shot ime
 ok "composer rides above the keyboard" '[ "$(px ime 900 $((H - ime - 70)))" = 303030 ]'
 row1=$((H - ime + ime * 41 / 100)); row2=$((H - ime + ime * 62 / 100))

@@ -39,7 +39,7 @@ def run(args, path, ok):
 
 try:
     for name, old, new in mutations:
-        assert old in original
+        assert old in original, f'{name}: mutation anchor missing'
         layout.write_text(original.replace(old, new))
         run(['lake', 'build', 'engine.renderer.desktop.Layout'], out / (name + '-code.log'), True)
         log = run(['lake', 'env', 'lean', 'engine/renderer/desktop/Laws.lean'], out / (name + '.log'), False)

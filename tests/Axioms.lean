@@ -1,3 +1,9 @@
+import engine.wire.ExpiryGraceLaws
+import engine.renderer.WriteQueueLaws
+import ops.app.Presentation
+import engine.wire.IngressLaws
+import engine.wire.IngressPriorityLaws
+import engine.wire.IngressChurnLaws
 import engine.renderer.SafeLaws
 import engine.renderer.Demand
 
@@ -22,6 +28,15 @@ import ops.sync.ServeLaws
 import ops.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
+import engine.wire.LoopLaws
+import engine.wire.PriorityLaws
+import engine.wire.OutboxLaws
+import ops.connection.StorageEffects
+import ops.connection.WriteProgress
+import ops.connection.CatalogEvolution
+import ops.sync.SweepLaws
+import ops.sync.SweepRun
+import ops.sync.SharedLog
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -1306,3 +1321,142 @@ end cost
 #print axioms Connection.retired_complete
 #print axioms Connection.retired_open
 #print axioms Connection.shipped_retired_misses
+
+#print axioms App.WriteAdmission.admitted_frames
+#print axioms App.WriteAdmission.admitted_count
+#print axioms App.WriteAdmission.admitted_bytes
+#print axioms Engine.Sync.Node.step_write
+#print axioms Engine.Sync.Node.step_frame
+#print axioms Engine.Sync.Node.step_tick
+#print axioms Engine.Sync.Node.step_close
+#print axioms Engine.Sync.Loop.dispatch_records
+#print axioms Engine.Sync.Loop.dispatch_timer
+#print axioms Engine.Sync.Loop.turn_records
+#print axioms Engine.Sync.Loop.turn_timer
+#print axioms Engine.Sync.Inbox.Priority.phase_cycle
+#print axioms Engine.Sync.Inbox.Priority.local_share
+#print axioms Engine.Sync.Inbox.Priority.waiting_step
+#print axioms Engine.Sync.Inbox.Priority.served
+#print axioms Engine.Sync.Inbox.Priority.write_within
+#print axioms Engine.Sync.Inbox.Priority.event_within
+#print axioms Engine.waits_history_bound
+#print axioms Engine.step_history_budget
+#print axioms Engine.drain_history_budget
+#print axioms Engine.Sync.turn_settles_reachable
+#print axioms Engine.Sync.purge_reachable
+#print axioms Engine.Sync.purge_settles_reachable
+#print axioms Engine.Sync.Moves.shared_retained
+#print axioms Engine.Sync.Moves.store_reachable
+#print axioms Engine.Sync.Moves.store_settled
+#print axioms Connection.Execution.production_step_moves
+#print axioms Connection.Execution.production_step_retains
+#print axioms Connection.Execution.production_step_reachable
+#print axioms Connection.Execution.production_step_settled
+#print axioms Connection.Execution.world_step_moves
+#print axioms Connection.Execution.world_trace_moves
+#print axioms Connection.Execution.empty_trace_store
+#print axioms Connection.Execution.Run.shared_retained
+#print axioms Engine.Sync.Sweep.offer_sent
+#print axioms Engine.Sync.Sweep.next_sent
+#print axioms Engine.Sync.Sweep.step_progress
+#print axioms Engine.Sync.Sweep.step_nonincrease
+#print axioms Engine.Sync.Sweep.retried
+#print axioms Engine.Sync.Sweep.retried_fair
+#print axioms Engine.Sync.Sweep.fair_loss_delivered
+#print axioms Engine.Sync.Sweep.run_observed
+#print axioms Engine.Sync.Sweep.held_run_observed
+#print axioms Engine.Sync.empty_log_agrees
+#print axioms Engine.Sync.shared_log_turn
+#print axioms Engine.Sync.shared_log_purge
+#print axioms Engine.Sync.purge_log_agrees
+#print axioms Engine.Sync.write_log_agrees
+#print axioms Connection.Execution.write_store_tape
+#print axioms Connection.Execution.write_receives
+#print axioms Connection.Execution.write_log_agrees_tape
+#print axioms Connection.Execution.committed_bind
+#print axioms Connection.Execution.store_receives
+#print axioms Connection.Execution.onWrite_receives
+#print axioms Connection.Execution.production_write_receives
+#print axioms Connection.Execution.HistoryStep.catalog_read
+#print axioms Connection.Execution.HistoryStep.ceiling_mono
+#print axioms Connection.Execution.production_step_history
+#print axioms Connection.Execution.world_step_history
+#print axioms Connection.Execution.world_trace_history
+#print axioms Connection.Execution.empty_trace_history
+#print axioms Connection.Execution.Run.history
+
+-- Exact admitted socket queues and native writer batches, including retries.
+#print axioms Engine.Sync.Reserved.push_bounded
+#print axioms Engine.Sync.Reserved.offer_bounded
+#print axioms Engine.Sync.Reserved.take_bounded
+#print axioms Engine.Sync.Reserved.normal_flood_does_not_starve_retry
+#print axioms Engine.Sync.Outbox.push_bounded
+#print axioms Engine.Sync.Outbox.take_bounded
+#print axioms Engine.Sync.Outbox.native_batch_bounded
+#print axioms Engine.Sync.Outbox.push_preserves_reserved
+#print axioms Engine.Sync.Outbox.urgent_then_retry
+#print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.serveOwed_hot_count
+
+#print axioms Engine.Sync.Ingress.distance_lt
+#print axioms Engine.Sync.Ingress.distance_zero
+#print axioms Engine.Sync.Ingress.advance_distance
+#print axioms Engine.Sync.Ingress.scan_ready
+#print axioms Engine.Sync.Ingress.scan_selected
+#print axioms Engine.Sync.Ingress.offer_preserves
+#print axioms Engine.Sync.Ingress.poll_progress
+#print axioms Engine.Sync.Ingress.arrivals_preserve
+#print axioms Engine.Sync.Ingress.served
+#print axioms Engine.Sync.Ingress.source_within
+#print axioms Engine.Sync.Ingress.flooded_prefix
+#print axioms Engine.Sync.Ingress.Prioritized.step_write
+#print axioms Engine.Sync.Ingress.Prioritized.step_event
+#print axioms Engine.Sync.Ingress.Prioritized.step_only_event
+#print axioms Engine.Sync.Ingress.Prioritized.poll_exists
+#print axioms Engine.Sync.Ingress.Prioritized.step_progress
+#print axioms Engine.Sync.Ingress.Prioritized.served
+#print axioms Engine.Sync.Ingress.Prioritized.source_within
+#print axioms Engine.Sync.Ingress.Prioritized.step_empty_event
+#print axioms Engine.Sync.Ingress.Prioritized.write_progress
+#print axioms Engine.Sync.Ingress.Prioritized.write_served
+#print axioms Engine.Sync.Ingress.Prioritized.write_within
+#print axioms Engine.Sync.Ingress.cancel_other
+#print axioms Engine.Sync.Ingress.cancelAll_preserves
+#print axioms Engine.Sync.Ingress.Prioritized.changes_preserve
+#print axioms Engine.Sync.Ingress.Prioritized.served_or_cancelled
+#print axioms Engine.Sync.Ingress.Prioritized.source_or_cancelled_within
+#print axioms Engine.Sync.Ingress.Prioritized.Waiting.same_inputs
+#print axioms Engine.Sync.Ingress.Prioritized.write_served_churn
+#print axioms Engine.Sync.Ingress.Prioritized.write_within_churn
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_source
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_write
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_exact
+
+#print axioms App.Presentation.bounded
+#print axioms App.Presentation.offer_append
+#print axioms App.Presentation.offer_full
+#print axioms App.Presentation.acknowledge_matches
+
+#print axioms Data.WriterQueue.push_local
+#print axioms Data.WriterQueue.push_background
+#print axioms Data.WriterQueue.push_keeps_phase
+#print axioms Data.WriterQueue.local_fifo
+#print axioms Data.WriterQueue.background_fifo
+#print axioms Data.WriterQueue.local_first
+#print axioms Data.WriterQueue.background_slot
+#print axioms Data.WriterQueue.take_state
+#print axioms Data.WriterQueue.local_within
+#print axioms Data.WriterQueue.background_within
+#print axioms Data.WriterQueue.local_share
+
+#print axioms Engine.Sync.ExpiryGrace.same_generation
+#print axioms Engine.Sync.ExpiryGrace.no_rearm
+#print axioms Engine.Sync.ExpiryGrace.exhausted
+#print axioms Engine.Sync.ExpiryGrace.empty_no_delay
+#print axioms Engine.Sync.ExpiryGrace.fresh_clears
+#print axioms Engine.Sync.ExpiryGrace.consume_keeps_generation
+#print axioms Engine.Sync.ExpiryGrace.consume_decreases
+#print axioms Engine.Sync.ExpiryGrace.consume_saturates
+#print axioms Engine.Sync.ExpiryGrace.consumed_left
+#print axioms Engine.Sync.ExpiryGrace.budget_exhausted
+#print axioms Engine.Sync.ExpiryGrace.source_before_exhaustion

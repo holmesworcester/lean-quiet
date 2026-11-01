@@ -1,0 +1,23 @@
+{
+  "phase_cycle": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.phase_cycle",
+    "witness": "Vacuity.Priority.phaseCycle",
+    "module": "tests.vacuity.Priority",
+    "detail": "Supporting alias of Priority.phase_cycle: four completed advances return the actual initial selector phase. The same fixture checks the exact eight-turn service prefix under continuing arrivals."
+  },
+  "waiting_step": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.waiting_step",
+    "witness": "Vacuity.Priority.waitingProgress",
+    "module": "tests.vacuity.Priority",
+    "detail": "Bob's frame waits behind Alice's frame while two local writes are already queued. Its rank8 premise is constructed, and the actual chooser either serves it or lowers that rank despite a new local write and frame appended immediately afterward."
+  },
+  "Priority.served": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Inbox.Priority.served",
+    "witness": "Vacuity.Priority.servedFromRank",
+    "module": "tests.vacuity.Priority",
+    "detail": "The constructed waiting rank proves Bob's original frame is served before turn8, even while both queues receive new entries on every turn forever. An exact prefix independently locates it at turn7."
+  }
+}

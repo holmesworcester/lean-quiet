@@ -26,6 +26,11 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let text := String.intercalate " " (List.replicate 150 "A message owns its text.")
     sm.cmds.modify (·.push s!"post {text}")
     waitIdle sm
+    -- Composer sends first present their body. This fixture now
+    -- deliberately scrolls to the pictures to exercise child demand.
+    discard <| onEvent (.scrolling true)
+    sm.b.set 0
+    steps 8
     let s ← get
     let some (_, message) := s.ids[0]? | throw (IO.userError "fixture message missing")
     let some row := s.rows[message]? | throw (IO.userError "fixture row missing")
@@ -162,7 +167,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     let adm := admit s.me.c req.id [approval.id]
     let now ← nowMin
     let reaction := react s.me.c adm.id msg bob "❤️".toUTF8 (now + 1)
-    s.wr.paused.set true
+    s.wr.setPaused true
     ck.ok "second reactor's signed pending write is accepted"
       (← writeAll ⟨[inv, req, approval, adm, reaction]⟩)
     steps 12
@@ -181,7 +186,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     let board ← (← get).sh.board.get
     ck.ok "duplicate reaction ops by one person still count once"
       ((board.get? heart).any (fun (v, _) => v == .reaction ⟨"❤️", 2, true⟩))
-    s.wr.paused.set false
+    s.wr.setPaused false
     waitIdle sm
     discard <| write (profile s.me.c s.me.adm s.me.dev "Renamed Ann".toUTF8 (now + 10))
     waitIdle sm
@@ -196,7 +201,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
         [s.me.c, msg, "❤️".toUTF8] (desc := false))])
     let q := Q.list (Community.message.all.query [s.me.c] (limit := some 1))
     let before ← q.run s.rd (← get).out
-    s.wr.paused.set true
+    s.wr.setPaused true
     let some key ← intentView (Community.currentKey s.me.c)
       | throw (IO.userError "fixture key missing")
     let old := Community.sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24)
@@ -205,7 +210,7 @@ def children (dir : String) (ck : Checks) : IO Unit := do
     let pending ← q.run s.rd (← get).out
     ck.ok "an out-of-window pending row cannot change a bounded answer's pending flags"
       (pending == before)
-    s.wr.paused.set false
+    s.wr.setPaused false
     waitIdle sm
     ck.ok "committing the out-of-window backfill leaves the bounded answer unchanged"
       ((← q.run s.rd (← get).out) == before)

@@ -16,6 +16,7 @@ checks = audit.load_checks()
 RUNNERS = {
     'tests.vacuity.Bootstrap': 'vacuity_bootstrap',
     'tests.vacuity.ProductionBootstrap': 'vacuity_production_bootstrap',
+    'tests.vacuity.StorageEffects': 'vacuity_storage_effects',
     'tests.vacuity.ConnectionProgress': 'vacuity_connection_progress',
     'tests.vacuity.ClosureDelivery': 'vacuity_closure_delivery',
     'tests.vacuity.RoundExchange': 'vacuity_round_exchange',

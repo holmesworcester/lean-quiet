@@ -24,15 +24,15 @@ structure RunConfig where
   is served more: a session's queue of wants is served only into what
   is left of this (`Sync.room`, `roomOf`). -/
   window : Nat := 4194304
-  /-- Bytes a socket's lanes may hold, both of them: a push past this
-  closes the socket (`Lanes.admit`). Serving stays under `window` and
-  one op, so only a peer that takes nothing while asking for more, or
-  for many of this node's fresh ops, reaches it. -/
+  /-- Separate byte cap for normal output and protected controls. Ordinary
+  overflow is dropped without closing; control overflow closes explicitly.
+  A third independent retry slot holds at most maxFrame bytes. -/
   sockCap : Nat := 16777216
-  /-- A writer's write not done in this many ms closes its socket: the
-  peer took less than one write (urgent frames and `burst`) in that
-  time. The writer stays on that write until the peer takes it or the
-  connection dies, holding its slot, so `maxSocks` caps such writers. -/
+  /-- Independent frame-count cap in each normal/control socket queue. -/
+  sockFrames : Nat := 4096
+  /-- Native writer and outbound-connect deadline. Supported POSIX sockets abort on timeout;
+  the lease is released only after the original SDK callback completes.
+  Unsupported targets retain the old wait without a cancellation claim. -/
   stallMs : Nat := 30000
   /-- How long `Runner.stop` waits for writers to end their write under
   way. -/

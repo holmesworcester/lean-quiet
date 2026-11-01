@@ -15,7 +15,7 @@ assert run([".lake/build/bin/fresh_tcp"], "baseline-run") == 0
 cases = [
     ("discard-retired", "engine/wire/Tcp.lean",
      "    if drain then s.drain else s.stop", "    s.stop",
-     "fresh_tcp", "FAIL: retired session's final notice arrives over TCP before EOF", True),
+     "fresh_tcp", "FAIL: retired final notice arrives first, before ordinary backlog and EOF", True),
     ("event-starves-write", "engine/wire/Lanes.lean",
      "  let selected ← if writeFirst then do",
      "  let selected ← if false then do",
@@ -30,12 +30,12 @@ cases = [
      "engine.wire.LaneLaws", "error:", False),
     ("no-hot", "engine/wire/Node.lean",
      "  n.hot.filterMap fun p => if now ≤ p.2 + x.cfg.hotMs then some p.1 else none",
-     "  []",
+     "  if now ≤ x.cfg.hotMs then [] else []",
      "engine.wire.LaneLaws", "error:", False),
     ("hot-last", "ops/sync/Conn.lean",
-     "def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups",
+     "def Conn.hotOf (c : Conn) (first : List Id) : List Id := (first.filter c.owing.contains).eraseDups.take 1",
      "def Conn.hotOf (c : Conn) (first : List Id) : List Id := []",
-     "ops.sync.ServeLaws", "error:", False),
+     "fresh_tcp", "FAIL: a fresh write wanted is served urgent, whatever the budget", True),
     ("truncated-want", "ops/sync/Conn.lean",
      ".eraseDups.take (cfg.maxKnown - c.owed.length)",
      ".eraseDups.take 1",
@@ -57,29 +57,40 @@ cases = [
      "  heard + idle < now",
      "engine.wire.LaneLaws", "error:", False),
     ("blocking-send", "engine/wire/Tcp.lean",
-     "      unless ← s.push cfg ps do over := s.id :: over",
-     "      for (_, b) in ps do discard <| sendOn s.client b",
+     "      unless ordinary.isEmpty do discard <| s.push cfg ordinary",
+     "      for (_, b) in ordinary do discard <| sendOn s.client b",
      "fresh_tcp", "FAIL: P gets all 64 ops while S never reads", True),
     # The frame handler serves with no room (each frame its `burst`).
     ("no-room", "engine/wire/Tcp.lean",
-     "      let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now",
-     "      let (st, e) ← st.node? fun n => n.onFrame x s.addr p now",
+     "      let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now",
+     "      let (st, e) ← st.node? fun n => n.step x (.frame s.addr p) now",
      "fresh_tcp", "FAIL: S's lanes stay within the window", True),
     # The room is blind to what the lanes hold (`Sock.queued := 0`).
     ("room-blind", "engine/wire/Tcp.lean",
      "  let qs ← socks.mapM fun s => do return (s.addr, ← s.lanes)",
      "  let qs ← socks.mapM fun s => do return (s.addr, ({} : Lanes))",
-     "fresh_tcp", "FAIL: S is not closed before stallMs", True),
+     "fresh_tcp", "FAIL: S's lanes stay within the window", True),
+    # Both the loop and the native writer must inherit the disabled deadline.
     ("no-timeout", "engine/wire/Tcp.lean",
-     "        if shut cfg.idle cfg.stallMs now s.heard (← s.since) then",
-     "        if shut cfg.idle cfg.stallMs now s.heard none then",
+     "    IO Runner := do\n  let x :=",
+     "    IO Runner := do\n  let cfg := { cfg with stallMs := 86400000 }\n  let x :=",
      "fresh_tcp", "FAIL: S is closed within stallMs", True),
     # The slot is released at close, while the writer still waits.
     ("slot-at-close", "engine/wire/Tcp.lean",
-     ("  finally slots.release addr", "    if drain then s.drain else s.stop\n    return ({ st.drop sid with node }, e)"),
-     ("  finally pure ()", "    if drain then s.drain else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with node }, e)"),
-     "fresh_tcp", "FAIL: S's slot is held until its writer ends", True),
+     ("  finally\n    cleanupReader\n    slots.release addr", "    if drain then s.drain else s.stop\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
+     ("  finally\n    cleanupReader\n    pure ()", "    if drain then s.drain else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
+     "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=true)", True),
 ]
+if sys.platform != "win32":
+    cases.extend([
+        ("no-native-abort", "engine/wire/SocketAbort.lean",
+         "        unless ← cap.abort do", "        unless true do",
+         "fresh_tcp", "FAIL: never-reading peer cannot retain writer or slot after deadline (closed=false, retired=false)", True),
+        ("early-send-return", "engine/wire/SocketAbort.lean",
+         "  let .ok promise ← operation.toBaseIO | return false",
+         "  let .ok promise ← operation.toBaseIO | return false\n  if true then return false",
+         "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=false)", True),
+    ])
 for name, source, old, new, target, expected, runtime in cases:
     path = root / source
     original = path.read_text()
@@ -95,8 +106,14 @@ for name, source, old, new, target, expected, runtime in cases:
             assert code == 0, (name, "mutant must compile before runtime control")
             code = run([".lake/build/bin/" + target], name)
             text = (logs / (name + ".log")).read_text()
+            assert code > 0, (name, "native control must report a test failure, not terminate by a signal")
+            assert not any(marker in text.lower() for marker in
+                ["panic", "segmentation fault", "assertion violation", "uncaught exception", "network runner stopped:"]), \
+                (name, "native failure is not a valid negative-control result")
         else:
             text = (logs / (name + "-build.log")).read_text()
+            assert "error: " + target.replace(".", "/") + ".lean" in text, \
+                (name, "must be rejected by the unchanged target proof, not an unrelated dependency")
         assert code != 0 and expected in text, (name, "survived or failed for a different reason")
         print("refused:", name, flush=True)
     finally:

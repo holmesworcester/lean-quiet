@@ -8,7 +8,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 mkdir -p out/join-fair
-lake build join_fair >out/join-fair/build.log 2>&1
+lake build +engine.wire.PriorityLaws +engine.wire.LoopLaws +tests.vacuity.Priority join_fair >out/join-fair/build.log 2>&1
 if [ "${SKIP_TCP:-0}" = 1 ]; then
   echo "SKIP join-fair runtime and strict-priority control (TCP sandbox; executable built)"
   exit 0

@@ -4,6 +4,7 @@
  * Keyboard mapping supports Latin/Unicode keysyms, not an IME or dead keys.
  */
 #define _GNU_SOURCE /* accept4, struct ucred */
+#include "../native/desktop_publication.h"
 #include <lean/lean.h>
 #include "../native/thread.h"
 #include <xcb/xcb.h>
@@ -389,9 +390,12 @@ static void pixel(uint8_t *dst, const uint8_t *src) {
     dst[0]=src[2]; dst[1]=src[1]; dst[2]=src[0]; dst[3]=0;
 }
 lean_obj_res lq_screen(void) { init(); uint32_t v[]={q.w/q.scale,q.h/q.scale,0,0,160}; return words(v,5); }
-lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
+lean_obj_res lq_desktop_frame(b_lean_obj_arg rows, uint64_t publication) {
     init(); memset(q.pixels,0,q.bytes);
     size_t h=lean_array_size(rows);
+    unsigned submitted_w=q.w, submitted_h=q.h;
+    bool exact=h==q.h/q.scale;
+    for (size_t y=0;y<h;y++) exact=exact && lean_sarray_size(lean_array_get_core(rows,y))==q.w/q.scale*4;
     for (unsigned y=0;y<q.h;y++) {
         if (y/q.scale >= h) continue;
         lean_object *row=lean_array_get_core(rows,y/q.scale);
@@ -402,14 +406,17 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
             pixel(q.pixels+i,p+j);
         }
     }
+    bool painted=true;
     if (q.shm) {
-        xcb_shm_put_image(q.c,q.win,q.gc,q.w,q.h,0,0,q.w,q.h,0,0,q.screen->root_depth,XCB_IMAGE_FORMAT_Z_PIXMAP,0,q.seg,0);
+        xcb_generic_error_t *error=xcb_request_check(q.c,xcb_shm_put_image_checked(q.c,q.win,q.gc,q.w,q.h,0,0,q.w,q.h,0,0,q.screen->root_depth,XCB_IMAGE_FORMAT_Z_PIXMAP,0,q.seg,0));
+        painted=error==NULL; free(error);
     } else {
         unsigned max=xcb_get_maximum_request_length(q.c)*4-128;
         unsigned chunk=max/(q.w*4); if (!chunk) fail("X request too small for a row");
         for (unsigned y=0;y<q.h;y+=chunk) {
             unsigned n=q.h-y < chunk ? q.h-y : chunk;
-            xcb_put_image(q.c,XCB_IMAGE_FORMAT_Z_PIXMAP,q.win,q.gc,q.w,n,0,y,0,q.screen->root_depth,n*q.w*4,q.pixels+(size_t)y*q.w*4);
+            xcb_generic_error_t *error=xcb_request_check(q.c,xcb_put_image_checked(q.c,XCB_IMAGE_FORMAT_Z_PIXMAP,q.win,q.gc,q.w,n,0,y,0,q.screen->root_depth,n*q.w*4,q.pixels+(size_t)y*q.w*4));
+            painted=painted && error==NULL; free(error);
         }
     }
     /* The window manager's request is answered by the first frame shown
@@ -421,7 +428,18 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
     free(xcb_get_input_focus_reply(q.c,xcb_get_input_focus(q.c),NULL));
     struct pollfd fd={xcb_get_file_descriptor(q.c),POLLIN,0}; poll(&fd,1,16);
     events(); xcb_flush(q.c);
-    lean_obj_res out=words(q.events,q.n); q.n=0; return out;
+    /* Input pressure can leave Map/Configure events queued. Ask the server
+       rather than acknowledging a stale cached size or map state. */
+    xcb_get_window_attributes_cookie_t ac=xcb_get_window_attributes(q.c,q.win);
+    xcb_get_geometry_cookie_t gc=xcb_get_geometry(q.c,q.win);
+    xcb_get_window_attributes_reply_t *attributes=xcb_get_window_attributes_reply(q.c,ac,NULL);
+    xcb_get_geometry_reply_t *geometry=xcb_get_geometry_reply(q.c,gc,NULL);
+    bool current=attributes && attributes->map_state==XCB_MAP_STATE_VIEWABLE && geometry &&
+        geometry->width==submitted_w && geometry->height==submitted_h;
+    free(attributes); free(geometry);
+    bool accepted = painted && exact && h > 0 && current && q.w==submitted_w && q.h==submitted_h && !xcb_connection_has_error(q.c);
+    lean_obj_res out=lq_desktop_result(q.events,q.n,accepted,accepted ? publication : 0,accepted ? publication : 0,0);
+    q.n=0; return out;
 }
 lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_arg top,
     b_lean_obj_arg bot,uint8_t pin,b_lean_obj_arg placement,b_lean_obj_arg hold) {
@@ -450,7 +468,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list,uint32_t b,uint32_t over,b_lean_obj_ar
         if (row) lean_inc(row); else row=lean_alloc_sarray(1,0,0);
         rows=lean_array_push(rows,row);
     }
-    lean_object *result=lq_desktop_frame(rows); lean_dec(rows);
+    lean_object *result=lq_desktop_frame(rows,0); lean_dec(rows);
     // The desktop loop uses desktopFrame directly. Keep its phone-frame
     // adapter compatible too: desktop click events expand to raw samples.
     lean_object *raw=lean_io_result_get_value(result), *out=lean_mk_empty_array();

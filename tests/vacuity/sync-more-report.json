@@ -27,7 +27,7 @@
     "module": "tests.vacuity.SyncMore",
     "detail": "Two queued writes and two frames: the initial write-preferred turn selects Alice and switches preference to events. This first-turn law does not claim permanent write priority."
   },
-  "write_within": {
+  "Sync.write_within": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.write_within",
     "witness": "Vacuity.SyncMore.writeDeadline",

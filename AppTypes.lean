@@ -21,6 +21,8 @@ import ops.app.Remove
 import ops.community.message.View
 import ops.community.membership.RequestView
 import ops.app.Raster
+import ops.app.RowPaint
+import ops.app.Presentation
 import ops.app.Components
 import ops.app.ClumpList
 import ops.app.Photo
@@ -96,6 +98,19 @@ structure RowSt where
   dimVer : Nat := 0
   dimShown : Option Bitmap := none
   pixels : Option RowPixels := none
+  /-- Captured inputs of the admitted paint, distinct from latest row data. -/
+  paintFlight : Option Raster.RowPaint.Flight := none
+  /-- An optimistic bitmap does not discharge the first committed paint. -/
+  shownCommitted : Bool := false
+  /-- Computed once when this exact raster ticket publishes. -/
+  presentation : Option (Demand.Ticket Raster.Key × Option (Nat × Nat)) := none
+
+/-- At most one accepted frame is awaiting native completion. -/
+structure PresentationCandidate where
+  message : Id
+  frame : UInt64
+  generation : Nat
+  ticket : Demand.Ticket Raster.Key
 
 abbrev ImgKey := FileImage.Key
 
@@ -214,6 +229,9 @@ structure St where
   intentReads : Nat := 0
   serviceSeen : Std.HashMap Id (List ByteArray) := {}
   out : Array Pending := #[]
+  /-- Explicit local sends retain a bounded presentation obligation. -/
+  ownSends : Presentation.Queue := {}
+  presenting : Option PresentationCandidate := none
   /-- What the native text field holds, as last set or reported. -/
   native : String := ""
   /-- The reader's board, and the frame's wants of it (Reader): the
@@ -395,7 +413,7 @@ def c (s : St) : Id := s.me.c
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
 /-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack }
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
 
 
 end App

@@ -31,11 +31,20 @@ instance : Nonempty Db := DbPointed.property
 @[extern "le_sql_query"] opaque Db.query (db : @& Db) (sql : @& String) (args : @& Array ByteArray) :
   IO (Array (Array ByteArray))
 
-def schema : String := "
+def schemaCore : String := "
 PRAGMA secure_delete = ON;
 PRAGMA journal_mode = WAL;
 PRAGMA synchronous = NORMAL;
 CREATE TABLE IF NOT EXISTS ops (id BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS catalog (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL UNIQUE);
+CREATE TABLE IF NOT EXISTS catalog_version (version INTEGER PRIMARY KEY);
+CREATE TABLE IF NOT EXISTS retry_cursor (peer BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
+CREATE TRIGGER IF NOT EXISTS catalog_insert AFTER INSERT ON ops BEGIN
+  INSERT INTO catalog (id) VALUES (NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS catalog_delete AFTER DELETE ON ops BEGIN
+  DELETE FROM catalog WHERE id = OLD.id;
+END;
 CREATE TABLE IF NOT EXISTS reqs (req BLOB NOT NULL, op BLOB NOT NULL, PRIMARY KEY (req, op)) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS status (id BLOB PRIMARY KEY, verdict BLOB NOT NULL) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS waits (blocker BLOB NOT NULL, waiter BLOB NOT NULL, UNIQUE (blocker, waiter));
@@ -55,9 +64,24 @@ CREATE TRIGGER IF NOT EXISTS idx_uncount AFTER DELETE ON idx BEGIN
 END;
 "
 
+/-- The guard stays inside the transaction as well: concurrent first opens
+may both see an absent version, but only one backfill takes effect. -/
+def catalogMigration : String := "
+BEGIN IMMEDIATE;
+INSERT OR IGNORE INTO catalog (id)
+  SELECT id FROM ops WHERE NOT EXISTS (SELECT 1 FROM catalog_version WHERE version = 1) ORDER BY id;
+INSERT OR IGNORE INTO catalog_version (version) VALUES (1);
+COMMIT;
+"
+
+/-- Full initialization, retained for explicit legacy-schema migration. -/
+def schema : String := schemaCore ++ catalogMigration
+
 def Db.openAt (path : String) : IO Db := do
   let db ← Db.open path
-  db.exec schema
+  db.exec schemaCore
+  let version ← db.query "SELECT version FROM catalog_version WHERE version = 1" #[]
+  if version.isEmpty then db.exec catalogMigration
   return db
 
 /-- Store F on a database: one connection, read by every statement. -/

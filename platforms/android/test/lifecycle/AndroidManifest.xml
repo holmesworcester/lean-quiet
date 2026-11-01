@@ -1,0 +1,6 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="com.holmes.lifecycle">
+  <uses-sdk android:minSdkVersion="30" android:targetSdkVersion="35" />
+  <application android:label="Quiet lifecycle instrumentation" android:extractNativeLibs="true" />
+  <instrumentation android:name="com.holmes.lifecycle.LifecycleProbe"
+      android:targetPackage="com.holmes.leanquiet" android:functionalTest="true" />
+</manifest>

@@ -398,7 +398,11 @@ lean_obj_res lq_scroll_to(double b) {
 // field 1. Drain input after any compositor wait so a rejected frame stays
 // interactive using the last accepted, actually displayed context.
 static lean_obj_res lq_frame_result(bool accepted) {
-  lq_raw(20, accepted ? 1 : 0, 0, 0, 0, 0);
+  uint64_t accepted_id = bl_acceptance_id(), publication;
+  uint32_t frame; int32_t shift;
+  bool completed = bl_completed_frame(&publication, &frame, &shift);
+  lq_raw(20, accepted ? 1 : 0, (uint32_t)accepted_id, accepted_id >> 32, 0, 0);
+  lq_raw(21, frame, completed ? 1 : 0, (uint32_t)shift, publication, 0);
   lq_phase(0);
   return lq_poll();
 }
@@ -463,7 +467,7 @@ lean_obj_res lq_frame(b_lean_obj_arg list, uint32_t b, uint32_t over, b_lean_obj
         complete = bl_present((BlKind)k, s->pix, s->w, s->h, s->off, 0);
       }
     }
-    if (complete) { bl_geometry(place); accepted = true; }
+    if (complete) { accepted = bl_geometry(place); }
     else {
       // A pending older publication is left intact. Partial new staging
       // is discarded, and every layer is retried with the next frame.
