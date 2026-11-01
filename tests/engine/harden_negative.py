@@ -27,7 +27,7 @@ cases = [
     ("no-budget", "engine/sync/Serve.lean", "else (serve shows (budget - o.bytes.size) ids).map fun p => (o :: p.1, p.2)", "else (serve shows budget ids).map fun p => (o :: p.1, p.2)", "engine.sync.ServeLaws", "error:", False),
     ("no-budget-stop", "engine/sync/Serve.lean", "if budget ≤ o.bytes.size then .done ([o], ids)\n          else (serve shows (budget - o.bytes.size) ids).map fun p => (o :: p.1, p.2)", "(serve shows budget ids).map fun p => (o :: p.1, p.2)", "harden", "budget stops", True),
     ("unbounded-queue", "engine/wire/Tcp.lean", "def eventChannel (cfg : RunConfig) : IO (Std.CloseableChannel.Sync Event) :=\n  Std.CloseableChannel.Sync.new (some cfg.queue)", "def eventChannel (cfg : RunConfig) : IO (Std.CloseableChannel.Sync Event) :=\n  Std.CloseableChannel.Sync.new none", "harden", "full queue blocks producer", True),
-    ("dropping-queue", "engine/wire/Tcp.lean", "return (← (ch.send ev).toBaseIO).isOk", "return (← ch.trySend ev)", "harden", "blocked frame delivered", True),
+    ("dropping-queue", "engine/wire/Tcp.lean", "    if ← ch.trySend ev then return true\n    IO.sleep 1", "    return (← ch.trySend ev)", "harden", "blocked frame delivered", True),
     ("no-socket-cap", "engine/wire/Slots.lean", "if admit cfg peers peer then", "if true then", "harden", "socket cap", True),
     ("admission-law", "engine/wire/Slots.lean", "peers.length < cfg.maxSocks && (peers.filter (· == peer)).length < cfg.perAddr", "true", "engine.wire.Slots", "error:", False),
     ("close-effects", "engine/wire/Tcp.lean", "r.1.apply x ch notify cfg r.2 now", "r.1.apply x ch notify cfg { r.2 with send := [] } now", "harden", "close effects", True),
