@@ -11,11 +11,21 @@ private def platform : App.Io :=
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
    Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, (fun _ => pure false), pure (#[], .empty), ⟨Platform.editor, Platform.editorAction⟩⟩
 
+/-- Shows a desktop frame; returns raw input records. Contract: its effect
+is the OS's, which Lean does not state. -/
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) (publication : UInt64) : IO (Array UInt32)
+/-- Sets the mouse cursor's shape. Contract: its effect is the OS's, which
+Lean does not state. -/
 @[extern "lq_desktop_cursor"] opaque desktopCursor (kind : UInt32) : IO Unit
+/-- Sets the native text selection. Contract: its effect is the OS's, which
+Lean does not state. -/
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
+/-- Whether the desktop shell scrolls natively. Contract: none. The laws
+hold for every value it returns. -/
 @[extern "lq_desktop_native_scroll"] opaque desktopNativeScroll : IO Bool
+/-- Publishes the desktop's list and hold layers with their placement.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_desktop_layers"] opaque desktopLayers (list hold : @& Array ByteArray)
   (placement viewport : @& Array UInt32) : IO Unit
 
@@ -89,7 +99,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       if z == 1 then
         if let some grab := scrollGrab then
           d := Desktop.cancelPresentation d
-          Desktop.scrollDrag d grab y
+          d ← Desktop.scrollDrag d grab y
         if let some a := anchor then
           if let some c := Desktop.caret d x y then desktopSelect a.toUInt32 c.toUInt32
     else if k == 16 then
@@ -100,7 +110,7 @@ partial def run (d : Desktop.Driver) (anchor : Option Nat := none) (scrollGrab :
       anchor := if scrollGrab.isSome then none else Desktop.caret d x y
       if let some grab := scrollGrab then
         d := Desktop.cancelPresentation d
-        Desktop.scrollDrag d grab y
+        d ← Desktop.scrollDrag d grab y
       if let some c := anchor then desktopSelect c.toUInt32 c.toUInt32
     else if k == 11 then anchor := none; scrollGrab := none
     else if k == 12 then d ← Desktop.act d .close

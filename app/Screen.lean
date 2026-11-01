@@ -1,3 +1,4 @@
+import engine.renderer.Scrollbar
 import engine.core.Query
 import engine.renderer.Platform
 import engine.renderer.Row
@@ -837,6 +838,12 @@ inductive Want where
   bounded window API; membership comes from signed op references. -/
   | clumps (c : Id) (root : Option Id) (anchor : Option Pos) (above below : Nat)
   | clumpCount (c : Id) (root : Option Id) (anchor : Option Pos)
+  /-- The position of c's root at rank q, counting from the newest (0 is
+  the newest): the one with q roots newer than it (a rank past the
+  oldest answers the oldest; none while there are no roots). Found by
+  bisecting the counter, with the counts the reader already serves
+  (`readRank`), so a scrollbar drag can anchor the window there. -/
+  | rankPos (c : Id) (q : Nat)
   /-- Message m's own fact and content key (Kinds.Message.readOwn). -/
   | row (c me m : Id)
   | author (c user : Id)
@@ -914,6 +921,8 @@ inductive Val where
   | window (ids : Array Pos) (newerRows : Nat)
   /-- The counts beside the anchor: newer than it, and at or older. -/
   | count (newer older : Nat)
+  /-- The position `rankPos` found. -/
+  | pos (p : Option Pos)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
   | author (name : String) (namesake : Bool)
@@ -999,6 +1008,15 @@ structure Shared where
   Invalid, or the intent failed). The frame takes them, submits each
   write and runs its continuation. -/
   done : IO.Ref (Array (Id × Option Community.Write))
+  /-- Why an act was refused, when the reader can say (write admission). -/
+  refusals : IO.Ref (Array (Id × String))
+  /-- The frame's queued writes, as of its last frame: an act's write is
+  admitted against them and the pass's earlier acts (WriteAdmission). -/
+  queued : IO.Ref (List ByteArray)
+  /-- The acts whose messages the frame presents at once (the composer's
+  sends), and each one's messages placed once judged (`placeMessage`). -/
+  present : IO.Ref (Std.HashSet Id)
+  placed : IO.Ref (Array (Id × Array (Id × Id × Pos × Pos)))
   plan : IO.Ref (Demand.Plan Want)
   /-- Scheduling belongs to this reader lifetime, outside transaction rollback.
   A failed selected query retries behind retained work on the next pass.
@@ -1009,7 +1027,8 @@ structure Shared where
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
   return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
-    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef {}, ← IO.mkRef [], ← Std.BaseMutex.new⟩
+    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef [], ← IO.mkRef {}, ← IO.mkRef #[],
+    ← IO.mkRef {}, ← IO.mkRef [], ← Std.BaseMutex.new⟩
 
 def Shared.locked (sh : Shared) (action : IO α) : IO α := do
   sh.gate.lock
@@ -1039,7 +1058,7 @@ def Want.need (w : Want) : Demand.Need Want :=
   { key := w, owner := match w with
       | .row c _ m => ["community".toUTF8, c, "message".toUTF8, m]
       | _ => ["page".toUTF8],
-    visible := match w with | .count .. | .clumpCount .. | .people .. | .members .. => false | _ => true }
+    visible := match w with | .count .. | .clumpCount .. | .rankPos .. | .people .. | .members .. => false | _ => true }
 
 def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := sh.setNeeds (ws.map Want.need)
 
@@ -1082,6 +1101,36 @@ def readWindow (view : ListView) (anchor : Option Pos) (above below : Nat) : RM 
     let (n, deps) ← readView (view (some below) false (some p) none) deps
     return (.window ((n.rows.reverse ++ o.rows).map (·.1)).toArray n.rows.length, deps)
 
+/-- A message key as a number: its bytes, big-endian (`msgKey`: the
+counter in the first eight, then the time). -/
+def keyNat (k : ByteArray) : Nat :=
+  k.toList.foldl (fun a b => a * 256 + b.toNat) 0
+
+/-- A key of sixteen bytes holding `v`: the position a count about it is
+counted from (a root's own key when `v` is its `keyNat`). -/
+def natKey (v : Nat) : Pos := (be64 (v / 2 ^ 64) ++ be64 (v % 2 ^ 64), ByteArray.empty)
+
+/-- The rank-q root's position: its key `v` is the largest with at least
+q+1 roots at `v` or newer, bisected between 0 and the newest root's key
+(at most 128 counts, the reader's own), and the root is the oldest at `v`
+or newer. Keys tie only at the same counter, time and id. -/
+def readRank (view : ListView) (q : Nat) : RM (Val × Array Q) := do
+  let (top, d0) ← readView (view (some 1) true none none) #[]
+  let some ((k, _), _) := top.rows.head? | return (.pos none, d0)
+  let mut deps := d0
+  let mut lo := 0
+  let mut hi := keyNat k
+  let total := (← readView (view (some 0) true none none) #[]).1.total
+  let q := min q (total - 1)
+  for _ in [0:128] do
+    if lo < hi then
+      let mid := (lo + hi + 1) / 2
+      let (n, d) ← readView (view (some 0) true (some (natKey mid)) none) deps
+      deps := d
+      if n.inRange ≥ q + 1 then lo := mid else hi := mid - 1
+  let (one, d1) ← readView (view (some 1) false (some (natKey lo)) none) deps
+  return (.pos (one.rows.head?.map (·.1)), d1)
+
 def readCounts (view : ListView) (anchor : Option Pos) : RM (Val × Array Q) := do
   let (n, deps) ← readView (view (some 0) true anchor none) #[]
   return (match anchor with
@@ -1098,6 +1147,8 @@ def eval : Want → RM (Val × Array Q)
     readWindow (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor above below
   | .clumpCount c root anchor =>
     readCounts (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor
+  | .rankPos c q =>
+    readRank (fun limit desc after before => Community.readableClumps c none limit desc after before) q
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }
@@ -1170,6 +1221,37 @@ def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
     Std.HashMap Q (Array Want) :=
   let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
   new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
+
+/-- Position an admitted message exactly as the ordered views do.
+Saturated counters use this device's receipt, including a receipt in this
+same write; they never invent a position from the display timestamp. -/
+def placeOf {m : Type → Type} [Monad m] [Reads m] (ps : Array Pending) (message : Id) (fact : Fact) :
+    m (Option Pos) := do
+  let .message _ _ _ _ _ n _ _ := fact | return none
+  if n < countCap then return some (sortOf fact, message)
+  let receipt := ps.find? fun p => match p.fact with
+    | .received _ _ m _ _ => m == message
+    | _ => false
+  if let some p := receipt then return some (sortOf p.fact, message)
+  let (stored, _) ← readView (Community.received.byMsg.read [message] (limit := some 1)) #[]
+  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
+
+/-- A message of this write, placed: its community and author, its
+thread's root and its own position (what an own send presents). -/
+def placeMessage {m : Type → Type} [Monad m] [Reads m] (ps : Array Pending) (p : Pending) :
+    m (Option (Id × Id × Pos × Pos)) := do
+  let .message c user _ _ _ _ _ parent := p.fact | return none
+  let some position ← placeOf ps p.op.id p.fact | return none
+  let root ← match parent with
+    | none => pure (some position)
+    | some id => do
+      let fact ← match ps.find? (·.op.id == id) with
+        | some p => pure (some p.fact)
+        | none => pure (← readView (Community.Clump.fact id) #[]).1
+      match fact with
+      | some f => placeOf ps id f
+      | none => pure none
+  return root.map fun root => (c, user, root, position)
 
 /-- An act's write, judged as App.writeAll judges the frame's: each op
 in order against what is decided, the ops before it in the same write,
@@ -1249,14 +1331,21 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- outbox; its valid ops join the outbox, pending, and their rows are
     -- this pass's notices, so the wants they touch are read now
     let mut actNotes : Array Filing := #[]
+    -- admitted against the frame's queued writes and this pass's own
+    -- (App.WriteAdmission: what the frame's writeAll checks)
+    let queued ← sh.queued.get
+    let mut admitted : List ByteArray := []
     for (id, intent) in acts do
       if !(← (← get).enabled) then break
       let r ← try
           let w ← intent
           if !(← (← get).enabled) then pure none
-          else pure (some (w, ← judgeWrite rd (← get).out w))
+          else match App.WriteAdmission.refusal {} (queued ++ admitted) w.ops with
+            | some why => do sh.refusals.modify (·.push (id, why)); pure none
+            | none => pure (some (w, ← judgeWrite rd (← get).out w))
         catch e => do
           IO.eprintln s!"reader: an act failed: {e}"
+          sh.refusals.modify (·.push (id, toString e))
           pure none
       match r with
       | some (w, some pend) =>
@@ -1264,6 +1353,13 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
         modify fun s => { s with out := s.out ++ pend }
         sh.out.modify (· ++ pend)
         actNotes := actNotes ++ Pending.filings pend.toList
+        admitted := admitted ++ w.ops.map Op.bytes
+        if (← sh.present.get).contains id then
+          let mut places := #[]
+          for p in pend do
+            if let some place ← placeMessage pend p then places := places.push place
+          sh.placed.modify (·.push (id, places))
+          sh.present.modify (·.erase id)
         sh.done.modify (·.push (id, some w))
       | _ => sh.done.modify (·.push (id, none))
     let notes := notes ++ Pending.filings gone.toList ++ actNotes
@@ -1950,6 +2046,23 @@ def PageId.all : List PageId :=
    .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label,
    .communitySettings, .channelSettings, .stub, .linkShare, .linkReceive]
 
+def PageId.code : PageId → Nat
+  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
+  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
+  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
+  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
+  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23 | .linkShare => 24 | .linkReceive => 25
+
+def PageId.ofCode : Nat → PageId
+  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
+  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
+  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
+  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | 24 => .linkShare | 25 => .linkReceive
+  | _ => .getStarted
+
+theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
+
 def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
@@ -2030,12 +2143,42 @@ structure PageIn where
   removeWhy : String := ""
   deriving BEq, Inhabited
 
+/-- What the frame does once the reader has run an act: with its write
+done, or refused (an op Invalid, the write not admitted, or nothing the
+intent could write). -/
+inductive Cont where
+  | none
+  /-- Add members: the link, once its invitation is written (the intent
+  leaves the link's text here). -/
+  | invite (acc : Id) (link : IO.Ref (Option String))
+  /-- Found: the new community becomes current once listed. -/
+  | found
+  /-- Join c: the joining community becomes current once listed. -/
+  | join (c : Id)
+  | stopWaiting
+  /-- Remove: refused, the removal flow says so. -/
+  | remove
+  /-- A community's maintenance writes (its first profile, its keys): seen
+  once done; refused, tried again later. -/
+  | maintenance (c : Id) (ops : List ByteArray)
+  /-- Chaos's last write: the writer is no longer busy with it. -/
+  | chaosDone
+  /-- The composer's send of `text`: done, its messages are presented and
+  the editor's candidate consumed (or the text cleared); refused, the
+  candidate is released, the text kept. -/
+  | send (submission : Option Editor.Snapshot) (text : String)
+
 structure St where
   io : Io
   theme : Theme.State := {}
   /-- The newest appearance's revision this device holds (the store's,
   or the last chosen here): a choice writes the next one. -/
   themeRev : Nat := 0
+  /-- The app's ephemeral log: its working state as ops, in memory only
+  (Engine.Scope.ephemeral). Today: this window's place, one nav op. -/
+  eph : Engine.Sync.Held SF := {}
+  /-- The newest nav op's generation: a change of page writes the next. -/
+  navGen : Nat := 0
   wide : Bool := false
   mobile : Bool := true
   editorFocused : Bool := false
@@ -2073,6 +2216,15 @@ structure St where
   netBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
   /-- Writes the node's inbound channel could not take yet, in order. -/
   toNode : Array (List Op) := #[]
+  /-- The acts in flight, and what to do when each is done. -/
+  conts : Std.HashMap Id Cont := {}
+  /-- The acts the reader has run, applied once this frame's communities
+  are refreshed. -/
+  doneQ : Array (Id × Option Community.Write) := #[]
+  /-- An acceptance to make current once the communities list it. -/
+  awaitAcc : Option Id := none
+  /-- Maintenance refused: not tried again before this frame. -/
+  maintenanceRetry : Std.HashMap Id Nat := {}
   /-- The journal's newest row this app has taken notice of. -/
   seen : Nat := 0
   me : Chaos.Me
@@ -2220,7 +2372,14 @@ removal is not announced again. -/
   mark : Option (Id × Nat) := none
   restoreAnchor : Bool := false
   restorePos : Option Pos := none
-  drafts : List (Id × String × List ByteArray) := []
+  /-- The newest draft's generation: a stash writes the next. Drafts
+  themselves are ephemeral ops in `eph`, one per entry. -/
+  draftGen : Nat := 0
+  /-- A scrollbar seek: the rank (messages newer than the screen's bottom
+  edge) being sought, and whether the window is anchored there yet. The
+  thumb is drawn at it meanwhile (Desktop.scrollbar), so a drag shows
+  where it will land, not where the window still is. -/
+  seek : Option (Nat × Bool) := none
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []
   queuedWrites : List ByteArray := []
@@ -2272,8 +2431,18 @@ def c (s : St) : Id := s.me.c
 /-- The page and the back stack, as Nav has them. -/
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
-/-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+/-- The page and the back stack, set to a Nav step's. A change of page: a nav op, one generation past the newest, in place
+of the ephemeral log's nav op (`Data.placeIn`), and the page and stack it
+names as the frame's cache of it (`withNav_cache`). -/
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack, eph := Data.placeIn s.eph (s.navGen + 1) n.page.code (n.stack.map PageId.code), navGen := s.navGen + 1, editorEpoch := s.editorEpoch + 1, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+
+/-- This window's place as the ephemeral log has it: the page and the
+back stack its newest nav op names (`withNav_cache`: the frame's cache of
+it); the cache's before any is written. -/
+def St.logNav (s : St) : Nat × List Nat :=
+  match Data.navOf s.eph with
+  | some (_, f) => (f.page, f.stack)
+  | none => (s.page.code, s.backStack.map PageId.code)
 
 /-- In at least one community: some acceptance that is not a join still
 waiting to be let in. -/
@@ -2332,23 +2501,6 @@ Only suspend polls for quiescence, with one absolute deadline. `page_round` chec
 
 namespace App
 open Engine Community Data Paint Font Row
-
-def PageId.code : PageId → Nat
-  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
-  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
-  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
-  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
-  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23 | .linkShare => 24 | .linkReceive => 25
-
-def PageId.ofCode : Nat → PageId
-  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
-  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
-  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
-  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | 24 => .linkShare | 25 => .linkReceive
-  | _ => .getStarted
-
-theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
 def fieldPage (p : PageId) : Bool :=
   p == .create || p == .createName || p == .paste || p == .name
@@ -2515,7 +2667,8 @@ def captureAnchor (s : St) : Option (Id × Nat) := Id.run do
 
 def stashDraft (s : St) : St :=
   if s.me.acc.isEmpty then s else
-  { s with drafts := (s.me.acc, s.text, s.chips.toList.map (·.1)) :: s.drafts.filter (·.1 != s.me.acc) }
+  let gen := s.draftGen + 1
+  { s with eph := Data.draftIn s.eph s.me.acc gen s.text.toUTF8 (s.chips.toList.map (·.1)), draftGen := gen }
 
 def removalBytes (r : Remove.Step) : ByteArray :=
   Codec.encode (match r with
@@ -2535,14 +2688,16 @@ def checkpointAnchor (s : St) : Option (Id × Nat) :=
     if s.spacers.contains x then s.cellRoot[x]?.map (·, 0) else some (x, off)
 
 def checkpoint (s : St) : Lifecycle.Checkpoint :=
+  -- the page the log names, read before the draft is stashed beside it
+  let nav := s.logNav
   let s := { stashDraft s with mark := checkpointAnchor s }
   let a := s.mark.getD (.empty, 0)
-  (1, s.page.code, s.cur, a.1, a.2,
-    [Codec.encode (s.backStack.map PageId.code), s.field.toUTF8,
+  (1, nav.1, s.cur, a.1, a.2,
+    [Codec.encode nav.2, s.field.toUTF8,
      ((s.invite.map (·.text)).getD "").toUTF8, s.joinName.toUTF8, s.newCommunity.toUTF8,
      removalBytes s.removal,
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
-     Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
+     Codec.encode (Data.draftsIn s.eph), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
      Codec.encode (s.labelText.toUTF8, s.labelPage),
@@ -2579,7 +2734,9 @@ def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat
     return (b, src.w, src.h, ⟨Image.square src (s.dim.px 64) (Palette.color s.dim.theme .bg), s!"{Arrival.humanBytes b.size}"⟩)).toArray
 
 def useDraft (s : St) : St :=
-  let (_, t, bs) := (s.drafts.find? (·.1 == s.me.acc)).getD (.empty, "", [])
+  let (t, bs) := match Data.draftOf s.eph s.me.acc with
+    | some (_, f) => (String.fromUTF8! f.text, f.pics)
+    | none => ("", [])
   { s with editorContent := s.editorContent + 1, text := t, chips := restoreChips s bs, sel := #[t.length.toUInt32, t.length.toUInt32, 0, 0] }
 
 /-- Called after switchToAcc selected the saved acceptance. A removed or
@@ -2588,8 +2745,10 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let (_, p, _, x, off, bs) := cp
   let b := fun i => bs[i]?.getD .empty
   let str := fun i => String.fromUTF8! (b i)
-  let drafts := ((Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []).map
-    fun (a, t, pics) => (a, String.fromUTF8! t, pics)
+  let drafts := (Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []
+  -- each saved draft, written back into the ephemeral log
+  let (eph, draftGen) := drafts.foldl (fun (h, g) (a, t, pics) => (Data.draftIn h a (g + 1) t pics, g + 1))
+    (s.eph, s.draftGen)
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
@@ -2599,7 +2758,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
   let s := { s.withNav (Nav.go (PageId.ofCode p) nav) with
     field := str 1, invite := Community.Invite.parse (str 2), joinName := str 3, newCommunity := str 4,
-    removal := removalFrom (b 5), profileOf := profile, drafts,
+    removal := removalFrom (b 5), profileOf := profile, eph, draftGen,
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,
@@ -2627,6 +2786,10 @@ def retirePaints (s : St) : M Unit := do
 page never discards their writes or runs their UI continuations. -/
 def parkDone (sh : Reader.Shared) : M Unit := do
   let done ← sh.done.modifyGet fun ds => (ds, #[])
+  -- an act still registered runs its continuation (applyDone): after a
+  -- page change, the act it was for; after suspension, nothing (`suspend`
+  -- makes every continuation `.none`)
+  modify fun s => { s with doneQ := s.doneQ ++ done.filter fun (id, _) => s.conts.contains id }
   let writes := done.filterMap fun (_, w) => w.map (·.ops)
   if writes.isEmpty then return
   modify fun s => { s with
@@ -2714,7 +2877,8 @@ def stopReader : M Unit := do
   if let some w := s.reader then w.requestStop
   parkDone s.sh
   let out ← s.sh.out.get
-  s.sh.acts.set #[]
+  -- acts not yet run are the user's writes: the next reader runs them
+  let carried ← s.sh.acts.modifyGet fun a => (a, #[])
   s.sh.setWants #[]
   s.sh.board.set {}
   s.sh.out.set #[]
@@ -2722,6 +2886,7 @@ def stopReader : M Unit := do
   s.sh.seen.set 0
   let sh ← Reader.Shared.new s.wr.count
   sh.out.set out
+  sh.acts.set carried
   modify fun s => { s with
     sh, reader := none,
     readerStop := s.reader.orElse fun _ => s.readerStop,
@@ -2875,8 +3040,13 @@ def suspend (budget : Nat := 250) : M Unit := do
     modify fun s => { s with netStop := some stopping, netReplay := some replay, toNode := #[] }
   modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
   s.wr.setPaused false
+  -- the acts in flight still write, but no UI continuation outlives this
+  -- lifetime
+  modify fun s => { s with conts := s.conts.fold (fun c id _ => c.insert id .none) {} }
   leavePage
   saveCheckpoint
+  -- Let go of the glyphs the font kept; a resumed frame rasters what it shows.
+  modify fun s => { s with font := s.font.fresh }
   discard <| waitFor deadline do
     reap
     let s ← get
@@ -3059,30 +3229,9 @@ def submitWaits (j : Job) : M Unit := do
 /-- Position an admitted message exactly as the Reader's ordered views do.
 Saturated counters use this device's receipt, including a receipt in this
 same write; they never invent a position from the display timestamp. -/
-def presentationPosition (ps : Array Pending) (message : Id) (fact : Fact) : M (Option Pos) := do
-  let .message _ _ _ _ _ n _ _ := fact | return none
-  if n < countCap then return some (sortOf fact, message)
-  let receipt := ps.find? fun p => match p.fact with
-    | .received _ _ m _ _ => m == message
-    | _ => false
-  if let some p := receipt then return some (sortOf p.fact, message)
-  let stored ← intentView (Community.received.byMsg.read [message] (limit := some 1))
-  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
-
 def presentationEntry (ps : Array Pending) (p : Pending) : M (Option Presentation.Entry) := do
   let s ← get
-  let .message c _ _ _ _ _ _ parent := p.fact | return none
-  let some position ← presentationPosition ps p.op.id p.fact | return none
-  let root ← match parent with
-    | none => pure (some position)
-    | some id => do
-      let fact ← match ps.find? (·.op.id == id) with
-        | some p => pure (some p.fact)
-        | none => intentView (Community.Clump.fact id)
-      match fact with
-      | some f => presentationPosition ps id f
-      | none => pure none
-  return root.map fun root => ⟨s.cur, c, root, position⟩
+  return (← transaction (Reader.placeMessage ps p)).map fun (c, _, root, position) => ⟨s.cur, c, root, position⟩
 
 def presentationRefusal : M Bool := do
   let now ← IO.monoMsNow
@@ -3124,18 +3273,8 @@ def writeAll (w : Community.Write) (present := false) : M Bool := do
   submit ⟨w.ops, true⟩
   return true
 
-def write (o : Op) : M Bool := writeAll ⟨[o]⟩
 
 
-/-- Chaos's writes, once made: each job one write, as a user's action is. -/
-def chaosStep : M Unit := do
-  let some t := (← get).chaos | return
-  if !(← IO.hasFinished t) then return
-  modify fun s => { s with chaos := none }
-  for j in t.get do
-    let _ ← writeAll ⟨j.ops⟩
-  (← get).wr.busy.modify (· - 1)
-  (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
 /-- n bytes of the OS's randomness (`randomBytes`: getrandom, through
 engine/native/crypto): the one door every secret, key and nonce the app
@@ -3158,6 +3297,8 @@ def act (intent : Reader.RM Community.Write) : M Id := do
   if !(← get).life.mounted then return .empty
   let id ← newBytes 16
   (← get).sh.act id intent
+  -- in flight until its result is applied (`wait` is not idle before)
+  modify fun s => { s with conts := s.conts.insert id .none }
   return id
 
 /-- The acts the reader has run: each write submitted, as the frame's
@@ -3168,16 +3309,45 @@ def takeDone : M (Array (Id × Option Community.Write)) := do
     if let some w := w? then submit ⟨w.ops, true⟩
   return ds
 
-def sendText (text : String) : M Bool := do
-  let s ← get
-  let t := text.trimAscii.toString
-  if t.isEmpty then return false
-  -- sealed under the community's current key, as the composer's send is
-  let k? ← intentView (Community.currentKey s.me.c)
-  let some k := k? | return false
-  let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k (← newSized 24) t.toUTF8
-    (← nowMin))
-  writeAll w
+/-- An act whose messages the frame presents at once (the composer's
+send): the reader places them after judging. -/
+def actPresenting (k : Cont) (intent : Reader.RM Community.Write) : M Bool := do
+  if !(← get).life.mounted then return false
+  let id ← newBytes 16
+  (← get).sh.present.modify (·.insert id)
+  (← get).sh.act id intent
+  modify fun s => { s with conts := s.conts.insert id k }
+  return true
+
+/-- An act with what to do once it is done; false when no act could be
+queued (the page is not mounted). -/
+def actWith (k : Cont) (intent : Reader.RM Community.Write) : M Bool := do
+  let id ← act intent
+  if id.isEmpty then return false
+  modify fun s => { s with conts := s.conts.insert id k }
+  return true
+
+/-- One op, as an act (the reader judges and writes it). -/
+def write (o : Op) : M Bool := do
+  let id ← act (pure ⟨[o]⟩)
+  return !id.isEmpty
+
+/-- Chaos's writes, once made: each job one write, as a user's action is. -/
+def chaosStep : M Unit := do
+  let some t := (← get).chaos | return
+  if !(← IO.hasFinished t) then return
+  modify fun s => { s with chaos := none }
+  -- each job an act; the writer stays busy until the last is done
+  -- (Cont.chaosDone), so `wait` waits for the writes, not their queueing
+  for j in t.get.pop do
+    let _ ← act (pure ⟨j.ops⟩)
+  match t.get.back? with
+  | some j =>
+    let id ← act (pure ⟨j.ops⟩)
+    if id.isEmpty then (← get).wr.busy.modify (· - 1)
+    else modify fun s => { s with conts := s.conts.insert id .chaosDone }
+  | none => (← get).wr.busy.modify (· - 1)
+  (← get).io.log s!"chaos: {t.get.size} writes of {t.get.foldl (· + ·.ops.length) 0} ops"
 
 /-- `sendText` as an act: the reader reads the key and runs the send
 intent in its next pass; none when there is nothing to send. -/
@@ -3193,6 +3363,11 @@ def sendTextAct (text : String) : M (Option Id) := do
     let some k := k? | throw (IO.userError "this community's key hasn't arrived yet")
     let (w, _) ← readView (Community.send c adm dev k nonce t.toUTF8 now) #[]
     return w
+
+/-- `sendText`'s text, sent as an act; false when nothing could be queued
+(no text, or the page not mounted). -/
+def sendText (text : String) : M Bool := do
+  return (← sendTextAct text).isSome
 
 def reactTo (m : Id) (e : String) : M Bool := do
   let s ← get
@@ -3709,10 +3884,13 @@ def openPage (p : PageId) : M Unit := do
     let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     -- the link names this node's key (Community.inviteTo reads it)
-    let issued ← intentView (Community.inviteTo s.me.c s.me.adm s.me.dev bearer (← listenHints) device)
-    if let some (w, i) := issued then
-      if ← writeAll w then
-        modify fun s => { s with links := (s.me.acc, i.text) :: s.links }
+    let (c, adm, dev, hints) := (s.me.c, s.me.adm, s.me.dev, ← listenHints)
+    let link ← IO.mkRef none
+    let _ ← actWith (.invite s.me.acc link) do
+      let (issued, _) ← readView (Community.inviteTo c adm dev bearer hints device) #[]
+      let some (w, i) := issued | throw (IO.userError "no invitation to issue")
+      link.set (some i.text)
+      return w
   leavePage
   s.io.scrollTo 0
   modify (openSt p)
@@ -3764,7 +3942,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, seek := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none, ownSends := {}, presenting := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
@@ -3773,8 +3951,10 @@ each frame. -/
 def refreshComms : M Unit := do
   if let some (.comms all) ← query ⟨["session".toUTF8, "communities".toUTF8], true⟩ .comms then applyComms all
 
-/-- The communities read now, on the frame: after an action that founds,
-joins or stops waiting, which the next page shows at once. -/
+/-- The communities read now, on the frame's own connection: for test
+harnesses that write their fixtures straight to the store. The app never
+calls it: its communities come from the reader (`refreshComms`), and its
+actions' continuations wait for them (`applyDone`). -/
 def refreshCommsNow : M Unit := do
   let known := (← get).comms
   let (all, _) ← transaction (Kinds.Accepted.read known)
@@ -3827,12 +4007,10 @@ current. -/
 def found (n myName : String) : M Unit := do
   let seed ← newSeed
   -- the last fresh bytes are this node's key, if it has none yet
-  let w ← intentView (Community.found seed n.toUTF8 myName.toUTF8 (← nowMin)
-    (← newSized 32) (← newSized 32) (← newSized 32))
-  if ← writeAll w then
-    if let some a := acceptOf w then
-      refreshCommsNow
-      switchToAcc a
+  let (now, k1, k2, k3) := (← nowMin, ← newSized 32, ← newSized 32, ← newSized 32)
+  let _ ← actWith .found do
+    let (w, _) ← readView (Community.found seed n.toUTF8 myName.toUTF8 now k1 k2 k3) #[]
+    return w
 
 /-- The node: started at launch, once (it speaks for every device whose
 secret this store holds: Connection.hooks reads them all, and picks the
@@ -3926,6 +4104,72 @@ def refreshHomeCount : M Unit := do
   if let some (.count _ total) ← query ⟨["home".toUTF8, s.me.c, "messages".toUTF8], true⟩ (.count s.me.c none) then
     modify fun s => { s with total }
 
+/-- The acts done since the last frame, each by what it was for. Applied
+after this frame's communities: an act's rows are this pass's notices,
+so the wants they touch, the communities among them, show its write
+(ActsLaws.acts_shown). -/
+def applyDone : M Unit := do
+  let ds := (← get).doneQ
+  modify fun s => { s with doneQ := #[] }
+  let why ← (← get).sh.refusals.modifyGet fun a => (a, #[])
+  let placed ← (← get).sh.placed.modifyGet fun a => (a, #[])
+  for (id, w?) in ds do
+    let k := ((← get).conts[id]?).getD .none
+    modify fun s => { s with conts := s.conts.erase id }
+    if w?.isNone then
+      match k, why.find? (·.1 == id) with
+      | .send _ _, some (_, r) => say (if r.startsWith "This " then r else "Couldn't send. Your message is still in the composer.")
+      | .send _ _, none => say "Couldn't send. Your message is still in the composer."
+      | _, some (_, r) => say r
+      | _, none => pure ()
+    match k, w? with
+    | .invite acc link, some _ =>
+      if let some l ← link.get then
+        modify fun s => { s with links := (acc, l) :: s.links, pageKey := none }
+    | .found, some w => modify fun s => { s with awaitAcc := acceptOf w }
+    | .join c, some w =>
+      modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
+      match acceptOf w with
+      | some a => modify fun s => { s with awaitAcc := some a }
+      | none => if let some m := (← get).comms.find? (·.c == c) then switchToAcc m.acc
+    | .stopWaiting, some _ =>
+      if (← get).comms.isEmpty then
+        modify fun s => { s.withNav (Nav.reset .getStarted) with pageKey := none }
+      else switchTo 0
+    | .remove, none =>
+      modify fun s => { s with removal := (Remove.step s.removal (.refused "The removal couldn't be written. Try again.")).1 }
+    | .maintenance c _, none =>
+      modify fun s => { s with serviceSeen := s.serviceSeen.erase c,
+                               maintenanceRetry := s.maintenanceRetry.insert c (s.frames + 300) }
+    | .chaosDone, _ => (← get).wr.busy.modify (· - 1)
+    | .send submission t, some _ =>
+      -- present this device's own messages of the write, as placed
+      let s ← get
+      let mut own := s.ownSends
+      for (c, user, root, position) in ((placed.find? (·.1 == id)).map (·.2)).getD #[] do
+        if c == s.me.c && user == s.me.user then
+          if let some next := own.offer ⟨s.cur, c, root, position⟩ then own := next
+      modify fun s => { s with ownSends := own }
+      let photos := (← get).chips.isEmpty
+      match submission with
+      | some action =>
+        discard <| (← get).io.editorIo.action action.ticket 3
+        if let some latest ← readEditor then adoptEditor latest
+        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if photos then 0 else 1),
+                                 editor := { s.editor with clear := some (action.ticket, action.revision) } }
+      | none =>
+        -- what was typed since the send stays
+        if (← get).text.trimAscii.toString == t then
+          modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
+        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if photos then 0 else 1) }
+    | .send (some action) _, none => discard <| (← get).io.editorIo.action action.ticket 2
+    | _, _ => pure ()
+  -- a new acceptance becomes current once the communities list it
+  if let some a := (← get).awaitAcc then
+    if (← get).comms.any (·.acc == a) then
+      modify fun s => { s with awaitAcc := none }
+      switchToAcc a
+
 /-- The people of the current community, for home's Direct messages:
 its members (the Profile kind's), me first. -/
 def refreshMembers : M Unit := do
@@ -3972,8 +4216,10 @@ def approveReq (r : Id) : M Unit := do
   let s ← get
   -- the intent reads the request: my approval admits it, so the
   -- admission goes in the same write
-  let w ← intentView (Community.approveReq s.me.c r s.me.adm s.me.dev esk)
-  let _ ← writeAll w
+  let (c, adm, dev) := (s.me.c, s.me.adm, s.me.dev)
+  let _ ← actWith .none do
+    let (w, _) ← readView (Community.approveReq c r adm dev esk) #[]
+    return w
 
 /-- The profile and counts belong to the settings surfaces that show them. -/
 def observeSettings (owner : Demand.Owner) (profile counts : Bool) : M Unit := do
@@ -4100,12 +4346,14 @@ def pageIn (s : St) : PageIn :=
 /-- Write the removal of user u (the engine's intent). -/
 def removeWrite (u : Id) : M Bool := do
   let s ← get
+  let (c, dev) := (s.me.c, s.me.dev)
   -- nothing when this device is no admin, u is its own user, already
   -- removed, or not admitted (removeMember_valid: what it writes is a
-  -- Valid removal of u by an admin)
-  let w ← intentView (Community.removeMember s.me.c u s.me.dev)
-  if w.ops.isEmpty then return false
-  writeAll w
+  -- Valid removal of u by an admin); refused, Cont.remove says so
+  actWith .remove do
+    let (w, _) ← readView (Community.removeMember c u dev) #[]
+    if w.ops.isEmpty then throw (IO.userError "nothing to remove")
+    return w
 
 /-- One step of the removal flow; a write happens only where Remove.step
 says (the second yes, or a retry). -/
@@ -4206,14 +4454,10 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
       let seed ← newSeed
       -- the engine's join: nothing for a held community, the same request
       -- again for a stopped one, else a fresh join
-      let w ← intentView (Community.join i seed s.joinName.toUTF8 (← newSized 32))
-      if ← writeAll w then
-        modify fun s => { s.withNav (Nav.reset s.page) with invite := none, field := "" }
-        refreshCommsNow
-        match acceptOf w, (← get).comms.find? (·.c == i.community) with
-        | some a, _ => switchToAcc a
-        | none, some m => switchToAcc m.acc
-        | none, none => pure ()
+      let (name, nodeKey) := (s.joinName.toUTF8, ← newSized 32)
+      let _ ← actWith (.join i.community) do
+        let (w, _) ← readView (Community.join i seed name nodeKey) #[]
+        return w
   | .addMembers => openPage .invite
   | .share | .copy =>
     if let some l := linkOf s (s.page == .linkShare) then
@@ -4223,11 +4467,7 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
     -- a local op superseding my joining fact: the request stays with the
     -- members, and an approval would still let this device in
     if !s.me.joiningOp.isEmpty then
-      if ← writeAll (Community.stopWaiting s.me.joiningOp) then
-        refreshCommsNow
-        if (← get).comms.isEmpty then
-          modify fun s => { s.withNav (Nav.reset .getStarted) with pageKey := none }
-        else switchTo 0
+      let _ ← actWith .stopWaiting (pure (Community.stopWaiting s.me.joiningOp))
   | .approve i =>
     let shown := s.asking.filter fun r => !s.hidden.contains r.id
     if let some r := shown[i]? then
@@ -4280,6 +4520,7 @@ def composerHasInk (s : St) (text : String) : Bool := Id.run do
 send intent (the post sealed under the community's current key, then
 each photo's attachment and chunks), one write. -/
 def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
+  let mut queued := false
   try
     if ← refuseSubmission refusal submission then return
     let s ← get
@@ -4294,8 +4535,11 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     if s.chips.isEmpty && !composerHasInk s t then
       say "Add visible text or a photo."
       return
-    let k? ← intentView (Community.currentKey s.me.c)
-    let some k := k? | say "This community's key hasn't arrived yet."; return
+    -- room on screen for this send's message, counting the sends in flight
+    let inFlight := s.conts.fold (fun n _ k => match k with | .send _ _ => n + 1 | _ => n) 0
+    if s.ownSends.entries.length + inFlight ≥ Presentation.capacity then
+      discard <| presentationRefusal
+      return
     let mut files := []
     for (bytes, w, h, _) in s.chips.toList do
       files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
@@ -4303,16 +4547,17 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
                             bytes, key := ← newSized 32, nonce := ← newSized 24,
                             metaNonce := ← newSized 24 } : Community.NewFile)]
     let nonce ← newSized 24
-    let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
-    if ← writeAll w (present := true) then
-      if let some action := submission then
-        discard <| s.io.editorIo.action action.ticket 3
-        if let some latest ← readEditor then adoptEditor latest
-        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1), editor := { s.editor with clear := some (action.ticket, action.revision) } }
-      else
-        modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1) }
+    let (c, adm, dev, now) := (s.me.c, s.me.adm, s.me.dev, ← nowMin)
+    -- the reader reads the key, runs the send and places its messages;
+    -- the editor keeps its candidate until the act is done (Cont.send)
+    queued ← actPresenting (.send submission t) do
+      let (k?, _) ← readView (Community.currentKey c) #[]
+      let some k := k? | throw (IO.userError "This community's key hasn't arrived yet.")
+      let (w, _) ← readView (Community.send c adm dev k nonce t.toUTF8 now files) #[]
+      return w
   finally
-    if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
+    if !queued then
+      if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
@@ -4710,10 +4955,13 @@ def command (line : String) : M Bool := do
   | "wait" =>
     if (← s.wr.busy.get) > 0 && !(← s.wr.paused.get) || !(← s.wr.jobs.get).isEmpty && !(← s.wr.paused.get) then
       return false
+    -- an act in flight (the reader has not run it, or the frame has not
+    -- applied its result) is work still to do
+    if !s.conts.isEmpty || !s.doneQ.isEmpty then return false
     s.io.ctlReply s!"idle total {s.total}"
   | "send" =>
-    let ok ← sendText rest
-    s.io.ctlReply (if ok then "sent" else "refused")
+    let ok ← sendTextAct rest
+    s.io.ctlReply (if ok.isSome then "sent" else "refused")
   | "react" =>
     let i := (ws[1]? >>= String.toNat?).getD 0
     match s.ids[i]? with
@@ -5108,8 +5356,24 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   if s.restoreAnchor then
     if let some (x, _) := s.mark then
       discard <| query ⟨["community".toUTF8, s.me.c, "restore".toUTF8, x], true⟩ (.row s.me.c s.me.adm x)
+  if let some (q, false) := s.seek then
+    discard <| query ⟨["community".toUTF8, s.me.c, "rank".toUTF8], false⟩ (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1))
   readerPass
   let bd ← takeBoard
+  -- a seek's answer anchors the window at that root, as a restored
+  -- position does, its top at the screen's bottom edge: the rank before
+  -- the one sought, so the sought rank is below the screen; the seek ends
+  -- once the row has been placed
+  if let some (q, arrived) := s.seek then
+    if !arrived then
+      match bd.get? (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1)) with
+      | some (.pos (some p), _) =>
+        modify fun s => { s with
+          seek := some (q, true), anchor := some p, mark := some (p.2, 0),
+          restoreAnchor := true, restorePos := some p }
+      | some (.pos none, _) => modify fun s => { s with seek := none }
+      | _ => pure ()
+    else if !s.restoreAnchor then modify fun s => { s with seek := none }
   if let some (.count _ n, _) := bd.get? (.count s.me.c none) then
     modify fun s => { s with total := n }
   let fresh := match bd.get? idsW with
@@ -5272,8 +5536,11 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       out := s.out.filter fun p => !judged.contains p.op.id }
     if !decided.isEmpty then noticeLocal decided.toList
   flushNode
-  -- the reader's acts: their writes go to the node (or the writer)
-  let _ ← takeDone
+  -- the reader's acts: their writes go to the node (or the writer); what
+  -- each was for is applied once the communities are refreshed (applyDone)
+  let ds ← takeDone
+  modify fun s => { s with doneQ := s.doneQ ++ ds }
+  (← get).sh.queued.set (← get).queuedWrites
   chaosStep
   let tNotices ← (← get).io.nowUs
   -- 2. events and commands
@@ -5317,6 +5584,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
       modify fun s => { s with sheet := some sh' }
   -- join requests for the current community, and admissions they complete
   refreshComms
+  applyDone
   refreshAsking
   refreshMembers
   refreshHomeCount
@@ -5336,8 +5604,11 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
     if m.waiting then continue
     if let some (.writes ops) ← query ⟨["session".toUTF8, m.acc, "maintenance".toUTF8], false⟩ (.maintenance m.c) then
       if (s.serviceSeen[m.c]?).getD [] != ops then
-        if ← writeAll ⟨ops.filterMap Op.decode⟩ then
-          modify fun s => { s with serviceSeen := s.serviceSeen.insert m.c ops }
+        if ((← get).maintenanceRetry[m.c]?).all (· ≤ (← get).frames) then
+          -- seen at once, so it is queued once; refused, tried again later
+          modify fun s => { s with serviceSeen := s.serviceSeen.insert m.c ops,
+                                   maintenanceRetry := s.maintenanceRetry.erase m.c }
+          let _ ← actWith (.maintenance m.c ops) (pure ⟨ops.filterMap Op.decode⟩)
   let tRefresh ← (← get).io.nowUs
   -- a frame over 20 ms says where its time went (logcat / stderr)
   let slow (t1 : UInt64) : IO Unit := do
@@ -5525,11 +5796,12 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            io := io, theme := theme, themeRev, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, me := me, comms := comms, cur := me.acc,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
-  let mut initial := initial
+  -- the start state is a root, written as this window's first nav op
+  let mut initial := initial.withNav (Nav.reset (if comms.isEmpty then .getStarted else .home))
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp
     if version == 1 then

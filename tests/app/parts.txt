@@ -1,0 +1,49 @@
+# The app's checks: stage, part, then the command (from the top).
+# tests/app/run.sh runs them by stage, in order; ci/local.sh --full runs
+# each part as one of its own (app:<part>), in its own copy of the built
+# tree, at once: some edit sources in place and restore them. A part
+# whose command takes `--list` (its cases, one a line) and then case
+# names runs in up to CASE_LANES (6) slices of its cases, each a part of
+# its own (app:<part>/<k>) in its own copy.
+fonts	noto	tests/app/noto.sh
+fonts	font-contract	bash tests/app/font_contract.sh
+fonts	cjk	mise run host:cjk
+fonts	bidi	tests/app/bidi.sh
+fonts	bidi-host	tests/app/bidi_host.sh
+input	twin-demo	mise run host:twin-demo
+input	seam	mise run host:seam
+input	seam-negative	python3 tests/app/seam_negative.py	cases
+input	slide	mise run host:slide
+input	translate	mise run host:translate
+network	write-admission	mise run host:write-admission
+network	inkless	.lake/build/bin/inkless && tests/app/inkless_negative.sh
+network	nodequeue	.lake/build/bin/nodequeue
+network	host	.lake/build/bin/host "${MESSAGES:-500}" out/host
+network	two-nodes	.lake/build/bin/two_nodes out/two
+network	link-devices	.lake/build/bin/link_devices out/link
+network	net-join	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP net_join (TCP sandbox; built)"; else mise run host:net-join; fi
+network	net-link	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP net_link (TCP sandbox; built)"; else mise run host:net-link; fi
+network	cross	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP cross (TCP sandbox; built)"; else .lake/build/bin/cross out/cross; fi
+network	arrival	.lake/build/bin/arrival out/arrival
+network	attach	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP attach (TCP sandbox; built)"; else .lake/build/bin/attach out/attach; fi
+desktop	desktop	mise run host:desktop
+desktop	photo	mise run host:photo
+desktop	linux-e2e	if [ "${SKIP_X:-${SKIP_TCP:-0}}" = 1 ]; then platforms/linux/build.sh && echo "SKIP linux e2e (no local X sockets; the shell built)"; else mise run linux:e2e; fi
+desktop	linux-links	if [ "${SKIP_X:-${SKIP_TCP:-0}}" = 1 ]; then echo "SKIP linux links (no local X sockets)"; else mise run linux:links; fi
+navigation	nav	tests/app/nav_negative.sh
+navigation	pic-retry	.lake/build/bin/pic_retry out/pic_retry && tests/app/pic_retry_negative.sh
+navigation	ux	.lake/build/bin/ux out/ux && .lake/build/bin/ux out/ux-queued queued && tests/app/ux_negative.sh
+navigation	shipped	tests/shipped/check.sh app
+lifecycle	lifecycle	mise run host:lifecycle && mise run host:reader-request-negative
+lifecycle	lifecycle-node	mise run host:lifecycle-node
+lifecycle	lifecycle-node-negative	bash tests/app/lifecycle_node_negative.sh	cases
+appearance	theme	mise run host:theme-restart && mise run host:theme-live && mise run host:theme-negative
+safety	safe	mise run host:safe
+safety	safe-negative	python3 tests/app/safe_negative.py	cases
+safety	desktop-negative	mise run host:desktop-negative
+safety	links-negative	if [ "${SKIP_X:-${SKIP_TCP:-0}}" = 1 ]; then echo "SKIP linux links negative controls (no local X sockets)"; else mise run linux:links-negative; fi
+components	hold-cache	mise run test:hold-cache
+components	mobile-switcher	mise run host:mobile-switcher
+components	people-reader	mise run test:people-reader
+components	component-demand	mise run host:component-demand
+components	component-demand-negative	python3 tests/app/demand_negative.py	cases

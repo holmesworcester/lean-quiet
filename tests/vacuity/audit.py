@@ -14,7 +14,6 @@ audit = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(audit)
 checks = audit.load_checks()
 RUNNERS = {
-    'tests.vacuity.Bootstrap': 'vacuity_bootstrap',
     'tests.vacuity.ProductionBootstrap': 'vacuity_production_bootstrap',
     'tests.vacuity.StorageEffects': 'vacuity_storage_effects',
     'tests.vacuity.ConnectionProgress': 'vacuity_connection_progress',
@@ -32,6 +31,7 @@ RUNNERS = {
     'tests.vacuity.Contracts': 'vacuity_contracts',
     'tests.vacuity.SealAudit': 'vacuity_seal_audit',
     'tests.vacuity.CryptoTrust': 'vacuity_crypto_trust',
+    'tests.vacuity.StoreTrust': 'vacuity_store_trust',
     'tests.vacuity.CoreRuntime': 'vacuity_core',
     'tests.vacuity.RendererRuntime': 'vacuity_renderer_runtime',
     'tests.vacuity.RendererSupplement': 'vacuity_renderer_runtime',
