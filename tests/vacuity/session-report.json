@@ -53,13 +53,41 @@
     "theorem": "Connection.Noise.Symbolic.kk_authentic",
     "witness": "Vacuity.Session.initiatorAuthenticates",
     "module": "tests.vacuity.Session",
-    "detail": "Prove actual transcript is derivable by asking honest parties; prove attacker cleanliness/part premises and concrete secret memberships; accepted reply is an honest response to this request with matching sessions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+    "detail": "Concrete transcript; O is every honest call but responder 22 answering this message 1. Under it the attacker still derives message 1 (initiator 11's request) and 22's answer to another session (ephemerals 55/66), which that session's initiator accepts; the no-answer premise holds by construction and every attacker and secrecy premise is discharged; this initiator then rejects every term the attacker derives. Under AllCalls the honest reply is derivable and accepted, so O does the work. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
   },
   "kk_authentic_resp": {
     "status": "kernel-witness",
     "theorem": "Connection.Noise.Symbolic.kk_authentic_resp",
     "witness": "Vacuity.Session.responderAuthenticates",
     "module": "tests.vacuity.Session",
-    "detail": "Prove actual first message is derivable from an honest send, attacker cleanliness and both static-secret memberships; accepted request was written by the initiator. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+    "detail": "Concrete transcript; O is every honest call but initiator 11 writing 22 a message 1 with payload1. Under it 11's request with a different payload (decided unequal) is derivable and 22 accepts it; both static-secret and attacker premises are discharged; 22 then accepts no derivable message 1 as from 11 with payload1. Under AllCalls the honest message 1 is derivable and accepted. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_agree": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_agree",
+    "witness": "Vacuity.Session.initiatorAgrees",
+    "module": "tests.vacuity.Session",
+    "detail": "Concrete transcript; O is exactly the run's two logged calls (11's request, 22's answer). The reply is derived through both, accepted, and kk_agree returns the logged call by 22 answering this message 1 with matching sessions. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_agree_resp": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_agree_resp",
+    "witness": "Vacuity.Session.responderAgrees",
+    "module": "tests.vacuity.Session",
+    "detail": "Concrete transcript; O is exactly the run's two logged calls. Message 1 is derived through 11's logged request and accepted, and kk_agree_resp returns that logged call with ephemeral 33 and the written state. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_authentic_tight": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_authentic_tight",
+    "witness": "Vacuity.Session.forgedReply",
+    "module": "tests.vacuity.Session",
+    "detail": "Negative control on the same successful handshake: responder static 22 leaked (11/33/44 secret), O barred from every answer by 22. The attacker has 11 send message 1, picks its own name 55 and writes a message 2 that this initiator accepts, so kk_authentic fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
+  },
+  "kk_authentic_resp_tight": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Noise.Symbolic.kk_authentic_resp_tight",
+    "witness": "Vacuity.Session.forgedRequest",
+    "module": "tests.vacuity.Session",
+    "detail": "Negative control (key-compromise impersonation): responder static 22 leaked, O barred from every request by 11. The attacker writes, with its own ephemeral 55, a message 1 that 22 accepts as from 11 with payload1, so kk_authentic_resp fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim."
   }
 }
