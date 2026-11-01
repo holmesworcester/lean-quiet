@@ -1,4 +1,3 @@
-import app.connection.NodeUnique
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
