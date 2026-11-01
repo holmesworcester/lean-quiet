@@ -23,6 +23,27 @@ handshakes with a key of its own, not with a community device key.
 - Everything is ops and views read afresh on every step. The notice is
   a room the family's view gives, not send logic in the node.
 
+## Decisions (user, 2026-10-31)
+
+- **Removal's scope is the network.** Removal takes a removed member
+  off network connections: sessions, sync and the trust rule. The
+  member's actions stay Valid and are shown to everyone, including
+  those it takes after its removal, until everyone in the group has
+  disconnected from it: messages, invitations, approvals, and a removed
+  admin's removals, grants and renames. A partition can always keep
+  some members from learning of a removal, and only centralization or
+  an availability drop could prevent that (CAP). So some members see a
+  removed member's new ops anyway, and all should eventually see the
+  same thing: the ops must be Valid for all. What is to be proven is
+  that removed users are not admitted to the network.
+- **No approval thresholds.** One approval by an eligible device admits
+  a request: a device other than the requester's, of the issuer's user
+  for a device link. A threshold was incoherent, since it can be
+  sybilled: any member can issue an invitation and approve its request
+  itself, so one member can admit anyone alone, and can mint as many
+  distinct users as another invitation's threshold counts. libquiet took
+  the same decision on 2026-10-30.
+
 ## One device, two users
 
 A device key may be admitted into more than one user of a community: it
@@ -437,6 +458,15 @@ removal and not his message.
 
 ## Not covered
 
+- **A removed user is not yet kept off the network.** Its invitations
+  and approvals stay Valid (above), so it can invite and approve a new
+  device that names its own node's key. That device is a live new user,
+  so the trust rule (`connect_iff`, `new_device_trusted`) lets the
+  removed member's node back in, at every node those ops reach. One node
+  unaware of the removal, or one colluding member, is enough for them to
+  start spreading. `removed_stays_removed` still holds (the old user
+  stays removed, its devices cut), but it does not keep the node out.
+  The fix is the user's to choose; `scenario` pins today's behaviour.
 - The bare handshake replies an entry point sends: `answer_trusted` and
   `resend_trusted` are per step; that an entry point's bare frames are
   only those is read from the code. (The entry-point laws hold of the
