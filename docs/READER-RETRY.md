@@ -43,6 +43,6 @@ are retained; regenerated links and a transaction-specific anchor pass.
 This repairs scheduling rollback, not every reader failure outcome. Transaction
 opening/completion, shared journal acknowledgements and claimed action/notice
 batches require their own failure invariants. Native query completion, queue
-capacity, and the full write-to-display composition also remain open. In
-particular, the existing early journal acknowledgement and pre-transaction
-action dequeue need separate fault tests; this change does not certify them.
+capacity, and the full write-to-display composition also remain open. The subsequent [journal acknowledgement repair](READER-JOURNAL-ACK.md)
+adds its own actual rollback/prune fault test. Pre-transaction action/notice
+dequeue and the other early side effects remain separate open boundaries.

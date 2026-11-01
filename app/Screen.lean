@@ -2031,7 +2031,6 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let hitActs := (s.live.hit actNotes #[]).toList
     modify fun s => { s with seen := top, live := (s.live.notice fs (vs.map (·.1))).notice notes,
                              passes := s.passes + 1 }
-    sh.seen.modify (fun _ => top)
     -- mark the dirty and the wanted wants those reads name, through the
     -- index; read every want the acts' rows touched, then the first `cap`
     -- other marked in the frame's order: the model's decisions
@@ -2069,6 +2068,9 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       sh.publish ticket v
       published := published + 1
     rd.exec "COMMIT"
+    -- This is the last effect before returning the successful reader state.
+    -- A failed query/COMMIT must leave its notices available to the retry.
+    sh.seen.modify (fun _ => top)
     return published > 0 || moved || !fs.isEmpty || !vs.isEmpty || !acts.isEmpty
   catch e =>
     rd.exec "ROLLBACK"

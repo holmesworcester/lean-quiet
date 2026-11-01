@@ -76,6 +76,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:ingress
   mise run test:native-lifetimes
   mise run test:ref-publications
+  mise run test:reader-prune
   mise run test:writer-fairness
   mise run test:expiry-grace
   mise run test:demand-rank

@@ -48,6 +48,11 @@ description = "Actual writer loop FIFO/local-priority fairness with SQLite, reus
 depends = ["crypto"]
 run = "bash tests/engine/writer_fairness.sh"
 
+[tasks."test:reader-prune"]
+description = "Actual reader rollback and SQLite journal pruning retain the notice needed by a healthy retry; compiling early-ack control"
+depends = ["crypto"]
+run = "bash tests/engine/reader_prune.sh"
+
 [tasks."test:ref-publications"]
 description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
 depends = ["crypto"]
