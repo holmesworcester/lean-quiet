@@ -64,8 +64,11 @@ lean_lib Pic where
   globs := #[.submodules `app.community]
 
 -- the op tree's root: commands over the node, which spans both families
+@[default_target] lean_lib Settings where
+  globs := #[.submodules `app.settings]
+
 @[default_target] lean_lib Node where
-  roots := #[`app.Commands]
+  roots := #[`app.Family, `app.Commands]
 
 /-! ## The app -/
 
