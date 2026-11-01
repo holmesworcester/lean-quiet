@@ -226,13 +226,16 @@ app/
 │   ├── Validate.lean   (planned)
 │   ├── Proofs.lean   (planned)
 │   └── Tests.lean   (planned)
-├── settings/   (planned family)
-│   ├── appearance/   (planned op)
-│   │   ├── Op.lean   (planned)
-│   │   ├── Validate.lean   (planned)
-│   │   ├── Proofs.lean   (planned)
+├── settings/
+│   ├── appearance/
+│   │   ├── Op.lean
+│   │   ├── Validate.lean
+│   │   ├── View.lean
+│   │   ├── Commands.lean
+│   │   ├── Proofs.lean
 │   │   └── Tests.lean   (planned)
-│   └── Family.lean   (planned)
+│   └── Family.lean
 ├── Commands.lean
 ├── Screen.lean
-└── Proofs.lean
+├── Proofs.lean
+└── Family.lean

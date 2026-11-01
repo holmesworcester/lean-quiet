@@ -60,7 +60,7 @@ structure Peer where
   addr : ByteArray
   seed : ByteArray
   /-- This node's key's secret: its first found or join writes it. -/
-  nk : ByteArray
+  nk : Key32
   x : Sync F (SqlM F)
   db : Db
   n : Node
@@ -88,7 +88,7 @@ def quietRooms (cid : Id) : SqlM F (List Room) := do
 with `quiet`, its rooms hook gives no notices (`quietRooms`). -/
 def mkPeer (name : String) (old quiet : Bool := false) : IO Peer := do
   let seed := sha256 s!"seed {name}".toUTF8
-  let nk := sha256 s!"node {name}".toUTF8
+  let nk := Bytes.digest s!"node {name}".toUTF8
   let addr := s!"{name}:7001".toUTF8
   let db ← Db.openAt ":memory:"
   let h := hooks fam K addr
@@ -185,8 +185,8 @@ def setup (loss : Nat) (old quiet : Bool := false) : IO (World × Id × Op) := d
   let a ← mkPeer "A" old quiet
   let b ← mkPeer "B" old quiet
   let mut w : World := { a, b, loss }
-  w ← writeA w (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (sha256 "key".toUTF8)
-    (sha256 "esk".toUTF8) a.nk)).ops
+  w ← writeA w (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
+    (Bytes.digest "esk".toUTF8) a.nk)).ops
   let c := (root (Device.ofSeed a.seed) a.key).id
   let some (wi, link) ← viewOn w.a (inviteTo c c (Device.ofSeed a.seed) (sha256 "bearer".toUTF8) [a.addr])
     | throw (IO.userError "no invite")
@@ -377,15 +377,15 @@ def main : IO UInt32 := do
   -- device and invites B, who joins as a new device. A session is one
   -- per node key, and carries both communities.
   let seedA2 := sha256 "seed A, second community".toUTF8
-  let w ← writeA w (← viewOn w.a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 1 (sha256 "key Z".toUTF8)
-    (sha256 "esk Z".toUTF8) (sha256 "unused".toUTF8))).ops
+  let w ← writeA w (← viewOn w.a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key Z".toUTF8)
+    (Bytes.digest "esk Z".toUTF8) (Bytes.digest "unused".toUTF8))).ops
   let c' := (root (Device.ofSeed seedA2) w.a.key).id
   let some (wiZ, linkZ) ← viewOn w.a (inviteTo c' c' (Device.ofSeed seedA2) (sha256 "bearer Z".toUTF8) [w.a.addr])
     | t.ok "A invites to its second community" false; return 1
   t.ok "the second link names the same node key" (linkZ.inviter == w.a.key)
   let w ← writeA w wiZ.ops
   let seedB2 := sha256 "seed B, second community".toUTF8
-  let w ← writeB w (← viewOn w.b (join linkZ seedB2 "Bea".toUTF8 (sha256 "unused".toUTF8))).ops
+  let w ← writeB w (← viewOn w.b (join linkZ seedB2 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let w ← w.run 10
   let reqZ := linkZ.request (Device.ofSeed seedB2) w.b.key
   t.ok "B's second join request reaches A bare, beside the open session" (← stored w.a reqZ.id)
@@ -427,12 +427,12 @@ def main : IO UInt32 := do
   let a3 ← mkPeer "A3"
   let b3 ← mkPeer "B3"
   let mut w3 : World := { a := a3, b := b3 }
-  w3 ← writeA w3 (← viewOn a3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (sha256 "key3".toUTF8)
-    (sha256 "esk3".toUTF8) a3.nk)).ops
+  w3 ← writeA w3 (← viewOn a3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key3".toUTF8)
+    (Bytes.digest "esk3".toUTF8) a3.nk)).ops
   let c3 := (root (Device.ofSeed a3.seed) a3.key).id
   -- A pending join to a community that is not here, as another device.
   let ghost := sha256 "ghost".toUTF8
-  let ghostKey := cryptoSeal.pub (sha256 "ghost node".toUTF8)
+  let ghostKey := cryptoSeal.pub (Bytes.digest "ghost node".toUTF8)
   let gr := root (Device.ofSeed ghost) ghostKey
   let (_, deadLink) := issue gr.id gr.id (Device.ofSeed ghost) ghostKey (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
   let wd ← viewOn b3 (join deadLink (sha256 "old device".toUTF8) "Old".toUTF8 b3.nk)

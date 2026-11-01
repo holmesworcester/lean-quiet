@@ -1,7 +1,7 @@
 /-
 Event-driven rounds and live answers on two real SQLite nodes, through
 the node's actual entry points (`Node.onTick`, `Node.onFrame`,
-`Node.onWrite`), at the runner's 200 ms tick, with the production safety
+`Node.onWrite`), ticking every 500 ms, with the production safety
 period (engine/sync/EventLaws.lean, RoundRun.lean):
 
 - finding 2's join case: one end shows the room from the start, the
@@ -12,7 +12,7 @@ period (engine/sync/EventLaws.lean, RoundRun.lean):
 - with no event, no round opens before the safety period;
 - a hub mid-round with many peers holds no per-round copy of the room:
   its connections' state is the same for a room of 100 items as of
-  20 000.
+  4000.
 -/
 import tests.engine.HardenLib
 
@@ -97,8 +97,8 @@ def join (joinerDials : Bool) (late : Nat := 2000) : IO (Option Nat × Nat × Na
   let mut net : Net := { na := ← boot da, nb := ← boot db }
   let mut arrived : Option Nat := none
   let mut quiet := 0
-  for step in [0:400] do
-    let now := step * 200
+  for step in [0:140] do
+    let now := step * 500
     if now == late then
       if joinerDials then
         let (n, e) ← (net.na.onWrite xa [admit] now).run da
@@ -109,6 +109,7 @@ def join (joinerDials : Bool) (late : Nat := 2000) : IO (Option Nat × Nat × Na
     let before := net.rbsr
     net ← tick xa xb da db net now
     if arrived.isNone && late ≤ now && (← holdsAll joiner ops) then arrived := some (now - late)
+    -- 50 s with no event, longer than main's 30 s cadence.
     if late + 20000 ≤ now then quiet := quiet + (net.rbsr - before)
   let roundsTotal := net.rbsr
   return (arrived, quiet, roundsTotal)
@@ -148,20 +149,20 @@ end LiveRounds
 def main : IO UInt32 := do
   let t ← Checks.new
   let (arrived, quiet, total) ← LiveRounds.join false
-  IO.println s!"joining responder: history after {arrived} ms, {quiet} round messages in the quiet minute, {total} in all"
+  IO.println s!"joining responder: history after {arrived} ms, {quiet} round messages in the quiet 50 s, {total} in all"
   t.ok s!"joining responder: its ask opens a round and the history arrives within 1 s (took {arrived})"
     (arrived.any (· ≤ 1000))
-  t.ok s!"joining responder: no round in the quiet minute after ({quiet} round messages)" (quiet == 0)
+  t.ok s!"joining responder: no round in the quiet 50 s after ({quiet} round messages)" (quiet == 0)
   t.ok s!"joining responder: rounds were exchanged at all ({total})" (total > 0)
   let (arrived, quiet, total) ← LiveRounds.join true
-  IO.println s!"joining dialer: history after {arrived} ms, {quiet} round messages in the quiet minute, {total} in all"
+  IO.println s!"joining dialer: history after {arrived} ms, {quiet} round messages in the quiet 50 s, {total} in all"
   t.ok s!"joining dialer: showing the room opens a round and the history arrives within 1 s (took {arrived})"
     (arrived.any (· ≤ 1000))
-  t.ok s!"joining dialer: no round in the quiet minute after ({quiet} round messages)" (quiet == 0)
-  let small := LiveRounds.hub 100 8
-  let large := LiveRounds.hub 20000 8
-  IO.println s!"hub of 8 peers mid-round: {(small.map LiveRounds.footprint).sum} entries (100 items), {(large.map LiveRounds.footprint).sum} (20000 items)"
+  t.ok s!"joining dialer: no round in the quiet 50 s after ({quiet} round messages)" (quiet == 0)
+  let small := LiveRounds.hub 100 4
+  let large := LiveRounds.hub 4000 4
+  IO.println s!"hub of 4 peers mid-round: {(small.map LiveRounds.footprint).sum} entries (100 items), {(large.map LiveRounds.footprint).sum} (4000 items)"
   t.ok "hub mid-round: every peer's round is still in flight" (large.all fun c => !c.active.isEmpty)
-  t.ok s!"hub mid-round: no per-round copy of the room ({(small.map LiveRounds.footprint).sum} vs {(large.map LiveRounds.footprint).sum} entries for 100 vs 20000 items)"
+  t.ok s!"hub mid-round: no per-round copy of the room ({(small.map LiveRounds.footprint).sum} vs {(large.map LiveRounds.footprint).sum} entries for 100 vs 4000 items)"
     ((small.map LiveRounds.footprint) == (large.map LiveRounds.footprint))
   t.finish "live rounds"

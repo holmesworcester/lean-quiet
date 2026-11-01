@@ -5,7 +5,7 @@
     "witness": "Vacuity.IdentityFrames.establishedAgrees",
     "module": "tests.vacuity.IdentityFrames",
     "exercise": true,
-    "detail": "Both endpoint validators succeed for an actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. The production theorem remains conditional on the size-aware sodium.suite.Good contract. No universal native crypto assumption is discharged."
+    "detail": "Both endpoint validators succeed for an actual deterministic Noise session; handshake hash/community/peer identities and crossed send/receive keys agree natively. Generic in the suite; its instance at the running keys is established_agrees_sodium, conditional only on the trust file."
   },
   "open_seal": {
     "status": "runtime-witness",
@@ -34,5 +34,37 @@
     "witness": "Vacuity.IdentityFrames.sealedAuth",
     "module": "tests.vacuity.IdentityFrames",
     "detail": "Actual real-crypto Noise session and XChaCha frame carrying signed Bob message bytes. Successful open is certified against held session receive key. One-byte ciphertext corruption proves the universal rejection premise by exact header/key lookup equalities and failed decryption, then applies sealed_auth. Wrong directional key and modified session header also reject; damaged frame emits no sends/drops/stores and preserves held database/log."
+  },
+  "established_agrees_sodium": {
+    "status": "conditional",
+    "theorem": "Connection.established_agrees_sodium",
+    "witness": "Vacuity.IdentityFrames.establishedAgreesSodium",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "The same actual Noise session; every premise is discharged but the crypto trust file (suite_good)."
+  },
+  "open_seal_sodium": {
+    "status": "conditional",
+    "theorem": "Connection.open_seal_sodium",
+    "witness": "Vacuity.IdentityFrames.openSealSodium",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "The actual session's 32-byte id and receive key and a 24-byte nonce, sized once by Bytes.of? as sealFor does, carrying signed message bytes: conditional only on the trust file. Mutation control: frames opened under a truncated nonce fail the proof."
+  },
+  "cid_seal_sodium": {
+    "status": "conditional",
+    "theorem": "Connection.cid_seal_sodium",
+    "witness": "Vacuity.IdentityFrames.cidSealSodium",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "The actual session's frame header names its session, conditional only on the trust file."
+  },
+  "sealFor_opens": {
+    "status": "conditional",
+    "theorem": "Connection.sealFor_opens",
+    "witness": "Vacuity.IdentityFrames.sealForOpens",
+    "module": "tests.vacuity.IdentityFrames",
+    "exercise": true,
+    "detail": "The running sealFor on the actual session's held keys seals; conditional only on the trust file, the frame opens under the session's send key to the payload, which the executable checks natively, along with the other direction's key refusing it and a session with no keys sealing nothing. Mutation control: the old unsized sealFor fails the proof."
   }
 }
