@@ -319,8 +319,9 @@ theorem filedStep_asked (cfg : Config) (fam : Family F) (db : DB F) (st : List (
     · rfl
   · rfl
 
-theorem filed_asked (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) (h : Held F) :
-    ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.asked = c.asked := by
+/-- The stream changes only what a connection has offered. -/
+theorem filed_shape (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) (h : Held F) :
+    ∃ off, ((c.filed fam cfg ids : HeldM F Step).run h).1.conn = { c with offered := off } := by
   simp only [Conn.filed, HeldM.run_bind]
   rw [forIn_yield ids _ (fun i st => filedStep cfg fam h.db st i) h (fun j _ st => by
     simp only [filedStep]; split
@@ -330,13 +331,27 @@ theorem filed_asked (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) (
       | some p => by_cases hs : st.2.shows fam p = true <;> simp [hs]
     · rfl)]
   simp only [HeldM.run_pure]
-  have : ∀ (L : List Id) (st : List (Id × Id) × Conn),
-      (L.foldl (fun st i => filedStep cfg fam h.db st i) st).2.asked = st.2.asked := by
+  have : ∀ (L : List Id) (st : List (Id × Id) × Conn), (∃ off, st.2 = { c with offered := off }) →
+      ∃ off, (L.foldl (fun st i => filedStep cfg fam h.db st i) st).2 = { c with offered := off } := by
     intro L
     induction L with
-    | nil => intro st; rfl
-    | cons a t ih => intro st; rw [List.foldl_cons, ih, filedStep_asked]
-  exact this ids ([], c)
+    | nil => intro st hs; exact hs
+    | cons a t ih =>
+      intro st ⟨off, hs⟩
+      rw [List.foldl_cons]
+      apply ih
+      unfold filedStep; split
+      · split
+        · split
+          · exact ⟨_, by rw [hs]⟩
+          · exact ⟨off, hs⟩
+        · exact ⟨off, hs⟩
+      · exact ⟨off, hs⟩
+  exact this ids ([], c) ⟨c.offered, rfl⟩
+
+theorem filed_asked (fam : Family F) (cfg : Config) (c : Conn) (ids : List Id) (h : Held F) :
+    ((c.filed fam cfg ids : HeldM F Step).run h).1.conn.asked = c.asked := by
+  obtain ⟨off, e⟩ := filed_shape fam cfg c ids h; rw [e]
 
 section
 variable (S : Engine.Sync.Setup F) (s : Who)
@@ -374,7 +389,7 @@ theorem fanout_facts (n : Node) (ids : List Id) (h : Held F) :
 same asks. -/
 theorem fanout_asked (n : Node) (ids : List Id) (h : Held F) (cid : Id) (c' : Conn)
     (hc : ((n.fanout (S.sync s) ids).run h).1.1.conn? cid = some c') :
-    ∃ c, n.conn? cid = some c ∧ c'.asked = c.asked := by
+    ∃ c, n.conn? cid = some c ∧ c'.asked = c.asked ∧ c'.owed = c.owed ∧ c'.owing = c.owing := by
   rw [Node.conn?, (fanout_facts S s n ids h).1, List.find?_map] at hc
   simp only [Option.map_map] at hc
   cases e : n.conns.find? (fun p => Decidable.decide (p.1 = cid)) with
@@ -392,8 +407,10 @@ theorem fanout_asked (n : Node) (ids : List Id) (h : Held F) (cid : Id) (c' : Co
     rw [this] at hc
     simp only [Option.map_some, Option.some.injEq, Function.comp_apply] at hc
     refine ⟨p.2, by simp [Node.conn?, e], ?_⟩
-    rw [← hc, filed_asked]
-    rfl
+    rw [← hc]
+    obtain ⟨off, e'⟩ := filed_shape S.fam S.cfg ({ p.2.setRooms (S.rooms s p.1) with notices := [] } : Conn) ids h
+    rw [e']
+    exact ⟨rfl, rfl, rfl⟩
 
 /-- Storing keeps a node's managed sessions and addresses, adds no
 retries, and keeps each session's asks. -/
@@ -402,7 +419,7 @@ theorem store_facts (n : Node) (ops : List Op) (mine : Bool) (h : Held F) :
       ((n.store (S.sync s) ops mine).run h).1.1.managed = n.managed ∧
       ((n.store (S.sync s) ops mine).run h).1.1.addrs = n.addrs ∧
       (∀ cid c', ((n.store (S.sync s) ops mine).run h).1.1.conn? cid = some c' →
-        ∃ c, n.conn? cid = some c ∧ c'.asked = c.asked) := by
+        ∃ c, n.conn? cid = some c ∧ c'.asked = c.asked ∧ c'.owed = c.owed ∧ c'.owing = c.owing) := by
   rw [store_run]
   dsimp only
   have hw := write_conns (S.sync s) n (intake (S.sync s).fam mine ops) h
@@ -412,7 +429,7 @@ theorem store_facts (n : Node) (ops : List Op) (mine : Bool) (h : Held F) :
     · unfold Node.put; exact hm
     · unfold Node.put; exact write_addrs _ _ _ _
     · intro cid c' hc
-      refine ⟨c', ?_, rfl⟩
+      refine ⟨c', ?_, rfl, rfl, rfl⟩
       unfold Node.put at hc
       simp only [Node.conn?] at hc ⊢; rw [hw] at hc; exact hc
   · obtain ⟨f1, f2, f3, f4⟩ := fanout_facts S s (Node.put (S.sync s) n ops mine |>.run h).1.1
@@ -447,7 +464,8 @@ theorem apply_facts (n : Node) (cid : Id) (st : Step) (now : Nat) (h : Held F) (
       ((n.apply (S.sync s) cid st now).run h).1.1.addrs = n.addrs ∧
       (∀ q ∈ st.send, (Route.conn cid, q.bytes) ∈ ((n.apply (S.sync s) cid st now).run h).1.2.send ∨
         (Route.conn cid, q.bytes) ∈ ((n.apply (S.sync s) cid st now).run h).1.2.serve) ∧
-      (∀ c', ((n.apply (S.sync s) cid st now).run h).1.1.conn? cid = some c' → c'.asked = st.conn.asked) := by
+      (∀ c', ((n.apply (S.sync s) cid st now).run h).1.1.conn? cid = some c' →
+        c'.asked = st.conn.asked ∧ c'.owed = st.conn.owed ∧ c'.owing = st.conn.owing) := by
   have hfold : ∀ (L : List Op), L.foldl (fun b (_ : Op) => b) ([] : List Op) = [] := by
     intro L; induction L with
     | nil => rfl
@@ -472,7 +490,7 @@ theorem apply_facts (n : Node) (cid : Id) (st : Step) (now : Nat) (h : Held F) (
     obtain ⟨c0, hc0⟩ := Option.isSome_iff_exists.1 hc
     rw [hc0] at hc1
     simp only [Option.map_some, Option.some.injEq] at hc1
-    rw [e, ← hc1]
+    subst hc1; exact e
 
 /-- Serving a session's queue keeps a node's managed sessions and
 addresses, and adds no retries. -/
@@ -604,13 +622,13 @@ theorem onSealed_wants (n : Node) (src : ByteArray) (cid : Id) (inner : List Byt
         obtain ⟨hk1, hk2⟩ := hk c hcs
         refine ⟨(payload_run S s st.1 cid c a now h' hcs).1, by rw [f2]; exact hm', by rw [addr_of_addrs f3]; exact ha',
           by simp [Acts.append_def, hr', f1], fun c' hc'' => ⟨fun hx' => ?_, ?_⟩⟩
-        · rw [f5 c' hc''] at hx'
+        · rw [(f5 c' hc'').1] at hx'
           rcases g1 x hx' with hx' | ⟨L, hxL, hL⟩
           · exact (hk1 hx').append_left _
           · rcases f4 _ hL with hq' | hq'
             · exact WantsOn.append_right _ ⟨L, hxL, Or.inl hq'⟩
             · exact WantsOn.append_right _ ⟨L, hxL, Or.inr hq'⟩
-        · rw [f5 c' hc'']
+        · rw [(f5 c' hc'').1]
           simp only [List.map_cons, List.sum_cons] at hk2
           have : ({ c.setRooms (S.rooms s cid) with notices := [] } : Conn).asked = c.asked := rfl
           rw [this] at g2; omega
