@@ -59,7 +59,7 @@ open Engine
 the Unix epoch, the caller's clock), its text sealed under content key k with
 nonce `nonce`, and attach files to it: the post, its receipt if it is
 saturated (`receiptFor`), then each file's attachment (a child of the post)
-and its chunks. The post claims one more than the highest counter this
+and its chunks, which claim the post's time. The post claims one more than the highest counter this
 device holds in c, up to the cap, so it sorts after every message here
 (`send_after`); its time is `now` as given. Everything is ops; no bytes
 live beside the store. -/
@@ -68,6 +68,6 @@ def send (c myAdm : Id) (d : Device) (k nonce text : ByteArray) (now : Nat)
   let clump ← Clump.choose c myAdm now
   let p := sealedPost c myAdm d k nonce text (min ((← topCount c) + 1) countCap) now clump
   let r ← receiptFor p
-  pure ⟨p :: r ++ files.flatMap (fun f => let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩
+  pure ⟨p :: r ++ files.flatMap (fun f => let (a, cs) := attach c myAdm p.id now d k f; a :: cs)⟩
 
 end Community

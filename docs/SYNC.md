@@ -88,7 +88,12 @@ floor `f` is every op with no claimed time (roots, invitations,
 admissions, removals: structure, including every removal a node needs
 to refuse a removed peer) and every op claimed at `f` or later:
 `[0, 1) ∪ [f, ∞)`, one range when `f ≤ 1`. A round runs over the
-overlap of the two sides' windows.
+overlap of the two sides' windows. A message's attachment and its
+chunks claim the message's time, checked by their validators
+(`chunks_in_window`; user, 2026-11-01): a window holds a message with
+its photos, and no older message's photos. Before, they sorted at time
+0, in the structure range every window includes, so every window
+carried every photo.
 
 **Fingerprints.** `fp l = (|l|, lbl l)`. `lbl` is the Merkle label of
 the canonical treap of `l`: the item with the largest id number at the

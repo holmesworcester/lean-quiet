@@ -688,7 +688,7 @@ def make (me : Me) (k : ByteArray) (srcs : Array Image.Src) (seed n top now : Na
                                       preview := preview bytes },
                             bytes, key := bytesOf (tag ++ " file key") 32, nonce := bytesOf (tag ++ " file nonce") 24,
                             metaNonce := bytesOf (tag ++ " meta nonce") 24 }
-      let (a, cs) := attach c u o.id d k nf
+      let (a, cs) := attach c u o.id t d k nf
       pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
     let (r, g9) := g.below 3

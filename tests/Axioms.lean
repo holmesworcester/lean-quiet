@@ -295,6 +295,9 @@ open Engine Community
 #print axioms Community.removeMember_valid
 #print axioms Community.chunk_of_attachment
 #print axioms Community.chunk_hangs_off
+#print axioms Community.message_order
+#print axioms Community.attach_order
+#print axioms Community.chunks_in_window
 #print axioms Community.chunk_own
 #print axioms Engine.Op.decode_exact
 #print axioms Engine.Op.decode_parts

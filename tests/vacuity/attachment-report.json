@@ -22,5 +22,13 @@
     "module": "tests.vacuity.Attachment",
     "exercise": true,
     "detail": "Nonempty signed attachment store actually contains only index 1 of two chunks. Inv follows from real ingest/drain preservation; runtime certifies settled queue, valid attachment, and ChunksSound of the store on real SHA-256. Native progress is exactly 1/2, duplicate still 1/2, full file 2/2. The theorem application retains only SHA-256's 32-byte output size; missing attachment and malformed chunks are negative controls. Synthetic fixture using production native crypto; no collected community user data, invented SHA axiom or replacement hash."
+  },
+  "chunks_in_window": {
+    "status": "runtime-witness",
+    "theorem": "Community.chunks_in_window",
+    "witness": "Vacuity.Attachment.windowCertificate",
+    "module": "tests.vacuity.Attachment",
+    "exercise": true,
+    "detail": "Real signed attachment of a real signed message, and its chunk 0, have runtime V certificates on production Ed25519/XChaCha20; the theorem applies to the chunk. Native checks: the message, its attachment and both chunks claim the message's time (orderOf); a chunk with a true slice and path at time 0, and the same file attached by its author at time 0, are both rejected Invalid. Synthetic fixture using production native crypto; no collected community user data."
   }
 }
