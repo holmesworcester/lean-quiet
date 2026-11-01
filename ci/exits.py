@@ -19,7 +19,7 @@ TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 MARKERS = re.compile(r"prio := \.dedicated|App\.start|Desktop\.start|Sim\.new|\.run\.write|"
                      r"\.run\.counters|Tcp\.|Reader\.Worker|StopFlag")
 # Programs a fix in flight will convert: each name must still need it.
-PENDING = {"close_ingress": "holmes-8b's close-ingress fix exits explicitly"}
+PENDING: dict = {}
 
 
 def exits(source):
