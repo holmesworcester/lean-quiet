@@ -660,3 +660,28 @@ run = "bash tests/engine/owned_input.sh"
 [tasks."android:owned-input-e2e"]
 description = "Build/setup actual Main JNI action ownership, touch/Enter/Continue, lifecycle/drafts/photos/SQLite and strict compiling APK controls"
 run = "bash platforms/android/test/owned_input/run.sh"
+
+[tasks."test:app-runner-failure"]
+description = "Actual failed Runner recovery, ordered local replay, and strict controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_runner_failure.sh"
+
+[tasks."test:app-suspend-journal"]
+description = "Actual App normal suspend preserves channel-admitted signed writes through loop completion and journal replay; three compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_suspend_journal.sh"
+
+[tasks."test:app-boot-admission"]
+description = "Actual retained network boot isolates earlier Writer work from continuing App submissions; two compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_boot_admission.sh"
+
+[tasks."test:writer-checkpoint"]
+description = "One real checkpoint attempt per writer turn, selected signed write service, and recursive control"
+depends = ["crypto"]
+run = "bash tests/engine/writer_checkpoint.sh"
+
+[tasks."test:writer-job-retry"]
+description = "Real SQLite retry ownership, empty maintenance admission and OS diagnostic errors; nine compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/writer_job_retry.sh"

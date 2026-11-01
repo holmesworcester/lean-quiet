@@ -80,6 +80,11 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:reader-prune
   mise run test:reader-claim
   mise run test:writer-fairness
+  mise run test:writer-checkpoint
+  mise run test:writer-job-retry
+  mise run test:app-runner-failure
+  mise run test:app-suspend-journal
+  mise run test:app-boot-admission
   mise run test:expiry-grace
   mise run test:close-ingress
   mise run test:demand-rank
