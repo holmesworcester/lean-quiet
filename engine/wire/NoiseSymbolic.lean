@@ -93,8 +93,6 @@ Laws:
   secrets the attacker forges an accepted message under any `O`, even
   one with no honest calls, so the laws fail when their hypotheses do.
   All four are non-injective: a call in `O` can be replayed.
-  `exposed_parts`: the attackers of `kk_secret` and
-  `kk_forward_secret` meet their hypothesis.
 - `read1Slip_forged`, a mutation control: `read1` with `ss` taken from
   the initiator's ephemeral instead of its static accepts a message 1
   the attacker writes with no honest calls, so `kk_authentic_resp`
@@ -1025,12 +1023,6 @@ theorem kk_authentic_resp (hK : ∀ t, K t → Clean S t)
   intro st re h1
   obtain ⟨e, -, ho, hw⟩ := kk_agree_resp hK hK2 hI hR h1 hm1
   exact no_request _ _ ho ⟨e, pro, st, hw, rfl⟩
-
-/-- An attacker that starts from names and public keys holds no
-ciphertext, so the authentication laws apply to it. -/
-theorem exposed_parts {t : T} (h : Exposed S t) {k ad p : T} {n : Nat}
-    (hp : Part (.aead k n ad p) t) : Clean S k := by
-  rcases h with ⟨i, rfl, -⟩ | ⟨x, rfl⟩ <;> cases hp
 
 /-- **The initiator's authentication needs its secrets.** If the
 attacker knows `sR`'s static, or both `sI`'s and the ephemeral `e`, it

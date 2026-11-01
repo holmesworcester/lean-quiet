@@ -59,13 +59,13 @@ The tree is on disk: [OP_TREE.txt](OP_TREE.txt) lists every folder and file, wit
 app/            the root: the node's registry (Family.lean), the node's hooks and the app's live data (Commands.lean), the app (Screen.lean), laws over both (Proofs.lean)
   community/    the root op and its family; under it name/, profile/, key/wrap/, device/, member/, channel/message/
   connection/   the handshake and sessions: eph, request, opened, connection, established, send, recv, given
-  nav/          planned: navigation as an ephemeral op
+  nav/          where this window is: an ephemeral op in the app's in-memory log
   settings/     this device's preferences, each a local op: appearance/
 engine/         what holds for every op type, sync and the Merkle tree among it
 platforms/      the shells and the headless twin
 ```
 
-Planned ops (`channel`, `draft`, `emoji`, `nav`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
+Planned ops (`channel`, `emoji`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
 
 ### Recorded exceptions
 

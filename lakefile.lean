@@ -67,6 +67,9 @@ lean_lib Pic where
 @[default_target] lean_lib Settings where
   globs := #[.submodules `app.settings]
 
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
+
 @[default_target] lean_lib Node where
   roots := #[`app.Family, `app.Commands]
 
@@ -529,6 +532,9 @@ lean_exe vacuity_contracts where
 
 lean_exe vacuity_crypto_trust where
   root := `tests.vacuity.CryptoTrustMain
+
+lean_exe vacuity_store_trust where
+  root := `tests.vacuity.StoreTrustMain
 
 lean_exe vacuity_identity_lifecycle where
   root := `tests.vacuity.IdentityLifecycleMain
