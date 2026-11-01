@@ -3576,7 +3576,7 @@ theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (c
     (post c adm d k t n tm cl).reqs.length ≤ 3 := by
   cases cl <;> simp [post]
 
-theorem attach_reqs (c adm msg : Id) (d : Device) (k : ByteArray) (f : NewFile) :
+theorem attach_reqs (c adm msg : Id) (d : Device) (k : Key32) (f : NewFile) :
     (attach c adm msg d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg d k f).2, o.reqs.length = 2 := by
   refine ⟨rfl, fun o ho => ?_⟩
   simp only [attach, List.mem_map] at ho
@@ -3613,7 +3613,7 @@ macro "authored" : tactic => `(tactic| (
   try subst ho
   try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt, approve, admit, wrapKey, wrap]))
 
-theorem nodeKeyOr_authored (fresh : ByteArray) :
+theorem nodeKeyOr_authored (fresh : Key32) :
     Always (fun p : Key × List Op => ∀ o ∈ p.2, o.reqs.length ≤ maxReqs) (nodeKeyOr fresh) := by
   unfold nodeKeyOr
   refine always_bind_all (fun k => ?_) _
@@ -3621,7 +3621,7 @@ theorem nodeKeyOr_authored (fresh : ByteArray) :
   | some p => simp [Always]
   | none => simp [Always, endpoint, maxReqs]
 
-theorem found_authored (seed nm my : ByteArray) (tm : Nat) (k esk fresh : ByteArray) :
+theorem found_authored (seed nm my : ByteArray) (tm : Nat) (k esk fresh : Key32) :
     Always Authored (found seed nm my tm k esk fresh) := by
   unfold found
   refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
@@ -3651,7 +3651,7 @@ theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List Byt
     simp only [List.mem_cons, List.not_mem_nil, or_false] at ho
     subst ho; simp [issue, invite, maxReqs]
 
-theorem join_authored (i : Invite) (seed nm fresh : ByteArray) : Always Authored (join i seed nm fresh) := by
+theorem join_authored (i : Invite) (seed nm : ByteArray) (fresh : Key32) : Always Authored (join i seed nm fresh) := by
   unfold join
   refine always_bind_all (fun held => ?_) _
   split
@@ -3726,7 +3726,7 @@ theorem receiptFor_authored (o : Op) :
           simp [receipt, maxReqs]
     · simp
 
-theorem send_authored (c a : Id) (d : Device) (k nonce t : ByteArray) (now : Nat) (files : List NewFile) :
+theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t : ByteArray) (now : Nat) (files : List NewFile) :
     Always Authored (send c a d k nonce t now files) := by
   unfold send
   refine always_bind_all (fun cl => always_bind_all (fun n => ?_) _) _
@@ -3734,7 +3734,7 @@ theorem send_authored (c a : Id) (d : Device) (k nonce t : ByteArray) (now : Nat
   intro o ho
   simp only [List.mem_cons, List.mem_append, List.mem_flatMap] at ho
   rcases ho with (rfl | ho) | ⟨f, _, ho⟩
-  · have := post_reqs_le c a d (kidOf cryptoSeal k) (nonce ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) t)
+  · have := post_reqs_le c a d (kidOf cryptoSeal k) (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) t)
       (min (n + 1) countCap) now cl
     simp only [sealedPost]; rw [maxReqs_eq]; omega
   · exact hr o ho
