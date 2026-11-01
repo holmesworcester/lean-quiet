@@ -35,6 +35,24 @@ its corollary (`Plain.converge`, `Plain.offline`).
 - **Link.lean**: the hops at a delivery (`deliver_wants`,
   `deliver_queues`, `deliver_takes`): what the step does at the node the
   packet reaches, and what it puts in flight back.
+- **Chain.lean**: the hops over time, from timely delivery:
+  - `op_hop`: an op in flight is held at the far end within Δ;
+  - `want_to_op`: a want in flight gets its op across within 2Δ, or the
+    id waits in the holder's queue;
+  - `write_hop`: a write's have is in flight at once.
+- **Drain.lean**: the queue drains in ticks.
+  - `drain`: at its holder, an id waiting at position p goes out to the
+    peer within (p + 1) · τ. This is main's `ServiceRun.eventually_emitted`,
+    embedded in the n-node execution with its time bound.
+  - It holds over every World step (`step_waits`) and the real tick loop
+    (`onTick_moves`).
+  - `want_delivers`: want_to_op, then drain, then op_hop.
+- **InvOwed.lean, InvIx.lean, Inv.lean**: node invariants over every
+  execution: `managed_nil`, `owes_queued_start`, `ix_covers_start`,
+  `owed_bounded_start` (queues hold at most `maxKnown` ids).
+- **Send.lean**: `want_reaches`, the want → op half with every node
+  invariant discharged by the running node. Within 3Δ + maxKnown · τ of
+  the want's sending, the far end holds the op.
 
 ## Premises the laws take, and why
 
@@ -44,7 +62,13 @@ its corollary (`Plain.converge`, `Plain.offline`).
 - **Queue room**: the session's queue has room for every id the frame
   wants (`owed + Σ wantsOf ≤ maxKnown`), and owes nothing outside it.
 - **The index lists the op** (H2's `authorize` reads the index, not the
-  store). Being discharged as a World invariant (index ⊇ store).
+  store). Discharged: `ix_covers_start`.
+- **The session's frames come from its peer:** discharged. A frame on a
+  session sets the holder's address for it to the frame's sender
+  (`onSealed_waits`), and the link keeps that address the peer's.
+- **The session stays open at both ends, and nobody reopens its id at the
+  holder.** This is a premise of the link; holmes-71's session forms
+  (redial) are to discharge it for the Connection hooks.
 - **No hash collision** among the ops a frame and the store carry.
 - **S1, trusted transport** (approved by the lead): no loss without a
   close, and no duplicates; order is arbitrary, since lanes reorder.
@@ -70,8 +94,8 @@ its corollary (`Plain.converge`, `Plain.offline`).
 | Gap | What closes it |
 |---|---|
 | Sessions from the harness's `connect`, frames in the clear, fixed rooms | The n-node World with the Connection hooks (sealed sessions, the handshake, rooms from the store): holmes-71's session forms, stated over this World's `Net`/`Live`, discharge `Net.Admits.redial` and `Carries` |
-| `Edge` not yet discharged | Chain the hops over time (timely delivery), the queue's drain at ticks, the reconnect/safety round (item 2's live-round law, fd/live-rounds) |
-| Index ⊇ store, owing ⊆ owed (premises) | World invariants over every execution (in progress) |
+| `Edge` not yet discharged | Send half: want → op is proven (`want_reaches`); have → want waits on S3 (approved; lands on fd/refusal with refusal feedback and the onWant-skips-known dedup). Connect half: item 2's live-round law (fd/live-rounds), after it lands |
+| Ops over the intake cap (item 5) | Laws gain `o.capped = true` once item 5 lands |
 | No catalog sweep in the plain World | The Connection hooks' catalog; not on the per-link path |
 | Purge | Never runs in the plain World (its hooks give no secrets or couriers); purges take only room-less ops, so `grows` holds with them too |
 | TCP and the runner | S1 as an assumption, audited against Tcp.lean (status-3.md, "S1 transport audit") |
