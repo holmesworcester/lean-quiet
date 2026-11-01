@@ -1,4 +1,5 @@
 import engine.renderer.FrameTimes
+import engine.renderer.Scrollbar
 import engine.core.Query
 import engine.renderer.Platform
 import engine.renderer.Row
@@ -830,6 +831,12 @@ inductive Want where
   bounded window API; membership comes from signed op references. -/
   | clumps (c : Id) (root : Option Id) (anchor : Option Pos) (above below : Nat)
   | clumpCount (c : Id) (root : Option Id) (anchor : Option Pos)
+  /-- The position of c's root at rank q, counting from the newest (0 is
+  the newest): the one with q roots newer than it (a rank past the
+  oldest answers the oldest; none while there are no roots). Found by
+  bisecting the counter, with the counts the reader already serves
+  (`readRank`), so a scrollbar drag can anchor the window there. -/
+  | rankPos (c : Id) (q : Nat)
   /-- Message m's own fact and content key (Kinds.Message.readOwn). -/
   | row (c me m : Id)
   | author (c user : Id)
@@ -906,6 +913,8 @@ inductive Val where
   | window (ids : Array Pos) (newerRows : Nat)
   /-- The counts beside the anchor: newer than it, and at or older. -/
   | count (newer older : Nat)
+  /-- The position `rankPos` found. -/
+  | pos (p : Option Pos)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
   | author (name : String) (namesake : Bool)
@@ -1031,7 +1040,7 @@ def Want.need (w : Want) : Demand.Need Want :=
   { key := w, owner := match w with
       | .row c _ m => ["community".toUTF8, c, "message".toUTF8, m]
       | _ => ["page".toUTF8],
-    visible := match w with | .count .. | .clumpCount .. | .people .. | .members .. => false | _ => true }
+    visible := match w with | .count .. | .clumpCount .. | .rankPos .. | .people .. | .members .. => false | _ => true }
 
 def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := sh.setNeeds (ws.map Want.need)
 
@@ -1074,6 +1083,36 @@ def readWindow (view : ListView) (anchor : Option Pos) (above below : Nat) : RM 
     let (n, deps) ← readView (view (some below) false (some p) none) deps
     return (.window ((n.rows.reverse ++ o.rows).map (·.1)).toArray n.rows.length, deps)
 
+/-- A message key as a number: its bytes, big-endian (`msgKey`: the
+counter in the first eight, then the time). -/
+def keyNat (k : ByteArray) : Nat :=
+  k.toList.foldl (fun a b => a * 256 + b.toNat) 0
+
+/-- A key of sixteen bytes holding `v`: the position a count about it is
+counted from (a root's own key when `v` is its `keyNat`). -/
+def natKey (v : Nat) : Pos := (be64 (v / 2 ^ 64) ++ be64 (v % 2 ^ 64), ByteArray.empty)
+
+/-- The rank-q root's position: its key `v` is the largest with at least
+q+1 roots at `v` or newer, bisected between 0 and the newest root's key
+(at most 128 counts, the reader's own), and the root is the oldest at `v`
+or newer. Keys tie only at the same counter, time and id. -/
+def readRank (view : ListView) (q : Nat) : RM (Val × Array Q) := do
+  let (top, d0) ← readView (view (some 1) true none none) #[]
+  let some ((k, _), _) := top.rows.head? | return (.pos none, d0)
+  let mut deps := d0
+  let mut lo := 0
+  let mut hi := keyNat k
+  let total := (← readView (view (some 0) true none none) #[]).1.total
+  let q := min q (total - 1)
+  for _ in [0:128] do
+    if lo < hi then
+      let mid := (lo + hi + 1) / 2
+      let (n, d) ← readView (view (some 0) true (some (natKey mid)) none) deps
+      deps := d
+      if n.inRange ≥ q + 1 then lo := mid else hi := mid - 1
+  let (one, d1) ← readView (view (some 1) false (some (natKey lo)) none) deps
+  return (.pos (one.rows.head?.map (·.1)), d1)
+
 def readCounts (view : ListView) (anchor : Option Pos) : RM (Val × Array Q) := do
   let (n, deps) ← readView (view (some 0) true anchor none) #[]
   return (match anchor with
@@ -1090,6 +1129,8 @@ def eval : Want → RM (Val × Array Q)
     readWindow (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor above below
   | .clumpCount c root anchor =>
     readCounts (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor
+  | .rankPos c q =>
+    readRank (fun limit desc after before => Community.readableClumps c none limit desc after before) q
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }
@@ -2343,6 +2384,11 @@ removal is not announced again. -/
   mark : Option (Id × Nat) := none
   restoreAnchor : Bool := false
   restorePos : Option Pos := none
+  /-- A scrollbar seek: the rank (messages newer than the screen's bottom
+  edge) being sought, and whether the window is anchored there yet. The
+  thumb is drawn at it meanwhile (Desktop.scrollbar), so a drag shows
+  where it will land, not where the window still is. -/
+  seek : Option (Nat × Bool) := none
   drafts : List (Id × String × List ByteArray) := []
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []
@@ -3974,7 +4020,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, seek := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none, ownSends := {}, presenting := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
@@ -5293,8 +5339,24 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   if s.restoreAnchor then
     if let some (x, _) := s.mark then
       discard <| query ⟨["community".toUTF8, s.me.c, "restore".toUTF8, x], true⟩ (.row s.me.c s.me.adm x)
+  if let some (q, false) := s.seek then
+    discard <| query ⟨["community".toUTF8, s.me.c, "rank".toUTF8], false⟩ (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1))
   readerPass
   let bd ← takeBoard
+  -- a seek's answer anchors the window at that root, as a restored
+  -- position does, its top at the screen's bottom edge: the rank before
+  -- the one sought, so the sought rank is below the screen; the seek ends
+  -- once the row has been placed
+  if let some (q, arrived) := s.seek then
+    if !arrived then
+      match bd.get? (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1)) with
+      | some (.pos (some p), _) =>
+        modify fun s => { s with
+          seek := some (q, true), anchor := some p, mark := some (p.2, 0),
+          restoreAnchor := true, restorePos := some p }
+      | some (.pos none, _) => modify fun s => { s with seek := none }
+      | _ => pure ()
+    else if !s.restoreAnchor then modify fun s => { s with seek := none }
   if let some (.count _ n, _) := bd.get? (.count s.me.c none) then
     modify fun s => { s with total := n }
   let fresh := match bd.get? idsW with
