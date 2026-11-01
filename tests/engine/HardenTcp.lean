@@ -7,10 +7,27 @@ import tests.engine.HardenLib
 
 open Engine Engine.Sync Tests Harden Std.Async Std.Net
 
+/-- A store on disk for a runner, and a second connection to it for this
+test's own reads. SQLite is built `SQLITE_THREADSAFE 2`: a connection
+belongs to one thread at a time, and a runner's to its loop. Reading the
+runner's own connection from the test's thread while the loop runs (as
+this test did, through `keysGone`) races the loop's statements, and
+crashed in `sqlite3_prepare_v2` (2 engine runs in 3 under load). -/
+def store (name : String) : IO (Db × Db) := do
+  IO.FS.createDirAll "out/harden-tcp"
+  let path := s!"out/harden-tcp/{name}.db"
+  for suffix in ["", "-wal", "-shm", "-journal"] do
+    if ← System.FilePath.pathExists (path ++ suffix) then IO.FS.removeFile (path ++ suffix)
+  let db ← Db.openAt path
+  -- As fast as the in-memory stores the timings were set for: no fsync,
+  -- and WAL, so the test's reads never wait on the runner's writes.
+  db.exec "PRAGMA journal_mode=WAL; PRAGMA synchronous=OFF;"
+  return (db, ← Db.openAt path)
+
 def main : IO UInt32 := do
   let t ← Checks.new
-  let da ← Db.openAt ":memory:"
-  let db ← Db.openAt ":memory:"
+  let (da, ca) ← store "a"
+  let (db, cb) ← store "b"
   seed da; seed db
   let opened ← IO.mkRef (0 : Nat)
   let remote ← IO.mkRef (none : Option ByteArray)
@@ -32,12 +49,12 @@ def main : IO UInt32 := do
   for _ in [0:200] do
     if (← opened.get) > 0 then break
     IO.sleep 10
-  t.ok "TCP peers retain keys while live" (!(← keysGone da) && !(← keysGone db))
+  t.ok "TCP peers retain keys while live" (!(← keysGone ca) && !(← keysGone cb))
   t.ok "TCP peer receives a session frame" ((← opened.get) > 0)
   ra.stop
   let mut gone := false
   for _ in [0:200] do
-    if ← keysGone db then
+    if ← keysGone cb then
       gone := true
       break
     IO.sleep 10
@@ -72,8 +89,8 @@ def main : IO UInt32 := do
   -- never dials A: with a second socket, each session's address would
   -- follow its last frame (`Node.setAddr`), and retiring one could close
   -- the other's socket (1 run in 100 failed "still flow" so).
-  let da2 ← Db.openAt ":memory:"
-  let db2 ← Db.openAt ":memory:"
+  let (da2, ca2) ← store "a2"
+  let (db2, cb2) ← store "b2"
   seed da2; seed2 da2; seed db2; seed2 db2
   let fast : Config := { every := 200 }
   let retire ← IO.mkRef false
@@ -112,9 +129,9 @@ def main : IO UInt32 := do
   t.ok "two sessions share one socket" ((← seen2.get) > 0)
   retire.modify (fun _ => true)
   for _ in [0:300] do
-    if ← keysGone da2 then break
+    if ← keysGone ca2 then break
     IO.sleep 10
-  t.ok "retiring one session of a shared socket purges its keys" (← keysGone da2)
+  t.ok "retiring one session of a shared socket purges its keys" (← keysGone ca2)
   let before ← seen2.get
   let mut flowed := false
   for _ in [0:300] do
@@ -123,11 +140,11 @@ def main : IO UInt32 := do
       break
     IO.sleep 10
   t.ok "the other session's frames still flow on the shared socket" flowed
-  t.ok "the other session keeps its keys on both ends" (!(← keysGone2 da2) && !(← keysGone2 db2))
+  t.ok "the other session keeps its keys on both ends" (!(← keysGone2 ca2) && !(← keysGone2 cb2))
   ra2.stop
   let mut ended := false
   for _ in [0:300] do
-    if (← keysGone db2) && (← keysGone2 db2) then
+    if (← keysGone cb2) && (← keysGone2 cb2) then
       ended := true
       break
     IO.sleep 10
