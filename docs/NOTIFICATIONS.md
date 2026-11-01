@@ -257,7 +257,7 @@ The `notify` test checks that the message is then wholly on screen, with
 
 ## Sync in the background
 
-`St.keepSync` is the setting. It is saved in checkpoint slot 15, and
+`St.keepSync` is the setting. It is saved in checkpoint slot 14, and
 `St.canKeep` is whether the platform has the service.
 - **One guard.** `St.syncs` is `active && surface || keepSync`. It is the
   single guard of `netStep`, `flushNode` and `resumeReader` (`syncs_kept`,
