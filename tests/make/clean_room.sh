@@ -27,6 +27,7 @@ export TMPDIR=${TMPDIR:-/tmp}
 images=("$@")
 [ ${#images[@]} -gt 0 ] || images=(ubuntu:24.04 ubuntu:22.04 debian:12)
 cpus=${CLEAN_ROOM_CPUS:-8} mem=${CLEAN_ROOM_MEMORY:-24g}
+base=${CLEAN_ROOM_SLOT:-0}  # which block of CPUs a run starts at, so two runs can share the box
 logs=$top/out/make/clean-room
 mkdir -p "$logs"
 w=$(mktemp -d "$TMPDIR/lq-clean-room.XXXXXX")
@@ -71,7 +72,7 @@ one() {
   rm -rf "$dir"; mkdir -p "$dir"
   echo "$name" >> "$names"
   echo "clean-room: $image (container $name, $cpus CPUs, $mem)"
-  docker run --rm --name "$name" --cpuset-cpus "$((slot * cpus))-$((slot * cpus + cpus - 1))" \
+  docker run --rm --name "$name" --cpuset-cpus "$(((base + slot) * cpus))-$(((base + slot) * cpus + cpus - 1))" \
     --memory "$mem" --memory-swap "$mem" \
     -e ASSETS_URL="$url" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -e VERIFY="${VERIFY:-0}" \
     ${VERIFY:+$([ "$VERIFY" = 1 ] && echo --privileged)} \

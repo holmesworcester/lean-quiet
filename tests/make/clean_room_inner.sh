@@ -35,6 +35,8 @@ export DEBIAN_FRONTEND=noninteractive
   > "$out/setup.log" 2>&1 || die "the test's own packages did not install (setup.log)"
 rm -rf /var/lib/apt/lists/*
 useradd -m -s /bin/bash judge
+# what systemd-logind makes on a judge's machine (Lake's sandbox mounts over it)
+mkdir -p /run/user
 echo 'judge ALL=(ALL) NOPASSWD:ALL' > /etc/sudoers.d/judge
 su - judge -c 'git clone -q /srv/repo.bundle lean-quiet' > "$out/clone.log" 2>&1 || die "git clone failed"
 echo "commit=$(su - judge -c 'git -C lean-quiet rev-parse --short HEAD')" >> "$res"

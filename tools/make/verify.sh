@@ -27,6 +27,10 @@ fi
 [ -f comparator.json ] || die "no comparator.json in $top: lake comparator has no challenge to judge"
 command -v bwrap >/dev/null 2>&1 ||
   die "lake check and lake comparator sandbox the project with bubblewrap: sudo apt-get install bubblewrap"
+# Lake's sandbox mounts a tmpfs over /run/user, so it must exist (systemd
+# makes it on every login; a bare container may not have it).
+[ -d /run/user ] ||
+  die "lake check and lake comparator's sandbox needs the directory /run/user (systemd makes it at login): sudo mkdir -p /run/user"
 
 fail=
 say "lake check (Lean $v): the default targets through the kernel, standard axioms only"
