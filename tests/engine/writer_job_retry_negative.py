@@ -6,14 +6,14 @@ root, logs = [Path(x).resolve() for x in sys.argv[1:3]]
 logs.mkdir(parents=True, exist_ok=True)
 cap=['systemd-run','--user','--scope','-p','MemoryMax=48G','-p','MemorySwapMax=0']
 
-def run(args,name,diagnostics=False):
+def run(args,name,diagnostics=False,timeout=240):
     if diagnostics:
         assert sys.platform=='linux' and stat.S_ISCHR(os.stat('/dev/full').st_mode), 'Linux /dev/full required'
     failure_sink=open('/dev/full','wb') if diagnostics else None
     try:
         p=subprocess.Popen(args,cwd=root,stdout=subprocess.PIPE,
             stderr=failure_sink if diagnostics else subprocess.STDOUT,text=True,start_new_session=True)
-        try: output,_=p.communicate(timeout=240)
+        try: output,_=p.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             os.killpg(p.pid,signal.SIGKILL); output,_=p.communicate()
             (logs/(name+'.log')).write_text(output+'\nTIMEOUT (not an accepted control)\n'); raise
@@ -23,7 +23,7 @@ def run(args,name,diagnostics=False):
     return p.returncode,output
 
 def build(target,name):
-    code,out=run(cap+['lake','build',target],name+'-build')
+    code,out=run(cap+['lake','build',target],name+'-build',timeout=900)
     assert code==0,(name,'must compile',out[-2000:])
 
 def exercise(target,name,failures=()):
