@@ -31,6 +31,25 @@ theorem completionWitness : ∃ frame : UInt64,
     some 4294967297 = some frame :=
   Presentation.acknowledge_matches _ _ _ (by rfl)
 
+def exactReceipt (candidate : UInt64 × Id) : Bool :=
+  Presentation.acknowledge (some candidate) (some 4294967299) == some (exampleEntry 1).message.2
+
+theorem priorReceiptWitness : Presentation.transition exactReceipt
+    (some (4294967299, (exampleEntry 1).message.2))
+    (some (4294967300, (exampleEntry 2).message.2)) false = (true, none) :=
+  Presentation.transition_prior _ _ _ _ (by decide)
+
+theorem refusedReceiptWitness : Presentation.transition exactReceipt
+    (some (4294967298, (exampleEntry 1).message.2))
+    (some (4294967299, (exampleEntry 1).message.2)) false =
+    (false, some (4294967298, (exampleEntry 1).message.2)) :=
+  Presentation.transition_rejected _ _ _ (by decide)
+
+theorem receiptSoundWitness :
+    (some (4294967299, (exampleEntry 1).message.2)).any exactReceipt = true ∨
+    false = true ∧ (some (4294967300, (exampleEntry 2).message.2)).any exactReceipt = true :=
+  Presentation.transition_sound _ _ _ false (congrArg Prod.fst priorReceiptWitness)
+
 
 def await (what : String) (ready : IO Bool) : IO Unit := do
   let deadline := (← IO.monoMsNow) + 10000
@@ -149,8 +168,12 @@ def run (ck : Checks) : IO Unit := do
       ((← get).ownSends.entries.map (·.message.2) == ids &&
        (← get).presenting.any (fun p => p.frame == 4294967299))
     let before ← sm.frames.get
-    sm.raw.set #[20, 1, 4, 1, 0, 0, 0, 0, 21, 0, 1, 0, 3, 1, 0, 0]
+    -- Native allocation/identity exhaustion can refuse this publication
+    -- while still returning the preceding publication's successful receipt.
+    sm.raw.set #[20, 0, 3, 1, 0, 0, 0, 0, 21, 0, 1, 0, 3, 1, 0, 0]
     discard <| present (listFrame shown shown.b (bottoms shown).1) shown.b false
+    ck.ok "a refused new publication consumes the exact prior native completion in one presentation step"
+      ((← get).ownSends.entries.map (·.message.2) == ids.tail && (← get).presenting.isNone)
     ck.ok "the actual visible committed frame removes only the FIFO head"
       ((← sm.frames.get) > before && (← get).ownSends.entries.map (·.message.2) == ids.tail)
     let mut order := [first.message.2]

@@ -1406,6 +1406,9 @@ end cost
 #print axioms App.Presentation.offer_append
 #print axioms App.Presentation.offer_full
 #print axioms App.Presentation.acknowledge_matches
+#print axioms App.Presentation.transition_prior
+#print axioms App.Presentation.transition_rejected
+#print axioms App.Presentation.transition_sound
 
 #print axioms Data.WriterQueue.push_local
 #print axioms Data.WriterQueue.push_background

@@ -63,8 +63,12 @@ cases = [
         ("app/Screen.lean", "if visible && committed && drawn then", "if committed then"),
     ], "FAIL: a real native frame containing blank pixels does not acknowledge the message"),
     ("presentation-rejected", "component_demand", [
-        ("app/Screen.lean", "if published && s.page == .chat && s.sheet.isNone then", "if s.page == .chat && s.sheet.isNone then"),
+        ("app/Screen.lean", "let published := result.accepted", "let published := true"),
     ], "FAIL: a native rejected publication cannot acknowledge otherwise visible body pixels"),
+    ("presentation-receipt-needs-new-frame", "component_demand", [
+        ("app/Screen.lean", "if s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then",
+         "if published && s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then"),
+    ], "FAIL: a refused new publication consumes the exact prior native completion in one presentation step"),
     ("presentation-loses-ancestors", "component_demand", [
         ("app/Screen.lean", "Reader.judgeWrite s.rd s.out w", "Reader.judgeWrite s.rd #[] w"),
     ], "FAIL: eight sequential signed sends enter a bounded FIFO while their first ancestor is uncommitted"),
