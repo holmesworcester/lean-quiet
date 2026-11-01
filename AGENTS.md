@@ -23,9 +23,8 @@ classes every law as wired, World, control, step or model, and fails on a
 model law that `tests/wiring-models.txt` does not list. A step is a lemma
 that would be a model, but that a law about running code uses in its
 proof; the check finds the use, and a README row that cites a step must
-cite that law too. That list holds the
-model laws there were when the rule was made (2026-11-01). It only
-shrinks: the check fails while it names a law that is no longer a model
+cite that law too. `tests/wiring-models.txt` holds the model laws there
+were when the rule was made (2026-11-01). It only shrinks: the check fails while it names a law that is no longer a model
 (delete the line: `ci/proof-links.py --prune`), and on a line the merge
 base with origin/main did not have. Never add a line to it.
 
