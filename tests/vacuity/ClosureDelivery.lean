@@ -92,7 +92,7 @@ theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
     have h := write_log_subset sync (receiver n).1 (receiver n).2 (intake fam false (incoming n)) ho
     rcases List.mem_append.mp h with h | h
     · exact ih h
-    · exact incoming_source n (List.mem_filter.mp h).1
+    · exact incoming_source n (intake_sub fam h)
 
 def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1

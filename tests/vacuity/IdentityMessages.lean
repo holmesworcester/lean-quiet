@@ -90,7 +90,7 @@ theorem fed : Fed (family ed25519) [mySecret] fedStore :=
 
 def intakeLocal := if hl : (family ed25519).room mySecret = none then
   some (PLift.up (intake_local (family ed25519) (mine := true) (ops := [mySecret])
-    (by simp [intake]) hl)) else none
+    (by simp [intake, Op.capped, mySecret, secret, maxReqs]) hl)) else none
 
 def storedLocal := if hx : fedStore.ops mySecret.id = some mySecret then
   if hl : (family ed25519).room mySecret = none then

@@ -354,7 +354,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1363 rest on Lean's standard axioms only, and about two thirds of its theorems (995 of 1340, not counting 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1392 rest on Lean's standard axioms only, and about two thirds of its theorems (1020 of 1369, not counting 23 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -474,16 +474,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**995 of 1340 laws are about running code;** another 22 run its node code in a World, and 323 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1020 of 1369 laws are about running code;** another 22 run its node code in a World, and 327 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 194 | 138 |  | 56 |
+| Engine | 207 | 149 |  | 58 |
 | Sync | 243 | 188 |  | 55 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 201 | 135 | 16 | 50 |
-| Connections | 26 | 22 |  | 4 |
-| Community | 217 | 172 |  | 45 |
+| Connections | 28 | 24 |  | 4 |
+| Community | 231 | 184 |  | 47 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 284 | 222 |  | 62 |
@@ -512,6 +512,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
 | `Seal.maxAssociatedDataSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
 | `Seal.maxPlaintextSize` | [`unbox_box`]*†, [`openBody_sealBody`]*, [`openSealed_seal`]*†, [`member_opens`]*† | Nothing that runs calls it. |
+| `Community.reactTo` | [`reactTo_authored`] | Nothing that runs calls it. |
+| `Community.rename` | [`rename_authored`] | Nothing that runs calls it. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
 | `Execution.World.peer` | [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`], [`world_step_unique`], [`world_trace_unique`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it; `Connection.Execution.World.run` do. |
 | `Execution.empty` | [`empty_trace_store`], [`empty_trace_history`], [`empty_trace_unique`], [`unique`] | Nothing that runs calls it. |
@@ -598,7 +600,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +50 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +52 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -611,7 +613,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). |
 | [`Seal.Good`] | 4 | Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 401 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 407 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1231,10 +1233,10 @@ opportunities and full native delivery remain open.
 [`kk_secret_init_tight`]: engine/wire/NoiseSymbolic.lean#L621-L630
 [`kk_runs`]: engine/wire/NoiseSymbolic.lean#L309-L317
 [`handshake_agrees`]: engine/wire/Noise.lean#L356-L370
-[`close_forgets`]: app/Proofs.lean#L3835-L3847
-[`purge_forgets`]: app/Proofs.lean#L3810-L3814
-[`retired_complete`]: app/Proofs.lean#L3861-L3867
-[`forget_stays`]: app/Proofs.lean#L3817-L3821
+[`close_forgets`]: app/Proofs.lean#L3840-L3852
+[`purge_forgets`]: app/Proofs.lean#L3815-L3819
+[`retired_complete`]: app/Proofs.lean#L3866-L3872
+[`forget_stays`]: app/Proofs.lean#L3822-L3826
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
 [`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: engine/sync/TimeLaws.lean#L22-L24
@@ -1253,7 +1255,7 @@ opportunities and full native delivery remain open.
 [`established_endpoint`]: app/Proofs.lean#L401-L414
 [`endpoint_signed`]: app/community/member/invite/request/Proofs.lean#L65-L72
 [`endpoint_derives`]: app/community/device/endpoint/Proofs.lean#L30-L32
-[`meV_node`]: app/connection/Proofs.lean#L220-L225
+[`meV_node`]: app/connection/Proofs.lean#L244-L249
 [`new_device_trusted`]: app/community/Proofs.lean#L881-L887
 [`connect_iff`]: app/community/Proofs.lean#L767-L771
 [`deviceLive_iff`]: app/community/Proofs.lean#L657-L661
@@ -1292,13 +1294,13 @@ opportunities and full native delivery remain open.
 [`no_connection_before_approval`]: app/community/Proofs.lean#L2876-L2883
 [`sessions_trusted`]: app/community/Proofs.lean#L2900-L2905
 [`bare_takes_only_join`]: app/Proofs.lean#L589-L601
-[`intake_local`]: engine/core/Sync.lean#L38-L40
-[`stored_local`]: engine/core/Sync.lean#L86-L89
+[`intake_local`]: engine/core/Sync.lean#L54-L56
+[`stored_local`]: engine/core/Sync.lean#L135-L138
 [`local_fact_mine`]: app/community/Family.lean#L1307-L1311
-[`intakeConn_conn`]: engine/core/Sync.lean#L33-L34
+[`intakeConn_conn`]: engine/core/Sync.lean#L49-L50
 [`established_agrees`]: app/Proofs.lean#L37-L51
-[`open_seal`]: app/connection/Proofs.lean#L480-L487
-[`cid_seal`]: app/connection/Proofs.lean#L511-L515
+[`open_seal`]: app/connection/Proofs.lean#L504-L511
+[`cid_seal`]: app/connection/Proofs.lean#L535-L539
 [`Codec.encode_decode`]: engine/core/Codec.lean#L773-L776
 [`Op.id_decode`]: engine/core/Core.lean#L91-L93
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
@@ -1317,8 +1319,8 @@ opportunities and full native delivery remain open.
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
-[`sealed_auth`]: app/connection/Proofs.lean#L127-L138
-[`openFrame_auth`]: app/connection/Proofs.lean#L79-L86
+[`sealed_auth`]: app/connection/Proofs.lean#L151-L162
+[`openFrame_auth`]: app/connection/Proofs.lean#L103-L110
 [`onFrame_sealed`]: engine/wire/NodeLaws.lean#L52-L58
 [`sealed_unopened`]: engine/wire/NodeLaws.lean#L67-L73
 [`buffer_bounded`]: engine/wire/Frame.lean#L213-L218
@@ -1372,10 +1374,10 @@ opportunities and full native delivery remain open.
 [`sum_project_node`]: app/connection/Family.lean#L616-L627
 [`spec_sum_left`]: engine/core/Project.lean#L195-L198
 [`view_proj`]: engine/core/Project.lean#L408-L411
-[`connect_iff_node`]: app/connection/Proofs.lean#L537-L542
-[`members_iff_node`]: app/connection/Proofs.lean#L443-L446
-[`recipients_iff_node`]: app/connection/Proofs.lean#L450-L454
-[`node_settles`]: app/connection/Proofs.lean#L458-L462
+[`connect_iff_node`]: app/connection/Proofs.lean#L561-L566
+[`members_iff_node`]: app/connection/Proofs.lean#L467-L470
+[`recipients_iff_node`]: app/connection/Proofs.lean#L474-L478
+[`node_settles`]: app/connection/Proofs.lean#L482-L486
 [`request_valid`]: app/community/member/invite/request/Proofs.lean#L47-L55
 [`approve_valid`]: app/community/member/invite/request/approve/Proofs.lean#L108-L116
 [`admit_admits`]: app/community/member/invite/request/approve/Proofs.lean#L124-L135
@@ -1389,14 +1391,14 @@ opportunities and full native delivery remain open.
 [`bootstrap`]: app/community/Proofs.lean#L3238-L3242
 [`bootstrap_possible`]: app/community/Proofs.lean#L3045-L3055
 [`reachable_inv`]: app/community/Proofs.lean#L2823-L2824
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1510-L1528
-[`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L242
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1456-L1468
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1513-L1531
+[`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L243
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1458-L1470
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L844-L861
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1475-L1481
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1477-L1483
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L891-L896
 [`write_offers`]: engine/wire/WorldLaws.lean#L520-L528
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1371-L1382
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1371-L1383
 [`hold_wants`]: engine/wire/WorldLaws.lean#L538-L545
 [`op_taken`]: engine/wire/WorldLaws.lean#L684-L691
 [`onWant_all`]: engine/sync/ServeLaws.lean#L309-L313
@@ -1423,8 +1425,8 @@ opportunities and full native delivery remain open.
 [`hot_ids`]: engine/wire/LaneLaws.lean#L498-L501
 [`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
 [`fresh_served`]: engine/wire/WorldLaws.lean#L631-L638
-[`write_hot`]: engine/wire/WorldLaws.lean#L1442-L1447
-[`onWrite_receives`]: app/Proofs.lean#L3170-L3178
+[`write_hot`]: engine/wire/WorldLaws.lean#L1444-L1449
+[`onWrite_receives`]: app/Proofs.lean#L3174-L3183
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
 [`Demand.complete_retired`]: engine/renderer/Demand.lean#L96-L97
 [`Demand.next_visible`]: engine/renderer/Demand.lean#L149-L151
@@ -1603,10 +1605,10 @@ opportunities and full native delivery remain open.
 [`Pic.layout_apart`]: engine/renderer/pic/Laws.lean#L147-L148
 [`world_trace_moves`]: app/Proofs.lean#L2948-L2950
 [`empty_trace_store`]: app/Proofs.lean#L2955-L2959
-[`world_trace_history`]: app/Proofs.lean#L3474-L3476
-[`empty_trace_history`]: app/Proofs.lean#L3482-L3486
-[`world_trace_unique`]: app/Proofs.lean#L4001-L4003
-[`empty_trace_unique`]: app/Proofs.lean#L4008-L4012
+[`world_trace_history`]: app/Proofs.lean#L3479-L3481
+[`empty_trace_history`]: app/Proofs.lean#L3487-L3491
+[`world_trace_unique`]: app/Proofs.lean#L4006-L4008
+[`empty_trace_unique`]: app/Proofs.lean#L4013-L4017
 [`run_count`]: app/Proofs.lean#L2557-L2558
 [`run_get`]: app/Proofs.lean#L2560-L2561
 [`run_view`]: app/Proofs.lean#L2563-L2564
@@ -1617,8 +1619,8 @@ opportunities and full native delivery remain open.
 [`production_step_reachable`]: app/Proofs.lean#L2886-L2888
 [`production_step_settled`]: app/Proofs.lean#L2891-L2896
 [`write_store_tape`]: app/Proofs.lean#L3107-L3111
-[`production_write_receives`]: app/Proofs.lean#L3184-L3189
-[`production_step_history`]: app/Proofs.lean#L3418-L3422
+[`production_write_receives`]: app/Proofs.lean#L3189-L3194
+[`production_step_history`]: app/Proofs.lean#L3423-L3427
 [`secrecy_runs`]: engine/sync/Witnesses.lean#L10-L14
 [`exchange_ids_stable`]: engine/sync/TreeLaws.lean#L163-L165
 [`exchange_log`]: engine/sync/TreeLaws.lean#L210-L221
@@ -1683,21 +1685,23 @@ opportunities and full native delivery remain open.
 [`absentFold_source`]: engine/sync/ClosureStore.lean#L74-L75
 [`absentFold_covers`]: engine/sync/ClosureStore.lean#L85-L89
 [`openBody_sealBody`]: app/community/Op.lean#L107-L111
-[`production_step_unique`]: app/Proofs.lean#L3939-L3943
+[`reactTo_authored`]: app/community/Proofs.lean#L3633-L3634
+[`rename_authored`]: app/community/Proofs.lean#L3639-L3640
+[`production_step_unique`]: app/Proofs.lean#L3944-L3948
 [`world_step_moves`]: app/Proofs.lean#L2910-L2913
 [`Run.shared_retained`]: app/Proofs.lean#L2967-L2973
-[`world_step_history`]: app/Proofs.lean#L3436-L3439
-[`history`]: app/Proofs.lean#L3494-L3499
-[`world_step_unique`]: app/Proofs.lean#L3958-L3962
-[`unique`]: app/Proofs.lean#L4016-L4020
+[`world_step_history`]: app/Proofs.lean#L3441-L3444
+[`history`]: app/Proofs.lean#L3499-L3504
+[`world_step_unique`]: app/Proofs.lean#L3963-L3967
+[`unique`]: app/Proofs.lean#L4021-L4025
 [`plan_stmt_cost`]: engine/core/Query.lean#L600-L603
 [`readPlan_cost`]: engine/core/Query.lean#L560-L565
 [`readPlan_cost_le`]: engine/core/Query.lean#L611-L616
 [`readPlan_cost_range`]: engine/core/Query.lean#L574-L577
 [`walks_le`]: engine/core/Query.lean#L586-L586
 [`held_run_observed`]: engine/sync/SweepRun.lean#L51-L55
-[`catalog_read`]: app/Proofs.lean#L3220-L3225
-[`ceiling_mono`]: app/Proofs.lean#L3230-L3232
+[`catalog_read`]: app/Proofs.lean#L3225-L3230
+[`ceiling_mono`]: app/Proofs.lean#L3235-L3237
 [`shared_log_turn`]: engine/sync/SharedLog.lean#L15-L17
 [`shared_log_purge`]: engine/sync/SharedLog.lean#L20-L25
 [`consumed_left`]: engine/wire/ExpiryGraceLaws.lean#L39-L39
@@ -1876,11 +1880,11 @@ opportunities and full native delivery remain open.
 [`NodeUnique.sweepAll_valid`]: engine/wire/NodeUniqueLaws.lean#L335-L338
 [`NodeUnique.step_valid`]: engine/wire/NodeUniqueLaws.lean#L495-L498
 [`NodeUnique.sql_step_valid`]: engine/wire/NodeUniqueLaws.lean#L506-L510
-[`Execution.production_step_unique`]: app/Proofs.lean#L3939-L3943
-[`Execution.world_step_unique`]: app/Proofs.lean#L3958-L3962
-[`Execution.world_trace_unique`]: app/Proofs.lean#L4001-L4003
-[`Execution.empty_trace_unique`]: app/Proofs.lean#L4008-L4012
-[`Execution.Run.unique`]: app/Proofs.lean#L4016-L4020
+[`Execution.production_step_unique`]: app/Proofs.lean#L3944-L3948
+[`Execution.world_step_unique`]: app/Proofs.lean#L3963-L3967
+[`Execution.world_trace_unique`]: app/Proofs.lean#L4006-L4008
+[`Execution.empty_trace_unique`]: app/Proofs.lean#L4013-L4017
+[`Execution.Run.unique`]: app/Proofs.lean#L4021-L4025
 <!-- /proof-links -->
 
 <!-- vacuity:begin -->
