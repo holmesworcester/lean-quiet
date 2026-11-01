@@ -123,8 +123,20 @@ def removedStays := applyLaw (certify after removeB (.removal c requestB.id c))
   (fun h => removed_stays (table_append_extends after [laterMessage])
     (show Removed ed25519 (table after) c requestB.id from ⟨removeB.id,c,h⟩))
 
+-- Alice's second device: her own approval of its device link's request,
+-- and its admission into her user (the founder's, c).
+def linkApproved := do
+  let ⟨hx⟩ ← certify linked linkApproval (.approval c requestA2.id c)
+  let ⟨hr⟩ ← certify linked requestA2 (.request c c alice2.pk (keyOf alice2) true)
+  return PLift.up (link_approved_by_issuer (keyed linked) hx hr)
+
+def linkAdmits := applyLaw (certify linked linkAdmission (.admission c c alice2.pk (keyOf alice2)))
+  (link_admits_issuer (keyed linked))
+
 def main : IO UInt32 := do
   let t ← Checks.new
+  t.ok "link_approved_by_issuer: Alice approves her second device's request" linkApproved.isSome
+  t.ok "link_admits_issuer: her second device is admitted into her user" linkAdmits.isSome
   t.ok "admission_needs_approval: non-founder Bob" admissionNeedsApproval.isSome
   t.ok "admission_approved: one distinct approver" admissionApproved.isSome
   t.ok "request_invited: both signatures and actual invitation" requestInvited.isSome
