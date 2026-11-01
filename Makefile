@@ -9,6 +9,7 @@
 #   make online    open the app with networking on, its own database
 #   make check     list what make install still needs; installs nothing
 #   make assets    only the app's assets
+#   make verify    lake check and lake comparator (they need Lean 4.35)
 #
 # The build stays in this folder (.lake, out, assets). ELAN_HOME, CARGO_HOME,
 # RUSTUP_HOME and TMPDIR are honoured if set; ARGS passes more arguments to
@@ -33,6 +34,11 @@ export TMPDIR ?= /tmp
 
 install run online check assets:
 	@$(PLATFORM) $@ $(ARGS)
+
+# Lean's checkers, on every platform: tools/make/verify.sh says what it needs.
+.PHONY: verify
+verify:
+	@tools/make/verify.sh
 
 help:
 	@sed -n '1,/^$$/{s/^# \{0,1\}//;p;}' Makefile

@@ -93,6 +93,17 @@ database. `make online` runs the app with networking (the phone TCP
 runner) and its own `out/make/quiet.db`. `ARGS` passes more arguments
 to the app.
 
+`make verify` runs `tools/make/verify.sh`: `lake check` (builds the
+default targets, replays them through the kernel, and fails on any axiom
+outside the standard ones) and then `lake comparator` (the root
+`comparator.json`: each named theorem of the solution proves the
+challenge's statement with only the permitted axioms). It runs both and
+fails if either fails. Both need Lean 4.35 or newer and run the project in
+a bubblewrap sandbox (Linux; `bubblewrap`, with unprivileged user
+namespaces allowed). With an older `lean-toolchain`, or without
+`comparator.json` or `bwrap`, it stops before checking anything and says
+which.
+
 Updating the assets tarball: `tools/make/assets.py check` fails when a
 change to the tree makes the published tarball stale (the Noto and CJK
 hashes in `tools/*.sha256`, the glyph and UI font stamps, or the scripts
@@ -113,12 +124,15 @@ bytes with the same zlib.
 | Task | Validation |
 | --- | --- |
 | `make:assets-test` | The assets step on made-up tarballs (no network): download, sha256 and per-file checks, repair, deterministic packing. Controls: a flipped bit, files that don't match the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail |
+| `make:verify-test` | `make verify` on this repository: while it builds with Lean below 4.35, refused with that reason. On a small Lean 4.35 project made by the test: passes; a solution proving a different statement, one resting on a new axiom, and a missing `comparator.json` must each fail |
 | `make:clean-room` | `make install && make run` from a git clone of `HEAD` in fresh `ubuntu:24.04`, `ubuntu:22.04` and `debian:12` containers, as a user with sudo: `make check` fails and names the packages; a timed cold `make install`; a second one that redoes nothing; under Xvfb, `make run` and then `make online` must each paint a window (a screenshot of the empty screen must fail that check), keep running, and stop on SIGTERM |
 
 The gate (`ci/local.sh`, before every push) runs `make:assets` (part
 `make:assets`, about a second): a change that makes the published tarball
 stale fails it until the tarball is packed and published again.
-`ci/local.sh --full` also runs `make:clean-room`. The clean room needs Docker and network access, and
+`ci/local.sh --full` also runs `make:clean-room` and `make:verify-test`
+(part `make:verify`, which needs the Lean 4.35.0 toolchain and
+bubblewrap). The clean room needs Docker and network access, and
 about 10 GB under Docker's root per image while it runs; each container
 gets 8 CPUs and 24 GB without swap (`CLEAN_ROOM_CPUS`,
 `CLEAN_ROOM_MEMORY`). It packs the tarball from `assets/` here, fails

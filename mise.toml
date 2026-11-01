@@ -212,6 +212,10 @@ run = "python3 platforms/linux/negative_links.py"
 description = "make install's assets step on made-up tarballs (file://): download, sha256 and per-file checks, repair, deterministic packing; controls: a flipped bit, files not matching the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail. No network"
 run = "tests/make/assets_test.sh"
 
+[tasks."make:verify-test"]
+description = "make verify: refused with its reason on this repository while it builds with Lean below 4.35; on a small Lean 4.35 project made here, lake check and lake comparator pass, and a solution proving a different statement, one resting on a new axiom, and a missing comparator.json each fail. Needs the Lean 4.35.0 toolchain and bubblewrap"
+run = "tests/make/verify_test.sh"
+
 [tasks."make:clean-room"]
 description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
 run = "tests/make/clean_room.sh"
