@@ -2259,6 +2259,38 @@ theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray)
   all_goals (try simp only [Always, pure_eq])
   all_goals exact ⟨up, hd.rows.head?.map (·.1.2), by simp⟩
 
+/-- **The remover cites at most 64 requirements**, whatever the store
+holds: four, then at most `maxHeads` chain heads, however many devices
+the target has. So the intake cap (64) refuses none of its writes. -/
+theorem removeMember_reqs_le (c t : Id) (d : Device) :
+    Always (fun w : Write => ∀ o ∈ w.ops, o.reqs.length ≤ 4 + maxHeads) (removeMember c t d) := by
+  unfold removeMember
+  refine always_bind fun _ => always_bind fun _ => always_bind fun _ => ?_
+  try simp only [Always]
+  split
+  · refine always_bind fun _ => ?_
+    try simp only [Always]
+    split
+    · refine always_bind ?_
+      refine always_of fun hs => ?_
+      refine fun o ho => ?_
+      simp only [] at ho
+      split at ho
+      · cases ho
+      · simp only [List.mem_singleton] at ho
+        subst ho
+        simp only [remove, mkOp, Op.make_reqs, List.length_append, List.length_cons, List.length_nil]
+        have := List.length_take_le maxHeads hs
+        omega
+    · intro o ho; cases ho
+  · intro o ho; cases ho
+
+/-- **An approval cites at most five requirements**: the community, the
+request, its approver's admission, `up` and `prev`. -/
+theorem approve_reqs_le (c req adm : Id) (d : Device) (up prev : Option Id) :
+    (approve c req adm d up prev).reqs.length ≤ 5 := by
+  cases up <;> cases prev <;> simp [approve, mkOp]
+
 /-- The mutant: an approval that wraps the key to every member's node
 key (each admission's). -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do

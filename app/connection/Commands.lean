@@ -9,7 +9,9 @@ import engine.sync.Notice
 namespace Connection
 open Engine Engine.Sync Codec
 
-instance [Codec F] [SortKey F] : Fresh (SqlM F) := ⟨Noise.randomBytes 32⟩
+/-- A store's fresh bytes on a device: the OS's randomness (the
+handshake's door, tests/wiring.txt), whatever families it holds. -/
+instance freshSql {G : Type} : Fresh (SqlM G) := ⟨Noise.randomBytes 32⟩
 
 /-- The notices given on connection cid (`conn.given`). -/
 def givenOn (cid : Id) : View F (List Id) := do

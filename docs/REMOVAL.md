@@ -130,7 +130,9 @@ removal. Taking every cut means later removals only narrow what counts.
 
 **Citation bound.** The intake caps an op at 64 requirements; a removal
 cites four, then at most 60 heads (`maxHeads`), one per device of the
-removed user with an approval. An approval cites at most five. A user
+removed user with an approval: the remover flow takes the first 60
+whatever the store holds (`removeMember_reqs_le`). An approval cites at
+most five (`approve_reqs_le`). A user
 with more than 60 approving devices loses, on removal, the approvals of
 the devices past the 60th the remover's list holds (their admittees need
 a fresh approval); a Merkle root over the heads would lift the bound.
