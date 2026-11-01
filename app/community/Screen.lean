@@ -1296,7 +1296,7 @@ theorem notifies_iff (s : Notice.Settings) (f : Facts) : eligible s f = true ↔
   simp [eligible, Rule, Bool.and_eq_true, and_assoc]
 
 /-- An ordinary post from another device really does alert. -/
-theorem possible : eligible {} { device := ⟨#[1]⟩, authorDevice := ⟨#[2]⟩ } = true := by decide
+theorem can_alert : eligible {} { device := ⟨#[1]⟩, authorDevice := ⟨#[2]⟩ } = true := by decide
 
 theorem once (s : State) (p : Notice.Settings) (f : Facts) (c : Card) :
     (arrive (arrive s p f c).1 p f c).2 = [] := by
