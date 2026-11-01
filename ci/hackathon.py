@@ -117,15 +117,22 @@ def parse_lead(readme):
             'steps': int(steps.group(1)) if steps else None, 'controls': int(controls.group(1))}
 
 
-ROW = re.compile(r'^\| (✅|🟡|⬜) \| 🥊+ \|', re.M)
+ROW = re.compile(r'^\| (✅|🟡|⬜) \| 🥊+ \|(.*)$', re.M)
+MARKS = ('✅', '🟡', '⬜')
 
 
 def parse_rows(readme):
-    """README's promises: the guarantee rows, by mark."""
-    marks = ROW.findall(readme)
-    if not marks:
-        raise Malformed('README.md: no guarantee rows ("| ✅ | 🥊🥊🥊 | ...")')
-    return {k: marks.count(k) for k in ('✅', '🟡', '⬜')}
+    """README's promises: the guarantee rows, by mark, and each row's bold title and mark."""
+    rows = ROW.findall(readme)
+    if not rows:
+        raise Malformed('README.md: no guarantee rows ("| ✅ | 🥊🥊🥊 | **Title.** ...")')
+    titles = {}
+    for mark, rest in rows:
+        m = re.match(r' \*\*(.+?)\*\*', rest)
+        if not m:
+            raise Malformed(f'README.md: a {mark} row has no bold title: {rest[:120]}')
+        titles.setdefault(m.group(1).rstrip('.,:; '), mark)
+    return {**{k: [r[0] for r in rows].count(k) for k in MARKS}, 'titles': titles}
 
 
 def parse_vacuity(readme):
@@ -273,6 +280,17 @@ def render(s):
     out += row('.lean files', b['lean']['files'], h['lean']['files'])
     out += row('Lines of Lean', b['lean']['lines'], h['lean']['lines'])
     out.append('')
+    tb, th = b['rows']['titles'], h['rows']['titles']
+    moves = {}
+    for title, mark in th.items():
+        if title in tb and tb[title] != mark:
+            moves.setdefault((tb[title], mark), []).append(title)
+    order = [(x, y) for x in MARKS for y in MARKS]
+    text = '; '.join(f'{x} → {y}: ' + ', '.join(f'"{t}"' for t in moves[(x, y)])
+                     for x, y in order if (x, y) in moves) or 'none'
+    fresh = sum(t not in tb for t in th)
+    out.append(f'- **Promises that changed mark** (same title at the base and the head): {text}. '
+               f'{fresh} promises at the head have a title the base does not have (new or reworded).')
     for name, side in (('the base', b), ('the head', h)):
         v = side['vacuity']
         if v is None:
@@ -416,8 +434,12 @@ def self_test():
     lead = parse_lead(base_readme)
     expect('the base reads 787 of 1016 laws about running code, 10 in a World, 219 not yet, 20 controls',
            lead == {'wired': 787, 'total': 1016, 'world': 10, 'not_yet': 219, 'steps': None, 'controls': 20})
-    expect('the base has 40 ✅, 31 🟡 and 14 ⬜ promises',
-           parse_rows(base_readme) == {'✅': 40, '🟡': 31, '⬜': 14})
+    rows = parse_rows(base_readme)
+    expect('the base has 40 ✅, 31 🟡 and 14 ⬜ promises, each with its own title',
+           [rows[k] for k in MARKS] == [40, 31, 14] and len(rows['titles']) == 85
+           and rows['titles'].get("A removal ends a live session's sync") == '🟡')
+    refused('a promise row without a bold title', Malformed, parse_rows,
+            base_readme.replace("| **A removal ends a live session's sync.**", '| A removal ends'))
     expect('the base has no vacuity report and no docs/CAUGHT.md',
            parse_vacuity(base_readme) is None and git.show(BASE, 'docs/CAUGHT.md') is None)
     expect('the lead line once tests/wiring-models.txt lands: 1159 of 1288, 59 proof steps, 25 controls',
