@@ -1185,11 +1185,20 @@ CI runs locally for now:
   twin, and the engine's suites without TCP. Each is deterministic: no
   sockets, no X, no clock to beat, no source edited.
 - `ci/local.sh --full` (`mise run ci:full`) runs the gate, then every
-  other part in parallel (`-j N`, 6 by default), each isolated: the
-  negative controls' mutants, TCP, X, qr, mdns, net, zoom, the site and
-  the workspace. It runs nightly and before a release. A bug it finds
-  that the gate missed becomes a law over the running code (and an entry
-  in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+  other part, 4 at once (`-j N`), longest first by each part's last time
+  (`ci/times.tsv`, `out/ci/times.tsv`): the negative controls' mutants,
+  TCP, X, qr, mdns, net, zoom, the site and the workspace, and each of the
+  app's checks (`tests/app/parts.txt`) in its own copy of the built tree,
+  a mutant check with cases in up to six slices. Within a part, mutants
+  run at once, each in a copy of its own (`tests/mutants.py`), and nothing
+  is restored or rebuilt after; every mutant on the box holds one of 12
+  slots (`MUTANT_SLOTS`), so the box never builds more at once. It runs
+  nightly (`ci/nightly.sh`, `mise run ci:nightly`: main's head in a
+  worktree of its own; the night's summary and logs in
+  `$TMPDIR/lean-quiet-nightly/latest`) and before a release. A bug it finds that the gate missed
+  becomes a law over the running code (and an entry in
+  [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+  `ci/local.sh --list --full` prints its plan.
 - `ci/land.sh` lands a branch: one landing at a time on this box (a lock
   in `$TMPDIR`), it merges main in, gates the result and pushes it, so no
   gate is wasted on a main that moved under it. `LAND_PUSH` sets the push.

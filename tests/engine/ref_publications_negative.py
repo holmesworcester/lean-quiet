@@ -7,7 +7,10 @@ from pathlib import Path
 import os
 import signal
 import subprocess as sp
+import sys
 import tempfile
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+import mutants
 
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'out/ref-publications'
@@ -73,22 +76,20 @@ def build(root, target, name):
 for case in CASES:
     check(ROOT, case, 'baseline')
 with tempfile.TemporaryDirectory(prefix='ref-publications-', dir=os.environ['TMPDIR']) as temp:
-    scratch = Path(temp)
+    scratch = Path(temp) / 'base'
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
         'engine/renderer engine/sync app tests/engine',
         'publication-snapshot', str(scratch)], cwd=ROOT, check=True)
-    for case in CASES:
+
+    def control(case, work):
         name, target, _, source, old, new, _, _ = case
-        path = scratch / source
+        path = work / source
         original = path.read_text()
         assert original.count(old) == 1, f'{name}: ambiguous publication anchor'
-        try:
-            path.write_text(original.replace(old, new))
-            build(scratch, target, name + '-direct-set')
-            check(scratch, case, 'direct-set', True)
-            print(f'refused: {name} direct-set (compiled, real production effect and SDK overlap)', flush=True)
-        finally:
-            path.write_text(original)
-        build(scratch, target, name + '-restored')
-        check(scratch, case, 'restored')
-print('publication gate: four real production/SQLite cases, four compiling controls; restored cases pass', flush=True)
+        path.write_text(original.replace(old, new))
+        build(work, target, name + '-direct-set')
+        check(work, case, 'direct-set', True)
+        return f'refused: {name} direct-set (compiled, real production effect and SDK overlap)'
+
+    mutants.each(scratch, CASES, control)
+print('publication gate: four real production/SQLite cases, four compiling controls, each in its own copy', flush=True)
