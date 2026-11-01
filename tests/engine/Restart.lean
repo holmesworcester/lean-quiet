@@ -14,7 +14,7 @@ def localClose (t : Checks) : IO Unit := do
   let r : Runner := {
     events := ch, writes := ← Std.CloseableChannel.Sync.new (some 1), port := 0, done := Task.pure (.ok ()), stopped := ← IO.mkRef false,
     listening := Task.pure (.ok ()), slots := ← Std.Mutex.new [],
-    listener := native, closing := ← Std.Mutex.new false }
+    listener := native, closing := ← Std.Mutex.new false, turnCounters := ← IO.mkRef {} }
   let held ← IO.mkRef r
   let n ← closedFixtures
   r.stop

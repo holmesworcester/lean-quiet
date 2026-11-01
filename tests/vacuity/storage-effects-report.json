@@ -1,0 +1,142 @@
+{
+  "Run.shared_retained": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.Run.shared_retained",
+    "witness": "Vacuity.StorageEffects.runCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The native runner starts the actual infinite scheduler from a populated production world and checks the signed message is already held and shared. It applies retention across nine subsequent ticks/deliveries, independently checks exact final bytes, and rejects an absent recovery post. The interval is nonzero and initial reachability/history agreement derive from the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "history": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.Run.history",
+    "witness": "Vacuity.StorageEffects.runCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A nonempty signed community continues through nine actual scheduled events. The certificate applies Run.history and discharges its starting reachability and log/store agreement from the exact production prefix, obtaining an appended shared-history suffix. The runner checks retained bytes and rejects an absent-message control; no quiescence or fairness premise is needed for this preservation law. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "catalog_read": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.HistoryStep.catalog_read",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A concrete existing catalog position points to the retained signed message. The runner checks its positive index and captured-ceiling bound before applying the law to write, authenticated frame, tick and real session close; reachability and log/store agreement are kernel-derived from the actual prefix. Native checks verify the old point lookup after append/purge, while index zero and an index above the captured ceiling reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "ceiling_mono": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.HistoryStep.ceiling_mono",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A concrete existing catalog position points to the retained signed message. The runner checks its positive index and captured-ceiling bound before applying the law to write, authenticated frame, tick and real session close; reachability and log/store agreement are kernel-derived from the actual prefix. Native checks verify the old point lookup after append/purge, while index zero and an index above the captured ceiling reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_step_retains": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_step_retains",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes and shared scope for an existing signed message, then applies the full-handler retention/reachability/settling laws, whose primitive-effects proof uses production_step_moves. All four actual entrypoints run: fresh local write, real sealed incoming frame, tick and session close. Source reachability and an empty validation queue derive from the actual prefix; absent-op and malformed-frame controls reject unsupported conclusions. Draining has a history-dependent budget, not a fixed work bound. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_step_reachable": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_step_reachable",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes and shared scope for an existing signed message, then applies the full-handler retention/reachability/settling laws, whose primitive-effects proof uses production_step_moves. All four actual entrypoints run: fresh local write, real sealed incoming frame, tick and session close. Source reachability and an empty validation queue derive from the actual prefix; absent-op and malformed-frame controls reject unsupported conclusions. Draining has a history-dependent budget, not a fixed work bound. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_step_settled": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_step_settled",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes and shared scope for an existing signed message, then applies the full-handler retention/reachability/settling laws, whose primitive-effects proof uses production_step_moves. All four actual entrypoints run: fresh local write, real sealed incoming frame, tick and session close. Source reachability and an empty validation queue derive from the actual prefix; absent-op and malformed-frame controls reject unsupported conclusions. Draining has a history-dependent budget, not a fixed work bound. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_step_moves": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_step_moves",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes and shared scope for an existing signed message, then applies the full-handler retention/reachability/settling laws, whose primitive-effects proof uses production_step_moves. All four actual entrypoints run: fresh local write, real sealed incoming frame, tick and session close. Source reachability and an empty validation queue derive from the actual prefix; absent-op and malformed-frame controls reject unsupported conclusions. Draining has a history-dependent budget, not a fixed work bound. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "empty_trace_store": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.empty_trace_store",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "world_step_moves": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.world_step_moves",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "world_trace_moves": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.world_trace_moves",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_step_history": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_step_history",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "empty_trace_history": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.empty_trace_history",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "world_step_history": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.world_step_history",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "world_trace_history": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.world_trace_history",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "onWrite_receives": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.onWrite_receives",
+    "witness": "Vacuity.StorageEffects.writeCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A new signed recovery post is natively proved absent and shared in the already populated receiver. The singleton input proves representation compatibility; absence discharges the existing-store compatibility premise. The certificate applies the complete write-handler receipt chain, including write_store_tape, then the runner checks exact bytes and a valid message verdict after the actual handler. Replacing the fresh post with the already stored message rejects the fresh-write certificate. The theorem guarantees byte commitment, not automatic validity of inputs with absent prerequisites. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "production_write_receives": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.production_write_receives",
+    "witness": "Vacuity.StorageEffects.writeCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A new signed recovery post is natively proved absent and shared in the already populated receiver. The singleton input proves representation compatibility; absence discharges the existing-store compatibility premise. The certificate applies the complete write-handler receipt chain, including write_store_tape, then the runner checks exact bytes and a valid message verdict after the actual handler. Replacing the fresh post with the already stored message rejects the fresh-write certificate. The theorem guarantees byte commitment, not automatic validity of inputs with absent prerequisites. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "write_store_tape": {
+    "status": "runtime-witness",
+    "theorem": "Connection.Execution.write_store_tape",
+    "witness": "Vacuity.StorageEffects.writeCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "A new signed recovery post is natively proved absent and shared in the already populated receiver. The singleton input proves representation compatibility; absence discharges the existing-store compatibility premise. The certificate applies the complete write-handler receipt chain, including write_store_tape, then the runner checks exact bytes and a valid message verdict after the actual handler. Replacing the fresh post with the already stored message rejects the fresh-write certificate. The theorem guarantees byte commitment, not automatic validity of inputs with absent prerequisites. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "shared_log_purge": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.shared_log_purge",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The history certificate uses the purge-order lemma through the actual full-handler history proof. Starting log/store agreement is derived from empty through production writes, not assumed. A native close really purges session operations while the signed message catalog position remains unchanged; separately, explicitly naming the shared message in a purge retains and revalidates it. The checked positive position and zero/out-of-range controls make the point-stability application nonempty. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "shared_log_turn": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.shared_log_turn",
+    "witness": "Vacuity.StorageEffects.historyCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The actual-handler history certificate uses the turn append law through the deduplicating Node.write proof. The populated signed community receives a fresh shared recovery post through both local write and a real encrypted frame; native checks verify exact new bytes and unchanged position of the older message. Source reachability/log agreement are derived from the actual prefix, and invalid catalog positions reject the certificate. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement."
+  }
+}

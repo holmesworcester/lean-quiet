@@ -27,6 +27,7 @@ import engine.sync.StoreEvolution
 import engine.sync.SimLaws
 import engine.wire.Loop
 import engine.wire.EgressLaws
+import engine.sync.SharedLog
 
 namespace Connection
 open Engine Codec
@@ -1438,6 +1439,8 @@ structure Memory where
   /-- An input, not a claim that deterministic fixtures are secure randomness. -/
   entropy : Nat → ByteArray
   cursor : Nat := 0
+  /-- Durable per-peer retry metadata, kept across disposable sessions. -/
+  retries : Id → Option Sweep := fun _ => none
 
 def M (α : Type) := Memory → α × Memory
 
@@ -1501,8 +1504,16 @@ structure Setup where
   room : Side → ByteArray → Option Nat := fun _ _ => none
 
 def Setup.sync (S : Setup) (side : Side) : Sync F M :=
-  { fam := family, cfg := S.cfg, hooks := Connection.hooks family sodium (S.addr side),
-    room := S.room side }
+  { fam := family
+    cfg := S.cfg
+    hooks := Connection.hooks family sodium (S.addr side)
+    room := S.room side
+    catalog := some {
+      ceiling := lift (Catalog.held family).ceiling
+      read := fun seq => lift ((Catalog.held family).read seq) }
+    retryStore := some {
+      load := fun peer s => ((s.retries peer).getD {}, s)
+      save := fun peer cursor s => ((), { s with retries := fun p => if p = peer then some cursor else s.retries p }) } }
 
 def World.peer (w : World) : Side → Peer
   | .a => w.a
@@ -1927,6 +1938,9 @@ theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
     Reads (onArrival via addr o at_ : HeldM F (List Op)) := by
   unfold onArrival; keeps [count_reads, view_reads, rows_reads, resendConns_reads]
 
+theorem retryKey_reads (cid : Id) : Reads (retryKey cid : HeldM F (Option Id)) := by
+  unfold retryKey; keeps [rows_reads]
+
 /-- **The Connection family's hooks only read the store.** Run on held
 data, each leaves the store as it is: what the family would store it
 returns as ops for the node to write, and what it would forget it
@@ -1936,9 +1950,9 @@ theorem hooks_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteAr
     let k := (hooks fam K listen : Hooks F (HeldM F))
     (∀ cid, Reads (k.rooms cid)) ∧ (∀ via a o t, Reads (k.recv via a o t)) ∧ Reads k.outbox ∧
     (∀ cid, Reads (k.closing cid)) ∧ Reads k.retired ∧ Reads k.react ∧ (∀ t, Reads (k.dial t)) ∧
-    Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) :=
+    Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) ∧ (∀ cid, Reads (k.retryKey cid)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K⟩
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K, retryKey_reads⟩
 
 end Connection
 
@@ -2168,6 +2182,9 @@ theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
 theorem openFrame_tape_reads (K : Keys) (b : B) : ReadsHeld (openFrame K b : M _) := by
   unfold openFrame; readsHeld [keys_reads]
 
+theorem retryKey_reads (cid : Id) : ReadsHeld (retryKey cid : M (Option Id)) := by
+  unfold retryKey; readsHeld [rows_reads]
+
 /-- **The Connection family's hooks only read the store.** Run on held
 data, each leaves the store as it is: what the family would store it
 returns as ops for the node to write, and what it would forget it
@@ -2177,9 +2194,9 @@ theorem hooks_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
     let k := (hooks fam K listen : Hooks F (M))
     (∀ cid, ReadsHeld (k.rooms cid)) ∧ (∀ via a o t, ReadsHeld (k.recv via a o t)) ∧ ReadsHeld k.outbox ∧
     (∀ cid, ReadsHeld (k.closing cid)) ∧ ReadsHeld k.retired ∧ ReadsHeld k.react ∧ (∀ t, ReadsHeld (k.dial t)) ∧
-    ReadsHeld k.established ∧ (∀ cid b, ReadsHeld (k.sealFor cid b)) ∧ (∀ b, ReadsHeld (k.openFrame b)) :=
+    ReadsHeld k.established ∧ (∀ cid b, ReadsHeld (k.sealFor cid b)) ∧ (∀ b, ReadsHeld (k.openFrame b)) ∧ (∀ cid, ReadsHeld (k.retryKey cid)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_tape_reads K⟩
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_tape_reads K, retryKey_reads⟩
 
 end Connection.Execution
 
@@ -2504,12 +2521,33 @@ structure ReadOnly (x : Sync F M) : Prop where
   established : ReadsHeld x.hooks.established
   sealFor : ∀ cid b, ReadsHeld (x.hooks.sealFor cid b)
   openFrame : ∀ b, ReadsHeld (x.hooks.openFrame b)
+  catalog : ∀ cat, x.catalog = some cat → ReadsHeld cat.ceiling ∧ ∀ i, ReadsHeld (cat.read i)
+  retryKey : ∀ cid, ReadsHeld (x.hooks.retryKey cid)
+  retryStore : ∀ store, x.retryStore = some store →
+    (∀ peer, ReadsHeld (store.load peer)) ∧ (∀ peer cursor, ReadsHeld (store.save peer cursor))
 
 /-- Discharges every hook premise for the actual advancing-tape interpreter. -/
 theorem production_readOnly (S : Setup) (side : Side) : ReadOnly (S.sync side) := by
-  obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩ :=
+  obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11⟩ :=
     hooks_reads ReadsHeld.fresh family sodium (S.addr side)
-  exact ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩
+  refine ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10, ?_, h11, ?_⟩
+  · intro cat hcat
+    cases hcat
+    exact ⟨fun _ => rfl, fun _ _ => rfl⟩
+  · intro store hstore
+    cases hstore
+    exact ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
+
+theorem ReadOnly.afterActs {x : Sync F M} (hr : ReadOnly x) (n : Engine.Sync.Node) (out : Acts) :
+    ReadOnly (n.afterActs x out) :=
+  ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
+    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
+
+theorem sweep_reads (cat : Catalog M) (hc : ReadsHeld cat.ceiling)
+    (hr : ∀ i, ReadsHeld (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
+    ReadsHeld (Sweep.run (F := F) cat cursor shows room) := by
+  unfold Sweep.run
+  readsHeld [hc, hr]
 
 theorem read_program {α} (p : Read α) : ReadsHeld (p.run (Store.getOp (F := F)) : M α) := by
   induction p with
@@ -2621,6 +2659,33 @@ theorem serve_goes (n : Engine.Sync.Node) (cid : Id) (now : Nat) : GoesM x.fam (
   unfold Node.serveOwed
   goesTape [fun cid c => (refresh_reads x hr cid c).goes,
     fun c budget first => (serveOwed_reads x.fam x.cfg c budget first).goes]
+theorem sweep_goes (n : Engine.Sync.Node) (cid : Id) : GoesM x.fam (n.sweep x cid) := by
+  cases hcat : x.catalog with
+  | none => simp only [Node.sweep, hcat]; exact GoesM.pure' x.fam _
+  | some cat =>
+    obtain ⟨hc, hrd⟩ := hr.catalog cat hcat
+    cases hs : x.retryStore with
+    | none =>
+      simp only [Node.sweep, hcat, hs]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+        fun cid => (hr.retryKey cid).goes,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+    | some store =>
+      obtain ⟨hl, hsave⟩ := hr.retryStore store hs
+      simp only [Node.sweep, hcat, hs]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+        fun cid => (hr.retryKey cid).goes, fun peer => (hl peer).goes,
+        fun peer cursor => (hsave peer cursor).goes,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+
+theorem sweep_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) :
+    GoesM x.fam (n.sweep (n.afterActs x out) cid) :=
+  sweep_goes (n.afterActs x out) (hr.afterActs n out) n cid
+
+theorem serve_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) (now : Nat) :
+    GoesM x.fam (n.serveOwed (n.afterActs x out) cid now) :=
+  serve_goes (n.afterActs x out) (hr.afterActs n out) n cid now
+
 theorem onSealed_goes (n : Engine.Sync.Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
     GoesM x.fam (n.onSealed x addr opened now) := by
   unfold Node.onSealed
@@ -2637,7 +2702,10 @@ theorem onTick_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.onTick x
   goesTape [fun t => (hr.dial t).goes, store_goes x hr,
     fun cid c => (refresh_reads x hr cid c).goes,
     fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goes,
-    apply_goes x hr, serve_goes x hr, finish_goes x hr]
+    apply_goes x hr,
+    sweep_afterActs_goes x hr,
+    serve_afterActs_goes x hr,
+    finish_goes x hr]
 theorem onWrite_goes (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : GoesM x.fam (n.onWrite x ops now) := by
   unfold Node.onWrite; goesTape [store_goes x hr, finish_goes x hr]
 
@@ -2721,10 +2789,10 @@ theorem world_step_moves (S : Setup) (w : World) (a : Action) (target : Side) :
     | nil => simpa only [World.deliver, hnet] using (Moves.refl (fam := family) (w.peer target).memory.held)
     | cons p rest =>
       by_cases ha : p.dst = S.addr .a
-      · simpa only [World.deliver, hnet, if_pos ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
+      · simpa only [World.deliver, hnet, ite_eq_left ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
       · by_cases hb : p.dst = S.addr .b
-        · simpa only [World.deliver, hnet, if_neg ha, if_pos hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
-        · simp only [World.deliver, hnet, if_neg ha, if_neg hb]
+        · simpa only [World.deliver, hnet, ite_eq_right ha, ite_eq_left hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
+        · simp only [World.deliver, hnet, ite_eq_right ha, ite_eq_right hb]
           cases target <;> exact .refl _
 
 theorem world_trace_moves (S : Setup) (w : World) (actions : List Action) (target : Side) :
@@ -2794,12 +2862,15 @@ open Engine Engine.Sync Codec
 /-- The family's hooks only read, so the node's laws of hooks that only
 read hold of them. -/
 theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
-    (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen) : ReadOnly x := by
-  obtain ⟨fam, cfg, hk, room⟩ := x
+    (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
+    (hc : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i))
+    (hs : ∀ store, x.retryStore = some store →
+      (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor))) : ReadOnly x := by
+  obtain ⟨fam, cfg, hk, room, catalog, retryStore⟩ := x
   simp only at hx
   subst hx
-  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hooks_reads hfr fam K listen
-  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := hooks_reads hfr fam K listen
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs⟩
 
 /-- What may go out on session cid at store h, as of community c: if
 this node is live in c and the trust rule refuses cid's peer, only a sync
@@ -2818,7 +2889,7 @@ theorem sent_mayGo [Fresh (HeldM F)] (x : Sync F (HeldM F)) (K : Keys) (listen :
     simp only [hx, hooks, rooms_held]
   have hrm := rooms_removed h.db hl hr
   rcases hs with ⟨conn, ix, bytes, now, ho⟩ | ⟨conn, ids, ho⟩ | ⟨conn, ix, now, ho⟩ |
-      ⟨conn, budget, first, ho⟩ | ⟨dialer, floor, now, ho⟩
+      ⟨conn, budget, first, ho⟩ | ⟨dialer, floor, now, ho⟩ | ⟨conn, cat, cursor, room, _, ho⟩
   · rw [hR, recv_held] at ho
     exact (removed_gets_only_notice x.fam x.cfg ix h.db cid c conn bytes [] now 0 false hl hr).2.1 o ho
   · rw [hR, filedGive_held] at ho
@@ -2833,6 +2904,11 @@ theorem sent_mayGo [Fresh (HeldM F)] (x : Sync F (HeldM F)) (K : Keys) (listen :
   · simp only [Conn.open, List.mem_singleton] at ho
     subst ho
     exact Or.inl (msg_wire _)
+  · have hsh := sweep_shown cat cursor _ room h ho
+    rw [hR] at hsh
+    refine Or.inr (Or.inl fun hc => ?_)
+    simp only [Conn.shows, hc] at hsh
+    exact hrm _ (mem_syncs ((Engine.has_iff _ _).1 hsh)) rfl
 
 /-- **A removal reaches a live session** (`removal_reaches_session`).
 Run with the Connection family's hooks, whatever entry point the node
@@ -2846,13 +2922,433 @@ community, or one in the requirement closure of a removal owed to the
 peer. -/
 theorem removal_reaches_session [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
     (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
+    (hc : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i))
+    (hs : ∀ store, x.retryStore = some store →
+      (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor)))
     {E : Engine.Sync.Node → HeldM F (Engine.Sync.Node × Effects)} (hE : Entry x E)
     (n : Engine.Sync.Node) (h : Held F) :
     Moves x.fam h ((E n).run h).2 ∧
       FramesBy x (fun h' cid o => ∀ c, MayGo x.fam h' cid c o) h ((E n).run h).2 ((E n).run h).1.2 := by
-  obtain ⟨m, ok⟩ := entry_fresh (hooks_readOnly hfr x K listen hx) hE n h
+  obtain ⟨m, ok⟩ := entry_fresh (hooks_readOnly hfr x K listen hx hc hs) hE n h
   exact ⟨m, ok.mono fun _ _ _ hs c => sent_mayGo x K listen hx hs c⟩
 
 end Connection
+
+end
+
+section
+
+/- Actual local writes commit shared operation bytes before the handler returns.
+The representation compatibility premises avoid assuming hash injectivity. -/
+
+namespace Connection.Execution
+open Engine Engine.Sync
+
+theorem M.getOp_apply (i : Id) (s : Memory) :
+    (Store.getOp i : M _) s = (s.held.db.ops i, s) := rfl
+
+theorem M.forIn_reads {α β} (l : List α) (b : β) (f : α → β → M (ForInStep β))
+    (g : β → α → β) (s : Memory) (hf : ∀ a b, f a b s = (.yield (g b a), s)) :
+    forIn l b f s = (l.foldl g b, s) := by
+  induction l generalizing b with
+  | nil => rfl
+  | cons a t ih => rw [List.forIn_cons, M.bind_apply, hf]; exact ih _
+
+/-- This is the same deduplicating writer, interpreted with entropy/retry
+metadata alongside Held. The writer itself changes neither metadata field. -/
+theorem write_store_tape (x : Sync F M) (n : Engine.Sync.Node) (s : Memory) (ops : List Op) :
+    (n.write x ops s).2.held =
+      (n.write ({ fam := x.fam, hooks := { rooms := fun _ => pure [], sealFor := plainSeal, openFrame := plainOpen } } : Sync F (HeldM F)) ops s.held).2 := by
+  rw [write_store]
+  unfold Node.write
+  simp only [M.bind_apply]
+  rw [M.forIn_reads (g := absentStep s.held.db)]
+  · dsimp only
+    generalize ops.foldl (absentStep s.held.db) [] = absent
+    split
+    · rfl
+    · simp only [M.bind_apply]
+      rw [M.forIn_reads (g := fileStep x.fam ((Turn.turn x.fam absent.reverse : M Unit) s).2.held.db)]
+      · rfl
+      · intro a b
+        rw [M.bind_apply, M.getOp_apply]
+        unfold fileStep
+        split <;> rfl
+  · intro a b
+    unfold absentStep
+    split
+    · rw [M.bind_apply, M.getOp_apply]
+      split <;> rfl
+    · rfl
+
+theorem write_receives (x : Sync F M) (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
+    (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops)
+    (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
+    (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
+    (n.write x ops s).2.held.db.ops o.id = some o := by
+  rw [write_store_tape]
+  exact write_takes _ n s.held ops hi ho sameInput sameStore
+
+theorem write_log_agrees_tape (x : Sync F M) (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
+    (hi : Inv x.fam s.held.db) (ha : s.held.LogAgrees) : (n.write x ops s).2.held.LogAgrees := by
+  rw [write_store_tape]
+  exact write_log_agrees _ n s.held ops hi ha
+
+/-- Once a shared operation is committed, all ordinary runtime effects
+in a continuation retain it, including reactions and session purges. -/
+theorem committed_bind {α β} (fam : Family F) (p : M α) (k : α → M β) (s : Memory)
+    {o : Op} (ho : (p s).2.held.db.ops o.id = some o) (hs : (fam.room o).isSome)
+    (hk : ∀ a, GoesM fam (k a)) : ((p >>= k) s).2.held.db.ops o.id = some o :=
+  (hk _ _).shared_retained ho hs
+
+/-- The complete Node.store continuation retains the operation it just
+committed, including all sixteen possible actual reaction rounds. -/
+theorem store_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
+    (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
+    (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
+    (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
+    (n.store x ops true s).2.held.db.ops o.id = some o := by
+  have hp : (n.put x ops true s).2.held.db.ops o.id = some o := by
+    simpa only [Node.put, intake, ite_true] using write_receives x n s ops hi ho sameInput sameStore
+  unfold Node.store
+  apply committed_bind x.fam _ _ s hp hs
+  intro r
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range']
+  goesTape [NodeTape.fanout_goes x hr, NodeTape.put_goes, hr.react.goes]
+
+/-- A local write has committed every compatible shared input before
+Node.onWrite returns. This is a completed-handler bound, not a wall-clock
+bound or a claim that absent prerequisites already exist. -/
+theorem onWrite_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
+    (n : Engine.Sync.Node) (s : Memory) (ops : List Op) (now : Nat)
+    (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
+    (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
+    (n.onWrite x ops now s).2.held.db.ops o.id = some o := by
+  unfold Node.onWrite
+  exact committed_bind x.fam _ _ s
+    (store_receives x hr n s ops hi ho hs sameInput sameStore) hs
+    (fun _ => NodeTape.finish_goes x hr _ _ _)
+
+theorem production_write_receives (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (s : Memory) (ops : List Op) (now : Nat) (hi : Inv family s.held.db)
+    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome)
+    (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
+    (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
+    (n.step (S.sync side) (.write ops) now s).2.held.db.ops o.id = some o := by
+  simpa only [Node.step] using
+    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs sameInput sameStore)
+
+end Connection.Execution
+
+end
+
+section
+
+/- Stable catalog positions through the actual runtime handlers. Writes
+append new shared bytes; purges remove only local history entries. -/
+
+namespace Connection.Execution
+open Engine Engine.Sync
+
+/-- Prefix order, not merely set inclusion, is the catalog cursor invariant. -/
+def HistoryStep (fam : Family F) (a b : Held F) : Prop :=
+  a.Reachable fam → a.LogAgrees →
+    b.Reachable fam ∧ b.LogAgrees ∧ ∃ tail, Catalog.shared fam b = Catalog.shared fam a ++ tail
+
+namespace HistoryStep
+ theorem refl {fam : Family F} (h : Held F) : HistoryStep fam h h :=
+   fun hr ha => ⟨hr, ha, [], by simp⟩
+ theorem trans {fam : Family F} {a b c : Held F} (h1 : HistoryStep fam a b) (h2 : HistoryStep fam b c) :
+     HistoryStep fam a c := by
+   intro hr ha
+   obtain ⟨hrb, hab, tail, he⟩ := h1 hr ha
+   obtain ⟨hrc, hac, rest, he'⟩ := h2 hrb hab
+   exact ⟨hrc, hac, tail ++ rest, by rw [he', he, List.append_assoc]⟩
+
+ /-- Exact point lookups below an already captured high-water mark survive
+ every full handler, including local-secret purge and concurrent appends. -/
+ theorem catalog_read {fam : Family F} {a b : Held F} (step : HistoryStep fam a b)
+     (hr : a.Reachable fam) (ha : a.LogAgrees) {seq : Nat}
+     (positive : 0 < seq) (below : seq ≤ (Catalog.shared fam a).length) :
+     ((Catalog.held fam).read seq b).1 = ((Catalog.held fam).read seq a).1 := by
+   obtain ⟨_, _, tail, he⟩ := step hr ha
+   simp only [Catalog.held, he]
+   rw [List.getElem?_append_left (by omega)]
+
+ theorem ceiling_mono {fam : Family F} {a b : Held F} (step : HistoryStep fam a b)
+     (hr : a.Reachable fam) (ha : a.LogAgrees) :
+     ((Catalog.held fam).ceiling a).1 ≤ ((Catalog.held fam).ceiling b).1 := by
+   obtain ⟨_, _, tail, he⟩ := step hr ha
+   simp only [Catalog.held, he, List.length_append]
+   omega
+end HistoryStep
+
+def HistoryM (fam : Family F) {α} (p : M α) : Prop :=
+  ∀ s, HistoryStep fam s.held (p s).2.held
+
+theorem ReadsHeld.history {fam : Family F} {α} {p : M α} (hp : ReadsHeld p) : HistoryM fam p := by
+  intro s hr ha
+  rw [hp s]
+  exact ⟨hr, ha, [], by simp⟩
+
+namespace HistoryM
+ theorem pure' (fam : Family F) {α} (a : α) : HistoryM fam (pure a : M α) :=
+   (ReadsHeld.pure' a).history
+ theorem bind' {fam : Family F} {α β} {p : M α} {k : α → M β}
+     (hp : HistoryM fam p) (hk : ∀ a, HistoryM fam (k a)) : HistoryM fam (p >>= k) := by
+   intro s hr ha
+   obtain ⟨hr', ha', tail, he⟩ := hp s hr ha
+   obtain ⟨hr'', ha'', rest, he'⟩ := hk (p s).1 (p s).2 hr' ha'
+   exact ⟨hr'', ha'', tail ++ rest, by rw [M.bind_apply, he', he, List.append_assoc]⟩
+ theorem forIn' {fam : Family F} {α β} (l : List α) (b : β)
+     {f : α → β → M (ForInStep β)} (hf : ∀ a b, HistoryM fam (f a b)) :
+     HistoryM fam (forIn l b f) := by
+   induction l generalizing b with
+   | nil => exact pure' fam b
+   | cons a t ih =>
+     rw [List.forIn_cons]
+     apply bind' (hf a b)
+     intro r
+     cases r with
+     | done b => exact pure' fam b
+     | yield b => exact ih b
+ theorem getOp' (fam : Family F) (i : Id) : HistoryM fam (Store.getOp i : M _) :=
+   (ReadsHeld.getOp' i).history
+ theorem getStatus' (fam : Family F) (i : Id) : HistoryM fam (Store.getStatus i : M _) :=
+   (ReadsHeld.getStatus' i).history
+ theorem purge' (fam : Family F) (ids : List Id) (scrub : Bool) :
+     HistoryM fam (Turn.purge fam ids scrub : M Unit) := by
+   intro s hr ha
+   exact ⟨purge_reachable fam ids scrub s.held hr, purge_log_agrees fam s.held ids scrub ha,
+     [], by
+       change Catalog.shared fam ((Turn.purge fam ids scrub : HeldM F Unit) s.held).2 = _
+       simpa using shared_log_purge fam s.held ids scrub ha⟩
+end HistoryM
+
+syntax "historyTape" "[" term,* "]" : tactic
+macro_rules
+  | `(tactic| historyTape [$ts,*]) => do
+    let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
+    for t in ts.getElems.reverse do
+      tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
+    `(tactic| repeat' (first
+      | dsimp only | with_reducible_and_instances apply HistoryM.bind'
+      | with_reducible_and_instances apply HistoryM.pure' | with_reducible_and_instances apply HistoryM.forIn'
+      | with_reducible_and_instances apply HistoryM.getOp' | with_reducible_and_instances apply HistoryM.getStatus'
+      | with_reducible_and_instances apply HistoryM.purge'
+      | $tac:tactic))
+
+namespace NodeHistory
+open NodeTape
+variable (x : Sync F M) (hr : ReadOnly x)
+
+theorem write_history (n : Engine.Sync.Node) (ops : List Op) : HistoryM x.fam (n.write x ops) := by
+  intro s hr ha
+  obtain ⟨history, reach, _⟩ := hr
+  have hi := reach_inv reach
+  refine ⟨(NodeTape.write_goes x n ops s).store_reachable ⟨history, reach, by assumption⟩,
+    write_log_agrees_tape x n s ops hi ha, ?_⟩
+  rw [write_store_tape, write_store]
+  dsimp only
+  split
+  · exact ⟨[], by simp⟩
+  · exact ⟨_, shared_log_turn _ _ _⟩
+
+theorem put_history (n : Engine.Sync.Node) (ops : List Op) (mine : Bool) : HistoryM x.fam (n.put x ops mine) :=
+  write_history x n _
+theorem recordGiven_history (n : Engine.Sync.Node) (st : List (Id × Id)) : HistoryM x.fam (n.recordGiven x st) := by
+  unfold Node.recordGiven; historyTape [put_history]
+include hr
+
+theorem refresh_reads (cid : Id) (c : Conn) : ReadsHeld (Node.refresh x cid c) := by
+  unfold Node.refresh; readsHeld [hr.rooms]
+theorem fanout_history (n : Engine.Sync.Node) (ids : List Id) : HistoryM x.fam (n.fanout x ids) := by
+  unfold Node.fanout
+  historyTape [fun cid c => (refresh_reads x hr cid c).history,
+    fun c ids => (NodeTape.filedGive_reads x.fam x.cfg c ids).history, recordGiven_history]
+theorem store_history (n : Engine.Sync.Node) (ops : List Op) (mine : Bool) : HistoryM x.fam (n.store x ops mine) := by
+  unfold Node.store
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range']
+  historyTape [put_history, fanout_history x hr, hr.react.history]
+theorem open_history (n : Engine.Sync.Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
+    HistoryM x.fam (n.open x cid addr dialer now) := by
+  unfold Node.open; historyTape [fun cid => (hr.rooms cid).history]
+theorem follow_history (n : Engine.Sync.Node) (now : Nat) : HistoryM x.fam (n.follow x now) := by
+  unfold Node.follow; historyTape [hr.established.history, open_history x hr]
+omit hr in
+theorem effectsPurge_history (ids : List Id) (scrub : Bool) : HistoryM x.fam (Effects.purge x ids scrub) := by
+  unfold Effects.purge; historyTape []
+theorem flush_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.flush x out) := by
+  unfold Node.flush; historyTape [hr.outbox.history, effectsPurge_history]
+theorem seal_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.seal x out) := by
+  unfold Node.seal; historyTape [fun cid b => (hr.sealFor cid b).history]
+theorem endSession_history (cid : Id) : HistoryM x.fam (Node.endSession x cid) := by
+  unfold Node.endSession; historyTape [fun cid => (hr.closing cid).history, effectsPurge_history]
+theorem finish_history (n : Engine.Sync.Node) (out : Acts) (now : Nat) : HistoryM x.fam (n.finish x out now) := by
+  unfold Node.finish
+  historyTape [follow_history x hr, flush_history x hr, hr.retired.history, seal_history x hr, endSession_history x hr]
+theorem onClose_history (n : Engine.Sync.Node) (addr : ByteArray) (now : Nat) : HistoryM x.fam (n.onClose x addr now) := by
+  unfold Node.onClose; historyTape [finish_history x hr]
+theorem apply_history (n : Engine.Sync.Node) (cid : Id) (st : Step) (now : Nat) :
+    HistoryM x.fam (n.apply x cid st now) := by
+  unfold Node.apply
+  historyTape [recordGiven_history, store_history x hr, fun via a o t => (hr.recv via a o t).history]
+theorem serve_history (n : Engine.Sync.Node) (cid : Id) (now : Nat) : HistoryM x.fam (n.serveOwed x cid now) := by
+  unfold Node.serveOwed
+  historyTape [fun cid c => (refresh_reads x hr cid c).history,
+    fun c budget first => (NodeTape.serveOwed_reads x.fam x.cfg c budget first).history]
+theorem sweep_history (n : Engine.Sync.Node) (cid : Id) : HistoryM x.fam (n.sweep x cid) := by
+  cases hcat : x.catalog with
+  | none => simp only [Node.sweep, hcat]; exact HistoryM.pure' x.fam _
+  | some cat =>
+    obtain ⟨hc, hrd⟩ := hr.catalog cat hcat
+    cases hs : x.retryStore with
+    | none =>
+      simp only [Node.sweep, hcat, hs]
+      historyTape [fun cid c => (refresh_reads x hr cid c).history,
+        fun cid => (hr.retryKey cid).history,
+        fun cursor shows room => (NodeTape.sweep_reads cat hc hrd cursor shows room).history]
+    | some store =>
+      obtain ⟨hl, hsave⟩ := hr.retryStore store hs
+      simp only [Node.sweep, hcat, hs]
+      historyTape [fun cid c => (refresh_reads x hr cid c).history,
+        fun cid => (hr.retryKey cid).history, fun peer => (hl peer).history,
+        fun peer cursor => (hsave peer cursor).history,
+        fun cursor shows room => (NodeTape.sweep_reads cat hc hrd cursor shows room).history]
+
+theorem sweep_afterActs_history (n : Engine.Sync.Node) (out : Acts) (cid : Id) :
+    HistoryM x.fam (n.sweep (n.afterActs x out) cid) :=
+  sweep_history (n.afterActs x out) (hr.afterActs n out) n cid
+
+theorem serve_afterActs_history (n : Engine.Sync.Node) (out : Acts) (cid : Id) (now : Nat) :
+    HistoryM x.fam (n.serveOwed (n.afterActs x out) cid now) :=
+  serve_history (n.afterActs x out) (hr.afterActs n out) n cid now
+
+theorem onSealed_history (n : Engine.Sync.Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
+    HistoryM x.fam (n.onSealed x addr opened now) := by
+  unfold Node.onSealed
+  historyTape [fun cid c => (refresh_reads x hr cid c).history,
+    fun ix c bytes now => (NodeTape.recv_reads x.fam x.cfg ix c bytes now).history,
+    apply_history x hr, serve_history x hr, finish_history x hr]
+theorem onFrame_history (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : Nat) :
+    HistoryM x.fam (n.onFrame x addr bytes now) := by
+  unfold Node.onFrame
+  historyTape [write_history, store_history x hr, fun via a o t => (hr.recv via a o t).history,
+    finish_history x hr, fun b => (hr.openFrame b).history, onSealed_history x hr]
+theorem onTick_history (n : Engine.Sync.Node) (now : Nat) : HistoryM x.fam (n.onTick x now) := by
+  unfold Node.onTick
+  historyTape [fun t => (hr.dial t).history, store_history x hr,
+    fun cid c => (refresh_reads x hr cid c).history,
+    fun ix c now => (NodeTape.tickGive_reads x.fam x.cfg ix c now).history,
+    apply_history x hr,
+    sweep_afterActs_history x hr,
+    serve_afterActs_history x hr,
+    finish_history x hr]
+theorem onWrite_history (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : HistoryM x.fam (n.onWrite x ops now) := by
+  unfold Node.onWrite; historyTape [store_history x hr, finish_history x hr]
+
+/-- Every full event handler uses only actual turn/purge effects, including
+the hooks' reactions and the common finish path. -/
+theorem step_history (n : Engine.Sync.Node) (input : Node.Input) (now : Nat) :
+    HistoryM x.fam (n.step x input now) := by
+  cases input with
+  | write ops => exact onWrite_history x hr n ops now
+  | frame addr bytes => exact onFrame_history x hr n addr bytes now
+  | tick => exact onTick_history x hr n now
+  | close addr => exact onClose_history x hr n addr now
+
+end NodeHistory
+
+/-- Every production event preserves shared catalog positions, while allowing
+new shared writes and local/session purges in the same event. -/
+theorem production_step_history (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory) :
+    HistoryStep family s.held ((n.step (S.sync side) input now) s).2.held :=
+  NodeHistory.step_history (S.sync side) (NodeTape.production_readOnly S side) n input now s
+
+theorem world_run_history (S : Setup) (w : World) (side target : Side) (queue : List Packet)
+    (f : Engine.Sync.Node → M (Engine.Sync.Node × Effects)) (closed : Bool)
+    (hf : ∀ n s, HistoryStep family s.held (f n s).2.held) :
+    HistoryStep family (w.peer target).memory.held
+      ((w.run S side queue f closed).peer target).memory.held := by
+  cases side <;> cases target
+  · exact hf _ _
+  · exact .refl _
+  · exact .refl _
+  · exact hf _ _
+
+/-- Every environment action, including delivery, drops and two-sided close,
+preserves each peer's reachable, agreeing, append-only shared history. -/
+theorem world_step_history (S : Setup) (w : World) (a : Action) (target : Side) :
+    HistoryStep family (w.peer target).memory.held ((step S w a).peer target).memory.held := by
+  have hp : ∀ (w : World) (side : Side) (queue : List Packet) (input : Node.Input) (closed : Bool),
+      HistoryStep family (w.peer target).memory.held
+        ((w.run S side queue (fun n => n.step (S.sync side) input w.now) closed).peer target).memory.held :=
+    fun w side queue input closed => world_run_history S w side target queue _ closed
+      (fun n s => production_step_history S side n input w.now s)
+  have time : ∀ w' : World, ({ w' with now := w.now + 1 }.peer target).memory.held =
+      (w'.peer target).memory.held := by intro w'; cases target <;> rfl
+  unfold step
+  rw [time]
+  cases a with
+  | tick side => exact hp w side w.net .tick false
+  | write side ops => exact hp w side w.net (.write ops) false
+  | idle => exact .refl _
+  | drop => cases target <;> exact .refl _
+  | close =>
+    have ha := world_run_history S w .a target []
+      (fun n => n.onClose (S.sync .a) (S.addr .b) w.now) true
+      (NodeHistory.onClose_history (S.sync .a) (NodeTape.production_readOnly S .a) · (S.addr .b) w.now)
+    let wa := w.run S .a [] (fun n => n.onClose (S.sync .a) (S.addr .b) w.now) true
+    have hb := world_run_history S wa .b target wa.net
+      (fun n => n.onClose (S.sync .b) (S.addr .a) w.now) true
+      (NodeHistory.onClose_history (S.sync .b) (NodeTape.production_readOnly S .b) · (S.addr .a) w.now)
+    exact ha.trans hb
+  | deliver =>
+    cases hnet : w.net with
+    | nil => simpa only [World.deliver, hnet] using (HistoryStep.refl (fam := family) (w.peer target).memory.held)
+    | cons p rest =>
+      by_cases ha : p.dst = S.addr .a
+      · simpa only [World.deliver, hnet, ite_eq_left ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
+      · by_cases hb : p.dst = S.addr .b
+        · simpa only [World.deliver, hnet, ite_eq_right ha, ite_eq_left hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
+        · simp only [World.deliver, hnet, ite_eq_right ha, ite_eq_right hb]
+          cases target <;> exact .refl _
+
+theorem world_trace_history (S : Setup) (w : World) (actions : List Action) (target : Side) :
+    HistoryStep family (w.peer target).memory.held
+      ((trace S w actions).peer target).memory.held := by
+  induction actions generalizing w with
+  | nil => exact .refl _
+  | cons a rest ih => exact (world_step_history S w a target).trans (ih (step S w a))
+
+
+/-- Starting empty, arbitrary actual event prefixes have a collision-safe
+shared history. No fairness or quiescence assumption is needed. -/
+theorem empty_trace_history (S : Setup) (ea eb : Nat → ByteArray)
+    (actions : List Action) (target : Side) :
+    let h := ((trace S (empty ea eb) actions).peer target).memory.held
+    h.Reachable family ∧ h.LogAgrees := by
+  have hm := world_trace_history S (empty ea eb) actions target
+  have he : ((empty ea eb).peer target).memory.held = ({} : Held F) := by cases target <;> rfl
+  rw [he] at hm
+  have h := hm (held_empty_reachable family) empty_log_agrees
+  exact ⟨h.1, h.2.1⟩
+
+/-- Catalog positions are stable across every finite interval of the actual
+execution relation. This permits unbounded append traffic and reconnects. -/
+theorem Run.history {S initial} (r : Run S initial) (target : Side)
+    {n k : Nat} (hnk : n ≤ k) :
+    HistoryStep family ((r.state n).peer target).memory.held
+      ((r.state k).peer target).memory.held := by
+  induction hnk with
+  | refl => exact .refl _
+  | @step k _ ih =>
+    rw [r.next k]
+    exact ih.trans (world_step_history S (r.state k) (r.action k) target)
+
+end Connection.Execution
 
 end

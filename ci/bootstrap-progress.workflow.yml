@@ -60,6 +60,7 @@ jobs:
             out/ci
             out/fairness
             out/join-fair
+            out/catalog-retry
             out/simplify-negative
             out/tree-negative
             out/vacuity

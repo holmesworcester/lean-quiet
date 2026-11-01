@@ -80,14 +80,16 @@ that witness, but their composition still needs to be proved:
 4. Connect reaction writes, validation and session following through the entire
    bootstrap, and state the store/transport refinement boundary explicitly.
 
-Unqualified fairness is insufficient. An execution can schedule both peers
-forever while every useful connection fails, capacity never becomes available,
-authorization is repeatedly revoked, or packets arrive only after their round
-has expired. A meaningful whole-app theorem needs an eventual stable interval,
-usable reachable addresses (currently IPv4 literals), completed I/O, positive
-sync budgets and adequate capacity, correct primitive
-crypto and collision-compatible retained data. Those assumptions should be
-stated about environment behavior, rather than as “bootstrap eventually works.”
+The earlier round/closure components have stronger premises about stable
+sessions, room/capacity and delivery. Those are **not accepted environment
+assumptions for the strengthened goal**: the running app must supply its own
+fair service and persistent retries. A durable per-authenticated-peer catalog
+cursor now retries actual authorized op bytes across changing session IDs,
+without relying on delivery of a round opening, have or want. The cursor law
+allows continuing inserts and zero-room stalls; deriving its recurring output
+reservation from the complete native runner is still open. Revoked/private
+data, unsupported bytes and missing prerequisites require explicit domain
+boundaries, not an assumption that bootstrap eventually succeeds.
 
 Transport capacity includes a per-frame byte bound. The low-level send intent
 and validator still accept a signed post above 1 MiB, but `App.writeAll` now

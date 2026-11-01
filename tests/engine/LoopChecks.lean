@@ -41,21 +41,27 @@ def run (t : Checks) : IO Unit := do
       first.state.value == 11007 && first.state.lastTick == 10 && first.ticked && !first.stopped)
   t.ok "shared turn reports the actual selected primary write and sampled time"
     (first.observed.now == 10 && first.observed.selected == some (.inl 7) &&
-      !first.state.writeFirst && mem.writes == [8] && mem.events == [9])
+      first.state.slot.val == 2 && mem.writes == [8] && mem.events == [9])
   let (second, mem') := (Loop.turn backend 10 first.state).run
     { mem with now := 11, writes := mem.writes ++ [10], calls := [] }
-  t.ok "shared turn persists preference while writes remain continuously available"
-    (mem'.calls == ["clock", "poll-event", "event"] &&
-      second.observed.selected == some (.inr 9) && second.state.value == 11016 &&
-      second.state.writeFirst && !second.ticked && second.state.lastTick == 10 &&
-      mem'.writes == [8, 10])
+  t.ok "shared turn prioritizes local work while advancing its bounded phase"
+    (mem'.calls == ["clock", "poll-write", "write"] &&
+      second.observed.selected == some (.inl 8) && second.state.value == 11015 &&
+      second.state.slot.val == 1 && !second.ticked && second.state.lastTick == 10 &&
+      mem'.writes == [10] && mem'.events == [9])
+  let (network, mem) := (Loop.turn backend 10 { value := 2, slot := ⟨0, by decide⟩ }).run
+    { now := 1, writes := [7], events := [9] }
+  t.ok "shared turn guarantees the reserved network slot despite ready local work"
+    (mem.calls == ["clock", "poll-event", "event"] &&
+      network.observed.selected == some (.inr 9) && network.state.value == 11 &&
+      network.state.slot.val == 3 && mem.writes == [7])
   let (stop, mem) := (Loop.turn backend 10
-    { value := 5, writeFirst := false, lastTick := 0 }).run
+    { value := 5, slot := ⟨0, by decide⟩, lastTick := 0 }).run
     { now := 30, writes := [7], events := [0] }
   t.ok "stop dispatch cleans up once and bypasses an otherwise due timer"
     (mem.calls == ["clock", "poll-event", "event", "stop"] &&
       stop.stopped && !stop.ticked && stop.state.value == 100005 &&
-      stop.state.lastTick == 0 && stop.state.writeFirst && mem.writes == [7])
+      stop.state.lastTick == 0 && stop.state.slot.val == 3 && mem.writes == [7])
   let (idle, mem) := (Loop.turn backend 10 { value := 0, lastTick := 10 }).run
     { now := 20 }
   t.ok "empty inbox still ticks and checks expiry before idle sleep"
@@ -68,7 +74,7 @@ def run (t : Checks) : IO Unit := do
     (mem.calls == ["clock", "poll-write", "poll-event", "event"] &&
       fallback.state.value == 5 && fallback.observed.selected == some (.inr 3) &&
       !fallback.ticked && !fallback.stopped)
-  let (fallback, mem) := (Loop.turn backend 10 { value := 2, writeFirst := false }).run
+  let (fallback, mem) := (Loop.turn backend 10 { value := 2, slot := ⟨0, by decide⟩ }).run
     { now := 1, writes := [4] }
   t.ok "empty preferred event queue immediately falls back to a local write"
     (mem.calls == ["clock", "poll-event", "poll-write", "write"] &&

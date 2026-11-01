@@ -51,6 +51,7 @@ frame came from (at first, the one its handshake ran on).
 import engine.sync.Notice
 import engine.core.Held
 import engine.wire.Lanes
+import engine.sync.Sweep
 
 namespace Engine.Sync
 
@@ -92,6 +93,9 @@ structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   /-- A sealed frame's session and bytes, if it opens under that
   session's keys. -/
   openFrame : ByteArray → m (Option (Id × ByteArray))
+  /-- Stable authenticated remote identity for retry progress across sessions.
+  Standalone fixed-session interpreters use their session id by default. -/
+  retryKey : Id → m (Option Id) := fun cid => pure (some cid)
 
 /-- A node's sync setup: its family, the connection settings, and the
 Connection family's hooks. -/
@@ -103,6 +107,10 @@ structure Sync (F : Type) (m : Type → Type) [Monad m] where
   runner's flow control (none, as in a proof's world: `cfg.burst` a
   step). -/
   room : ByteArray → Option Nat := fun _ => none
+  /-- Durable retry source. The production runner always supplies SQLite's
+  catalog; explicit interpreters may supply their own read-only catalog. -/
+  catalog : Option (Catalog m) := none
+  retryStore : Option (RetryStore m) := none
 
 structure Node where
   ix : Index
@@ -121,6 +129,8 @@ structure Node where
   /-- Ids this node wrote, newest first, each with when (at most
   `hotCap`): a want for one within `hotMs` is answered urgent. -/
   hot : List (Id × Nat) := []
+  /-- One constant-size retry cursor per live session. -/
+  sweeps : List (Id × Sweep) := []
 
 /-- What a step asks for, before sealing. -/
 structure Acts where
@@ -164,6 +174,7 @@ def Node.setAddr (n : Node) (cid : Id) (a : ByteArray) : Node :=
 def Node.close (n : Node) (cid : Id) : Node :=
   { n with
     conns := n.conns.filter fun p => !Decidable.decide (p.1 = cid)
+    sweeps := n.sweeps.filter fun p => !Decidable.decide (p.1 = cid)
     managed := n.managed.filter fun c => !Decidable.decide (c = cid) }
 
 /-- A session ends here: closed, and never reopened. -/
@@ -406,6 +417,36 @@ def Node.serveOwed (n : Node) (cid : Id) (now : Nat) : m (Node × Acts) := do
     return ({ n with conns := n.conns.map fun p => if p.1 = cid then (cid, c) else p },
       { send := urgent.map fun o => (.conn cid, o.bytes), serve := bulk.map fun o => (.conn cid, o.bytes) })
 
+/-- Conservative bytes already produced for one socket, including a whole
+production envelope per payload. Bundling can only reduce that reservation. -/
+def Node.reserved (n : Node) (out : Acts) (addr : ByteArray) : Nat :=
+  ((out.send ++ out.serve).map fun (route, bytes) =>
+    let destination := match route with
+      | .bare a => some a
+      | .conn cid => n.addr? cid
+    if destination = some addr then (Codec.encode [bytes]).size + 74 else 0).sum
+
+def Node.afterActs (n : Node) (out : Acts) : Sync F m :=
+  { x with room := fun addr => if x.catalog.isNone then x.room addr
+      else some ((x.room addr).getD maxFrame - n.reserved out addr) }
+
+/-- Retry a single durable catalog position for this session. Neither lost
+round openings nor a full asked/owed cache can suppress this path. -/
+def Node.sweep (n : Node) (cid : Id) : m (Node × Acts) := do
+  let some catalog := x.catalog | return (n, {})
+  let some c := n.conn? cid | return (n, {})
+  let c ← Node.refresh x cid c
+  let some peer ← x.hooks.retryKey cid | return (n, {})
+  let cursor ← match x.retryStore with
+    | some store => store.load peer
+    | none => pure (((n.sweeps.find? (fun p => p.1 == cid)).map Prod.snd).getD {})
+  let room := ((n.addr? cid).bind x.room).getD maxFrame
+  let (cursor, offered) ← Sweep.run catalog cursor (c.shows x.fam) room
+  let n ← match x.retryStore with
+    | some store => do store.save peer cursor; pure n
+    | none => pure { n with sweeps := (cid, cursor) :: n.sweeps.filter (fun p => p.1 != cid) }
+  return (n, { serve := offered.toList.map fun o => (.conn cid, o.bytes) })
+
 /-- A connection opened without a handshake: the in-memory harness's. -/
 def Node.connect (n : Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
     m (Node × Effects) := do
@@ -463,9 +504,10 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | some c =>
       let c ← Node.refresh x cid c
       let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
-      let (n', o') ← n'.serveOwed x cid now
+      let (n', retry) ← n'.sweep (n'.afterActs x (out ++ o)) cid
+      let (n', o') ← n'.serveOwed (n'.afterActs x (out ++ o ++ retry)) cid now
       n := n'
-      out := out ++ o ++ o'
+      out := out ++ o ++ retry ++ o'
   n.finish x out now
 
 /-- A local write: this device's own ops, hot from now on. -/

@@ -335,7 +335,7 @@ The cutover's baseline was Lean Quiet `main` at `e727b5e`, with main merged in u
 
 **MIGRATE02 — Extract real ownership.** The global op bodies, facts, codecs, validators, indexes, constructors, and laws in main's `ops/community/Facts.lean`, `Compose.lean`, `Intents.lean` and `Laws.lean` MUST move into their owning families. *Done:* each op's `Op.lean` and `Validate.lean` hold its types and validator; the family's `Family.lean` sums them and dispatches to them. A new directory containing wrappers around the unchanged global implementation does not complete ownership extraction. Aggregate dispatch may remain only as composition of owned definitions.
 
-The workspace's root page lists where every file of main goes ("Where main's files go"), from the same plan.
+`ci/optree-map.tsv` lists, for every file of main the cutover removed, the files its declarations are in now.
 
 **MIGRATE03 — Proven storage and codec continuity.** Regression suites MUST compare old and extracted behavior on realistic valid, invalid, unresolved, and reordered histories. Codec fixtures MUST prove byte and ID preservation for the extraction. Storage changes MUST include restart and migration tests.
 

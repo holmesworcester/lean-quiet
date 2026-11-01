@@ -20,6 +20,11 @@ import engine.sync.RoundRun
 import engine.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
+import engine.wire.LoopLaws
+import engine.wire.PriorityLaws
+import engine.sync.SweepLaws
+import engine.sync.SweepRun
+import engine.sync.SharedLog
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -1280,3 +1285,66 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_claim
 #print axioms Engine.Sync.RoundRun.initial_asks
 #print axioms Engine.Sync.conn_runs_exchange
+
+#print axioms App.WriteAdmission.admitted_frames
+#print axioms App.WriteAdmission.admitted_count
+#print axioms App.WriteAdmission.admitted_bytes
+#print axioms Engine.Sync.Node.step_write
+#print axioms Engine.Sync.Node.step_frame
+#print axioms Engine.Sync.Node.step_tick
+#print axioms Engine.Sync.Node.step_close
+#print axioms Engine.Sync.Loop.dispatch_records
+#print axioms Engine.Sync.Loop.dispatch_timer
+#print axioms Engine.Sync.Loop.turn_records
+#print axioms Engine.Sync.Loop.turn_timer
+#print axioms Engine.Sync.Inbox.Priority.phase_cycle
+#print axioms Engine.Sync.Inbox.Priority.local_share
+#print axioms Engine.Sync.Inbox.Priority.waiting_step
+#print axioms Engine.Sync.Inbox.Priority.served
+#print axioms Engine.Sync.Inbox.Priority.write_within
+#print axioms Engine.Sync.Inbox.Priority.event_within
+#print axioms Engine.waits_history_bound
+#print axioms Engine.step_history_budget
+#print axioms Engine.drain_history_budget
+#print axioms Engine.Sync.turn_settles_reachable
+#print axioms Engine.Sync.purge_reachable
+#print axioms Engine.Sync.purge_settles_reachable
+#print axioms Engine.Sync.Moves.shared_retained
+#print axioms Engine.Sync.Moves.store_reachable
+#print axioms Engine.Sync.Moves.store_settled
+#print axioms Connection.Execution.production_step_moves
+#print axioms Connection.Execution.production_step_retains
+#print axioms Connection.Execution.production_step_reachable
+#print axioms Connection.Execution.production_step_settled
+#print axioms Connection.Execution.world_step_moves
+#print axioms Connection.Execution.world_trace_moves
+#print axioms Connection.Execution.empty_trace_store
+#print axioms Connection.Execution.Run.shared_retained
+#print axioms Engine.Sync.Sweep.offer_sent
+#print axioms Engine.Sync.Sweep.next_sent
+#print axioms Engine.Sync.Sweep.step_progress
+#print axioms Engine.Sync.Sweep.step_nonincrease
+#print axioms Engine.Sync.Sweep.retried
+#print axioms Engine.Sync.Sweep.retried_fair
+#print axioms Engine.Sync.Sweep.fair_loss_delivered
+#print axioms Engine.Sync.Sweep.run_observed
+#print axioms Engine.Sync.Sweep.held_run_observed
+#print axioms Engine.Sync.empty_log_agrees
+#print axioms Engine.Sync.shared_log_turn
+#print axioms Engine.Sync.shared_log_purge
+#print axioms Engine.Sync.purge_log_agrees
+#print axioms Engine.Sync.write_log_agrees
+#print axioms Connection.Execution.write_store_tape
+#print axioms Connection.Execution.write_receives
+#print axioms Connection.Execution.write_log_agrees_tape
+#print axioms Connection.Execution.committed_bind
+#print axioms Connection.Execution.store_receives
+#print axioms Connection.Execution.onWrite_receives
+#print axioms Connection.Execution.production_write_receives
+#print axioms Connection.Execution.HistoryStep.catalog_read
+#print axioms Connection.Execution.HistoryStep.ceiling_mono
+#print axioms Connection.Execution.production_step_history
+#print axioms Connection.Execution.world_step_history
+#print axioms Connection.Execution.world_trace_history
+#print axioms Connection.Execution.empty_trace_history
+#print axioms Connection.Execution.Run.history

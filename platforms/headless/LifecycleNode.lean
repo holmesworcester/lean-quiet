@@ -20,13 +20,14 @@ def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let ch ← eventChannel cfg
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
+  let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
     while !(← consume.get) do IO.sleep 1
-    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots }
+    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots } turnCounters
   return {
     events := ch, writes, port := 0, done, slots
     stopped := ← IO.mkRef false, listening := Task.pure (.ok ()),
-    listener := ← listener, closing := ← Std.Mutex.new false }
+    listener := ← listener, closing := ← Std.Mutex.new false, turnCounters }
 
 def stored (s : St) : IO Nat := do
   let ((v, _), _) ← (Reader.eval (.count s.me.c none)).run { rd := s.rd }

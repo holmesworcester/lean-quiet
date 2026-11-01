@@ -305,6 +305,7 @@ def hooks (fam : Family F) (K : Keys) (listen : B) : Hooks F m where
   retired := retired
   sealFor := sealFor K
   openFrame := openFrame K
+  retryKey := retryKey
 
 end
 end Connection
