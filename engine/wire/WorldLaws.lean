@@ -1527,8 +1527,8 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
     (fresh : c.oldRound r k = false)
     (hX : X = ix.items r) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
-        (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
-      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
+        (.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse) ∧
+      (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd).reverse] now).send =
         (Msg.rbsr r k []).op :: (chunks cfg A (.hold r) ++ chunks cfg (admitAsks cfg.maxKnown c.asked B) .want) ∧
       ∀ i, (i ∈ A ↔ named Prod.snd (within Prod.fst rg X) i = true ∧
           named Prod.snd (within Prod.fst rg Y) i = false) ∧
@@ -1539,6 +1539,6 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
   subst hX
   simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
-  simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound]
+  simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound, claimsOf, holdIds]
 
 end Engine.Sync

@@ -87,8 +87,13 @@ id as a number and is injective (`num_inj`), so keys name items.
 floor `f` is every op with no claimed time (roots, invitations,
 admissions, removals: structure, including every removal a node needs
 to refuse a removed peer) and every op claimed at `f` or later:
-`[0, 1) ∪ [f, ∞)`, one range when `f ≤ 1`. A round runs over the
-overlap of the two sides' windows.
+`[0, 1)` then `[max f 1, ∞)`, the structure range first (see "Windows
+and order"). A round runs over the overlap of the two sides' windows. A message's attachment and its
+chunks claim the message's time, checked by their validators
+(`chunks_in_window`; user, 2026-11-01): a window holds a message with
+its photos, and no older message's photos. Before, they sorted at time
+0, in the structure range every window includes, so every window
+carried every photo.
 
 **Fingerprints.** `fp l = (|l|, lbl l)`. `lbl` is the Merkle label of
 the canonical treap of `l`: the item with the largest id number at the
@@ -297,6 +302,46 @@ These are bounds on inbound buffering and persistent per-connection id
 state, not a total RSS bound: the shared room index (one per node, not
 per connection) and transient handler allocations are separate. Round/CPU bounds remain
 separate work.
+
+## Windows and order
+
+**Newest first** (user, 2026-11-01). A fresh or catching-up node gets the
+structure range first, then the newest ops, then older ones, and a
+message's photo with its message.
+
+- **Chunks sort with their message.** An attachment and its chunks
+  claim their message's time, checked by their validators
+  (`chunks_in_window`). Before, they sorted at time 0, in the structure
+  range every window includes.
+- **A window is two ranges, structure first** (`window_first`):
+  `[0, 1)` (roots, invitations, admissions, removals: what everything
+  else needs), then `[max f 1, ∞)`. A full round (`f ≤ 1`) is the same
+  two ranges.
+- **Answers are newest first** (`answer_newest_first`): pieces are
+  claimed newest first, and every list of ids (a have, an ids claim) is
+  newest first. Only the holder can order them: the side that lacks ops
+  does not know their keys. The peer's `onHold` wants them in the have's
+  order, and the serve queue is FIFO, so ops go out in that order.
+- **A message's haves follow its claims** (`newest_first`): answering
+  claims that come structure first and then newest first (an opening
+  over a window, or an answer's pieces), a message's haves come
+  structure first, then newest first.
+
+Order changes no fingerprint and no wire format: old and new nodes sync
+completely, the old ones oldest first.
+
+Tested end to end by `newest` (tests/engine/Newest.lean, `mise run
+test:window`): a fresh node syncs a 200-message chaos room (real signed
+ops, photos with 64 KiB chunks) from a full node; the structure arrives
+before any timed op, messages arrive newest first, and a newer message's
+photo arrives whole before any chunk of an older one's. Its control
+syncs the same room with chunks claimed at time 0: they arrive before
+every message, in no order of their messages.
+
+What this does not order: within one round, a piece found deeper in the
+claim tree (where both sides differ in a small range) is offered in a
+later message than a shallower, older piece; and ops the stream offers
+as they are stored go in store order.
 
 ## Code
 

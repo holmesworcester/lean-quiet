@@ -12,6 +12,10 @@ forth until every range is settled.
   and what it lacks (`want`).
 - `exchange` runs a round to its end by composing the two sides'
   `answer`s, and returns what each side sends the other.
+- **Newest first.** An answer lists its pieces, and every list of ids,
+  newest key first (`answer_newest_first`): the holder orders them, as the
+  side that lacks ops cannot, and the peer wants and is served them in
+  that order. A window lists its structure range first (Conn.lean).
 
 Laws:
 - `exchange_complete`: from an honest opening claim over r, the round
@@ -159,23 +163,39 @@ def runLen (n : Nat) : Nat := (n + P.fan - 1) / P.fan
 /-- Where the items x of a range are cut: at every `runLen`-th item. -/
 def cutsOf (x : List α) : List Key := (pick (runLen P x.length) (runLen P x.length) x).map key
 
-/-- What this side, holding `mine`, answers to a claim. -/
+/-- What this side, holding `mine` (in key order), answers to a claim:
+pieces and ids newest first. -/
 def answer (mine : List α) : Claim → List Out
   | .fp r n l =>
     let x := within key r mine
     if fp key ident h x = (n, l) then []
-    else if x.length ≤ P.leaf then [.claim (.ids r (x.map ident))]
-    else (pieces r (cutsOf key P x)).map fun q => .claim (.fp q (fp key ident h (within key q mine)).1
+    else if x.length ≤ P.leaf then [.claim (.ids r (x.map ident).reverse)]
+    else (pieces r (cutsOf key P x)).reverse.map fun q => .claim (.fp q (fp key ident h (within key q mine)).1
       (fp key ident h (within key q mine)).2)
   | .ids r xs =>
     let x := within key r mine
-    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident),
+    [.hold ((x.filter fun a => !xs.any fun i => Decidable.decide (ident a = i)).map ident).reverse,
      .want (xs.filter fun i => !named ident x i)]
 
-/-- How a side opens a round over r. -/
+/-- The ids a have among outputs offers, or none: a message's haves are
+its outputs' (`Conn.onRbsr`). -/
+def holdIds : Out → List ByteArray
+  | .hold xs => xs
+  | _ => []
+
+/-- The claims among outputs, in order: a message's next claims. -/
+def claimsOf (os : List Out) : List Claim :=
+  os.filterMap fun | .claim x => some x | _ => none
+
+/-- The range a claim is about. -/
+def Claim.range : Claim → Range
+  | .fp r _ _ => r
+  | .ids r _ => r
+
+/-- How a side opens a round over r: its ids newest first. -/
 def opening (mine : List α) (r : Range) : Claim :=
   let x := within key r mine
-  if x.length ≤ P.leaf then .ids r (x.map ident) else .fp r (fp key ident h x).1 (fp key ident h x).2
+  if x.length ≤ P.leaf then .ids r (x.map ident).reverse else .fp r (fp key ident h x).1 (fp key ident h x).2
 
 /-- The ids an answer sends the peer, given what the peer's own round
 from each claim sends (`sub`, as (peer → this side, this side → peer)). -/

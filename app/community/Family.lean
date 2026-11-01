@@ -203,7 +203,7 @@ inductive Body where
 @[match_pattern] abbrev Fact.message (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id := none) : Fact := .ofMessage ⟨c, u, device, ckey, text, n, time, clump⟩
 @[match_pattern] abbrev Fact.wrap (c : Id) (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Fact := .ofWrap ⟨c, ckey, recipient, box⟩
 @[match_pattern] abbrev Fact.profile (c : Id) (u : Id) (name : ByteArray) (time : Nat) : Fact := .ofProfile ⟨c, u, name, time⟩
-@[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, kid, sealed⟩
+@[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, time, kid, sealed⟩
 @[match_pattern] abbrev Fact.react (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) : Fact := .ofReact ⟨c, u, target, emoji, time⟩
 @[match_pattern] abbrev Fact.request (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) : Fact := .ofRequest ⟨c, u, device, enc, link⟩
 @[match_pattern] abbrev Fact.approval (c : Id) (req : Id) (u : Id) : Fact := .ofApproval ⟨c, req, u⟩
@@ -225,7 +225,7 @@ inductive Body where
 @[match_pattern] abbrev Body.post (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (sig : ByteArray) : Body := .ofPost ⟨ckey, text, n, time, sig⟩
 @[match_pattern] abbrev Body.wrap (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Body := .ofWrap ⟨ckey, recipient, box⟩
 @[match_pattern] abbrev Body.profile (name : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofProfile ⟨name, time, sig⟩
-@[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, kid, sealed, sig⟩
+@[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, time, kid, sealed, sig⟩
 @[match_pattern] abbrev Body.react (emoji : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofReact ⟨emoji, time, sig⟩
 @[match_pattern] abbrev Body.approve (sig : ByteArray) : Body := .ofApprove ⟨sig⟩
 @[match_pattern] abbrev Body.admit : Body := .ofAdmit {}
@@ -235,7 +235,7 @@ inductive Body where
 @[match_pattern] abbrev Body.name (n : Nat) (name : ByteArray) (sig : ByteArray) : Body := .ofName ⟨n, name, sig⟩
 @[match_pattern] abbrev Body.abandon : Body := .ofAbandon {}
 @[match_pattern] abbrev Body.key (c : ByteArray) (k : ByteArray) : Body := .ofKey ⟨c, k⟩
-@[match_pattern] abbrev Body.chunk (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) : Body := .ofChunk ⟨root, len, index, slice, sibs⟩
+@[match_pattern] abbrev Body.chunk (root : ByteArray) (len : Nat) (time : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) : Body := .ofChunk ⟨root, len, time, index, slice, sibs⟩
 @[match_pattern] abbrev Body.endpoint (sk : ByteArray) : Body := .ofEndpoint ⟨sk⟩
 @[match_pattern] abbrev Body.receive (k : Nat) : Body := .ofReceive ⟨k⟩
 
@@ -281,11 +281,11 @@ theorem Fact.profile.injEq (c : Id) (u : Id) (name : ByteArray) (time : Nat) (c'
 theorem Fact.profile.inj {c : Id} {u : Id} {name : ByteArray} {time : Nat} {c' : Id} {u' : Id} {name' : ByteArray} {time' : Nat}
     (hinj : Fact.profile c u name time = Fact.profile c' u' name' time') : c = c' ∧ u = u' ∧ name = name' ∧ time = time' := by
   rw [Fact.profile.injEq] at hinj; exact hinj
-theorem Fact.attachment.injEq (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (c' : Id) (msg' : Id) (u' : Id) (root' : Id) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) :
-    (Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') = (c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed') := by
+theorem Fact.attachment.injEq (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (c' : Id) (msg' : Id) (u' : Id) (root' : Id) (len' : Nat) (time' : Nat) (kid' : ByteArray) (sealed' : ByteArray) :
+    (Fact.attachment c msg u root len time kid sealed = Fact.attachment c' msg' u' root' len' time' kid' sealed') = (c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed') := by
   simp [Fact.attachment]
-theorem Fact.attachment.inj {c : Id} {msg : Id} {u : Id} {root : Id} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {c' : Id} {msg' : Id} {u' : Id} {root' : Id} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray}
-    (hinj : Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') : c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' := by
+theorem Fact.attachment.inj {c : Id} {msg : Id} {u : Id} {root : Id} {len : Nat} {time : Nat} {kid : ByteArray} {sealed : ByteArray} {c' : Id} {msg' : Id} {u' : Id} {root' : Id} {len' : Nat} {time' : Nat} {kid' : ByteArray} {sealed' : ByteArray}
+    (hinj : Fact.attachment c msg u root len time kid sealed = Fact.attachment c' msg' u' root' len' time' kid' sealed') : c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' := by
   rw [Fact.attachment.injEq] at hinj; exact hinj
 theorem Fact.react.injEq (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) (c' : Id) (u' : Id) (target' : Id) (emoji' : ByteArray) (time' : Nat) :
     (Fact.react c u target emoji time = Fact.react c' u' target' emoji' time') = (c = c' ∧ u = u' ∧ target = target' ∧ emoji = emoji' ∧ time = time') := by
@@ -407,11 +407,11 @@ theorem Body.profile.injEq (name : ByteArray) (time : Nat) (sig : ByteArray) (na
 theorem Body.profile.inj {name : ByteArray} {time : Nat} {sig : ByteArray} {name' : ByteArray} {time' : Nat} {sig' : ByteArray}
     (h : Body.profile name time sig = Body.profile name' time' sig') : name = name' ∧ time = time' ∧ sig = sig' := by
   rw [Body.profile.injEq] at h; exact h
-theorem Body.attach.injEq (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) (root' : ByteArray) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) (sig' : ByteArray) :
-    (Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') = (root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig') := by
+theorem Body.attach.injEq (root : ByteArray) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) (root' : ByteArray) (len' : Nat) (time' : Nat) (kid' : ByteArray) (sealed' : ByteArray) (sig' : ByteArray) :
+    (Body.attach root len time kid sealed sig = Body.attach root' len' time' kid' sealed' sig') = (root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig') := by
   simp [Body.attach]
-theorem Body.attach.inj {root : ByteArray} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {sig : ByteArray} {root' : ByteArray} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray} {sig' : ByteArray}
-    (h : Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') : root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig' := by
+theorem Body.attach.inj {root : ByteArray} {len : Nat} {time : Nat} {kid : ByteArray} {sealed : ByteArray} {sig : ByteArray} {root' : ByteArray} {len' : Nat} {time' : Nat} {kid' : ByteArray} {sealed' : ByteArray} {sig' : ByteArray}
+    (h : Body.attach root len time kid sealed sig = Body.attach root' len' time' kid' sealed' sig') : root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig' := by
   rw [Body.attach.injEq] at h; exact h
 theorem Body.react.injEq (emoji : ByteArray) (time : Nat) (sig : ByteArray) (emoji' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.react emoji time sig = Body.react emoji' time' sig') = (emoji = emoji' ∧ time = time' ∧ sig = sig') := by
@@ -455,11 +455,11 @@ theorem Body.key.injEq (c : ByteArray) (k : ByteArray) (c' : ByteArray) (k' : By
 theorem Body.key.inj {c : ByteArray} {k : ByteArray} {c' : ByteArray} {k' : ByteArray}
     (h : Body.key c k = Body.key c' k') : c = c' ∧ k = k' := by
   rw [Body.key.injEq] at h; exact h
-theorem Body.chunk.injEq (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) (root' : ByteArray) (len' : Nat) (index' : Nat) (slice' : ByteArray) (sibs' : List ByteArray) :
-    (Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') = (root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs') := by
+theorem Body.chunk.injEq (root : ByteArray) (len : Nat) (time : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) (root' : ByteArray) (len' : Nat) (time' : Nat) (index' : Nat) (slice' : ByteArray) (sibs' : List ByteArray) :
+    (Body.chunk root len time index slice sibs = Body.chunk root' len' time' index' slice' sibs') = (root = root' ∧ len = len' ∧ time = time' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs') := by
   simp [Body.chunk]
-theorem Body.chunk.inj {root : ByteArray} {len : Nat} {index : Nat} {slice : ByteArray} {sibs : List ByteArray} {root' : ByteArray} {len' : Nat} {index' : Nat} {slice' : ByteArray} {sibs' : List ByteArray}
-    (h : Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') : root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs' := by
+theorem Body.chunk.inj {root : ByteArray} {len : Nat} {time : Nat} {index : Nat} {slice : ByteArray} {sibs : List ByteArray} {root' : ByteArray} {len' : Nat} {time' : Nat} {index' : Nat} {slice' : ByteArray} {sibs' : List ByteArray}
+    (h : Body.chunk root len time index slice sibs = Body.chunk root' len' time' index' slice' sibs') : root = root' ∧ len = len' ∧ time = time' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs' := by
   rw [Body.chunk.injEq] at h; exact h
 theorem Body.endpoint.injEq (sk : ByteArray) (sk' : ByteArray) :
     (Body.endpoint sk = Body.endpoint sk') = (sk = sk') := by
@@ -1154,8 +1154,10 @@ def scopeOf (o : Op) : Scope :=
   | none => .shared (o.reqs.headD o.id)
 
 /-- An op's claimed time, which sync ranges are over: a post's, a
-profile's or a reaction's; 0 for the rest (roots, invitations,
-admissions, removals, ...), which every window includes. A post's
+profile's or a reaction's, and an attachment's or a chunk's (its
+message's, so a photo syncs with its message: `chunks_in_window`); 0 for
+the rest (roots, invitations, admissions, removals, ...), which every
+window includes. A post's
 counter does not feed it: sync's windows are over every timed kind in a
 room, and only time is common to them, in minutes that mean the same on
 every device; a counter orders one channel's messages only, and one
@@ -1165,6 +1167,8 @@ def orderOf (o : Op) : Nat :=
   | some (.ofPost b) => b.time
   | some (.ofProfile b) => b.time
   | some (.ofReact b) => b.time
+  | some (.ofAttach b) => b.time
+  | some (.ofChunk b) => b.time
   | _ => 0
 
 def family (C : Crypto) : Family Fact :=
@@ -1250,7 +1254,7 @@ request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
   | .root _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s
-  | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
+  | .profile _ _ s | .attach _ _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []
 
