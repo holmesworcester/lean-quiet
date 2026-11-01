@@ -55,12 +55,17 @@ def notice (dir : String) : IO (Peer × Peer × Id × Op × Sock) := do
   let removal ← view a0 (removeMember c user (JoinFair.device "A"))
   let some op := removal.ops.head? | throw (IO.userError "missing signed removal")
   submit a0 removal.ops
+  let some source := a0.state.value.socks.head? | throw (IO.userError "missing sending socket")
   let mut a := a0
   for _ in [0:8] do
     a ← tick a
     if a.state.value.node.conns.isEmpty then break
   unless a.state.value.node.conns.isEmpty do throw (IO.userError "source did not retire")
   unless ← captureOnly b (frameIs b op) do throw (IO.userError "signed removal did not enter actual mailbox")
+  -- Then the source's transport fails outright, as when its process dies:
+  -- its retirement alone ends gracefully (`Tcp.linger`) and resets nothing.
+  let some cap := source.aborter | throw (IO.userError "sending socket lacks abort")
+  unless ← cap.abort do throw (IO.userError "sending socket abort failed")
   return (a, b, c, op, sock)
 
 def freezeHub (t : Checks) : IO Unit := do
