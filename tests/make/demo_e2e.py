@@ -252,7 +252,7 @@ try:
     for name, image in (('band-alice', after_a), ('band-bob', after_b), ('band-bob-before', before)):
         image.save(OUT / f'{name}.png')
     s_after, s_before = same(after_a, after_b), same(after_a, before)
-    results.append(f'band_same_after={s_after:.4f} band_same_before={s_before:.4f}')
+    results += [f'band_same_after={s_after:.4f}', f'band_same_before={s_before:.4f}']
     check(s_before < 0.97, f"the screen check's control: Bob's screen before the message differs from Alice's "
                            f"({s_before:.1%} alike)")
     try:
