@@ -11,11 +11,21 @@ private def platform : App.Io :=
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
    Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, (fun _ => pure false), pure (#[], .empty), ⟨Platform.editor, Platform.editorAction⟩⟩
 
+/-- Shows a desktop frame; returns raw input records. Contract: its effect
+is the OS's, which Lean does not state. -/
 @[extern "lq_desktop_frame"] opaque desktopFrame (rows : @& Array ByteArray) (publication : UInt64) : IO (Array UInt32)
+/-- Sets the mouse cursor's shape. Contract: its effect is the OS's, which
+Lean does not state. -/
 @[extern "lq_desktop_cursor"] opaque desktopCursor (kind : UInt32) : IO Unit
+/-- Sets the native text selection. Contract: its effect is the OS's, which
+Lean does not state. -/
 @[extern "lq_desktop_select"] opaque desktopSelect (anchor caret : UInt32) : IO Unit
 
+/-- Whether the desktop shell scrolls natively. Contract: none. The laws
+hold for every value it returns. -/
 @[extern "lq_desktop_native_scroll"] opaque desktopNativeScroll : IO Bool
+/-- Publishes the desktop's list and hold layers with their placement.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_desktop_layers"] opaque desktopLayers (list hold : @& Array ByteArray)
   (placement viewport : @& Array UInt32) : IO Unit
 

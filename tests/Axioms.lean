@@ -93,6 +93,7 @@ import engine.renderer.ActsLaws
 import engine.core.Project
 import app.connection.Family
 import engine.wire.EgressLaws
+import engine.core.SqliteLaws
 import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
@@ -210,6 +211,10 @@ open Engine Community
 #print axioms Community.joinOps_travels
 #print axioms Community.found_travels
 #print axioms Engine.drain_bounded
+#print axioms Trust.receive_as_model
+#print axioms Trust.receive_shows_model
+#print axioms Trust.receive_refused
+#print axioms Trust.purge_as_model
 #print axioms Engine.step_budget
 #print axioms Community.stopWaiting_local
 #print axioms Connection.Noise.handshake_agrees
@@ -254,6 +259,8 @@ open Engine Community
 #print axioms Community.member_opens
 #print axioms Community.boxKey_of
 #print axioms Community.cryptoSeal_good
+#print axioms Community.ofSeed_signs
+#print axioms Community.named_signs
 #print axioms Community.bodyAd_size
 #print axioms Community.sealedPost_opens
 #print axioms Community.wrapKey_opens
