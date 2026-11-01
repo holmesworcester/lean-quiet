@@ -393,7 +393,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1428 rest on Lean's standard axioms only, and about three quarters of its theorems (1070 of 1403, not counting 25 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1434 rest on Lean's standard axioms only, and about three quarters of its theorems (1076 of 1409, not counting 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -533,17 +533,17 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1070 of 1403 laws are about running code;** another 35 run its node code in a World, and 298 are not yet. Stated only: none. 25 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1076 of 1409 laws are about running code;** another 35 run its node code in a World, and 298 are not yet. Stated only: none. 25 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 203 | 157 |  | 46 |
+| Engine | 207 | 161 |  | 46 |
 | Sync | 250 | 195 |  | 55 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 208 | 143 | 16 | 49 |
 | Connections | 30 | 26 |  | 4 |
-| Community | 224 | 195 |  | 29 |
+| Community | 226 | 197 |  | 29 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 282 | 220 |  | 62 |
@@ -669,7 +669,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 432 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 436 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1256,7 +1256,7 @@ opportunities and full native delivery remain open.
 [`NativeCrypto`]: engine/core/Trust.lean#L75-L81
 [`Ed25519Signs`]: engine/core/Trust.lean#L70-L73
 [`ofSeed_signs`]: app/community/Commands.lean#L282-L287
-[`SqliteStore`]: engine/core/StoreTrust.lean#L161-L185
+[`SqliteStore`]: engine/core/StoreTrust.lean#L165-L189
 [`receive_as_model`]: engine/core/SqliteLaws.lean#L238-L244
 [`purge_as_model`]: engine/core/SqliteLaws.lean#L324-L330
 [`receive_refused`]: engine/core/SqliteLaws.lean#L261-L265
@@ -1997,7 +1997,7 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 517 kernel witnesses, 183 runtime witnesses,
-25 conditional checks, 0 recorded runtime counterexamples; 16 of 741 linked declarations still pending.**
+31 conditional checks, 0 recorded runtime counterexamples; 16 of 747 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2546,7 +2546,13 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`NoCollision`](engine/core/Merkle.lean#L152-L154) | **kernel-witness**: [Vacuity.Merkle.noCollision](tests/vacuity/Merkle.lean). Finite premise over the bytes at hand: what a file's root hashes against what checking a chunk hashed. Kernel witness for a 32-byte-output model hash (not SHA-256) and a nonempty file, for every checked list; tests/vacuity/Attachment.lean decides it on real SHA-256 for a two-chunk file's chunks. |
 | [`Suite.Good`](engine/wire/Noise.lean#L71-L82) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Valid keys come only from HKDF, whose outputs are SHA-256 digests; the running suite decides a malformed secret in Lean. The running suite has the contract given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (suite_good). The executable checks native roundtrips, DH symmetry for every pair of 0/1/31/32/33/64-byte secrets, and HKDF key validity. Conditional on the trust file. |
 | [`Seal.Good`](app/community/Op.lean#L51-L59) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove. |
-| [`NativeCrypto`](engine/core/Trust.lean#L62-L67) | **conditional**: [Vacuity.CryptoTrust.nativeConditional](tests/vacuity/CryptoTrust.lean). The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused). The crates refuse every other key and nonce size. A named premise, never an axiom. |
+| [`NativeCrypto`](engine/core/Trust.lean#L75-L81) | **conditional**: [Vacuity.CryptoTrust.nativeConditional](tests/vacuity/CryptoTrust.lean). The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths; Ed25519 signatures by each seed's key pair over the same plaintexts, and another key, message or signature rejected), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest, toySigns), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused, noneVerifyRefused). The crates refuse every other key and nonce size. A named premise, never an axiom. |
+| [`Ed25519Signs`](engine/core/Trust.lean#L70-L73) | **conditional**: [Vacuity.CryptoTrust.ed25519Conditional](tests/vacuity/CryptoTrust.lean). Part of NativeCrypto. The native crate satisfies it: for the key pair of each of 5 seeds, signatures of plaintexts 0-70001 bytes verify, and another key, message or signature is rejected. A toy scheme satisfies the shape in the kernel (toySigns) and one that verifies nothing fails it (noneVerifyRefused). Bridged to ofSeed_signs. |
+| [`ofSeed_signs`](app/community/Commands.lean#L282-L287) | **conditional**: [Vacuity.CryptoTrust.ed25519Conditional](tests/vacuity/CryptoTrust.lean). Applied under the crypto trust file (ed25519Conditional): every device made from a 32-byte seed verifies its own signatures, the hsig premise the signing laws take. The executable checks the same on the native crate. |
+| [`SqliteStore`](engine/core/StoreTrust.lean#L165-L189) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). The store's trust file, bridged to the laws over the running write turn and purge (receive_as_model, purge_as_model). Tested from both sides: on a real SQLite file brought to the model's tables by a workload, each of the 15 store operations alone answers as the model and its rows show the model's next tables, then roll back; beginning and committing, a refused write turn, the budget query, list queries and a purge's rewrite change no table; a whole write turn and a purge show the model's. In the kernel the model's own store keeps the shape (modelKeeps), empty rows show empty tables (emptyShows), a store that drops a write fails (dropRefused) and queued rows do not show empty tables (queuedNotEmpty). A named premise, never an axiom. |
+| [`receive_as_model`](engine/core/SqliteLaws.lean#L238-L244) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (sqliteConditional). The executable runs the same write turn on SQLite and on the model and checks that the rows show the model's tables. |
+| [`purge_as_model`](engine/core/SqliteLaws.lean#L324-L330) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (sqliteConditional). The executable purges a stored op on SQLite and on the model and checks that the rows show the model's tables. |
+| [`receive_refused`](engine/core/SqliteLaws.lean#L261-L265) | **conditional**: [Vacuity.StoreTrust.refusedConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (refusedConditional). The executable runs a write turn that fails after writing on a real SQLite file and checks that its rows still show the tables before. |
 | [`world_trace_moves`](app/Proofs.lean#L2979-L2981) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`empty_trace_store`](app/Proofs.lean#L2986-L2990) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`world_trace_history`](app/Proofs.lean#L3508-L3510) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
