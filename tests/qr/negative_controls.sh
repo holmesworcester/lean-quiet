@@ -4,7 +4,8 @@
 # not state (the matrix layout, the image pipeline, error correction's
 # completeness), the check suite must fail: its frozen qrencode matrices
 # catch an encoder and decoder that agree with each other but not with the
-# standard. Runs in a scratch copy, never in this tree.
+# standard. Each mutant runs in a scratch copy of its own, never in this
+# tree, QR_NC_JOBS (6) at once; their reports print in order.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export ELAN_HOME="${ELAN_HOME:-/mnt/storage/elan}"
@@ -22,29 +23,24 @@ trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
 snapshot "$tmp/base" engine/renderer/qr engine/renderer/pic tests/qr
 
-copy() {
-  rm -rf -- "$tmp/w"
-  cp -a "$tmp/base" "$tmp/w"
-}
-
 # the copy itself must build and pass, or every mutant would look killed
-copy
-(cd "$tmp/w" && lake build Qr Pic qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1) ||
+(cd "$tmp/base" && lake build Qr Pic qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1) ||
   { echo "FAIL: the unmutated copy does not build and pass"; exit 1; }
 
-mutant() {  # what file old new
-  local what=$1 file=$2 old=$3 new=$4
-  copy
-  python3 - "$tmp/w/$file" "$old" "$new" <<'PY'
+# One mutant, in a copy of its own ($w), its build log beside it.
+mutant_one() {  # what file old new
+  local what=$1 file=$2 old=$3 new=$4 w=$tmp/w.$n
+  cp -a "$tmp/base" "$w"
+  python3 - "$w/$file" "$old" "$new" <<'PY'
 import sys
 p, old, new = sys.argv[1:]
 s = open(p).read()
 assert s.count(old) == 1, f"mutant target not found once: {old!r}"
 open(p, 'w').write(s.replace(old, new))
 PY
-  if ! (cd "$tmp/w" && lake build Qr Pic >"$tmp/build.log" 2>&1); then
+  if ! (cd "$w" && lake build Qr Pic >"$w.build.log" 2>&1); then
     # a proof (or termination) must be what failed, not the code itself
-    if python3 - "$tmp/w" "$tmp/build.log" <<'PY2'
+    if python3 - "$w" "$w.build.log" <<'PY2'
 import re, sys
 root, log = sys.argv[1], open(sys.argv[2]).read()
 errs = re.findall(r'error: ([\w/]+\.lean):(\d+):\d+: (.*)', log)
@@ -66,13 +62,21 @@ PY2
     then
       echo "killed by the proofs: $what"
     else
-      echo "FAIL: mutant does not compile (not a proof failure): $what"; grep error "$tmp/build.log" | head -3; exit 1
+      echo "FAIL: mutant does not compile (not a proof failure): $what"; grep error "$w.build.log" | head -3; exit 1
     fi
-  elif ! (cd "$tmp/w" && lake build qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1); then
+  elif ! (cd "$w" && lake build qr_check >/dev/null 2>&1 && .lake/build/bin/qr_check "$manifest" >/dev/null 2>&1); then
     echo "killed by the checks: $what"
   else
     echo "FAIL: mutant survived: $what"; exit 1
   fi
+  rm -rf -- "$w"
+}
+# Each mutant in the background, at most QR_NC_JOBS at once.
+n=0
+mutant() {
+  n=$((n + 1))
+  while [ "$(jobs -rp | wc -l)" -ge "${QR_NC_JOBS:-6}" ]; do wait -n || true; done
+  (mutant_one "$@") > "$tmp/m.$(printf %03d $n).log" 2>&1 &
 }
 
 # data stream (the laws)
@@ -123,4 +127,9 @@ mutant "QOI decodes 3 bytes a pixel" engine/renderer/pic/Qoi.lean "pixels b n s'
 mutant "QOI sides over 2048 accepted" engine/renderer/pic/Qoi.lean "w > maxSide || h > maxSide ||" "h > maxSide ||"
 mutant "QOI runs of 63" engine/renderer/pic/Qoi.lean "if s.run == 62 then s.flush else s" "if s.run == 63 then s.flush else s"
 mutant "QOI index without alpha in its hash" engine/renderer/pic/Qoi.lean "p.b.toNat * 7 + p.a.toNat * 11) % 64" "p.b.toNat * 7) % 64"
-echo "negative controls: all killed"
+wait
+cat "$tmp"/m.*.log
+if grep -q '^FAIL' "$tmp"/m.*.log; then exit 1; fi
+[ "$(cat "$tmp"/m.*.log | grep -c '^killed by')" = "$n" ] ||
+  { echo "FAIL: $n mutants, not all reported killed"; exit 1; }
+echo "negative controls: all $n killed"

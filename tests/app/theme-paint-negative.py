@@ -13,7 +13,7 @@ for name,file,old,new,mode in cases:
  p=Path(file);original=p.read_text();assert old in original
  try:
   p.write_text(original.replace(old,new,1))
-  got=subprocess.run(['lake','build','appearance'],capture_output=True,text=True,timeout=150)
+  got=subprocess.run(['lake','build','appearance'],capture_output=True,text=True,timeout=900)
   log=got.stdout+got.stderr
   if mode=='proof':
    assert got.returncode != 0 and 'Scrim.lean:' in log, f'{name}: proof did not reject'

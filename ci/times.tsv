@@ -1,0 +1,32 @@
+# Each part's time in seconds on the shared box, for ordering a --full run
+# longest first before out/ci/times.tsv has this tree's own (measured at
+# 5a74a33, before the mutants ran at once; ci/local.sh --full records new
+# times in out/ci/times.tsv, which wins).
+qr	1411
+engine:harden	861
+engine:ref-publications	540
+engine:catalog-retry	499
+engine:fresh	454
+engine:simplify	377
+engine:ingress	355
+engine:writer-fairness	303
+engine:native-lifetimes	290
+engine:expiry-grace	286
+engine:reserved-retry	274
+engine:reader-prune	185
+engine:read-plan	159
+engine:stateless	152
+engine:fairness	132
+engine:suites	121
+visual	105
+mdns	97
+net	70
+zoom	58
+engine:shipped	41
+engine:claim-tree	30
+workspace	27
+vacuity	25
+engine:demand-rank	23
+engine:clumps	9
+site	5
+engine:restart	1

@@ -1122,11 +1122,16 @@ CI runs locally for now:
   twin, and the engine's suites without TCP. Each is deterministic: no
   sockets, no X, no clock to beat, no source edited.
 - `ci/local.sh --full` (`mise run ci:full`) runs the gate, then every
-  other part in parallel (`-j N`, 6 by default), each isolated: the
-  negative controls' mutants, TCP, X, qr, mdns, net, zoom, the site and
-  the workspace. It runs nightly and before a release. A bug it finds
-  that the gate missed becomes a law over the running code (and an entry
-  in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+  other part, 8 at once (`-j N`), longest first by each part's last time
+  (`ci/times.tsv`, `out/ci/times.tsv`): the negative controls' mutants,
+  TCP, X, qr, mdns, net, zoom, the site and the workspace, and each of the
+  app's checks (`tests/app/parts.txt`) in its own copy of the built tree,
+  a mutant check with cases one part a case. Within a part, mutants run
+  at once, each in a copy of its own (`tests/mutants.py`), and nothing is
+  restored or rebuilt after. It runs nightly and before a release. A bug
+  it finds that the gate missed becomes a law over the running code (and
+  an entry in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it
+  next time. `ci/local.sh --list --full` prints its plan.
 - `ci/local.sh check visual` runs just those parts. Each part has a time
   limit (`PART_TIMEOUT`, 90 minutes). Logs go to `out/ci/`.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
