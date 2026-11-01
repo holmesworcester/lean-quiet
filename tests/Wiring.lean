@@ -15,7 +15,8 @@ output, and local CI fails when it goes stale.
 - **A law's subject** is the data definitions its statement names, its
   conclusion's and its premises', seen through the Prop-valued
   definitions and inductives it names (an op's validity, a reachable
-  state) and the fields of the instances it names: those it projects
+  state), with their compiled auxiliaries (a structural recursion's
+  body, `X._f`) and the fields of the instances it names: those it projects
   (`Turn.purge` on the held store is `purgeS`), and those the code it
   names can reach (`onFrame` on the held store runs its purge), three
   deep, and through the pattern synonyms it names (`Fact.admission` is
@@ -347,6 +348,14 @@ partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (dept
   for c in named env e do
     if !ours env c || props.contains c then continue
     if stop.contains c then props := props.insert c; continue
+    -- a definition's compiled auxiliaries are more of it: a structural
+    -- recursion's body is `X._f`, which X's value names (a spec or a
+    -- Prop seen through would otherwise hide what its body calls)
+    if c.isInternal && !Meta.isMatcherCore env c then
+      if let some (.defnInfo d) := env.find? c then
+        props := props.insert c
+        (subj, props) := about env stop spec run d.value depth inSpec (subj, props)
+        continue
     -- a pattern synonym is notation for what it unfolds to:
     -- `Fact.admission c u d e` is `Fact.ofAdmission ⟨c, u, d, e⟩`
     if hasMatchPatternAttribute env c then

@@ -362,7 +362,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1357 rest on Lean's standard axioms only, and about three quarters of its theorems (1006 of 1265, not counting 69 proof steps and 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1357 rest on Lean's standard axioms only, and about three quarters of its theorems (1010 of 1268, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -497,11 +497,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1006 of 1265 laws are about running code;** another 22 run its node code in a World, and 237 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 69 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1010 of 1268 laws are about running code;** another 22 run its node code in a World, and 236 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 165 | 138 |  | 27 |
+| Engine | 168 | 141 |  | 27 |
 | Sync | 225 | 188 |  | 37 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 189 | 135 | 16 | 38 |
@@ -510,7 +510,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 277 | 223 |  | 54 |
-| App | 134 | 98 | 6 | 30 |
+| App | 134 | 99 | 6 | 29 |
 | Node | 11 | 11 |  |  |
 
 | Missing link | Laws | To make them real |
@@ -599,7 +599,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`offer_runs`]† +11 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`] +10 more | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -609,12 +609,10 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `decide_costs`, `find_costs`, `ingest_costs`, `rank_costs` +1 more |
 | `engine.core.CostErase` | [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +8 more |
 | `engine.core.Decl` | [`perm_sortPos`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `anchor_read` +44 more |
-| `engine.core.Locality` | [`spec_local`]† | `close_forgets`, `forget_stays`, `node_settles`, `purge_forgets` +14 more |
 | `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`], [`sortPos_sorted`] | `anchor_read`, `arrival_order`, `count_partition`, `rec_succ` +12 more |
-| `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specAt_valid_inv`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +13 more |
+| `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +13 more |
 | `engine.core.Proofs` | [`distinct_of_collisionFree`]† | `oneOpPerId_of` |
 | `engine.core.Query` | [`sortPos_eq_fast`] | `asMsg_sorted`, `order_total`, `eval_oriented`, `eval_strict` +1 more |
-| `engine.core.SpecLemmas` | [`spec_extends`]† | `cut_stays`, `removeMember_valid`, `removed_stays`, `removed_stays_removed` +25 more |
 | `engine.core.Union` | [`mergeRuns_eq_sortPos`], [`union_rows`] | `order_total`, `union_sorted` |
 | `engine.renderer.DemandRank` | [`Demand.filter_rank`]† | `selected_or_retired`, `selected_within`, `take_changes`, `take_progress` |
 | `engine.renderer.TranslateLaws` | [`fill_index`], [`source_iff`], [`tile_phase`] | `pick_eq`, `copied_row`, `fill_pixel`, `pick_source` +1 more |
@@ -1814,6 +1812,7 @@ opportunities and full native delivery remain open.
 [`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`exposed_parts`]: engine/wire/NoiseSymbolic.lean#L941-L944
 [`eventually_delivered`]: engine/core/FIFO.lean#L50-L55
+[`Costs.time`]: engine/core/Cost.lean#L393-L395
 [`nodup_full`]: app/community/Family.lean#L1504-L1506
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L223-L224
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -1837,7 +1836,6 @@ opportunities and full native delivery remain open.
 [`matching_proj`]: engine/core/Project.lean#L366-L368
 [`mem_proj_idx`]: engine/core/Project.lean#L215-L216
 [`sortPos_map`]: engine/core/Project.lean#L359-L360
-[`specAt_valid_inv`]: engine/core/Project.lean#L103-L108
 [`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
 [`sortPos_eq_fast`]: engine/core/Query.lean#L278-L279
 [`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L120-L123
@@ -2630,6 +2628,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`exposed_parts`](engine/wire/NoiseSymbolic.lean#L941-L944) | Pending: no concrete premise witness audited yet |
 | [`eventually_delivered`](engine/core/FIFO.lean#L50-L55) | Pending: no concrete premise witness audited yet |
+| [`Costs.time`](engine/core/Cost.lean#L393-L395) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1504-L1506) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L223-L224) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
@@ -2653,7 +2652,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`matching_proj`](engine/core/Project.lean#L366-L368) | **kernel-witness**: [Vacuity.Projection.matchingRows](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`mem_proj_idx`](engine/core/Project.lean#L215-L216) | **kernel-witness**: [Vacuity.Projection.projectedIndex](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`sortPos_map`](engine/core/Project.lean#L359-L360) | **kernel-witness**: [Vacuity.Projection.sortingMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
-| [`specAt_valid_inv`](engine/core/Project.lean#L103-L108) | Pending: no concrete premise witness audited yet |
 | [`specVerdict_eq_some`](engine/core/Project.lean#L71-L72) | **kernel-witness**: [Vacuity.Projection.specVerdictPresent](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`sortPos_eq_fast`](engine/core/Query.lean#L278-L279) | **kernel-witness**: [Vacuity.Core.fastSort](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`mergeRuns_eq_sortPos`](engine/core/Union.lean#L120-L123) | **kernel-witness**: [Vacuity.Core.merge](tests/vacuity/Core.lean). Two interleaved ordered message lists merge to exact three-row order; reversed input violates premise. |
