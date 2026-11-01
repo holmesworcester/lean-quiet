@@ -8,6 +8,7 @@ library is a directory of the tree. A library inside another's directory
 app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
+  license := "AGPL-3.0-or-later"
   -- Native C uses the host's headers. Lean's bundled older glibc linker
   -- stub lacks fcntl64 (SQLite's file locks); resolve against the host libc.
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libc.so.6",

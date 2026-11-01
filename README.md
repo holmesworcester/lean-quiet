@@ -2927,6 +2927,7 @@ read-back or display latency.
 
 Lean Quiet is free software: you can redistribute it and/or modify it
 under the terms of the GNU Affero General Public License, version 3 or
-(at your option) any later version. See [LICENSE](LICENSE). Vendored and
-third-party parts (SQLite, the Rust crypto crates, the fonts, the emoji
-data and the sample photos) keep their own licences.
+(at your option) any later version (SPDX: `AGPL-3.0-or-later`). See
+[LICENSE](LICENSE). Vendored and third-party parts (SQLite, the Rust
+crypto crates, the fonts, the emoji data and the sample photos) keep
+their own licences.
