@@ -130,9 +130,8 @@ unchanged, except the Merkle tree's (`Merkle`, was `Community.Merkle`).
 - `app/community/Proofs.lean` imports the whole community subtree, and
   `app/connection/Proofs.lean` the connection one: what imported a
   family's umbrella imports these.
-- The bootstrap model (lean-net's) names only community ops: it is a
-  section of `app/community/Proofs.lean`, retired once its laws are
-  re-proven over the two-node world.
+- The bootstrap model (lean-net's) was a section of
+  `app/community/Proofs.lean`; it is retired (docs/NET.md).
 - The app's live data (the store on SQLite, its writer, live answers,
   the outbox) names the node's family: it is in `app/Commands.lean`.
 - `Main.lean` runs the app on a platform; `Quiet.lean` imports every

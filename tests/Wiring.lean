@@ -123,13 +123,13 @@ def roots : List Name := [`engine, `app, `Quiet, `Main]
 
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
-over the bootstrap's model, one over code only qr's harness runs, one
+over code only qr's harness runs, one
 whose model is in a premise, and a cost law, in the meter, over code
 nothing calls), laws that must be negative controls (a mutant over its
 budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
-def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.render]
+def harnesses : List Name := [`Engine.Sync.World.peer, `Pic.render]
 def models : List Name :=
-  [`Net.Scene.bootstrap, `Pic.render_wellFormed, `ViewLaws.row_marked, `Heights.T.findM_cost]
+  [`Pic.render_wellFormed, `ViewLaws.row_marked, `Heights.T.findM_cost]
 /-- Laws that must be negative controls: a mutant over its budget. -/
 def controlLaws : List Name := [`Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/

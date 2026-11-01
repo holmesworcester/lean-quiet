@@ -299,14 +299,14 @@ relationship to those computational assumptions is not a proved reduction:
   satisfy it on real inputs, and a broken implementation of the same shape fails
   it (in the kernel). These contracts are correctness only; they do not
   establish secrecy.
-- The bootstrap model's `Scene.Good` requires five particular signature
-  verifications, distinct participants/node keys and distinct operations in
-  its five-op scene. Native certificates discharge these premises for the
-  fixed scene. Its eventual-progress law additionally requires infinitely
-  recurring ticks and approval actions, and delivery fairness. An explicit
-  infinite fair run, which also never drops, now satisfies these execution
-  premises; see the
-  [bootstrap checks](#bootstrap-witnesses-and-running-app-checks).
+- **Delivery within the session lease** (an environment premise, for
+  liveness only). A frame sent on a live session reaches the peer before
+  the session's lease runs out; otherwise the session closes, and the next
+  reconnect starts over. The running app's sessions end on silence and on
+  transport loss, as a sleeping phone's sockets do. Keeping authenticated
+  sessions across transport loss was tried and is parked (see
+  [not yet](#not-yet-about-running-code-todo)): the target theorem's
+  "unless the session closes first" form does not need it.
 - **A read transaction is one moment** (`read_one_moment` and
   `agrees_notice` take it), as two hypotheses. *Snapshot:* inside one
   SQLite read transaction, every read answers as one state of the store
@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1382 rest on Lean's standard axioms only, and about two thirds of its theorems (1018 of 1359, not counting 23 negative controls) are about the code that runs; another 22 run the
+hypotheses. All 1369 rest on Lean's standard axioms only, and about three quarters of its theorems (1018 of 1346, not counting 23 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -414,7 +414,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊🥊 | **A removed member's node stops holding the community, and can rejoin only as a new device.** A join writes a fresh device, never an admitted one, and a pending join or a dropped session is dialed until answered. Not yet: that a removed user is not admitted to the network again. Its invitations and approvals stay Valid, so it can invite and approve a new device naming its own node's key, which the trust rule lets in (`new_device_trusted`) once those ops reach one node unaware of the removal, or one colluding member. | [`mine_not_removed`], [`rejoin_fresh`], [`join_new_device`], [`removed_stays_removed`], [`rejoin_dials`], [`reconnect_dials`] |
 | ✅ | 🥊🥊🥊 | **A removal ends a live session's sync.** In every entry point, each connection step reads its rooms afresh; a connection syncs a room only with a peer the trust rule takes, and to a removed peer carries only the removal's notice, then closes. | [`entry_fresh`], [`rooms_cut_node`], [`rooms_trusted`], [`rooms_cut`], [`rooms_removed`], [`rooms_complete`], [`notice_then_cut`], [`trusts_live`], [`rooms_model`], [`recv_send`], [`recv_take`], [`removal_cuts_off`] |
 | 🟡 | 🥊🥊🥊 | **No packet goes to a removed member but the notice of its removal.** In every entry point, each frame sealed for the session carries, of that community, only sync messages and the removal with its closure (within the walk's budget); then the session closes. Not yet: that an entry point's bare handshake replies are only answers to trusted peers (proven per step: `answer_trusted`, `resend_trusted`); nor once a removed member admits a new device on its own node (above). | [`removal_reaches_session`], [`notice_sent`], [`closure`], [`notice_send`], [`removed_gets_only_notice`], [`notice_once`], [`notice_no_holds`], [`notice_then_cut`], [`answer_trusted`], [`resend_trusted`] |
-| 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed. Proven of each running step: a responder answers, or re-answers, only a peer the trust rule takes. Not yet: the whole guarantee over the running handshake (proven over a model). | [`no_connection_before_approval`], [`sessions_trusted`] *(model)*, [`answer_trusted`], [`resend_trusted`] |
+| 🟡 | 🥊🥊🥊 | **No session before approval,** however hellos are lost or replayed. Proven of each running step: a responder answers, or re-answers, only a peer the trust rule takes, and the trust rule takes exactly the live members' nodes. Not yet: the same guarantee as an invariant over every entry point of the running node. | [`answer_trusted`], [`resend_trusted`], [`connect_iff`] |
 | ✅ | 🥊🥊🥊 | **Peers cannot push ops in** outside the rooms they are let into, nor plant a device's local state, purges included. A session takes only its rooms' ops; the bare wire takes only a hello's join request. | [`recv_take`], [`bare_takes_only_join`], [`intake_local`], [`stored_local`], [`local_fact_mine`], [`intakeConn_conn`] |
 | ✅ | 🥊🥊 | **Both ends hold one session.** Both ends of a handshake hold the same hash, name each other, and cross their send and receive keys; what the running `sealFor` seals opens, under the session's key, to the bytes sealed, and its header names the session. At the running keys every premise is discharged but the crates' correctness (the crypto trust file): keys and nonces are sized types, and `sealFor` checks the sizes it reads. | [`established_agrees_sodium`], [`established_agrees`], [`sealFor_opens`], [`open_seal_sodium`], [`cid_seal_sodium`], [`open_seal`], [`cid_seal`], [`suite_good`] |
 | | | **Hostile input** | |
@@ -447,7 +447,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊🥊 | **A delivered sync round finishes and announces missing IDs,** under snapshot, fingerprint and capacity premises. Not yet: embedding this uninterrupted round in the full Node/TCP execution. | [`exchange_complete`], [`conn_runs_exchange`] |
 | ✅ | 🥊🥊 | **Fingerprints are honest.** Equal Merkle labels mean equal sets, and a side opens a round with an honest claim. | [`lbl_inj`], [`opening_honest`], [`num_inj`] |
 | 🟡 | 🥊🥊🥊 | **Partial sync is safe.** A node that holds an op's requirement closure judges it as its peer does. Not yet: proven of the spec, which running judging reaches once it settles. | [`spec_local`] |
-| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge,** in every fair run of the bootstrap model under `Scene.Good`, whose premises are certified for its scene, and an infinite fair run exists. Not yet: convergence for every fair execution of the running app ([checks](#bootstrap-witnesses-and-running-app-checks)). | [`bootstrap`], [`bootstrap_possible`], [`reachable_inv`] *(model)* |
+| 🟡 | 🥊🥊🥊 | **A joiner connects, and both sides converge.** Proven over the running node (the actual `Node` steps with the production connection hooks and native crypto, over a modelled network): a native-certified successful join exists and continues fairly. Not yet: convergence for every fair execution of the running app, the target theorem ([checks](#bootstrap-witnesses-and-running-app-checks)). | [`successful_fair_extension`], [`Execution.fairRun_fair`] |
 | 🟡 | 🥊🥊🥊 | **The connection's progress steps work.** An uninterrupted round discovers missing IDs; queued requirement closures eventually arrive and validate under recurring service and delivery. Not yet: whole-app composition. | [`conn_answers_ids`], [`conn_runs_exchange`], [`closure_delivered`] |
 | 🟡 | 🥊🥊🥊 | **New ops reach connected members.** With two nodes running the sync code, fixed rooms and no handshake, an op written during a session is offered at once and held after one exchange (offer, want, op), given ask slots and budget. Not yet of the runner, with TCP, sealed frames and the handshake. | [`stream_offered`], [`stream_delivers`], [`stream_delivers_steps`], [`stream_offered_runs`], [`stream_delivers_runs`], [`write_offers`], [`write_offers_all`], [`hold_wants`], [`op_taken`] |
 | ✅ | 🥊🥊🥊 | **Wants retain their order.** Authorized IDs queue once when capacity permits. With positive service budgets, an ID with p predecessors is served within p + 1 steps; unavailable asks expire. | [`onWant_all`], [`onWant_order`], [`serveOwed_head`], [`serveOwed_fifo`], [`owed_within`], [`want_sends`], [`asks_expire`] |
@@ -503,16 +503,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1018 of 1359 laws are about running code;** another 22 run its node code in a World, and 319 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1018 of 1346 laws are about running code;** another 22 run its node code in a World, and 306 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 197 | 141 |  | 56 |
+| Engine | 196 | 141 |  | 55 |
 | Sync | 243 | 188 |  | 55 |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
 | Connections | 30 | 26 |  | 4 |
-| Community | 224 | 183 |  | 41 |
+| Community | 212 | 183 |  | 29 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 284 | 222 |  | 62 |
@@ -526,7 +526,6 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 16 World laws; not yet: [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`], [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
-| `Scene.approval`, `FairExecution.run`, `Scene.K` +17 | [`FairExecution.fair`], [`ideal`], [`no_connection_before_approval`]†, [`sessions_trusted`]†, [`bootstrap_possible`]†, [`bootstrap`]†, [`reachable_inv`]†, [`admitted_inv`], [`allowedA`], [`allowedB`], [`allowPeer_iff`], [`allowPeer_settles`] | Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
 | `Pic.add`, `Geom.box`, `Pic.attachEdge` +4 | [`fit_small`], [`fit_le`], [`fit_pos`], [`fit_long`], [`fit_round`]†, [`layout_sizes`], [`Pic.layout_inside`]†, [`layout_apart`]†, [`add_stored`], [`scale_wellFormed`]†, [`render_wellFormed`]†, [`render_opaque`]† | The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -625,46 +624,46 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +50 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +49 more | Nothing to wire: each is about a specification or an assumption. |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 2 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
-| [`CollisionFree`] | 23 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 13 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
 | [`NativeCrypto`] | 12 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 13 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 402 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 400 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
 <!-- wiring:end -->
 
+**Parked: authenticated sessions across transport loss.** A trial kept a
+session's keys when its socket was lost or went silent, so that a frame
+delayed past the lease could still be read on the next socket. It is not
+landed: its join-under-backpressure regression still failed, its cache of
+logical sessions had no bound, and the target theorem does not need it: a
+session that closes restarts the clock at the next reconnect, and delivery
+within the session lease is stated as an environment premise
+([What is Assumed](#what-is-assumed)).
+
 
 #### Bootstrap witnesses and running-app checks
 
-The nine bootstrap entries now have witnesses: seven setup/safety/progress
-checks and the two infinite liveness checks. The native certificate checks the
-five signatures actually used by the scene, distinct device and node keys,
-and distinct operation IDs. `Scene.Good.ofSigning` preserves the old universal
-signing-correctness interface for other callers; this fixture needs no such
-universal assumption. All five real signed operations also validate through the
-production engine. The existing [`allowPeer_iff`] and [`allowPeer_settles`]
-bridge the model trust predicate to the settled store query. The identities
-and message text are synthetic.
-
-[`FairExecution.fair`] and [`ideal`] construct an infinite run
-from the model's initial state. The scheduler repeatedly ticks both nodes,
-approves pending requests and delivers the FIFO head. Every queued message
-is eventually delivered even while new messages are appended. This proof
-is independent of the desired bootstrap result and of `Scene.Good`; the
-finite scene certificate then applies `bootstrap` to that run. An infinite witness is a function on natural numbers plus proofs,
-not an infinitely long runtime test.
+The bootstrap **model** (`Net.step` and its `Scene.Good`/`Run.Fair` laws) is
+retired: nothing that runs imported it, so its laws were about a protocol the
+app does not run (proofslop forensics, finding 4; docs/NET.md). What remains
+is over the running code. tests/net/SceneCheck.lean composes a join's five
+ops with the app's own functions and checks the running trust rule and
+validators over every subset, and its negative controls mutate that running
+code (the trust rule, the admission validator, the responder's trust check),
+each refused by the proofs.
 
 The running-app work has four complementary parts. The supporting
 [`ServiceRun.eventually_emitted`] law permits continuing new and urgent work.
@@ -1322,8 +1321,6 @@ opportunities and full native delivery remain open.
 [`notice_no_holds`]: engine/sync/NoticeLaws.lean#L436-L447
 [`answer_trusted`]: app/Proofs.lean#L740-L753
 [`resend_trusted`]: app/Proofs.lean#L788-L799
-[`no_connection_before_approval`]: app/community/Proofs.lean#L2945-L2952
-[`sessions_trusted`]: app/community/Proofs.lean#L2969-L2974
 [`bare_takes_only_join`]: app/Proofs.lean#L604-L616
 [`intake_local`]: engine/core/Sync.lean#L38-L40
 [`stored_local`]: engine/core/Sync.lean#L86-L89
@@ -1423,9 +1420,8 @@ opportunities and full native delivery remain open.
 [`opening_honest`]: engine/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/sync/Fp.lean#L40-L40
 [`spec_local`]: engine/core/Locality.lean#L54-L58
-[`bootstrap`]: app/community/Proofs.lean#L3307-L3311
-[`bootstrap_possible`]: app/community/Proofs.lean#L3114-L3124
-[`reachable_inv`]: app/community/Proofs.lean#L2892-L2893
+[`successful_fair_extension`]: app/Proofs.lean#L1889-L1900
+[`Execution.fairRun_fair`]: app/Proofs.lean#L1824-L1824
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1510-L1528
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L242
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1456-L1468
@@ -1662,13 +1658,6 @@ opportunities and full native delivery remain open.
 [`exchange_stable`]: engine/sync/TreeLaws.lean#L171-L179
 [`reads_members`]: app/connection/Family.lean#L594-L594
 [`reads_recipients`]: app/connection/Family.lean#L598-L598
-[`FairExecution.fair`]: app/community/Proofs.lean#L3504-L3506
-[`ideal`]: app/community/Proofs.lean#L3522-L3522
-[`admitted_inv`]: app/community/Proofs.lean#L2204-L2207
-[`allowedA`]: app/community/Proofs.lean#L2275-L2275
-[`allowedB`]: app/community/Proofs.lean#L2289-L2292
-[`allowPeer_iff`]: app/community/Proofs.lean#L3366-L3369
-[`allowPeer_settles`]: app/community/Proofs.lean#L3372-L3376
 [`fit_small`]: engine/renderer/pic/Laws.lean#L37-L37
 [`fit_le`]: engine/renderer/pic/Laws.lean#L50-L50
 [`fit_pos`]: engine/renderer/pic/Laws.lean#L59-L59
@@ -1858,8 +1847,6 @@ opportunities and full native delivery remain open.
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L224-L226
 [`ServiceRun.eventually_emitted`]: engine/sync/ClosureDelivery.lean#L160-L169
-[`Execution.fairRun_fair`]: app/Proofs.lean#L1824-L1824
-[`successful_fair_extension`]: app/Proofs.lean#L1889-L1900
 [`WriteAdmission.admitted_frames`]: engine/wire/WriteAdmission.lean#L33-L35
 [`WriteAdmission.admitted_count`]: engine/wire/WriteAdmission.lean#L45-L47
 [`WriteAdmission.admitted_bytes`]: engine/wire/WriteAdmission.lean#L57-L59
@@ -1926,8 +1913,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 502 kernel witnesses, 193 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 0 of 718 linked declarations still pending.**
+**Coverage: 500 kernel witnesses, 183 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 0 of 706 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2107,8 +2094,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`notice_no_holds`](engine/sync/NoticeLaws.lean#L436-L447) | **kernel-witness**: [Vacuity.SyncCache.noticesNoProbe](tests/vacuity/SyncCache.lean). Receive nonempty encoded have on a connection carrying a notice only; prove decode and no sync-room premises, then get no send/take/store mutation. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`answer_trusted`](app/Proofs.lean#L740-L753) | **runtime-witness**: [Vacuity.IdentityConnection.answerTrusted](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
 | [`resend_trusted`](app/Proofs.lean#L788-L799) | **runtime-witness**: [Vacuity.IdentityConnection.resendTrusted](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
-| [`no_connection_before_approval`](app/community/Proofs.lean#L2945-L2952) | **runtime-witness**: [Vacuity.Bootstrap.noBefore](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
-| [`sessions_trusted`](app/community/Proofs.lean#L2969-L2974) | **runtime-witness**: [Vacuity.Bootstrap.trustedOutcome](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
 | [`bare_takes_only_join`](app/Proofs.lean#L604-L616) | **runtime-witness**: [Vacuity.IdentityConnection.bareJoin](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
 | [`intake_local`](engine/core/Sync.lean#L38-L40) | **runtime-witness**: [Vacuity.IdentityMessages.intakeLocal](tests/vacuity/IdentityMessages.lean). Actual own local secret accepted. Hostile peer secret is dropped while a shared signed message in the same job is received. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`stored_local`](engine/core/Sync.lean#L86-L89) | **runtime-witness**: [Vacuity.IdentityMessages.storedLocal](tests/vacuity/IdentityMessages.lean). Fed constructed from one own-write job then hostile peer job through actual intake; stored local op has actual lookup and local-scope premises. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
@@ -2212,9 +2197,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`opening_honest`](engine/sync/RoundLaws.lean#L323-L325) | **kernel-witness**: [Vacuity.SyncMore.openingHonest](tests/vacuity/SyncMore.lean). Two nonempty snapshots [1,2] and [2,3], all-range query, injectively encoded identifiers and identity hash; generated claim is honest. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`num_inj`](engine/sync/Fp.lean#L40-L40) | **kernel-witness**: [Vacuity.WireMore.numberDecode](tests/vacuity/WireMore.lean). Decoding: any byte list numbered like the nonempty identifier [65,0,255] is that list; separate control proves [1] and [1,0] number differently. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`spec_local`](engine/core/Locality.lean#L54-L58) | **runtime-witness**: [Vacuity.CoreRuntime.closureVerdict](tests/vacuity/CoreRuntime.lean). Real signed Bob post delivered with its six-operation requirement closure (root, invite, request, approval, admission, post). Receiver omits the unrelated grant and rename. An inductive reach proof uses runtime-checked closure and lookup-agreement premises; native checks independently validate the post on the partial receiver. |
-| [`bootstrap`](app/community/Proofs.lean#L3307-L3311) | **runtime-witness**: [Vacuity.Bootstrap.eventuallyBootstrap](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. An explicit Nat-indexed run starts at init and cycles ticks, approval and FIFO-head delivery. Kernel proofs establish Enabled, recurring ticks/approval, eventual delivery of every queued message, exact Run.Fair and no-drop Run.Ideal without using bootstrap. This cert applies bootstrap to that run. The infinite execution is the noncomputable bootstrap model, not an execution of the app or TCP. |
-| [`bootstrap_possible`](app/community/Proofs.lean#L3114-L3124) | **runtime-witness**: [Vacuity.Bootstrap.possible](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the actual nine-action bootstrap_possible theorem with every Scene.Good premise certified. The enabled finite path and completed goal are model conclusions, not native execution of the noncomputable step. |
-| [`reachable_inv`](app/community/Proofs.lean#L2892-L2893) | **runtime-witness**: [Vacuity.Bootstrap.completedInvariant](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
+| [`successful_fair_extension`](app/Proofs.lean#L1889-L1900) | **runtime-witness**: [Vacuity.ProductionBootstrap.certificate](tests/vacuity/ProductionBootstrap.lean). Native evaluation of actual Node/Connection.hooks with real signatures, Noise and AEAD checks mutual admission, a shared session and exact bytes of a newly written sealed post sent after disconnect/retry. The recovery post was absent before the disconnect, so this checks the replacement session's data path rather than only retained data. A cumulative effect counter additionally proves this finite prefix ignores no implicit socket-close requests; explicit close actions clear the transport and notify both peers. Withheld approval, an unsent message and an injected unhandled-close effect reject success. The checked trace is extended without state reset by a kernel-proved infinite fair node-interpreter suffix. The goal and zero-unhandled-effect check hold at the prefix endpoint; persistence, convergence of every fair run, handling all future transport effects and refinement from Held to SQLite/TCP remain unproved. |
+| [`Execution.fairRun_fair`](app/Proofs.lean#L1824-L1824) | **kernel-witness**: [Vacuity.ProductionBootstrap.infiniteScheduler](tests/vacuity/ProductionBootstrap.lean). An explicit infinite execution repeatedly calls the production Node with Connection.hooks and native crypto, with Held store semantics and an entropy tape. Kernel proof: both nodes tick cofinally, simulated time advances without bound, and FIFO service eventually dequeues every queued frame. A known destination receives the actual onFrame call. No scene validity, bootstrap success or crypto correctness is assumed for scheduler fairness; SQLite, OS and TCP are separate runtime boundaries. This infinite interpreter may record later unhandled socket-close effects; fairness does not prove they never occur or identify the continuation with TCP. |
 | [`conn_answers_ids`](engine/wire/WorldLaws.lean#L1510-L1528) | **kernel-witness**: [Vacuity.SyncCache.answersIds](tests/vacuity/SyncCache.lean). Actual shown-room index containing chat plus remote singleton item; prove allowed-room, accepted-epoch, and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`closure_delivered`](engine/sync/ClosureDelivery.lean#L216-L242) | **runtime-witness**: [Vacuity.ClosureDelivery.certificate](tests/vacuity/ClosureDelivery.lean). Synthetic signed Alice/Bob community: native finite checks establish distinct IDs, exact source operations, authorization, actual onWant queue admission, and the signed message's source verdict. Kernel proofs construct infinitely recurring positive capacity with zero-capacity stalls, continuing onWant tail requests, duplicate receiver inputs, and actual Node.put retention/validation; the certificate applies closure_delivered to obtain permanent eventual closure possession and the same verdict. The receiver processes dependencies after the message. Negative controls withhold the root, revoke authorization, and give no send room. This is a running-core component theorem over Held and post-authorization inputs: discovery-to-request, sealed transport-to-input, SQLite refinement, hook mutations/purges, and full Node/TCP execution refinement remain separate obligations; no claim that this alone proves universal app bootstrap. |
 | [`stream_offered`](engine/wire/WorldLaws.lean#L1456-L1468) | **kernel-witness**: [Vacuity.Network.streamOffer](tests/vacuity/Network.lean). Existing witness opens two sessions and writes an op, then applies stream_offered with concrete satisfied premises to obtain an actual in-flight advertisement. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
@@ -2460,13 +2444,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`exchange_stable`](engine/sync/TreeLaws.lean#L171-L179) | **kernel-witness**: [Vacuity.SyncMore.fingerprintStable](tests/vacuity/SyncMore.lean). Nonempty fingerprint round; prove sortedness, leaf-size and depth premises and compare depths 2 and 5. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`reads_members`](app/connection/Family.lean#L594-L594) | **kernel-witness**: [Vacuity.IdentityConnection.readsMembers](tests/vacuity/IdentityConnection.lean). Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels. |
 | [`reads_recipients`](app/connection/Family.lean#L598-L598) | **kernel-witness**: [Vacuity.IdentityConnection.readsRecipients](tests/vacuity/IdentityConnection.lean). Closed theorem application to deterministic concrete community/invitation/node-seed data; opaque crypto values remain symbolic in the kernel. Native fixture also executes actual join and proves only its request travels. |
-| [`FairExecution.fair`](app/community/Proofs.lean#L3504-L3506) | **kernel-witness**: [Vacuity.Bootstrap.executionFair](tests/vacuity/Bootstrap.lean). Closed kernel proof for the concrete infinite run from the initial Alice/Bob bootstrap scene. The scheduler recurs through tickA, tickB, approval and FIFO-head delivery; finite-position progress proves every queued message is eventually delivered despite new arrivals, and no scheduled action drops messages. Fairness and ideality do not assume Scene.Good or any bootstrap conclusion. This run uses the noncomputable bootstrap model, not TCP. |
-| [`ideal`](app/community/Proofs.lean#L3522-L3522) | **kernel-witness**: [Vacuity.Bootstrap.executionIdeal](tests/vacuity/Bootstrap.lean). Closed kernel proof for the concrete infinite run from the initial Alice/Bob bootstrap scene. The scheduler recurs through tickA, tickB, approval and FIFO-head delivery; finite-position progress proves every queued message is eventually delivered despite new arrivals, and no scheduled action drops messages. Fairness and ideality do not assume Scene.Good or any bootstrap conclusion. This run uses the noncomputable bootstrap model, not TCP. |
-| [`admitted_inv`](app/community/Proofs.lean#L2204-L2207) | **runtime-witness**: [Vacuity.Bootstrap.admissionClassified](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
-| [`allowedA`](app/community/Proofs.lean#L2275-L2275) | **runtime-witness**: [Vacuity.Bootstrap.founderAllowed](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
-| [`allowedB`](app/community/Proofs.lean#L2289-L2292) | **runtime-witness**: [Vacuity.Bootstrap.joinerAllowed](tests/vacuity/Bootstrap.lean). Deterministic synthetic Alice/Bob scene uses production Ed25519 and X25519 keys. Native certificates establish the five exact signatures, distinct devices/node keys and five-op distinctness; all five operations also validate through the production engine, with wrong-key/changed-message controls. Applies the named model theorem at the reachable first tick or the enabled completed bootstrap path; no universal signing-correctness or unproved scene premise remains in the runtime certificate. This is evidence about the bootstrap model, not whole-app execution. |
-| [`allowPeer_iff`](app/community/Proofs.lean#L3366-L3369) | **runtime-witness**: [Vacuity.IdentityTrust.netAllowPeer](tests/vacuity/IdentityTrust.lean). Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal. |
-| [`allowPeer_settles`](app/community/Proofs.lean#L3372-L3376) | **runtime-witness**: [Vacuity.IdentityTrust.netAllowSettles](tests/vacuity/IdentityTrust.lean). Actual signed eight-op Alice/Bob community. Reach is constructed by ingestion; native finite checks establish distinct operation IDs and an empty processing queue. The real trust query accepts Bob and rejects Mallory, and rejects Bob after removal. |
 | [`fit_small`](engine/renderer/pic/Laws.lean#L37-L37) | **kernel-witness**: [Vacuity.Pictures.small](tests/vacuity/Pictures.lean). 640 × 480 photo fits edge 2048 and remains unchanged. |
 | [`fit_le`](engine/renderer/pic/Laws.lean#L50-L50) | **kernel-witness**: [Vacuity.Pictures.bounded](tests/vacuity/Pictures.lean). 4032 × 3024 photo fits within 2048; exact result 2048 × 1536. |
 | [`fit_pos`](engine/renderer/pic/Laws.lean#L59-L59) | **kernel-witness**: [Vacuity.Pictures.positive](tests/vacuity/Pictures.lean). Positive photo dimensions produce positive scaled dimensions. |
@@ -2656,8 +2633,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Engine.runJ`](engine/core/WindowLaws.lean#L148-L151) | **kernel-witness**: [Vacuity.WireMore.runJFiles](tests/vacuity/WireMore.lean). Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`BeforeNext`](engine/renderer/Demand.lean#L224-L226) | **kernel-witness**: [Vacuity.RendererDemand.beforeNext](tests/vacuity/RendererDemand.lean). This README reference is an invariant definition, not a theorem: the concrete nonempty two-key demand plan satisfies BeforeNext. Its serial bound is constructed from empty_before_next and reconcile_before_next; remount also checks serial reuse is rejected. |
 | [`ServiceRun.eventually_emitted`](engine/sync/ClosureDelivery.lean#L160-L169) | **runtime-witness**: [Vacuity.ClosureDelivery.certificate](tests/vacuity/ClosureDelivery.lean). The closure certificate applies actual serveOwed progress with an occupied queue, unbounded tail requests, continuously serviced hot requests, zero-capacity stalls and kernel-proved recurring positive ordinary capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. Hot targets emit immediately; hot filtering cannot move remaining targets backward, so ongoing urgent work does not starve ordinary FIFO requests. The theorem permits arbitrary changing hot prefixes; it does not assert OS or TCP fairness. |
-| [`Execution.fairRun_fair`](app/Proofs.lean#L1824-L1824) | **kernel-witness**: [Vacuity.ProductionBootstrap.infiniteScheduler](tests/vacuity/ProductionBootstrap.lean). An explicit infinite execution repeatedly calls the production Node with Connection.hooks and native crypto, with Held store semantics and an entropy tape. Kernel proof: both nodes tick cofinally, simulated time advances without bound, and FIFO service eventually dequeues every queued frame. A known destination receives the actual onFrame call. No scene validity, bootstrap success or crypto correctness is assumed for scheduler fairness; SQLite, OS and TCP are separate runtime boundaries. This infinite interpreter may record later unhandled socket-close effects; fairness does not prove they never occur or identify the continuation with TCP. |
-| [`successful_fair_extension`](app/Proofs.lean#L1889-L1900) | **runtime-witness**: [Vacuity.ProductionBootstrap.certificate](tests/vacuity/ProductionBootstrap.lean). Native evaluation of actual Node/Connection.hooks with real signatures, Noise and AEAD checks mutual admission, a shared session and exact bytes of a newly written sealed post sent after disconnect/retry. The recovery post was absent before the disconnect, so this checks the replacement session's data path rather than only retained data. A cumulative effect counter additionally proves this finite prefix ignores no implicit socket-close requests; explicit close actions clear the transport and notify both peers. Withheld approval, an unsent message and an injected unhandled-close effect reject success. The checked trace is extended without state reset by a kernel-proved infinite fair node-interpreter suffix. The goal and zero-unhandled-effect check hold at the prefix endpoint; persistence, convergence of every fair run, handling all future transport effects and refinement from Held to SQLite/TCP remain unproved. |
 | [`WriteAdmission.admitted_frames`](engine/wire/WriteAdmission.lean#L33-L35) | **kernel-witness**: [Vacuity.WriteAdmission.frameFits](tests/vacuity/WriteAdmission.lean). A nonempty synthetic op and an already occupied pending queue satisfy the actual app admission predicate. The kernel applies the singleton encrypted-frame bound. Separate host:write-admission checks actual signed Send against SQLite, preserves rejected drafts and commits after capacity clears; this kernel fixture does not claim a signed community op. |
 | [`WriteAdmission.admitted_count`](engine/wire/WriteAdmission.lean#L45-L47) | **kernel-witness**: [Vacuity.WriteAdmission.countFits](tests/vacuity/WriteAdmission.lean). A nonempty op is admitted with one queued entry at the exact two-entry cap. The theorem gives the pending-count bound; a one-entry-cap control rejects the same input. This is admission through App.writeAll, not a bound on every app queue or recovery path. |
 | [`WriteAdmission.admitted_bytes`](engine/wire/WriteAdmission.lean#L57-L59) | **kernel-witness**: [Vacuity.WriteAdmission.bytesFit](tests/vacuity/WriteAdmission.lean). The real admission predicate accepts a nonempty encoded op plus existing queued bytes within a finite byte cap; the theorem applies to that result. A one-byte cap rejects. Actual Send/SQLite boundary and exhausted-budget checks, plus three mutations, run in host:write-admission. |
