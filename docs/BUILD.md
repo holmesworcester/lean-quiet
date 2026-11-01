@@ -43,8 +43,9 @@ builds, and the toolchain's own build.
 links xcb from the system, and its tests drive a real X server. On
 Ubuntu:
 
-- To build: `libxcb1-dev`, `libxcb-shm0-dev` and `libxcb-sync-dev` (the
-  window manager's `_NET_WM_SYNC_REQUEST` on resize).
+- To build: `libxcb1-dev`, `libxcb-shm0-dev`, `libxcb-sync-dev` (the
+  window manager's `_NET_WM_SYNC_REQUEST` on resize) and `libx11-dev`
+  (`shell.c` takes the cursor and key names from X11's headers).
 - For `linux:e2e`: `xvfb`, `xdotool`, ImageMagick's `import` and Python's
   PIL. `tests/app/run.sh` skips it, building the shell only, under
   `SKIP_X=1` (by default whatever `SKIP_TCP` is).
@@ -63,7 +64,7 @@ say they are not supported.
 `make install`, in order (run again, it redoes nothing that is done):
 
 1. System packages: `gcc`, `libc6-dev`, `curl`, `ca-certificates`,
-   `python3` and the three xcb packages above. It lists the missing ones,
+   `python3` and the four X packages above. It lists the missing ones,
    says it will install them, and runs `apt-get update` and
    `apt-get install` (with `sudo` unless root). Without apt it names what
    is missing and stops. The lakefile links xcb and libc from

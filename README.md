@@ -25,7 +25,7 @@ make install && make run
 `make install` builds the desktop app in this folder. It installs Lean
 (elan) and Rust (rustup) in your home folder if they are missing, and
 downloads the app's fonts and photos, checked by sha256. If system
-packages are missing (a C compiler, Python, curl and the xcb headers),
+packages are missing (a C compiler, Python, curl and the X headers),
 it lists them and installs them with `sudo apt-get install`; to do that
 yourself, run `make check` first, which only lists them. A cold build
 takes about BUILD_TIME. `make run` opens the app with a demo: two

@@ -28,7 +28,8 @@ app=.lake/build/bin/linux
 # the newest rust-version among engine/native/crypto's locked crates (sha2)
 rust_min=1.88
 # what the build needs from the system, as Debian and Ubuntu packages
-pkgs="gcc libc6-dev curl ca-certificates python3 libxcb1-dev libxcb-shm0-dev libxcb-sync-dev"
+# (shell.c includes xcb's headers and X11's cursorfont.h and keysym.h)
+pkgs="gcc libc6-dev curl ca-certificates python3 libxcb1-dev libxcb-shm0-dev libxcb-sync-dev libx11-dev"
 # the libraries the lakefile links, by these paths
 libs="libc.so.6 libxcb.so.1 libxcb-shm.so.0 libxcb-sync.so.1"
 
@@ -48,7 +49,8 @@ missing() {
     done
   else
     for c in cc curl python3; do command -v "$c" >/dev/null 2>&1 || printf '%s ' "$c"; done
-    for h in xcb.h shm.h sync.h; do [ -f "/usr/include/xcb/$h" ] || printf '%s ' "/usr/include/xcb/$h"; done
+    for h in xcb/xcb.h xcb/shm.h xcb/sync.h X11/cursorfont.h X11/keysym.h; do
+      [ -f "/usr/include/$h" ] || printf '%s ' "/usr/include/$h"; done
     for l in $libs; do [ -e "/usr/lib/x86_64-linux-gnu/$l" ] || printf '%s ' "/usr/lib/x86_64-linux-gnu/$l"; done
   fi
 }
