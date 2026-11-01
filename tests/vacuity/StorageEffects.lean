@@ -1,4 +1,4 @@
-import ops.connection.StorageEffects
+import ops.connection.WriteProgress
 import tests.vacuity.ProductionBootstrap
 
 /- Synthetic Alice/Bob identities and messages; native signatures, Noise,
@@ -11,6 +11,10 @@ def finished (s : Scenario) := trace setup initial s.completed
 theorem source_reachable (s : Scenario) :
     ((finished s).b.memory.held).Reachable Connection.Execution.family :=
   (empty_trace_store setup (entropy "alice") (entropy "bob") s.completed .b).1
+
+theorem source_invariant (s : Scenario) : Inv Connection.Execution.family (finished s).b.memory.held.db := by
+  obtain ⟨_, hr, _⟩ := source_reachable s
+  exact reach_inv hr
 
 theorem source_settled (s : Scenario) : (finished s).b.memory.held.db.queue = [] :=
   (empty_trace_store setup (entropy "alice") (entropy "bob") s.completed .b).2
@@ -30,6 +34,22 @@ def eventCertificate (s : Scenario) (input : Node.Input) :=
             (source_reachable s) (source_settled s)))))
     else none
   else none
+
+/-- The fresh post must actually be absent and shared before applying the
+full write-handler theorem; reachability supplies its store invariant. -/
+def freshWriteCertificate (p : Peer) (o : Op) (now : Nat)
+    (hi : Inv Connection.Execution.family p.memory.held.db) :=
+  if hn : p.memory.held.db.ops o.id = none then
+    if hs : (Connection.Execution.family.room o).isSome then
+      some (PLift.up (production_write_receives setup .b p.node p.memory
+        [o] now hi (o := o) (List.mem_singleton_self _) hs
+        (by intro q hq _; exact List.mem_singleton.mp hq)
+        (by intro q hq; rw [hn] at hq; cases hq)))
+    else none
+  else none
+
+def writeCertificate (s : Scenario) :=
+  freshWriteCertificate (finished s).b s.recoveryMessage (finished s).now (source_invariant s)
 
 def isValid (s : Memory) (o : Op) : Bool :=
   match s.held.db.status o.id with
@@ -64,6 +84,10 @@ def main : IO UInt32 := do
   t.ok "actual tick visits catalog and emits a bounded retry frame"
     (((Connection.retryKey cid : M _) p.memory).1.any (fun peer => (ticked.2.retries peer).isSome) &&
       ticked.1.2.serve > 0)
+  t.ok "fresh write premises certify bytes committed by the complete handler"
+    (writeCertificate scene).isSome
+  t.ok "existing-byte control rejects fresh-write premise"
+    (!(writeCertificate { scene with recoveryMessage := scene.message }).isSome)
   t.ok "actual write stores and validates new shared message"
     (written.2.held.db.ops scene.recoveryMessage.id == some scene.recoveryMessage &&
       isValid written.2 scene.recoveryMessage)
