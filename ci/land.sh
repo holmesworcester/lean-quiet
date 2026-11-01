@@ -29,7 +29,18 @@ if ! flock -n 9; then
   flock 9
 fi
 echo "land: $(git rev-parse --short HEAD) holds the lock"
-git fetch -q origin
+# Fetch main alone, again on failure: the worktrees share one repository's
+# remote refs, and another worktree fetching at the same moment makes a
+# whole-remote fetch fail (holmes-71).
+fetch_main() {
+  local i
+  for i in 1 2 3 4 5; do
+    git fetch -q origin +refs/heads/main:refs/remotes/origin/main && return 0
+    sleep "$i"
+  done
+  echo "land: could not fetch main" >&2; return 1
+}
+fetch_main
 if ! git merge-base --is-ancestor origin/main HEAD; then
   if ! git merge --no-edit origin/main; then
     # README's generated lines (links, table rows) conflict on most merges:
@@ -47,7 +58,7 @@ if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
   git commit -qam "README links and vacuity inventory after merging main"
 fi
 ci/local.sh
-git fetch -q origin
+fetch_main
 git merge-base --is-ancestor origin/main HEAD ||
   { echo "land: main moved without the lock; run ci/land.sh again" >&2; exit 1; }
 bash -c "${LAND_PUSH:-git push origin HEAD:main}"
