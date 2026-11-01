@@ -6,7 +6,7 @@ namespace Vacuity.SyncCache
 open Engine Engine.Sync Vacuity.Network Vacuity.SyncMore
 attribute [local instance] byteArray_lawfulBEq
 
-theorem heldInv : Inv fam held.db := inv_drain fam (inv_ingest inv_empty msg) _
+theorem heldInv : Inv fam held.db := inv_turnCapped inv_empty drainCap [msg]
 def boot : Node := Node.boot fam (held.db.stored.filterMap held.db.ops) 0
 
 theorem messageIndexed : (keyOf fam msg, msg.id) ∈ boot.ix.items room :=

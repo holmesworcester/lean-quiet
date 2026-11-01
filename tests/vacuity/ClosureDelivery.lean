@@ -69,41 +69,92 @@ theorem room_recurs : ∀ N, ∃ n ≥ N, 0 < room n := by
   refine ⟨3 * N + 1, by omega, ?_⟩
   simp [room, Nat.add_mod]
 
-def incoming (n : Nat) : List Op := (service.emitted n).reverse ++ service.emitted n
+/-- What the receiver takes in at step n: the last two polls' sends, the
+older reversed (out of order and repeated). -/
+def incoming (n : Nat) : List Op := (service.emitted (n - 1)).reverse ++ service.emitted n
+
+/-- Odd steps are a tick's idle turn; even ones receive. -/
+def idleAt (n : Nat) : Bool := n % 2 == 1
 
 def receiver : Nat → Node × Held Fact
   | 0 => (Node.boot fam [] 0, {})
   | n + 1 =>
-    let result := ((receiver n).1.put sync (incoming n) false (receiver n).2)
-    (result.1.1, result.2)
+    if idleAt n then ((receiver n).1, ((Turn.turn fam [] : HeldM Fact Unit) (receiver n).2).2)
+    else
+      let result := ((receiver n).1.put sync (incoming n) false (receiver n).2)
+      (result.1.1, result.2)
 
-theorem incoming_source (n : Nat) : incoming n ⊆ before := by
-  intro o ho
-  have he : o ∈ service.emitted n := by simpa [incoming] using ho
+theorem emitted_source (n : Nat) : service.emitted n ⊆ before := by
+  intro o he
   obtain ⟨_, i, _, hi⟩ := serveOwed_shown fam cfg (sender n) (room n) priorities source o
     (List.mem_append.mp he)
   exact (reach_stored (runReach before) i o hi).1
+
+theorem incoming_source (n : Nat) : incoming n ⊆ before := by
+  intro o ho
+  rcases List.mem_append.mp ho with h | h
+  · exact emitted_source _ (List.mem_reverse.mp h)
+  · exact emitted_source n h
+
+theorem receiver_succ (n : Nat) : receiver (n + 1) =
+    if idleAt n then ((receiver n).1, ((Turn.turn fam [] : HeldM Fact Unit) (receiver n).2).2)
+    else (((receiver n).1.put sync (incoming n) false (receiver n).2).1.1,
+      ((receiver n).1.put sync (incoming n) false (receiver n).2).2) := rfl
+
+theorem receiver_put (n : Nat) (hi : idleAt n = false) :
+    (receiver (n + 1)).2 = ((receiver n).1.put sync (incoming n) false (receiver n).2).2 := by
+  rw [receiver_succ, hi]; rfl
+
+theorem receiver_idle (n : Nat) (hi : idleAt n = true) :
+    (receiver (n + 1)).2 = ((Turn.turn fam [] : HeldM Fact Unit) (receiver n).2).2 := by
+  rw [receiver_succ, hi]; rfl
 
 theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
   induction n with
   | zero => simp [receiver]
   | succ n ih =>
     intro o ho
-    have h := write_log_subset sync (receiver n).1 (receiver n).2 (intake fam false (incoming n)) ho
-    rcases List.mem_append.mp h with h | h
-    · exact ih h
-    · exact incoming_source n (intake_sub fam h)
+    cases hi : idleAt n
+    · rw [receiver_put n hi] at ho
+      have h := write_log_subset sync (receiver n).1 (receiver n).2 (intake fam false (incoming n)) ho
+      rcases List.mem_append.mp h with h | h
+      · exact ih h
+      · exact incoming_source n (intake_sub fam h)
+    · rw [receiver_idle n hi] at ho
+      have : o ∈ (receiver n).2.log ++ [] := ho
+      exact ih (by simpa using this)
 
 def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1
   store := fun n => (receiver n).2
   input := incoming
-  next := fun n => by simp only [receiver]
+  idle := idleAt
+  next := fun n => by
+    show (receiver (n + 1)).2 = _
+    cases hi : idleAt n
+    · rw [receiver_put n hi]; rfl
+    · rw [receiver_idle n hi]; rfl
   initial := held_empty_reachable fam
-  initialQueue := rfl
+  initialWaiting := waiting_empty
   distinct := fun n a ha b hb he =>
     hd a (List.mem_append.mp ha |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h))
       b (List.mem_append.mp hb |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h)) he }
+
+/-- Ticks recur: every odd step. -/
+theorem receiving_ticks (hd : Distinct before) : (receiving hd).Ticks := fun N =>
+  ⟨2 * N + 1, by omega, by show idleAt (2 * N + 1) = true; simp [idleAt, Nat.add_mod]⟩
+
+/-- Every poll's sends reach a receiving step: its own, if even, or the next. -/
+theorem delivered (hd : Distinct before) (j : Nat) (o : Op) (ho : o ∈ service.emitted j) :
+    ∃ k ≥ j, (receiving hd).idle k = false ∧ o ∈ (receiving hd).input k := by
+  by_cases hj : j % 2 = 1
+  · refine ⟨j + 1, by omega, ?_, ?_⟩
+    · show idleAt (j + 1) = false; simp [idleAt]; omega
+    · show o ∈ incoming (j + 1)
+      exact List.mem_append_left _ (by simpa using ho)
+  · refine ⟨j, Nat.le_refl _, ?_, ?_⟩
+    · show idleAt j = false; simp [idleAt]; omega
+    · exact List.mem_append_right _ ho
 
 def Result : Prop := ∃ k, ∀ j ≥ k,
   (∀ o ∈ before, (receiver j).2.db.ops o.id = some o) ∧
@@ -122,9 +173,7 @@ theorem convergence (hd : Distinct before)
       have e : (sender j).rooms = initial.rooms := (sender_rooms j).trans (want_rooms base _).symm
       exact (shows_rooms fam e o).trans (available o ho).2⟩)
     (fun o ho => Or.inr ⟨0, Nat.le_refl _, queued o ho⟩)
-    (fun j _ o ho => ⟨j, Nat.le_refl _, by
-      change o ∈ (service.emitted j).reverse ++ service.emitted j
-      exact List.mem_append_right _ ho⟩) capped
+    (fun j _ o ho => delivered hd j o ho) capped (receiving_ticks hd)
   exact ⟨k, hk⟩
 
 instance : Decidable (Distinct before) := by unfold Distinct; infer_instance

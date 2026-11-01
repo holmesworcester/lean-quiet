@@ -228,15 +228,15 @@ def heldOf (s : Session) : Held F := { db := run (activeOps s) }
 /-- The running node's driver over this store: the family's own hooks, so
 its `closing` is the one that runs. -/
 def nodeSync : Sync F (HeldM F) := { fam, hooks := Connection.hooks fam sodium "127.0.0.1:7447".toUTF8 }
-def purged (s : Session) := drainS fam 500 (purgeS fam (closeIds s) (run (activeOps s)))
+def purged (s : Session) := purgeCappedS fam drainCap (closeIds s) (run (activeOps s))
 def closed (s : Session) := ((Node.endSession nodeSync s.reply.id : HeldM F Effects) (heldOf s)).2
 
 def purgeForgets (s : Session) :=
-  some (PLift.up (purge_forgets (C := ed25519) (K := sodium) (runInv (activeOps s)) (closeIds s) 500))
+  some (PLift.up (purge_forgets (C := ed25519) (K := sodium) (runInv (activeOps s)) (closeIds s) drainCap))
 def forgetStays (s : Session) :=
   some (PLift.up (forget_stays (C := ed25519) (K := sodium)
-    (inv_drainS (purge_inv (runInv (activeOps s)) (closeIds s)) 500)
-    (purge_uncited (runInv (activeOps s)) (closeIds s) 500) [message.id] 500))
+    (inv_purgeCapped (runInv (activeOps s)) drainCap (closeIds s))
+    (purge_uncited (runInv (activeOps s)) (closeIds s) drainCap) [message.id] drainCap))
 def closeForgets (s : Session) :=
   some (PLift.up (close_forgets (C := ed25519) (K := sodium) nodeSync rfl rfl (heldOf s)
     (runInv (activeOps s)) s.reply.id))
@@ -271,7 +271,7 @@ def main : IO UInt32 := do
     (keyRows.all fun y => ((closed s).db.ops y).isNone)
   t.ok "the purge of the closing ids deletes them" (keyRows.all fun y => ((purged s).ops y).isNone)
   t.ok "a later purge leaves them gone"
-    (keyRows.all fun y => ((drainS fam 500 (purgeS fam [message.id] (purged s))).ops y).isNone)
+    (keyRows.all fun y => ((purgeCappedS fam drainCap [message.id] (purged s)).ops y).isNone)
   t.ok "the community's ops stay" (((closed s).db.ops message.id).isSome)
   t.ok "active session syncs real community" ((roomsV s.reply.id).eval (run (activeOps s)) == [Room.sync c])
   t.ok "removed peer gets only actual removal notice" ((roomsV s.reply.id).eval (run (cutOps s)) == [Room.notice c removeB.id])

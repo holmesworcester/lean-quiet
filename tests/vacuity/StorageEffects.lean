@@ -16,11 +16,11 @@ theorem source_invariant (s : Scenario) : Inv Connection.Execution.family (finis
   obtain ⟨_, hr, _⟩ := source_reachable s
   exact reach_inv hr
 
-theorem source_settled (s : Scenario) : (finished s).b.memory.held.db.queue = [] :=
+theorem source_waiting (s : Scenario) : UrgentWaiting Connection.Execution.family (finished s).b.memory.held.db :=
   (empty_trace_store setup (entropy "alice") (entropy "bob") s.completed .b).2
 
 /-- Checks the native membership and shared scope before applying the full
-handler theorem. Reachability and initial settling come from the exact
+handler theorem. Reachability and urgent work settled come from the exact
 production event prefix, not from native assumptions. -/
 def eventCertificate (s : Scenario) (input : Node.Input) :=
   let p := (finished s).b
@@ -30,8 +30,8 @@ def eventCertificate (s : Scenario) (input : Node.Input) :=
         (production_step_retains setup .b p.node input (finished s).now p.memory ho hs)
         (And.intro
           (production_step_reachable setup .b p.node input (finished s).now p.memory (source_reachable s))
-          (production_step_settled setup .b p.node input (finished s).now p.memory
-            (source_reachable s) (source_settled s)))))
+          (production_step_waiting setup .b p.node input (finished s).now p.memory
+            (source_reachable s) (source_waiting s)))))
     else none
   else none
 
