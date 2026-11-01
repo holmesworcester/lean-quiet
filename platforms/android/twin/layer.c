@@ -58,6 +58,7 @@ static _Atomic float bl_yf;
 static _Atomic bool bl_has_y;
 static uint32_t bl_place[LQ_PLACEMENT_WORDS], bl_next_place[LQ_PLACEMENT_WORDS];
 static bool bl_ready, bl_published;
+static int32_t bl_applied_sample;
 // A geometry publication remains outstanding until its compositor callback,
 // not merely until vsync consumes it. Lean retains only accepted contexts.
 static bool bl_awaiting_completion;
@@ -189,10 +190,14 @@ static void bl_vsync(int64_t ns, void* data) {
   }
   pthread_mutex_lock(&bl_mu);
   if (bl_l[BL_LIST].sc != NULL && (bl_ready || bl_published) && !bl_completion.pending && bl_completion.serial != UINT64_MAX) {
-    ASurfaceTransaction* t = ASurfaceTransaction_create();
-    if (t == NULL) goto complete_tick;
     int32_t sample = atomic_load(&bl_has_y) ? (int32_t)lroundf(atomic_load(&bl_yf))
       : (int32_t)bl_next_place[15];
+    // A fresh publication always gets its own receipt. With no fresh pixels
+    // or placement, unchanged rounded scroll cannot change any layer; avoid
+    // taking the sole callback slot away from the next UI publication.
+    if (!bl_ready && sample == bl_applied_sample) goto complete_tick;
+    ASurfaceTransaction* t = ASurfaceTransaction_create();
+    if (t == NULL) goto complete_tick;
     LqFrameTicket completion;
     bool reserved = lq_frame_begin(&bl_completion, &completion);
     (void)reserved; // The pending guard and this reservation share bl_mu.
@@ -219,6 +224,7 @@ static void bl_vsync(int64_t ns, void* data) {
     done->composer_visible = bl_l[BL_BOT].shown >= 0 &&
       bl_place[9] > bl_place[8] && bl_place[11] > bl_place[10];
     done->view = bl_place[16] | ((uint64_t)lq_slide_delta(bl_place[22], bl_place[15], sample) << 32);
+    bl_applied_sample = sample;
     ASurfaceTransaction_setOnComplete(t, done, bl_complete);
     ASurfaceTransaction_apply(t);
     ASurfaceTransaction_delete(t);

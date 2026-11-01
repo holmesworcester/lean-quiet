@@ -114,3 +114,35 @@ and [keyboard visibility](https://developer.android.com/develop/ui/views/touch-a
 The integrated photo-request follow-up is described in
 [ANDROID-PHOTO-LIFETIME.md](ANDROID-PHOTO-LIFETIME.md). Native input ownership
 and total event/worker bounds remain separate open work.
+
+
+## Avoiding unchanged native transactions
+
+Later validation of combined production `425979e` retained two failures of the
+original keyboard animation check: five completed composer positions, below
+its unchanged minimum of six. A trace-only Java build with identical native
+libraries and assets observed 19 distinct inset heights. The compositor also
+submitted unchanged idle geometry on every vsync, occupying its sole pending
+callback slot.
+
+The native renderer now skips a geometry-only transaction when the rounded
+scroll sample equals the last submitted sample. A fresh publication always
+gets its own transaction and exact receipt, even at unchanged geometry. Real
+scroll changes, surface replacement, and the one-outstanding-callback limit
+are preserved. The regression sends 10,000 unchanged ticks, checks rounded
+subpixel motion, and requires a new unchanged publication to receive its own
+acknowledgement. Restoring idle submissions must fail the callback-slot check.
+
+On the private pre-reorganization candidate, both Android ABIs built, the
+original device suite passed 17/0 with six positions, and all 13 native
+controls were rejected; its host suite passed 42 checks. The integrated host
+suite passes 44 checks, including the later refused-staging receipt tests.
+The full integrated seam controls and combined device validation are recorded
+separately as they finish. Original failures and diagnostics are retained in
+`/mnt/storage/holmes-tmp/android-final-425979e`; main host logs are in
+`out/ci/native-idle-main.log`.
+
+Host CPU affinity was not exclusive. Aggregate native handoff time was
+58.9 ms versus 56 ms before, so these results establish neither a timing
+improvement nor a universal elapsed-time bound. The theorem target remains
+each pipeline stage's completed steps; native timing is a separate measurement.
