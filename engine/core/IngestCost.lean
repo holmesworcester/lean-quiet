@@ -11,6 +11,9 @@ works `ingest_costs` and `step_costs` through as its example).
   fact is filed under, and the W ops that waited on it, woken.
 - `step_reads_le`: at every state whose ops cite at most R requirements,
   judging one op reads at most 4 + 2R rows, on the counted run itself.
+- `step_capped`, `step_reads_fed`: with the intake cap
+  (engine/core/Sync.lean), R is the constant `maxReqs` on every store fed
+  through intake (`fed_reqs`).
 - `step_costs`: judging one queued op costs O(R + K + W), R its
   requirements. Nothing in it grows with the store, but through the
   SQLite assumption (`levels`, a seek's pages); W does grow with an op's
@@ -151,6 +154,19 @@ theorem step_costs (fam : Family F) {R K W : Nat} (hK : ∀ x f, (fam.fileKeys x
         · exact costs_bind_le (decide_costs fam hK hW x _) (fun _ => costs_pure _) (by meter_le)
         · exact costs_bind_le (waitOn_costs x o.reqs) (fun _ => costs_pure _) (by meter_le)
 
+
+/-- **With the intake cap, judging one op costs a constant, O(K + W)**:
+R is `maxReqs` on every store fed through intake (`stored_capped`: each
+op it holds cites at most `maxReqs`), so the reads are at most
+4 + 2 · maxReqs whatever the store holds. -/
+theorem step_capped (fam : Family F) {K W : Nat} (hK : ∀ x f, (fam.fileKeys x f).length ≤ K)
+    (hR : ∀ x, Sat (ReqsLe maxReqs) (Store.getOp (F := F) (m := m) x))
+    (hW : ∀ x, Sat (WaitersLe W) (Store.waiters (F := F) (m := m) x)) :
+    Costs { reads := 4 + 2 * maxReqs, writes := 3 + K + W + maxReqs,
+            seeks := 7 + 3 * maxReqs + 2 * K + W, rows := W }
+      (step (F := F) (m := CostT m) fam) :=
+  step_costs fam hK hR hW
+
 end
 
 /-! ## At every state
@@ -280,5 +296,18 @@ theorem step_reads_le {F : Type} {fam : Family F} {s : DB F} {R : Nat}
           have h2 := within_at ((waitOn_costs (F := F) (m := Model F) x o.reqs).field Meter.reads) st.2
           simp only [Meter.reads_add, cr_pure_meter, Meter.reads_zero] at h1 h2 ⊢
           omega
+
+/-- On the model, a store fed through intake answers every op read
+within the cap: the `ReqsLe maxReqs` that `step_capped` asks of the
+store, at every state the node reaches. -/
+theorem fed_reqs {F : Type} {fam : Family F} {M : List Op} {s : DB F} (h : Fed fam M s) (x : Id) :
+    ReqsLe maxReqs (s.ops x) := fun _ hx => stored_capped h hx
+
+/-- **At every state a node reaches, judging one op reads at most
+4 + 2 · maxReqs rows**: the store, fed through intake, holds no op over
+the cap (`step_reads_le` at R = `maxReqs`). -/
+theorem step_reads_fed {F : Type} {fam : Family F} {M : List Op} {s : DB F} (h : Fed fam M s) :
+    (cr (step (F := F) (m := CostT (Model F)) fam) s).1.2.reads ≤ 4 + 2 * maxReqs :=
+  step_reads_le (fun _ _ ho => stored_capped h ho)
 
 end Engine

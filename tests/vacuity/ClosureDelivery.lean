@@ -112,7 +112,8 @@ def Result : Prop := ∃ k, ∀ j ≥ k,
 theorem convergence (hd : Distinct before)
     (available : ∀ o ∈ before, source.db.ops o.id = some o ∧ initial.shows fam o = true)
     (queued : ∀ o ∈ before, o.id ∈ initial.owed)
-    (spec : Spec fam source.db.ops message.id (.valid messageFact)) : Result := by
+    (spec : Spec fam source.db.ops message.id (.valid messageFact))
+    (capped : ∀ o ∈ before, o.capped = true) : Result := by
   obtain ⟨k, _, hk⟩ := closure_delivered (x := sync) (cfg := cfg) service (receiving hd) before source.db.ops message.id
     (.valid messageFact) 0 spec
     (fun i o _ ho => reach_stored (runReach before) i o ho)
@@ -123,7 +124,7 @@ theorem convergence (hd : Distinct before)
     (fun o ho => Or.inr ⟨0, Nat.le_refl _, queued o ho⟩)
     (fun j _ o ho => ⟨j, Nat.le_refl _, by
       change o ∈ (service.emitted j).reverse ++ service.emitted j
-      exact List.mem_append_right _ ho⟩)
+      exact List.mem_append_right _ ho⟩) capped
   exact ⟨k, hk⟩
 
 instance : Decidable (Distinct before) := by unfold Distinct; infer_instance
@@ -136,10 +137,12 @@ def certificate : Option (PLift Result) :=
     if hav : before.all (fun o => decide
         (source.db.ops o.id = some o ∧ initial.shows fam o = true ∧ o.id ∈ initial.owed)) = true then
       if hs : source.db.status message.id = some (.valid messageFact) then
-        some ⟨convergence hd
-          (fun o ho => let h := of_decide_eq_true (List.all_eq_true.mp hav o ho); ⟨h.1, h.2.1⟩)
-          (fun o ho => (of_decide_eq_true (List.all_eq_true.mp hav o ho)).2.2)
-          ((runInv before).sound _ _ hs)⟩
+        if hc : before.all Op.capped = true then
+          some ⟨convergence hd
+            (fun o ho => let h := of_decide_eq_true (List.all_eq_true.mp hav o ho); ⟨h.1, h.2.1⟩)
+            (fun o ho => (of_decide_eq_true (List.all_eq_true.mp hav o ho)).2.2)
+            ((runInv before).sound _ _ hs) (fun o ho => List.all_eq_true.mp hc o ho)⟩
+        else none
       else none
     else none
   else none

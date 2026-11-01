@@ -3155,11 +3155,15 @@ committed, including all sixteen possible actual reaction rounds. -/
 theorem store_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.store x ops true s).2.held.db.ops o.id = some o := by
   have hp : (n.put x ops true s).2.held.db.ops o.id = some o := by
-    simpa only [Node.put, intake, ite_true] using write_receives x n s ops hi ho sameInput sameStore
+    have hin : o ∈ intake x.fam true ops := by
+      simp only [intake, ite_true, List.mem_filter]; exact ⟨ho, hc⟩
+    simpa only [Node.put] using write_receives x n s (intake x.fam true ops) hi hin
+      (fun p hp => sameInput p (intake_sub x.fam hp)) sameStore
   unfold Node.store
   apply committed_bind x.fam _ _ s hp hs
   intro r
@@ -3172,22 +3176,23 @@ bound or a claim that absent prerequisites already exist. -/
 theorem onWrite_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op) (now : Nat)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.onWrite x ops now s).2.held.db.ops o.id = some o := by
   unfold Node.onWrite
   exact committed_bind x.fam _ _ s
-    (store_receives x hr n s ops hi ho hs sameInput sameStore) hs
+    (store_receives x hr n s ops hi ho hs hc sameInput sameStore) hs
     (fun _ => NodeTape.finish_goes x hr _ _ _)
 
 theorem production_write_receives (S : Setup) (side : Side) (n : Engine.Sync.Node)
     (s : Memory) (ops : List Op) (now : Nat) (hi : Inv family s.held.db)
-    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome)
+    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome) (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.step (S.sync side) (.write ops) now s).2.held.db.ops o.id = some o := by
   simpa only [Node.step] using
-    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs sameInput sameStore)
+    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs hc sameInput sameStore)
 
 end Connection.Execution
 

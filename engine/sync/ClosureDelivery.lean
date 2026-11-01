@@ -236,7 +236,8 @@ theorem closure_delivered {F : Type} {x : Sync F (HeldM F)} {cfg : Config}
     (requested : ∀ o ∈ whole, (recv.store start).db.ops o.id = some o ∨
       ∃ j ≥ start, o.id ∈ (send.conn j).owed)
     (transport : ∀ j ≥ start, ∀ o ∈ send.emitted j,
-      ∃ k ≥ j, o ∈ recv.input k) :
+      ∃ k ≥ j, o ∈ recv.input k)
+    (capped : ∀ o ∈ whole, o.capped = true) :
     ∃ k ≥ start, ∀ j ≥ k,
       (∀ o ∈ whole, (recv.store j).db.ops o.id = some o) ∧
       (recv.store j).db.status seed = some v := by
@@ -254,7 +255,7 @@ theorem closure_delivered {F : Type} {x : Sync F (HeldM F)} {cfg : Config}
         cases hr : x.fam.room o with
         | none => simp [hr] at shown
         | some r => rfl
-      exact ⟨k + 1, by omega, recv.receives received shared⟩
+      exact ⟨k + 1, by omega, recv.receives received shared (capped o ho)⟩
   obtain ⟨k, hk, held⟩ := finite_eventually_held recv whole start each
   refine ⟨k, hk, ?_⟩
   intro j hj
