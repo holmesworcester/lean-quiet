@@ -48,16 +48,21 @@ negative control. The restored source must complete all 52 checks again.
 This is native regression evidence about resource ownership, not a kernel
 proof of the FFI or universal App exception safety. It does not ensure every
 one-shot notice survives StateT rollback, make writer admissions exactly-once
-across rollback, or retain unrelated Reader.Worker creation. Normal pending
-native stop can still suppress UI frames. Failed normal cleanup retains its
+across rollback. Reader worker ownership is a separate repair
+([APP-READER-OWNERSHIP.md](APP-READER-OWNERSHIP.md)), and a pending normal
+stop no longer holds foreground frames ([APP-STOP-UI.md](APP-STOP-UI.md)).
+Failed normal cleanup retains its
 cap and remains pending. Completion of callbacks, SQLite operations and
 native cleanup still needs progress outside this slot protocol. Counts refer
 to completed service stages; measured native milliseconds are regression
 observations, not an OS scheduling or whole-pipeline latency bound.
 
-The combined primary source passes all 1,355 audited laws, the 707-entry
-metadata checks, and 52 native checks with five compiling controls and a
-restored baseline. Combined recovery/lifecycle compatibility is running.
-The frozen private patch also passed the 77-check failed-runner, 51-check
-normal-suspend and 13-check boot suites with their controls and restoration,
-plus the affected lifecycle controls. These are distinct source snapshots.
+On the merged source (origin/main `b4d103a` plus the stop-UI, frame-time
+and Reader ownership repairs), all 1,361 audited laws pass the standard-axiom
+audit and the 708-entry evidence inventory passes. This suite passes 52
+checks, all five controls and restoration. Compatibility on the same source:
+failed-runner 77 checks with seven controls, normal suspend 51 with three,
+boot admission 13 with two, all restored; lifecycle-node 40/0 with all of
+its controls. The lifecycle fixture's late-boot case now stops a runner the
+App failed to stop before waiting for replay, so that control fails at its
+assertion instead of hanging.

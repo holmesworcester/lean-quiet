@@ -176,13 +176,23 @@ open. See [RUNNER-OWNERSHIP.md](RUNNER-OWNERSHIP.md).
 
 App network boot, adopted Runner and retiring stop/replay tasks now have fixed
 shared ownership slots outside the frame's StateT. A throwing logger or later
-frame callback cannot lose those handles. Combined-source validation passes
-all 1,355 audited laws, the 707-entry metadata checks, and 52 real
-Runner/TCP/SQLite assertions with five compiling controls and restoration.
-Recovery and lifecycle compatibility checks are running. Reader registration,
-one-shot notices and other partial effects across rollback remain separate;
-normal pending cleanup still suppresses foreground UI at this milestone.
-See [APP-NETWORK-OWNERSHIP.md](APP-NETWORK-OWNERSHIP.md).
+frame callback cannot lose those handles. On the merged source, 52 real
+Runner/TCP/SQLite assertions pass with five compiling controls and
+restoration, and the failed-runner, suspend, boot-admission and lifecycle
+suites pass with their controls. See
+[APP-NETWORK-OWNERSHIP.md](APP-NETWORK-OWNERSHIP.md).
+
+The threaded Reader worker now has the same kind of shared owner: the active
+worker, one retiring worker, its replacement board and the reaped connection
+survive a later frame callback error (26 actual checks, six compiling
+controls; [APP-READER-OWNERSHIP.md](APP-READER-OWNERSHIP.md)). A pending
+normal network stop no longer holds foreground frames, mounting or Reader
+startup; write ordering still waits for it (12 checks, three controls;
+[APP-STOP-UI.md](APP-STOP-UI.md)). Both frame paths keep at most 600 timing
+samples ([`FrameTimes.bounded`](FRAME-TIMES.md); nine checks, two runtime
+controls and a kernel control). All 1,361 audited laws and the 708-entry
+evidence inventory pass on this source. One-shot notices and other partial
+effects across rollback remain separate.
 
 ## Obstructions found by the stronger target
 

@@ -20,10 +20,14 @@ The actual threaded Reader publishes SQLite answers while cleanup is still
 held. The fixture checks original task identity, parked signed writes, later
 commit and native listener cleanup. Its conversation and messages are synthetic.
 
-The private source passed all 12 checks, three exact-failure controls and
-restoration. Combined primary-source validation is pending. The engine suite
-and ready-to-install bootstrap-progress workflow will invoke the named task;
-hosted activation remains pending. It requires the repository toolchains,
+On the merged source (origin/main `b4d103a` plus the network, frame-time and
+Reader ownership repairs) it passes all 12 checks, the three exact-failure
+controls and restoration. The lifecycle-node fixture asserted the old
+behaviour (no frame while teardown is pending); it now expects exactly one
+resumed frame and still checks that no runner starts and no parked write is
+offered early (40/0, all controls). The engine suite and the ready
+bootstrap-progress workflow invoke the named task; hosted activation remains
+pending. It requires the repository toolchains,
 fonts, Linux user systemd and native crypto/SQLite. Every Lean/Lake build uses
 a 48 GiB/no-swap scope. Logs and databases remain in `out/app-stop-ui`.
 

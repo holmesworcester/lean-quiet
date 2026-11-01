@@ -14,18 +14,19 @@ chat policy and sample order. It also normalizes an oversized input to the
 newest 300 samples before appending. Nonempty 600- and 900-entry kernel
 witnesses apply that theorem and check the resulting 301-entry size.
 
-`mise run test:app-frame-times` will build the actual App/SQLite fixture,
-run 650 consecutive non-chat frames and 650 chat frames, restore raw append
-at each call site as a compiling control, and change the threshold to 601
+`mise run test:app-frame-times` builds the actual App/SQLite fixture,
+runs 650 consecutive non-chat frames and 650 chat frames, restores raw append
+at each call site as a compiling control, and changes the threshold to 601
 as a kernel control. A control must fail its exact completed assertions or
 capacity obligation; compiler/setup failures, crashes and timeouts do not
 count. The restored source must pass all nine native checks again.
 
-The private source passes all nine checks, both compiling runtime controls,
-the kernel capacity control, and the restored baseline.
-Combined primary-source validation is pending. The engine suite and ready
-bootstrap-progress workflow will invoke this named task; hosted activation
-remains pending. It requires the repository toolchains, fonts, Linux user
+On the merged source it passes all nine checks, both compiling runtime
+controls, the kernel capacity control and the restored baseline; the
+law passes the standard-axiom audit and its witness the evidence inventory.
+The helper lives in `engine/renderer` because `app/` admits only the eight
+op-tree file names. The engine suite and the ready bootstrap-progress workflow
+invoke this named task; hosted activation remains pending. It requires the repository toolchains, fonts, Linux user
 systemd and native SQLite/crypto. Every Lean/Lake build uses a 48 GiB/no-swap
 scope. Logs and databases remain in `out/app-frame-times`.
 
