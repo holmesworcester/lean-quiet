@@ -591,6 +591,10 @@ section app
 #print axioms Live.acts_force
 #print axioms Live.rest_ignores_acts
 #print axioms Live.mem_pickActs
+#print axioms Live.record_indexed
+#print axioms Live.marked_complete
+#print axioms Live.dirty_marked
+#print axioms Live.record_dirty
 #print axioms Live.RWorld.passActs_picks
 #print axioms Live.RWorld.passActs_nil
 #print axioms Live.RWorld.inv_passActs

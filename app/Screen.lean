@@ -1097,12 +1097,6 @@ def evalLogged (w : Want) : RM Val := do
   modify fun s => { s with log := #[] }
   return (← eval w).1
 
-/-- The index after w's reads move from `old` to `new`. -/
-def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
-    Std.HashMap Q (Array Want) :=
-  let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
-  new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
-
 /-- An act's write, judged as App.writeAll judges the frame's: each op
 in order against what is decided, the ops before it in the same write,
 then the outbox's (pending, so valid), then the store's. Its valid ops,
@@ -1218,7 +1212,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       let dirty := fresh.foldl (·.insert ·) (s.dirty.filter want.contains)
       let deps := s.deps.filter fun w _ => want.contains w
       let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
-      let rev := deps.fold (fun acc w qs => reindex acc w #[] qs) {}
+      let rev := deps.fold (fun acc w qs => _root_.Live.reindex acc w #[] qs) {}
       -- the live cache keeps exactly the held reads (Lifecycle.live_exact)
       modify fun s => { s with gen, wantSet := want, dirty, deps, rev, last := wants,
                                live := s.live.keep held.contains }
@@ -1254,15 +1248,17 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       unless ← sh.current ticket do
         modify fun s => { s with retired := s.retired + 1 }
         continue
-      let old := (← get).deps.getD w #[]
       let enabled := (← get).enabled
       modify fun s => { s with enabled := do return (← enabled) && (← sh.current ticket) }
       let v ← try evalLogged w finally modify fun s => { s with enabled }
       unless (← enabled) && (← sh.current ticket) do
         modify fun s => { s with retired := s.retired + 1 }
         continue
+      -- its reads recorded, clean, the index moved (Live.Index.record:
+      -- record_indexed, marked_complete)
       modify fun s =>
-        { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
+        let r := _root_.Live.Index.record ⟨s.deps, s.dirty, s.rev⟩ w s.log
+        { s with deps := r.deps, dirty := r.dirty, rev := r.rev }
       -- Publish each finished value promptly; a later, slow want cannot
       -- hold an already-read visible row behind the rest of the batch.
       sh.publish ticket v
