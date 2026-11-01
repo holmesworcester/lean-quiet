@@ -68,8 +68,7 @@ def heldV : View F (List B) := do
 room, synced, where this node is a device of c and the trust rule takes
 the peer; else a notice of each removal that cuts a device under the
 peer's key (`Community.removalsAt`) and is not yet given on it
-(`gave`); else nothing. Lean 4.35 reserves `given` in a def's binders
-(def contracts), so the list is `gave`. -/
+(`gave`); else nothing. -/
 def roomFor (gave : List Id) (c peer : B) : View F (List Room) := do
   match ← meV c with
   | some me =>
