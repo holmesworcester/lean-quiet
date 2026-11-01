@@ -691,6 +691,15 @@ the checkout's `.lake`; after the gate's build part every module is
 built, so that build only reads, as the other fast parts' `lake build`s
 do (Lake takes no lock on builds).
 
+Measured on 2026-11-01, warm, with the box's load at 60–75: the
+`headline` part took 89 s and 170 s in two gate runs, and each time
+ended before `engine:suites` (108 s, 185 s), which still sets the
+parallel phase's length. A gate run without the part took 229 s, with
+it 337 s and 392 s, but the parts it does not touch (`readme`, in the
+sequential phase) varied as much (58 s to 146 s): the change is within
+the load's noise. In the sequential phase the part would add its whole
+time.
+
 ## Surfaces (generated)
 
 The numbers and lists below are tests/Headline.lean's output, written
