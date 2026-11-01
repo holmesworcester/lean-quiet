@@ -78,6 +78,8 @@ import engine.renderer.ActsLaws
 import engine.core.Project
 import ops.connection.NodeLaws
 import ops.connection.HooksRead
+import ops.connection.EgressLaws
+import engine.wire.EgressLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -680,6 +682,14 @@ end net
 #print axioms Engine.Sync.filedGive_reads
 #print axioms Engine.Sync.filedGive_quiet
 #print axioms Connection.removed_gets_only_notice
+#print axioms Engine.Sync.onFrame_fresh
+#print axioms Engine.Sync.onTick_fresh
+#print axioms Engine.Sync.onWrite_fresh
+#print axioms Engine.Sync.onClose_fresh
+#print axioms Engine.Sync.entry_fresh
+#print axioms Connection.hooks_readOnly
+#print axioms Connection.sent_mayGo
+#print axioms Connection.removal_reaches_session
 #print axioms Engine.Sync.notify_bounded
 
 section windows
