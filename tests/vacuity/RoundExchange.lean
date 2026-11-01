@@ -1,5 +1,6 @@
 import engine.sync.RoundRun
 import engine.sync.NewestLaws
+import engine.sync.WindowLaws
 import tests.engine.Checks
 
 namespace Vacuity.RoundExchange
@@ -34,7 +35,14 @@ theorem named : Named Prod.fst Prod.snd (xs ++ ys) := by
   simp [Named, xs, ys]
   decide
 
-theorem itemsAt (n : Nat) : (states n).items room = if n % 2 = 0 then xs else ys := by
+-- Both ends are full (floor 0): every step's set is the room's items.
+theorem full (t : Nat) : Full (states t).receiving ∧ Full (states t).waiting :=
+  exec_full cfg room 1 times ixs states runs
+    (by simp [states, execute, first, initial, Full, Conn.start, Conn.due, Conn.roundedAt, Conn.retake,
+      Conn.beginRound]) t
+
+theorem itemsAt (n : Nat) : (states n).items cfg room 1 = if n % 2 = 0 then xs else ys := by
+  rw [items_full _ _ _ _ (full n).1]
   cases n with
   | zero => rfl
   | succ n =>
@@ -42,13 +50,13 @@ theorem itemsAt (n : Nat) : (states n).items room = if n % 2 = 0 then xs else ys
     unfold ixs
     split <;> rfl
 
-theorem itemsX (t : Nat) : (states (2 * t)).items room = xs := by
+theorem itemsX (t : Nat) : (states (2 * t)).items cfg room 1 = xs := by
   rw [itemsAt, if_pos (by omega)]
-theorem itemsY (t : Nat) : (states (2 * t + 1)).items room = ys := by
+theorem itemsY (t : Nat) : (states (2 * t + 1)).items cfg room 1 = ys := by
   rw [itemsAt, if_neg (by omega)]
 
-theorem items0 : (states 0).items room = xs := by simpa using itemsX 0
-theorem items1 : (states 1).items room = ys := by simpa using itemsY 0
+theorem items0 : (states 0).items cfg room 1 = xs := by simpa using itemsX 0
+theorem items1 : (states 1).items cfg room 1 = ys := by simpa using itemsY 0
 
 -- The messages claim times; the structure range (time 0) is empty on both sides.
 theorem withinX : within Prod.fst timedRange xs = xs := by decide
@@ -85,7 +93,7 @@ theorem bounded (t : Nat) : (states t).receiving.Bounded cfg ∧ (states t).wait
     (by simp [states, execute, first, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound,
       Conn.Bounded, cfg]) t
 
-theorem capacity (t : Nat) : Capacity cfg room (states t) := by
+theorem capacity (t : Nat) : Capacity cfg room 1 (states t) := by
   cases t with
   | zero =>
     rw [Capacity, items0]
@@ -106,7 +114,7 @@ theorem capacity (t : Nat) : Capacity cfg room (states t) := by
     | succ n =>
       have empty := laterEmpty n
       change (states (n + 2)).receiving.asked.size +
-        (roundWants (outputs cfg ((states (n + 2)).items room) (states (n + 2)).pending)).length ≤ cfg.maxKnown
+        (roundWants (outputs cfg ((states (n + 2)).items cfg room 1) (states (n + 2)).pending)).length ≤ cfg.maxKnown
       simp only [empty, outputs, List.flatMap_nil, roundWants, List.length_nil, Nat.add_zero]
       exact (bounded (n + 2)).1.2
 
@@ -120,17 +128,122 @@ theorem emptyAsks : (states 0).receiving.asked = ∅ ∧ (states 0).waiting.aske
   initial_asks ..
 
 theorem terminates : ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
-  have sub : ∀ t, ∀ a ∈ (states t).items room, a ∈ xs ++ ys := by
+  have sub : ∀ t, ∀ a ∈ (states t).items cfg room 1, a ∈ xs ++ ys := by
     intro t a ha; rw [itemsAt] at ha
     split at ha
     · exact List.mem_append_left _ ha
     · exact List.mem_append_right _ ha
-  have sorted : ∀ t, Sorted Prod.fst ((states t).items room) := by
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items cfg room 1) := by
     intro t; rw [itemsAt]; split
     · exact sortedX
     · exact sortedY
   obtain ⟨j, _, hj, hdone⟩ := RoundRun.terminates cfg room 1 times states run current (xs ++ ys) sub sorted 7 0 ranks
   exact ⟨j, by omega, hdone⟩
+
+-- The windowed round law on this fixture: both ends are full (floor 0), so
+-- each side's set S is its room; the round ends within the bound.
+theorem windowRound (checked : collisionCheck (hashInputs xs ++ hashInputs ys) = true) :
+    ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
+  have par := RoundRun.items_par itemsX itemsY
+  let Z : Nat → List Item := fun t => if t % 2 = 0 then ys else xs
+  have hZ : ∀ t, Z (t + 1) = (states t).items cfg room 1 := by
+    intro t; rw [par t]; simp only [Z]
+    by_cases h : t % 2 = 0
+    · rw [if_neg (by omega), if_pos h]
+    · rw [if_pos (by omega), if_neg h]
+  have sub : ∀ t, ∀ a ∈ (states t).items cfg room 1, a ∈ xs ++ ys := by
+    intro t a ha; rw [par t] at ha
+    split at ha
+    · exact List.mem_append_left _ ha
+    · exact List.mem_append_right _ ha
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items cfg room 1) := by
+    intro t; rw [par t]; split
+    · exact sortedX
+    · exact sortedY
+  have named' : ∀ t, Named Prod.fst Prod.snd ((states t).items cfg room 1 ++ Z t) := by
+    intro t; rw [par t]; simp only [Z]; split
+    · exact named
+    · exact named_symm named
+  have sound := sound_of_check xs ys checked
+  have sound' : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items cfg room 1) (Z t) := by
+    intro t; rw [par t]; simp only [Z]; split
+    · exact sound
+    · exact sound.symm
+  obtain ⟨j, hj, hdone⟩ := (window_round_complete cfg room 1 7 times states run current capacity (by decide)
+    (xs ++ ys) sub sorted Z hZ named' sound' ranks).1
+  exact ⟨j, hj, hdone⟩
+
+-- What fits the bound is found in one round: the dialer's side (odd steps,
+-- index iy) read at floor 2 holds Bob's two messages as its window, with
+-- nothing below them to follow; Bob's first is found in the round.
+theorem closureDelivered (checked : collisionCheck (hashInputs xs ++ hashInputs ys) = true) :
+    let a : Item := (⟨2, 2⟩, bob1)
+    let mine : Nat → Bool := fun t => !(t % 2 == 0)
+    let Z : Nat → List Item := fun t => if t % 2 = 0 then ys else xs
+    (mine 0 = true ∧ a ∈ Z 0) ∨
+      ∃ j, j ≤ 7 ∧ ((mine j = false ∧ a ∈ (states j).items cfg room 1) ∨
+        RoundRun.SeenAt cfg room 1 (times j) a.2 (states j)) := by
+  intro a mine Z
+  have par := RoundRun.items_par itemsX itemsY
+  have hZ : ∀ t, Z (t + 1) = (states t).items cfg room 1 := by
+    intro t; rw [par t]; simp only [Z]
+    by_cases h : t % 2 = 0
+    · rw [if_neg (by omega), if_pos h]
+    · rw [if_pos (by omega), if_neg h]
+  have sub : ∀ t, ∀ a ∈ (states t).items cfg room 1, a ∈ xs ++ ys := by
+    intro t a ha; rw [par t] at ha
+    split at ha
+    · exact List.mem_append_left _ ha
+    · exact List.mem_append_right _ ha
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items cfg room 1) := by
+    intro t; rw [par t]; split
+    · exact sortedX
+    · exact sortedY
+  have named' : ∀ t, Named Prod.fst Prod.snd ((states t).items cfg room 1 ++ Z t) := by
+    intro t; rw [par t]; simp only [Z]; split
+    · exact named
+    · exact named_symm named
+  have sound := sound_of_check xs ys checked
+  have sound' : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items cfg room 1) (Z t) := by
+    intro t; rw [par t]; simp only [Z]; split
+    · exact sound
+    · exact sound.symm
+  have none : ∀ y, iy.next room y = [] := by intro y; simp [Index.next, iy]
+  have overY : ∀ b ∈ iy.over cfg.params.depth room 2, b ∈ ys := fun b hb => Index.over_sub _ _ _ _ hb
+  have member : opening Prod.fst Prod.snd sha256 cfg.params ys timedRange ∈ (states 0).pending := by
+    change _ ∈ (initial cfg room ix iy 0).pending
+    rw [initial_claim]
+    exact List.mem_cons_of_mem _ (List.mem_singleton_self _)
+  exact closure_delivered_under_bound cfg room 1 7 times states run current capacity (by decide)
+    (xs ++ ys) sub sorted Z hZ named' sound' ranks mine
+    (fun t => by simp only [mine]; rw [par_alt])
+    iy 2 (by decide)
+    (fun t ht b hb => by
+      rw [par t, if_neg (by simpa [mine] using ht)]; exact overY b hb)
+    (fun h0 b hb => by simp only [Z]; exact overY b hb)
+    (fun x j hx => by
+      have h0 : Near (iy.next room) (iy.windowIds room 2) 0 x := Near.of_none (iy.next room) none hx
+      exact Near.mono (iy.next room) 4 h0)
+    a (by decide) 0 (show bob1 ∈ iy.windowIds room 2 by decide) _ member timedRange
+    (opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys timedRange)
+    (by decide)
+
+-- S on the dialer's index at floor 2, and what reading it costs: with no
+-- entry to follow, each id is one lookup.
+set_option linter.defProp false in
+def overMem := over_mem iy 4 room 2 (by decide) (⟨2, 2⟩, bob1)
+set_option linter.defProp false in
+def overCost := over_cost iy 4 room 2 1 (fun x => by simp [Index.cost, iy])
+
+def windowRoundCertificate :=
+  if checked : collisionCheck (hashInputs xs ++ hashInputs ys) = true then
+    some (PLift.up (windowRound checked))
+  else none
+
+def closureCertificate :=
+  if checked : collisionCheck (hashInputs xs ++ hashInputs ys) = true then
+    some (PLift.up (closureDelivered checked))
+  else none
 
 -- Checking all possible filtered snapshots proves Sound for every range.
 -- No global injectivity or collision-resistance axiom is introduced.
@@ -183,6 +296,8 @@ def main : IO UInt32 := do
     (match (states 0).pending with | [.ids q [], .fp _ 2 _] => q == structureRange | _ => false)
   t.ok "count mismatch causes actual fingerprint-to-id transition"
     (match (states 1).pending with | [.ids _ [i]] => i == alice | _ => false)
+  t.ok "window_round_complete applies to the actual round (both ends full)" windowRoundCertificate.isSome
+  t.ok "closure_delivered_under_bound applies at floor 2 on the dialer's side" closureCertificate.isSome
   t.ok "Bob's haves answer Alice's ids claim newest first"
     ((answer Prod.fst Prod.snd sha256 cfg.params ys (.ids timedRange [alice])).flatMap holdIds == [bob2, bob1])
   t.ok "both message sets reach a terminal claim batch" ((states 2).pending.isEmpty)

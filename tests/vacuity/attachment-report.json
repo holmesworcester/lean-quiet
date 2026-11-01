@@ -30,5 +30,21 @@
     "module": "tests.vacuity.Attachment",
     "exercise": true,
     "detail": "Real signed attachment of a real signed message, and its chunk 0, have runtime V certificates on production Ed25519/XChaCha20; the theorem applies to the chunk. Native checks: the message, its attachment and both chunks claim the message's time (orderOf); a chunk with a true slice and path at time 0, and the same file attached by its author at time 0, are both rejected Invalid. Synthetic fixture using production native crypto; no collected community user data."
+  },
+  "window_set_canonical": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.window_set_canonical",
+    "witness": "Vacuity.Attachment.canonicalCertificate",
+    "module": "tests.vacuity.Attachment",
+    "exercise": true,
+    "detail": "The fixture's real signed ops (community, admissions, message, attachment, chunks) and the same list reversed; uniqueness of ids is decided natively on real SHA-256 ids; applied at a floor one minute past the message, depth 4. Synthetic fixture using production native crypto; no collected community user data."
+  },
+  "timed_chain_le": {
+    "status": "runtime-witness",
+    "theorem": "Community.timed_chain_le",
+    "witness": "Vacuity.Attachment.chainCertificate",
+    "module": "tests.vacuity.Attachment",
+    "exercise": true,
+    "detail": "A real Valid chunk (runtime V certificate on production crypto) and its one-step timed chain to its attachment, every link checked natively (the lookups, the requirement, the attachment's claimed time). Synthetic fixture using production native crypto; no collected community user data."
   }
 }

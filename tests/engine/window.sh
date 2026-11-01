@@ -8,6 +8,7 @@ cd "$(dirname "$0")/../.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --offline --quiet)
-lake build app.community.channel.message.attachment.Proofs engine.sync.NewestLaws newest
+lake build app.community.channel.message.attachment.Proofs engine.sync.NewestLaws engine.sync.WindowLaws newest window_sync
 .lake/build/bin/newest
+.lake/build/bin/window_sync
 tests/engine/window_negative.sh
