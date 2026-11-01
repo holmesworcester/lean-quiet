@@ -27,16 +27,15 @@ theorem first :
     navOf (placeIn {} 1 0 []) = some ((_root_.Nav.place 1 0 []).id, ⟨1, 0, []⟩) :=
   placeIn_newest {} 1 0 [] (by rw [placed_empty]; exact distinct_one _)
 
-/-- A log holding only nav ops (every log the app reaches) is rebuilt from
-the new nav op alone. -/
+/-- A log holding only nav ops (the app's, before any draft) is rebuilt
+from the new nav op alone. -/
 theorem placed_navOnly (h : Held SF) (hn : ∀ o ∈ h.log, _root_.Nav.owns o.kind = true) (gen page : Nat)
     (stack : List Nat) : placed h gen page stack = [_root_.Nav.place gen page stack] := by
   unfold placed
   rw [List.filter_eq_nil_iff.2 fun o ho => by simp [hn o ho]]
   rfl
 
-/-- **The cache law's premise holds of every reachable log**: one holding
-only nav ops. -/
+/-- **The cache law's premise holds of a log holding only nav ops.** -/
 theorem cache (s : App.St) (n : _root_.Nav.Nav App.PageId) (hn : ∀ o ∈ s.eph.log, _root_.Nav.owns o.kind = true) :
     ∃ x f, navOf (s.withNav n).eph = some (x, f) ∧ (s.withNav n).page = App.PageId.ofCode f.page ∧
       (s.withNav n).backStack = f.stack.map App.PageId.ofCode :=

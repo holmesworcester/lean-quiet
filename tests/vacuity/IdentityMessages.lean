@@ -90,12 +90,8 @@ theorem fed : Fed (family ed25519) [mySecret] fedStore :=
 
 /-- A Community op is never ephemeral, so this node's own job keeps it. -/
 theorem mySecretDurable : (family ed25519).durable mySecret = true := by
-  unfold Family.durable
-  simp only [Community.family]
-  unfold Community.scopeOf
-  split
-  · split <;> rfl
-  · rfl
+  simp [Family.durable, Community.family, Community.scopeOf, mySecret, secret, body_mkOp,
+    Community.Body.isEphemeral, Community.Body.isLocal]
 
 def intakeLocal := if hl : (family ed25519).room mySecret = none then
   some (PLift.up (intake_local (family ed25519) (mine := true) (ops := [mySecret])
