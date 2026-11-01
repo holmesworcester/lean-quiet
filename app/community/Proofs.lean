@@ -3491,6 +3491,34 @@ open Engine Codec
 theorem openScheme_prefix (x : List Char) : openScheme.isPrefixOf (openScheme ++ x) = true := by
   simp [List.isPrefixOf_iff_prefix]
 
+/-- **A notice goes only to the user's own devices**: every key a notice
+is sealed to is the node key of an admission among the rows read (the
+user's own), and a read is never sealed back to this node. -/
+theorem noticeRecipients_own (pk : Key) (all : Bool) (rows : List (Pos × Fact)) (e : Key)
+    (h : e ∈ noticeRecipients pk all rows) :
+    (∃ p c u d, (p, Fact.admission c u d e) ∈ rows) ∧ (all = true ∨ e ≠ pk) := by
+  induction rows with
+  | nil => simp [noticeRecipients] at h
+  | cons x rest ih =>
+    rcases x with ⟨p, f⟩
+    cases f with
+    | ofAdmission a =>
+      rcases a with ⟨c, u, d, enc⟩
+      simp only [noticeRecipients] at h
+      split at h
+      · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+        exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+      · rename_i hn
+        rcases List.mem_cons.1 h with rfl | h
+        · refine ⟨⟨p, c, u, d, List.mem_cons_self ..⟩, ?_⟩
+          cases all <;> simp_all
+        · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+          exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+    | _ =>
+      simp only [noticeRecipients] at h
+      obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+      exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+
 /-- **A message link parses back to exactly its message**: the
 community, the conversation, the message and any thread root it names. -/
 theorem target_roundtrip {t : Target} (hv : t.Valid) : Target.parse t.uri = some t := by

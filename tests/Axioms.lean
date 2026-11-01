@@ -1544,7 +1544,7 @@ end cost
 
 -- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
 #print axioms Community.notice_signed
-#print axioms Community.notice_shared
+#print axioms Community.notice_local
 #print axioms Community.caughtUp_local
 #print axioms Community.target_roundtrip
 #print axioms Notify.own_silent
@@ -1564,3 +1564,4 @@ end cost
 #print axioms App.unmount_keeps_node
 #print axioms App.target_opens
 #print axioms App.targetOf_member
+#print axioms Community.noticeRecipients_own

@@ -995,7 +995,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
   | .ofSecret _ | .ofAccepted _ | .ofJoining _ | .ofAbandoned _ | .ofKey _ | .ofEndpoint _ | .ofReceived _
-  | .ofCaughtUp _ => true
+  | .ofCaughtUp _ | .ofNotice _ => true
   | _ => false
 
 /-- Whether a fact shows that user u of community c is admin: the
@@ -1210,7 +1210,7 @@ acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
   | .ofSecret _ | .ofAccept _ | .ofJoining _ | .ofAbandon _ | .ofKey _ | .ofEndpoint _ | .ofReceive _
-  | .ofCaughtUp _ => true
+  | .ofCaughtUp _ | .ofNotice _ => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op

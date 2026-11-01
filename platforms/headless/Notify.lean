@@ -23,10 +23,16 @@ import tests.engine.Stream
 
 open App Engine Community Data
 
-/-- Every shared op one node has stored, taken by the other as a peer's. -/
+/-- Every shared op one node has stored, taken by the other as a peer's;
+returns once the other's writer has committed them (its busy count is
+back to zero), so what follows waits on the store, not on a clock. -/
 def carry (src dst : St) : IO Nat := do
   let ops ← Tests.streamOps Data.fam src.rd
   dst.wr.submit ⟨ops, false⟩
+  let mut k := 0
+  while (← dst.wr.busy.get) > 0 && k < 60000 do
+    IO.sleep 2
+    k := k + 1
   return ops.length
 
 def fresh (dir : String) : IO Unit := do
@@ -78,6 +84,19 @@ def policyFixture : IO (Nat × Bool) := do
 def holds (s : St) (text : String) : Bool :=
   s.notesKey.any fun (_, _, xs) => xs.any fun (_, sn) => sn.rows.any (·.text == text)
 
+/-- Steps until everything this app wrote is committed: its writer idle,
+nothing pending in its outbox, nothing parked for the node. It waits on
+the app's own state, not a clock (the bound only ends a hung run). -/
+def settle : M Bool := do
+  for _ in [0:60000] do
+    let s ← get
+    if (← s.wr.busy.get) == 0 && (← s.wr.jobs.get).isEmpty && s.out.isEmpty && s.toNode.isEmpty then
+      steps 2
+      return true
+    discard <| step []
+    IO.sleep 2
+  return false
+
 /-- How many readable posts the store holds in the current community:
 read through the store, not the frame (it runs in the background too). -/
 def heldTotal : M Nat := do
@@ -120,10 +139,10 @@ def main (args : List String) : IO UInt32 := do
   let (link, a1) ← (show M String from do
     sa.cmds.modify (·.push "found club|Ann")
     steps 3
-    waitIdle sa
+    discard <| settle
     sa.cmds.modify (·.push "open invite")
     steps 3
-    waitIdle sa
+    discard <| settle
     let s ← get
     return ((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "").run a0
   let ((), b1) ← (show M Unit from do
@@ -134,22 +153,22 @@ def main (args : List String) : IO UInt32 := do
     sb.cmds.modify (·.push "act continue")
     steps 2
     sb.cmds.modify (·.push "act agree")
-    waitIdle sb
+    discard <| settle
     steps 5
     check "B waits to join" ((← get).me.waiting)).run b0
   let _ ← carry b1 a1
   let ((), a2) ← (show M Unit from do
-    waitIdle sa
+    discard <| settle
     steps 3
     let some r := (← get).asking[0]? | check "A sees B's request" false
     approveReq r.id
-    waitIdle sa
+    discard <| settle
     steps 3).run a1
   let _ ← carry a2 b1
   let ((), b2) ← (show M Unit from do
-    waitIdle sb
+    discard <| settle
     steps 10
-    waitIdle sb
+    discard <| settle
     steps 5
     let s ← get
     check s!"B is in, on its home (page {repr s.page})" (!s.me.waiting && s.page == .home)
@@ -162,7 +181,7 @@ def main (args : List String) : IO UInt32 := do
     check s!"A is on its home (page {repr (← get).page})" ((← get).page == .home)
     sa.cmds.modify (·.push "send hello there")
     steps 2
-    waitIdle sa
+    discard <| settle
     steps 5
     check "A's own post does not alert A" ((← sa.notes.get).all (!alerts ·))).run a2
   let _ ← carry a3 b2
@@ -223,7 +242,7 @@ def main (args : List String) : IO UInt32 := do
     let n1 := (← sb.notes.get).size
     sb.cmds.modify (·.push "send from B")
     steps 2
-    waitIdle sb
+    discard <| settle
     for _ in [0:200] do
       if holds (← get) "from B" then break
       discard <| step []
@@ -232,19 +251,25 @@ def main (args : List String) : IO UInt32 := do
     -- Off
     sb.cmds.modify (·.push "notify off")
     steps 2
-    waitIdle sb
+    discard <| settle
     steps 5
     check s!"the level is Off (code {(← get).notifyLevel})" ((← get).notifyLevel == 3)).run b4
   let ((), a6) ← (show M Unit from do
     sa.cmds.modify (·.push "send muted")
     steps 2
-    waitIdle sa
+    discard <| settle
     -- 120 more posts: the history a link must open through
-    for k in [0:12] do
-      for j in [0:10] do
-        discard <| sendText s!"history {k * 10 + j}"
-      steps 2
-    waitIdle sa
+    -- a send the outbox refuses (it is bounded) is sent again once it drains
+    let mut sent := 0
+    let mut tries := 0
+    while sent < 120 && tries < 20000 do
+      if ← sendText s!"history {sent}" then sent := sent + 1
+      else
+        steps 1
+        IO.sleep 2
+      tries := tries + 1
+    check s!"A sends 120 more posts ({sent})" (sent == 120)
+    discard <| settle
     steps 3).run a5
   let _ ← carry a6 b5
   let ((), b6) ← (show M Unit from do
@@ -259,7 +284,7 @@ def main (args : List String) : IO UInt32 := do
     check "Off silences" (((← sb.notes.get).extract n0 (← sb.notes.get).size).all (!alerts ·))
     sb.cmds.modify (·.push "notify all")
     steps 2
-    waitIdle sb
+    discard <| settle
     steps 5
     check "All again" ((← get).notifyLevel == 1)
     -- the first card's link opens exactly its message, however much
@@ -300,6 +325,11 @@ def main (args : List String) : IO UInt32 := do
     let n0 := (← sb.notes.get).size
     let f0 ← sb.frames.get
     let got ← stepsUntil sb n0 100 (·.any fun p => alerts p && field p "body" == "while away")
+    if !got then
+      let s ← get
+      IO.println s!"  diag: held {← heldTotal} mounted {s.life.mounted} rst {s.rst.isSome} active {s.active} keep {s.keepSync} netStop {s.netStop.isSome}"
+      IO.println s!"  diag: last turn held {(s.notesKey.map fun (_, _, xs) => xs.map fun (_, sn) => sn.rows.map (·.text)).getD []}"
+      IO.println s!"  diag: packets since {((← sb.notes.get).extract n0 (← sb.notes.get).size).toList}"
     check "with Sync in the background on, a post arriving in the background alerts" got
     check "and nothing is drawn" ((← sb.frames.get) == f0)
     -- in front again; then off
@@ -334,7 +364,7 @@ def main (args : List String) : IO UInt32 := do
       | _ => none
     let some u := bUser.head? | check "A finds B's user" false
     let ok ← removeWrite u
-    waitIdle sa
+    discard <| settle
     check "A removes B" ok).run a8
   let _ ← carry a9 b8
   let ((), _) ← (show M Unit from do

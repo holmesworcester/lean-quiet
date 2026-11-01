@@ -140,6 +140,59 @@ These laws are over `step`, the running code:
 - `step_keeps`: a card stands unless the turn's `gone` names it, so a
   partial read keeps newer unread messages.
 
+## Read state across a user's devices
+
+The user wants read state and notification settings shared across a
+user's linked devices. `notice` will carry them; `caughtUp` never
+travels.
+
+**Today, notices are local** (`notice_local`), like the caught-up mark
+(`caughtUp_local`), and never leave the device that wrote them. A shared
+notice, even sealed, would tell every member's node that user u wrote one
+at time t: when u reads, when u changes a setting, and how many devices u
+has. With linking a stub, every settings change would also go to the
+whole community for nothing. So settings and reads stay on the device
+until there are other devices to tell.
+
+Some laws are already stated for when notices travel:
+- `notice_signed`: a notice about user u is signed, as that exact op, by
+  a device admitted into u.
+- `noticeRecipients_own`: `noticeWrite` seals one copy per device
+  admitted into the user (`admission.byUser [c, u]`), and every key a
+  notice is sealed to is one of those admissions' node keys. A read is
+  never sealed back to the writing node.
+
+**Follow-on, with device linking: a per-user room.** Notices travel only
+in a room of their own per user, carried only by sessions between that
+user's own devices.
+- **Scope.** A notice's scope becomes `.shared (userRoom c u)`, not the
+  community's room. The room is typed: its id is derived from the
+  community and the user (hashed under a domain tag), so it is never a
+  community id.
+- **Carriage.** `hooks.rooms` (the rooms a connection carries; app/Commands
+  and the trust rule) adds `userRoom c u` to a session exactly when both
+  ends are admitted devices of user u in c.
+- **The law to prove:** no session whose peer is not an admitted device of
+  u carries `userRoom c u`. That is, for every connection `cid` and every
+  room `r ∈ rooms cid`, if `r = userRoom c u`, then the peer's admission is
+  u's. With `notice_signed`, it gives: only u's devices hold u's notices,
+  and only u's devices write them.
+- **Privacy then.** Other members' nodes never receive the ops, so the
+  timing (when u reads, when u changes a setting) and u's device count stay
+  private from them. Only the network-level fact that two of u's devices
+  talk is visible, as it is today.
+- **What stays.** The sealing (`noticeRecipients_own`) stays as
+  defence in depth.
+- **What changes.** Read acks start going out once a second device is
+  linked. Its reads reach the first device, and the first device's cards
+  for those messages are withdrawn (`step_read`).
+
+**`caughtUp`'s tag.** Like main's other local Community ops (secret 15,
+accept 13, joining 14, abandon 17, key 18, endpoint 22, receipt 24),
+`caughtUp` holds a tag in the family's closed sum, so the store can file
+and judge it beside the shared ops. The tag never appears on the wire.
+Keeping it a Community op type is the user's decision of 2026-11-01.
+
 ## Private state: the `notice` op (Body 20 / Fact 18)
 
 A notice is a user's reads and notification level, sealed to one of that
@@ -158,11 +211,14 @@ user's devices.
   time as a settings change cannot undo it.
 - **Bounded read.** A device reads only the newest 64 notices sealed to it.
 - **Read acks** are sealed only to the user's other devices. Today every
-  user has one device (linking is a stub), so none are written.
+  user has one device (linking is a stub), so none are written. Notices
+  are local today in any case (see above).
 - **Settings** are sealed to every own device, this one included.
 
-The two op tags are a wire change, approved by the user. holmes-80 agreed
-them, alongside one-approval (which adds no tags).
+The two op tags (approved by the user as a wire change; agreed with
+holmes-80, alongside one-approval, which adds no tags) are both local
+today, so nothing new reaches the wire yet. Notices start travelling,
+in the per-user room, with device linking.
 
 ## Cards: the native seam
 

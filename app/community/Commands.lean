@@ -296,11 +296,23 @@ def noticeState (c u : Id) : View Fact NoticeState := do
   let a ← notice.byRecipient.read [c, pk] (limit := some noticeWindow)
   pure (noticeOf sk c u a.rows)
 
+/-- The devices a notice is sealed to: the node keys of the admissions
+among `rows` (the user's own: `admission.byUser [c, u]`), each once;
+for reads (`all` false), not this node's own key. -/
+def noticeRecipients (pk : Key) (all : Bool) : List (Pos × Fact) → List Key
+  | [] => []
+  | (_, .admission _ _ _ enc) :: rest =>
+    let r := noticeRecipients pk all rest
+    if Engine.has r enc || (!all && decide (enc = pk)) then r else enc :: r
+  | _ :: rest => noticeRecipients pk all rest
+
 /-- What records user u's new reads, or settings, in c: one notice per
-device admitted into u, sealed to that device's key (reads only to the
-other devices: this one keeps its own; settings to every device, this
-one included). Each box's ephemeral secret is derived from `fresh` and
-its recipient. Every notice carries the settings, at their revision. -/
+device admitted into u (`noticeRecipients_own`), sealed to that device's
+key: reads only to the other devices (this one keeps its own), settings
+to every device, this one included. Notices are local today
+(`notice_local`): with device linking they travel only between the
+user's own devices. Each box's ephemeral secret is derived from `fresh`
+and its recipient. Every notice carries the settings, at their revision. -/
 def noticeWrite (c adm u : Id) (d : Device) (fresh : ByteArray) (reads : List Id)
     (settings : Option Notice.Settings := none) : View Fact Write := do
   let some (pk, _) ← nodeKey | pure ⟨[]⟩
@@ -310,15 +322,9 @@ def noticeWrite (c adm u : Id) (d : Device) (fresh : ByteArray) (reads : List Id
     | none => (old.settings, old.settingsRev)
   let payload : Notice.Payload := (reads, Notice.Level.code s.community, Notice.Level.code s.conversation, srev)
   let ads ← admission.byUser.read [c, u] (limit := none)
-  let mut ops : List Op := []
-  let mut sent : List Key := []
-  for (_, f) in ads.rows do
-    let .admission _ _ _ enc := f | continue
-    if sent.contains enc || (settings.isNone && enc == pk) then continue
-    sent := enc :: sent
+  pure ⟨(noticeRecipients pk settings.isSome ads.rows).map fun enc =>
     let esk := cryptoSeal.hash ("quiet/notify/esk".toUTF8 ++ fresh ++ enc)
-    ops := ops ++ [notice c adm d enc (box cryptoSeal esk enc (Notice.binding c u) (Codec.encode payload)) (old.revision + 1)]
-  pure ⟨ops⟩
+    notice c adm d enc (box cryptoSeal esk enc (Notice.binding c u) (Codec.encode payload)) (old.revision + 1)⟩
 
 /-! ## Message links: a message's destination (libquiet's `quiet://open/…`) -/
 

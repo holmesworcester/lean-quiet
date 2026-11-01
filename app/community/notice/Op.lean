@@ -3,11 +3,13 @@ import app.community.Op
 /-
 A user's private notification state, for that user's own devices: the
 messages read (exact ids) and the notification level. Signed by one of
-the user's admitted devices and sealed to one device's X25519 key; the
-ciphertext syncs in the community like any op, and only that device
-opens it (the payload is the app's: app/community/notice/Commands.lean).
-After libquiet's notification preferences and read receipts (#844).
-Body tag 20, fact tag 18.
+the user's admitted devices and sealed to one device's X25519 key (the
+payload is the app's: app/community/Commands.lean). Local for now: it
+never leaves this device, so no member learns when this user reads or
+changes a setting. With device linking it travels only between the
+user's own devices (docs/NOTIFICATIONS.md). After libquiet's
+notification preferences and read receipts (#844). Body tag 20, fact
+tag 18.
 -/
 
 namespace Community

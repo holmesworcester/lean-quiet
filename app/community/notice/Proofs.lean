@@ -40,11 +40,12 @@ theorem notice_signed {x c u : Id} {r bx : ByteArray} {tm : Nat}
   rw [hreq] at hh; simp at hh; subst hh
   exact ⟨o, s, d, e, y, hx, hb, hreq, hy, hr32, hs⟩
 
-/-- **A notice travels; a caught-up mark never does.** The notice is
-shared in its community (other devices of the user hold it, sealed); the
-mark is this device's own. -/
-theorem notice_shared (r bx : ByteArray) (tm : Nat) (s : ByteArray) (reqs : List Id) :
-    (family C).shared (mkOp reqs (.notice r bx tm s)) = true := by
+/-- **Notification state never leaves this device** (for now): a notice
+is local, as is a caught-up mark, so no other member's node learns when
+this user reads or changes a setting. With device linking, notices will
+travel only between the user's own devices (docs/NOTIFICATIONS.md). -/
+theorem notice_local (r bx : ByteArray) (tm : Nat) (s : ByteArray) (reqs : List Id) :
+    (family C).shared (mkOp reqs (.notice r bx tm s)) = false := by
   rw [shared_mkOp]; rfl
 
 theorem caughtUp_local (c : Id) (mark : Nat) :
