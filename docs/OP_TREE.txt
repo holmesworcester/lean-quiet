@@ -21,11 +21,12 @@ app/
 │   │   │   │   ├── Screen.lean
 │   │   │   │   ├── Proofs.lean
 │   │   │   │   └── Tests.lean   (planned)
-│   │   │   ├── draft/   (planned op)
-│   │   │   │   ├── Op.lean   (planned)
-│   │   │   │   ├── Validate.lean   (planned)
+│   │   │   ├── draft/
+│   │   │   │   ├── Op.lean
+│   │   │   │   ├── Validate.lean
 │   │   │   │   ├── View.lean
-│   │   │   │   ├── Proofs.lean   (planned)
+│   │   │   │   ├── Commands.lean
+│   │   │   │   ├── Proofs.lean
 │   │   │   │   └── Tests.lean   (planned)
 │   │   │   ├── reaction/
 │   │   │   │   ├── Op.lean

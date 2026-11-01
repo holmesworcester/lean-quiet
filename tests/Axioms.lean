@@ -15,6 +15,7 @@ import app.settings.appearance.Commands
 import app.nav.Commands
 import app.nav.View
 import app.nav.Proofs
+import app.community.channel.message.draft.Proofs
 import engine.renderer.Demand
 
 
@@ -90,6 +91,7 @@ import engine.renderer.ActsLaws
 import engine.core.Project
 import app.connection.Family
 import engine.wire.EgressLaws
+import engine.core.SqliteLaws
 import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
@@ -203,6 +205,10 @@ open Engine Community
 #print axioms Community.joinOps_travels
 #print axioms Community.found_travels
 #print axioms Engine.drain_bounded
+#print axioms Trust.receive_as_model
+#print axioms Trust.receive_shows_model
+#print axioms Trust.receive_refused
+#print axioms Trust.purge_as_model
 #print axioms Engine.step_budget
 #print axioms Community.stopWaiting_local
 #print axioms Connection.Noise.handshake_agrees
@@ -247,6 +253,8 @@ open Engine Community
 #print axioms Community.member_opens
 #print axioms Community.boxKey_of
 #print axioms Community.cryptoSeal_good
+#print axioms Community.ofSeed_signs
+#print axioms Community.named_signs
 #print axioms Community.bodyAd_size
 #print axioms Community.sealedPost_opens
 #print axioms Community.wrapKey_opens
@@ -973,6 +981,18 @@ end cost
 #print axioms Nav.query_only
 #print axioms Data.placeIn_newest
 #print axioms App.withNav_cache
+#print axioms Community.Draft.write_valid
+#print axioms Community.Draft.write_ephemeral
+#print axioms Community.Draft.of_write
+#print axioms Community.Draft.key_draft
+#print axioms Community.Draft.query_only
+#print axioms Community.Draft.check_draft
+#print axioms Community.Draft.node_draft
+#print axioms Community.Draft.isFor_of
+#print axioms Community.Body.local_of_ephemeral
+#print axioms Data.draftIn_newest
+#print axioms Data.draftIn_empty
+#print axioms App.stash_use
 #print axioms Engine.Sync.run_eval
 #print axioms Engine.Sync.ofOps_reach
 #print axioms Engine.Sync.ofOps_rest

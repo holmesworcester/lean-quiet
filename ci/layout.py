@@ -30,7 +30,6 @@ NAMES = {"Op", "Validate", "View", "Commands", "Screen", "Proofs", "Tests", "Fam
 # planned ops: a folder that is not yet an op, and what it holds today
 PLANNED = {
     "app/community/channel": "the channel op; today its message family's folder",
-    "app/community/channel/message/draft": "the draft op; today the composer (View.lean)",
 }
 # family -> families its modules may import (connection ops cite community facts)
 CROSS = {"app/connection": ["app/community"]}
