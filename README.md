@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1413 rest on Lean's standard axioms only, and about two thirds of its theorems (1035 of 1389, not counting 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1412 rest on Lean's standard axioms only, and about two thirds of its theorems (1033 of 1387, not counting 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -507,7 +507,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1035 of 1389 laws are about running code;** another 35 run its node code in a World, and 319 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1033 of 1387 laws are about running code;** another 35 run its node code in a World, and 319 are not yet. Stated only: none. 25 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -520,7 +520,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 224 | 183 |  | 41 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 284 | 222 |  | 62 |
+| Screen | 282 | 220 |  | 62 |
 | App | 139 | 97 | 6 | 36 |
 | Node | 13 | 13 |  |  |
 | Settings | 4 | 4 |  |  |
@@ -1633,8 +1633,8 @@ opportunities and full native delivery remain open.
 [`Ttf.coverage_value`]: engine/renderer/Ttf/Laws.lean#L43-L44
 [`Ttf.raster_valid`]: engine/renderer/Ttf/Laws.lean#L60-L61
 [`Ttf.raster_pixel`]: engine/renderer/Ttf/Laws.lean#L69-L73
-[`Ttf.Cache.put_bound`]: engine/renderer/Ttf/Cache.lean#L90-L93
-[`Ttf.Cache.put_payload_bound`]: engine/renderer/Ttf/Cache.lean#L112-L113
+[`Ttf.Memo.bitmap_eq_fast`]: engine/renderer/Ttf/Memo.lean#L110-L112
+[`Ttf.Memo.Table.get_eq`]: engine/renderer/Ttf/Memo.lean#L46-L47
 [`time_shown`]: app/community/channel/message/reaction/View.lean#L119-L123
 [`projectSet_mem`]: app/Commands.lean#L753-L755
 [`projectSet_nodup`]: app/Commands.lean#L768-L770
@@ -1647,8 +1647,8 @@ opportunities and full native delivery remain open.
 [`dedupe_nodup`]: app/community/Screen.lean#L779-L780
 [`dedupe_one_per_community`]: app/community/Screen.lean#L783-L785
 [`select_tapped_dedupe`]: app/community/Screen.lean#L809-L811
-[`drawPage_key`]: app/Screen.lean#L4065-L4069
-[`pageIn_acc`]: app/Screen.lean#L4071-L4074
+[`drawPage_key`]: app/Screen.lean#L4067-L4071
+[`pageIn_acc`]: app/Screen.lean#L4073-L4076
 [`msg_cmp`]: app/community/channel/message/Proofs.lean#L108-L115
 [`time_is_display`]: app/community/channel/message/Proofs.lean#L119-L125
 [`order_total`]: app/community/Proofs.lean#L1419-L1429
@@ -2448,8 +2448,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`Ttf.coverage_value`](engine/renderer/Ttf/Laws.lean#L43-L44) | **kernel-witness**: [Vacuity.RendererImages.saturated](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
 | [`Ttf.raster_valid`](engine/renderer/Ttf/Laws.lean#L60-L61) | **runtime-witness**: [Vacuity.RendererRuntime.rasterValid](tests/vacuity/RendererRuntime.lean). The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations. |
 | [`Ttf.raster_pixel`](engine/renderer/Ttf/Laws.lean#L69-L73) | **runtime-witness**: [Vacuity.RendererRuntime.rasterPixel](tests/vacuity/RendererRuntime.lean). The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations. |
-| [`Ttf.Cache.put_bound`](engine/renderer/Ttf/Cache.lean#L90-L93) | **kernel-witness**: [Vacuity.RendererImages.cacheBound](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache. |
-| [`Ttf.Cache.put_payload_bound`](engine/renderer/Ttf/Cache.lean#L112-L113) | **kernel-witness**: [Vacuity.RendererImages.cachePayload](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache. |
+| [`Ttf.Memo.bitmap_eq_fast`](engine/renderer/Ttf/Memo.lean#L110-L112) | **kernel-witness**: [Vacuity.RendererImages.memoRaster](tests/vacuity/RendererImages.lean). The equation has no premises; a Source over empty font bytes instantiates it at glyph 4. The native executable checks a real Noto glyph's memo answers its raster's bytes, and that `compact` leaves a real raster unchanged. |
+| [`Ttf.Memo.Table.get_eq`](engine/renderer/Ttf/Memo.lean#L46-L47) | **kernel-witness**: [Vacuity.RendererImages.tableAnswers](tests/vacuity/RendererImages.lean). A 200-key table of squares answers key 130, on its third page; `tablePast` applies the law at key 9000, past the table, where the function answers. A table one key off is refused by the law itself (`Ttf.Memo.shifted_not_exact`). |
 | [`time_shown`](app/community/channel/message/reaction/View.lean#L119-L123) | **kernel-witness**: [Vacuity.ChatPresentation.timestamp](tests/vacuity/ChatPresentation.lean). Synthetic Alice message at 12:45, 4032×3024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280×210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets. |
 | [`projectSet_mem`](app/Commands.lean#L753-L755) | **kernel-witness**: [Vacuity.RendererSets.setMembers](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`projectSet_nodup`](app/Commands.lean#L768-L770) | **kernel-witness**: [Vacuity.RendererSets.setUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
@@ -2462,8 +2462,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](app/community/Screen.lean#L779-L780) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](app/community/Screen.lean#L783-L785) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](app/community/Screen.lean#L809-L811) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](app/Screen.lean#L4065-L4069) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](app/Screen.lean#L4071-L4074) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](app/Screen.lean#L4067-L4071) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](app/Screen.lean#L4073-L4076) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](app/community/channel/message/Proofs.lean#L108-L115) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](app/community/channel/message/Proofs.lean#L119-L125) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](app/community/Proofs.lean#L1419-L1429) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
