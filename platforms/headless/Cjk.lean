@@ -18,10 +18,10 @@ private def same : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
     a.right == b.right && a.top == b.top && a.bottom == b.bottom && a.pixels == b.pixels
   | _, _ => false
 
-/-- Whether two reads gave one object: a kept glyph is the same object at
-every read; a raster is a new one. -/
+/-- Whether two reads of a glyph with ink gave one object: a kept glyph is
+the same object at every read; a raster is a new one. -/
 private unsafe def kept : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
-  | some a, some b => ptrEq a.pixels b.pixels
+  | some a, some b => a.pixels.size > 0 && ptrEq a.pixels b.pixels
   | _, _ => false
 
 unsafe def main (args : List String) : IO Unit := do
@@ -65,13 +65,16 @@ unsafe def main (args : List String) : IO Unit := do
     let a := f.bitmap (← key.get)
     let b := f.bitmap (← key.get)
     check (a.isSome && same a (f.uncached q.glyph)) "memo agrees with the raster"
-    check (kept a b) "second read is the kept glyph"
-    reads := reads + 1
+    if a.any (·.pixels.size > 0) then
+      check (kept a b) "second read is the kept glyph"
+      reads := reads + 1
+  check (reads > 1500) "the kept-glyph check is non-vacuous"
   key.set r.glyph
   let face := font.noto.faces[r.face]!
   let u1 := face.uncached (← key.get)
   let u2 := face.uncached (← key.get)
-  check (same u1 u2 && !kept u1 u2) "control: a raster is a new object each time"
+  check (same u1 u2 && u1.any (·.pixels.size > 0) && !kept u1 u2)
+    "control: a raster is a new object each time"
   -- `fresh` lets go of kept glyphs: the same bytes, new objects, kept again.
   let before ← read font.noto
   let fresh := font.fresh

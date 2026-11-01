@@ -20,10 +20,11 @@ private def same : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
 private def contract (f : Ttf.Memo.Source) (g : Nat) : IO Unit :=
   check (same (f.bitmap g) (f.uncached g)) "memo contract: every field and byte"
 
-/-- Whether a glyph read twice is one kept object (a raster is a new one). -/
+/-- Whether a glyph with ink, read twice, is one kept object (a raster is a
+new one; inkless glyphs share Lean's one empty array, so they cannot tell). -/
 private unsafe def keeps (f : Ttf.Memo.Source) (key : IO.Ref Nat) : IO Bool := do
   match f.bitmap (← key.get), f.bitmap (← key.get) with
-  | some a, some b => return ptrEq a.pixels b.pixels
+  | some a, some b => return a.pixels.size > 0 && ptrEq a.pixels b.pixels
   | _, _ => return false
 
 unsafe def main : IO Unit := do
@@ -80,7 +81,7 @@ unsafe def main : IO Unit := do
   for g in [0:1800] do
     compare cjk g
     key.set g
-    if (cjk.bitmap g).isSome then
+    if (cjk.bitmap g).any (·.pixels.size > 0) then
       check (← keeps cjk key) "a second read is the kept glyph"
       held := held + 1
   check (held > 1500) "the CJK fixture is non-vacuous"
@@ -89,8 +90,9 @@ unsafe def main : IO Unit := do
     key.set g
     match cjk.uncached (← key.get), cjk.uncached (← key.get) with
     | some a, some b =>
-      check (!ptrEq a.pixels b.pixels) "control: a raster is a new object"
-      fresh := fresh + 1
+      if a.pixels.size > 0 then
+        check (!ptrEq a.pixels b.pixels) "control: a raster is a new object"
+        fresh := fresh + 1
     | _, _ => pure ()
   check (fresh > 0) "the control is non-vacuous"
   for src in sources do
