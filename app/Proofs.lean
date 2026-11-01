@@ -3927,8 +3927,9 @@ end Connection
 
 end
 
-/-! ## Node connection IDs stay unique over the running world -/
-
+/-! ## Node IDs stay unique in every production execution
+(engine/wire/NodeUniqueLaws.lean, over the World interpreter). -/
+section
 namespace Connection.Execution
 open Engine Engine.Sync
 open Engine.Sync.NodeUnique
@@ -4024,3 +4025,5 @@ theorem Run.unique {S : Setup} {ea eb : Nat → ByteArray}
     exact world_step_unique S (r.state i) (r.action i) (fun side => ih side) target
 
 end Connection.Execution
+
+end

@@ -230,13 +230,25 @@ private def suite (args : List String) : IO UInt32 := do
     (Paint.getPx image.rows[bar.thumb.y + bar.thumb.h / 2]! (bar.thumb.x + 2) == Palette.color d.app.dim.theme .muted)
   let grab := scrollGrab d (bar.thumb.x + 2) (bar.thumb.y + bar.thumb.h / 2)
   check "thumb accepts pointer down; message area does not" (grab.isSome && (scrollGrab d (d.layout.main.x + 40) bar.thumb.y).isNone)
+  let mid := bar.track.y + bar.track.h / 2
+  scrollDrag d (grab.getD 0) mid
+  d ← settle d
+  let landed := (scrollbar d.layout d.app).any fun m =>
+    m.thumb.y + m.thumb.h ≥ mid + m.thumb.h - min (grab.getD 0) m.thumb.h &&
+    m.thumb.y + m.thumb.h < bar.track.y + bar.track.h
+  let where_ := (scrollbar d.layout d.app).map fun m => (m.thumb.y + m.thumb.h, mid + m.thumb.h - min (grab.getD 0) m.thumb.h, bar.track.y + bar.track.h)
+  check s!"dragging the thumb to mid-track lands it at or below the pointer, off the bottom (thumb bottom, pointer, track bottom: {where_})" landed
   scrollDrag d (grab.getD 0) bar.track.y
   d ← settle d
   check "drag thumb to top reaches oldest history" (d.app.b > 0 && d.app.b == (App.bottoms d.app).2 - (App.geom d.app).viewNow)
+  let (n, k, r) := _root_.Scrollbar.ranks (column d.app) d.app.b (App.geom d.app).viewNow
+  let top ← pure (scrollbar d.layout d.app)
+  check s!"at the oldest the thumb is at the track's top (rank {r} of {n}, {k} on screen)"
+    (top.any fun b => b.thumb.y == b.track.y && r + k == n)
   scrollDrag d (grab.getD 0) (bar.track.y + bar.track.h + 100)
   d ← settle d
   check "drag beyond bottom returns to newest" (d.app.b == 0)
-  check "short conversation has no scrollbar" ((Scrollbar.layout 390 56 600 500 0).isNone)
+  check "short conversation has no scrollbar" ((Scrollbar.layout 390 56 600 500 20 20 0).isNone)
   let hidden := { d with ui := { d.ui with context := .settings }, width := 390 }
   check "full-width context has no conversation scrollbar" ((scrollbar hidden.layout hidden.app).isNone)
   sm.b.set 800
