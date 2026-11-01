@@ -9,7 +9,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/pic-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp/base" engine/core engine/wire engine/renderer ops platforms/headless App.lean AppTypes.lean AppLife.lean Quiet.lean assets
+snapshot "$tmp/base" engine/core engine/wire engine/renderer app platforms/headless Quiet.lean assets
 run() {  # build and run pic_retry in $tmp/w; its exit code
   (cd "$tmp/w" && lake build pic_retry >"$tmp/build.log" 2>&1) || { echo "FAIL: the copy does not build"; tail -20 "$tmp/build.log"; exit 1; }
   (cd "$tmp/w" && .lake/build/bin/pic_retry "$tmp/out" >"$tmp/run.log" 2>&1)
@@ -17,11 +17,11 @@ run() {  # build and run pic_retry in $tmp/w; its exit code
 cp -a "$tmp/base" "$tmp/w"
 run || { echo "FAIL: the unmutated copy fails pic_retry"; grep -v '^slow frame' "$tmp/run.log"; exit 1; }
 
-mutant() {  # what old new (in App.lean)
+mutant() {  # what old new (in app/Screen.lean)
   local what=$1 old=$2 new=$3
   rm -rf -- "$tmp/w"
   cp -a "$tmp/base" "$tmp/w"
-  python3 - "$tmp/w/App.lean" "$old" "$new" <<'PY'
+  python3 - "$tmp/w/app/Screen.lean" "$old" "$new" <<'PY'
 import sys
 p, old, new = sys.argv[1:]
 s = open(p).read()

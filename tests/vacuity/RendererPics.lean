@@ -1,4 +1,4 @@
-import ops.community.channel.message.attachment.Screen
+import app.community.channel.message.attachment.Screen
 
 set_option linter.defProp false
 namespace Vacuity.RendererPics

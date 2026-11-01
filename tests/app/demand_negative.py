@@ -28,7 +28,7 @@ def run(args, cwd, name, timeout=300):
 
 cases = [
     ("missed-remount", "component_demand", [
-        ("ops/app/Reader.lean", "!s.wantSet.contains w || (board.get? w).isNone", "!s.wantSet.contains w"),
+        ("app/Screen.lean", "!s.wantSet.contains w || (board.get? w).isNone", "!s.wantSet.contains w"),
     ], "FAIL: unmount and remount between passes refills the revoked board answer"),
     ("obsolete-work", "component_demand", [
         ("engine/renderer/Work.lean", "jobs := s.jobs.filter (fun j => plan.current j.ticket)", "jobs := s.jobs"),
@@ -38,20 +38,20 @@ cases = [
         ("engine/renderer/Work.lean", "Demand.next (fun t => s.plan.visible t.key)", "Demand.next (fun _ => false)"),
     ], "FAIL: visible work runs before earlier prefetch"),
     ("reader-continues", "component_demand", [
-        ("ops/app/Reader.lean", "if !(← s.enabled) then return default", "if false then return default"),
+        ("app/Screen.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
     ("child-never-unmounts", "op_components", [
-        ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
+        ("app/Screen.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
     ("pending-outside-window", "op_components", [
-        ("engine/renderer/Data.lean", "let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))", "let pending := mine"),
+        ("app/Commands.lean", "let pending := mine.filter (fun p => rows.any (·.1.2 == p.op.id))", "let pending := mine"),
     ], "FAIL: an out-of-window pending row cannot change a bounded answer's pending flags"),
 
 ]
 
 with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPDIR"]) as tmp:
     base, work = Path(tmp) / "base", Path(tmp) / "work"
-    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/renderer ops platforms/headless tests/app tests/engine App.lean AppTypes.lean AppLife.lean Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
+    snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
     assert snapshot.returncode == 0, "snapshot failed"
     assert run(["lake", "build", "component_demand", "op_components"], base, "baseline-build").returncode == 0, "baseline build failed"
     for exe in ["component_demand", "op_components"]:

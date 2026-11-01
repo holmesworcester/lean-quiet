@@ -11,9 +11,9 @@ own, for a screen W pixels wide at a density. Printed one per line:
 
     lake env lean --run ios/test/Targets.lean W DPI
 -/
-import ops.Screen
-import ops.community.channel.message.draft.View
-import ops.community.Proofs
+import app.Screen
+import app.community.channel.message.draft.View
+import app.community.Proofs
 
 def main (args : List String) : IO Unit := do
   let W := (args[0]? >>= String.toNat?).getD 1170

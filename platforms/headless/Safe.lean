@@ -6,7 +6,7 @@ Fixtures and their measurement limitations are in docs/SAFE.md.
 -/
 import platforms.headless.Sim
 import engine.renderer.Toast
-import ops.Screen
+import app.Screen
 
 open App Safe Paint
 

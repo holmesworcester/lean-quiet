@@ -5,7 +5,7 @@ open Lake DSL System
 from here (`engine/core/Codec.lean` is `engine.core.Codec`), and each
 library is a directory of the tree. A library inside another's directory
 (mdns in engine/wire, qr in engine/renderer, the bootstrap in
-ops/connection) is the outer one's too: `lake build Wire` builds mdns.
+app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
   -- Native C uses the host's headers. Lean's bundled older glibc linker
@@ -51,22 +51,22 @@ lean_lib Pic where
 
 -- the handshake and sessions
 @[default_target] lean_lib Connection where
-  globs := #[.submodules `ops.connection]
+  globs := #[.submodules `app.connection]
 
 -- the Community family, each domain's view, and the bootstrap's model
 -- (in community/Proofs: it names only community ops)
 @[default_target] lean_lib Community where
-  globs := #[.submodules `ops.community]
+  globs := #[.submodules `app.community]
 
 -- the op tree's root: commands over the node, which spans both families
 @[default_target] lean_lib Node where
-  roots := #[`ops.Commands]
+  roots := #[`app.Commands]
 
 /-! ## The app -/
 
 -- the root screen, and the laws about the whole app
 @[default_target] lean_lib App where
-  roots := #[`ops.Screen, `ops.Proofs]
+  roots := #[`app.Screen, `app.Proofs]
 
 -- every module of the app, for its executables
 @[default_target] lean_lib Quiet

@@ -1,7 +1,7 @@
 # Lifecycle inventory
 
-The lifecycle implementation is `ops/app/Lifecycle.lean`, `AppLife.lean`
-and `ops/app/LifecycleLaws.lean`. `AppTypes.lean` is a mechanical extraction of
+The lifecycle implementation is `app/app/Lifecycle.lean`, `AppLife.lean`
+and `app/app/LifecycleLaws.lean`. `AppTypes.lean` is a mechanical extraction of
 the app's types, needed to share them with the hooks without an import cycle.
 `App.lean` retains the root, page actions and existing proved functions.
 Visual reads use `Component.Queries` and the shared Reader. The running

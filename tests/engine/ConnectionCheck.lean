@@ -47,8 +47,8 @@ Not yet here: the world as a pure step relation to prove laws over
 (the node runs on held data already).
 -/
 import tests.engine.Lib
-import ops.connection.Proofs
-import ops.Commands
+import app.connection.Proofs
+import app.Commands
 
 open Engine Engine.Sync Community Tests Connection
 

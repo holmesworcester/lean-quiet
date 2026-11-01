@@ -118,7 +118,7 @@ import Lean
 open Lean
 
 /-- The module roots of this repository. -/
-def roots : List Name := [`engine, `ops, `Quiet, `Main]
+def roots : List Name := [`engine, `app, `Quiet, `Main]
 
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
@@ -515,7 +515,7 @@ unsafe def main : IO UInt32 := do
   let ns ← readNotes ((← IO.getEnv "WIRING_NOTES").getD "tests/wiring.txt")
   -- every module of the libraries, the app and its main
   let mut mods : Array Name := #[`Quiet, `Main]
-  for dir in ["engine", "ops"] do
+  for dir in ["engine", "app"] do
     for f in ← System.FilePath.walkDir dir do
       if f.extension == some "lean" then
         mods := mods.push ((f.withExtension "").toString.replace "/" ".").toName

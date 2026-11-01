@@ -12,8 +12,8 @@ of its secret. The suite must meet what the laws assume of it
 -/
 import tests.engine.Lib
 import engine.wire.Noise
-import ops.connection.Commands
-import ops.connection.Proofs
+import app.connection.Commands
+import app.connection.Proofs
 
 open Engine Community Tests Connection.Noise
 

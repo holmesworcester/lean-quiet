@@ -15,7 +15,7 @@ teeth.
   byte at a time, over L·(log₂ L + 2) from 16 bytes on. Byte strings of
   0 to 64 KiB: their length's bytes read, their bytes copied once; the
   list codec's way reads every byte.
-- A frame's pictures (ops/app/Pics.lean), over 240 frames of a world as
+- A frame's pictures (app/app/Pics.lean), over 240 frames of a world as
   data with real tasks: a picture costs its spawns and reads in its
   first frame, then nothing; a file whose chunk ops are missing reads
   them again every 120 frames and at no other frame. The old `decoded`
@@ -43,7 +43,7 @@ teeth.
 import tests.engine.Lib
 import engine.core.MerkleCost
 import engine.core.CodecCost
-import ops.community.channel.message.attachment.Screen
+import app.community.channel.message.attachment.Screen
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.Heights

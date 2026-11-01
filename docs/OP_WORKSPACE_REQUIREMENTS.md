@@ -49,7 +49,7 @@ Every op folder MUST have `Op.lean`, `Validate.lean`, `Proofs.lean` and `Tests.l
 
 **LAYOUT05 — Stable identities.** Canonical names MUST match registry identity, source location, workspace address and diagnostic labels. Wire tags, codec bytes, persisted IDs and public URLs MUST be explicitly defined. Moving source files MUST NOT change them.
 
-**LAYOUT06 — Enforced layout, after the move.** A named CI task MUST reject unknown file names under `app/`, an op without its folder, duplicate registrations, imports that break LAYOUT03, and a missing `Family.lean`. Code that names a kind MUST NOT stay in `engine/`; the workspace marks every engine file that imports `ops/` or the app.
+**LAYOUT06 — Enforced layout, after the move.** A named CI task MUST reject unknown file names under `app/`, an op without its folder, duplicate registrations, imports that break LAYOUT03, and a missing `Family.lean`. Code that names a kind MUST NOT stay in `engine/`; the workspace marks every engine file that imports `app/` or the app.
 
 ## Ownership map
 
@@ -63,7 +63,7 @@ app/            the node's one family (Family.lean) and the root screen (Screen.
   sync/         rbsr, have, want: wire ops that are never stored
   nav/          planned: navigation as an ephemeral op
   settings/     planned: appearance as a local op (today a side table, ThemeStore)
-engine/         what holds for every op type; Merkle.lean and MerkleCost.lean arrive from ops/community
+engine/         what holds for every op type; Merkle.lean and MerkleCost.lean arrive from app/community
 platforms/      the shells and the headless twin
 ```
 
@@ -322,7 +322,7 @@ The source baseline is Lean Quiet `main` at `6d7bf2c00d71`. The workspace shows,
 
 **MIGRATE01 — Preserve existing behavior during extraction.** Reorganization MUST first retain current op bytes, IDs, validator decisions, query ordering, local/shared scope, and app behavior. New navigation, draft, seed, and custom emoji semantics MUST be explicit additions. Canonical naming MUST not accidentally renumber codecs.
 
-**MIGRATE02 — Extract real ownership.** The global op bodies, facts, codecs, validators, indexes, constructors, and laws in `ops/community/Facts.lean`, `ops/community/Compose.lean`, `ops/community/Intents.lean` and `ops/community/Laws.lean` MUST move into their owning families. A new directory containing wrappers around the unchanged global implementation does not complete ownership extraction. Aggregate dispatch may remain only as composition of owned definitions.
+**MIGRATE02 — Extract real ownership.** The global op bodies, facts, codecs, validators, indexes, constructors, and laws in `app/community/Facts.lean`, `app/community/Compose.lean`, `app/community/Intents.lean` and `app/community/Laws.lean` MUST move into their owning families. A new directory containing wrappers around the unchanged global implementation does not complete ownership extraction. Aggregate dispatch may remain only as composition of owned definitions.
 
 The workspace's root page lists where every file of main goes ("Where main's files go"), from the same plan.
 

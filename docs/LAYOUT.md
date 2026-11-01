@@ -112,9 +112,9 @@ namespaces inside are unchanged.
 | `engine/wire/` | lean-engine's `Engine/Sync/{Frame, Node, Tcp, Pair}`: frames, the node and its TCP runner; `mdns/`: lean-mdns |
 | `engine/renderer/` | lean-quiet's `Quiet/{Data, Row, Text, Font, Paint, Image, Qoi, Emoji, Geometry, Sheet, SheetGeom, Platform, Camera, Arrival}` and the laws about them only (`TextLaws`, `WrapLaws`); `qr/` and `pic/`: lean-qr |
 | `engine/sync/` | lean-engine's `Engine/Sync/{Fp, Round, RoundLaws, Wire, Conn, ConnLaws}`: rounds as functions, not yet ephemeral ops |
-| `ops/connection/` | lean-engine's `Connection/` (`All.lean` imports all of it: `Connection.lean` is the connection op type); `bootstrap/`: lean-net's model, retired once its laws are re-proven over the two-node world |
-| `ops/community/` | lean-engine's `Community/` as it was (`Facts.lean` not yet split by domain); lean-quiet's `Quiet/Kinds/*`, each its domain's view: `message/View.lean`, `profile/View.lean`, `reaction/View.lean`, `attachment/View.lean` (File), `membership/{Accepted,Request}View.lean`, and `link/View.lean` (the invite sheet, `Quiet/Link`); each view's laws beside it (`message/ViewLaws`, `reaction/RowLaws`, `attachment/ArrivalLaws`, `membership/RemovedLaws`) |
-| `ops/app/` | lean-quiet's `Quiet/{Pages, Composer, Switch, Remove, PeopleLaws, Chaos}` (`Chaos` holds `Me`, the device's member in a community, besides the chaos generator) |
+| `app/connection/` | lean-engine's `Connection/` (`All.lean` imports all of it: `Connection.lean` is the connection op type); `bootstrap/`: lean-net's model, retired once its laws are re-proven over the two-node world |
+| `app/community/` | lean-engine's `Community/` as it was (`Facts.lean` not yet split by domain); lean-quiet's `Quiet/Kinds/*`, each its domain's view: `message/View.lean`, `profile/View.lean`, `reaction/View.lean`, `attachment/View.lean` (File), `membership/{Accepted,Request}View.lean`, and `link/View.lean` (the invite sheet, `Quiet/Link`); each view's laws beside it (`message/ViewLaws`, `reaction/RowLaws`, `attachment/ArrivalLaws`, `membership/RemovedLaws`) |
+| `app/app/` | lean-quiet's `Quiet/{Pages, Composer, Switch, Remove, PeopleLaws, Chaos}` (`Chaos` holds `Me`, the device's member in a community, besides the chaos generator) |
 | `App.lean` | lean-quiet's `Quiet/App`; beside it `Main.lean`, the app over the platform seam (every shell's main), and `Quiet.lean`, which imports every module of the app |
 | `platforms/android/`, `platforms/ios/` | lean-quiet's shells; `android/qr/`: lean-qr's camera harness |
 | `platforms/headless/` | lean-quiet's `host/` twin and its programs (`QTests/`) |
@@ -128,7 +128,7 @@ lean-chat is not imported (archived as is).
 Imports that still cross the rule, for step 3: `engine/core/Engine.lean`
 imports `engine/sync`; `engine/wire/Node` imports `engine/sync/Conn`;
 `engine/renderer/Data` (the app's live data) imports the Community and
-Connection families; `ops/community/membership/RemovedLaws` imports
+Connection families; `app/community/membership/RemovedLaws` imports
 `App`.
 
 ## Steps

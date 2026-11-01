@@ -13,8 +13,8 @@ out.mkdir(parents=True, exist_ok=True)
 driver = app / 'platforms/desktop/Driver.lean'
 view = app / 'platforms/desktop/View.lean'
 
-composer = app / 'ops/app/Composer.lean'
-life = app / 'AppLife.lean'
+composer = app / 'app/community/channel/message/draft/View.lean'
+life = app / 'app/Screen.lean'
 for name, path, old, new, expected in [
     ('switch', driver, 'App.switchTo i;', 'App.switchTo 0;', 'switch to distinct community'),
     ('draft', driver, 'app := s, ui := { d.ui with switching := false }', 'app := { s with text := "" }, ui := { d.ui with switching := false }', 'returning to community restores its draft'),

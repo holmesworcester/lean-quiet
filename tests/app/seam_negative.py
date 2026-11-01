@@ -17,8 +17,8 @@ def run(args, name):
 assert run(['lake', 'build', 'engine.renderer.InputLaws', 'seam', 'seam_app'], 'baseline') == 0
 cases = [
     ('revoked-release', 'engine/renderer/Input.lean', 'press := none, frames := []', 'press := s.press, frames := []', 'input'),
-    ('unmount-input', 'AppLife.lean', 'life := s.life.unmount, input := Input.revoke s.input,', 'life := s.life.unmount,', 'app'),
-    ('resize-input', 'AppLife.lean', 'dim := dm, input := Input.revoke s.input,', 'dim := dm,', 'app'),
+    ('unmount-input', 'app/Screen.lean', 'life := s.life.unmount, input := Input.revoke s.input,', 'life := s.life.unmount,', 'app'),
+    ('resize-input', 'app/Screen.lean', 'dim := dm, input := Input.revoke s.input,', 'dim := dm,', 'app'),
     ('page-slide', 'engine/renderer/Surface.lean', 'if pin then Seam.pinned', 'if false then Seam.pinned', 'surface'),
     ('conversation-offset', 'engine/renderer/Surface.lean', 'else Seam.place g over bf bn 0', 'else Seam.place g over bf (bn + 1) 0', 'surface'),
     ('crop-shift', 'engine/renderer/Surface.lean', 'origin, crop origin height', 'origin, crop (origin + 1) height', 'surface'),
@@ -36,7 +36,7 @@ cases = [
     ('delivered-key-shift', 'engine/renderer/Input.lean', '.tap (region f p) p.x.toNat.toUInt32', '.tap (region f p) (p.x.toNat + 1).toUInt32', 'input'),
     ('wrong-ime-action', 'engine/renderer/Input.lean', 'if action == 4 then [.send]', 'if action == 3 then [.send]', 'unit'),
     ('cancel-as-up', 'engine/renderer/Input.lean', '[.drag t.phase.toUInt32', '[.drag (min t.phase 2).toUInt32', 'unit'),
-    ('ignore-sheet-cancel', 'App.lean', 'if ph == 3 then', 'if false then', 'app'),
+    ('ignore-sheet-cancel', 'app/Screen.lean', 'if ph == 3 then', 'if false then', 'app'),
     ('native-drop-move', 'platforms/headless/host.c', '  if (hs.n + 8 > hs.cap)', '  if (k == 10 && hs.n >= 32768) return;\n  if (hs.n + 8 > hs.cap)', 'twin'),
     ('wrong-frame', 'engine/renderer/Session.lean', 'frames := pending', 'frames := []', 'unit'),
     ('accept-rejected-frame', 'engine/renderer/Session.lean', 'let published := accepted raw', 'let published := true', 'unit'),

@@ -7,5 +7,5 @@ export CARGO_NET_OFFLINE=true
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/simplify-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
-snapshot "$tmp" engine/core engine/wire engine/renderer engine/sync ops/community ops/connection tests/engine
+snapshot "$tmp" engine/core engine/wire engine/renderer engine/sync app tests/engine
 python3 tests/engine/simplify_negative.py "$tmp" "$PWD/out/simplify-negative"

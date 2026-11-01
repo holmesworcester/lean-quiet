@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityFixture
-import ops.community.Proofs
+import app.community.Proofs
 
 namespace Vacuity.IdentityTrust
 open Engine Community Codec Tests Vacuity.Identity

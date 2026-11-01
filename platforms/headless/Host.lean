@@ -164,7 +164,7 @@ def main (args : List String) : IO UInt32 := do
     check s!"two communities, the new one current, on its home: {s.comms.map (·.name)}" (s.comms.size == 2 && s.me.name == "design team" && s.page == .home)
     sm.cmds.modify (·.push "switch general")
     steps 3
-    -- navigation (ops/app/NavLaws): a switch is a root, back goes back,
+    -- navigation (app/app/NavLaws): a switch is a root, back goes back,
     -- a page already under the shown one is gone back to, drafts stay
     sm.cmds.modify (·.push "back")
     steps 2

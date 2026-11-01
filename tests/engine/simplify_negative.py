@@ -20,7 +20,7 @@ cases = [
     ("notice-repeat", "engine/sync/Notice.lean", "if has c.given x then", "if false then", "engine.sync.NoticeLaws", None),
     ("notice-phase", "engine/sync/Notice.lean", "{ c with given := x :: c.given }", "{ c with given := x :: c.given, session := .live }", "engine.sync.SessionLaws", None),
     ("notice-clock", "engine/sync/Notice.lean", "{ c with given := x :: c.given }", "{ c with given := x :: c.given, heard := 0 }", "engine.sync.RetryLaws", None),
-    ("given-persist", "ops/connection/Intents.lean", "def onGiven (cid x : Id) : List Op := [Given.op cid x]", "def onGiven (_cid _x : Id) : List Op := []", "connection_check", "A closes its side once the notice is given"),
+    ("given-persist", "app/connection/given/Commands.lean", "def onGiven (cid x : Id) : List Op := [Given.op cid x]", "def onGiven (_cid _x : Id) : List Op := []", "connection_check", "A closes its side once the notice is given"),
     ("hello-reply", "engine/sync/Conn.lean", "{ conn := c, send := [(Msg.hello c.floor).op] }", "{ conn := c }", "engine.sync.SessionLaws", None),
     ("early-drop", "engine/sync/Conn.lean", "if c.heard + cfg.live < now then", "if c.heard + cfg.live ≤ now then", "engine.sync.TimeLaws", None),
     ("no-keepalive", "engine/sync/Conn.lean", "s.send.isEmpty && sent + cfg.live / 3 ≤ now", "false", "engine.sync.TimeLaws", None),

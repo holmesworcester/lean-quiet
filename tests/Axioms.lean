@@ -1,4 +1,4 @@
-import ops.Proofs
+import app.Proofs
 import engine.renderer.Demand
 
 
@@ -20,30 +20,30 @@ import engine.wire.LaneLaws
 import engine.wire.Slots
 import engine.core.Engine
 import engine.core.IdemLaws
-import ops.community.Proofs
-import ops.connection.Proofs
+import app.community.Proofs
+import app.connection.Proofs
 import engine.renderer.Geometry
 import engine.renderer.Cover
 import engine.renderer.ImageLaws
-import ops.Commands
+import app.Commands
 import engine.renderer.SheetGeom
-import ops.community.member.invite.View
+import app.community.member.invite.View
 import engine.renderer.Camera
-import ops.community.Screen
+import app.community.Screen
 import engine.renderer.Nav
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import engine.renderer.Label
-import ops.community.channel.message.reaction.View
-import ops.community.channel.message.View
-import ops.community.key.View
-import ops.community.profile.View
-import ops.community.member.remove.View
-import ops.Screen
+import app.community.channel.message.reaction.View
+import app.community.channel.message.View
+import app.community.key.View
+import app.community.profile.View
+import app.community.member.remove.View
+import app.Screen
 import engine.renderer.Ttf.Laws
 import engine.renderer.Ttf.Cache
-import ops.community.channel.message.attachment.Screen
-import ops.community.channel.message.attachment.View
+import app.community.channel.message.attachment.Screen
+import app.community.channel.message.attachment.View
 import engine.renderer.qr.Qr
 import engine.renderer.pic.Pic
 import engine.wire.mdns.Mdns
@@ -61,7 +61,7 @@ import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
-import ops.connection.Family
+import app.connection.Family
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's

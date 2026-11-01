@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityTrust
-import ops.community.Screen
+import app.community.Screen
 
 namespace Vacuity.IdentityPeople
 set_option linter.defProp false

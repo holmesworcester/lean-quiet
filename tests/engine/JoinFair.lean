@@ -4,8 +4,8 @@ channel from Runner.notify before the next poll, so starvation cannot be hidden
 by draining a finite initial queue. This is finite runtime evidence, not a proof
 of an infinite fair execution or of native cryptographic security. -/
 import tests.engine.Lib
-import ops.connection.Proofs
-import ops.Commands
+import app.connection.Proofs
+import app.Commands
 
 namespace JoinFair
 open Engine Engine.Sync Community Tests Connection

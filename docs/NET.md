@@ -1,7 +1,7 @@
 # lean-net
 
 How two Quiet nodes in Lean get connected: the protocol rules as
-functions (`ops/connection/bootstrap/Node.lean`), and proofs that bootstrap from an invite
+functions (`app/connection/bootstrap/Node.lean`), and proofs that bootstrap from an invite
 link is possible over an ideal socket and inevitable over a failing one,
 without ever connecting anyone who has not been approved. It builds on
 lean-engine's `net-admission` branch (requests, approvals, admissions)
@@ -38,7 +38,7 @@ session) and libquiet's request/vouch/admission:
 
 ## The laws
 
-The scene (`ops/connection/bootstrap/Scene.lean`) is this one. Founder A creates c and
+The scene (`app/connection/bootstrap/Scene.lean`) is this one. Founder A creates c and
 invites B with a member invitation needing one approval. B pastes the
 link. A's user approves when it chooses. The ops are composed by
 lean-engine's own `Compose` (SHA-256 ids, Ed25519 signatures).

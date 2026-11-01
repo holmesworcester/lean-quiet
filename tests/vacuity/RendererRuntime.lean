@@ -1,5 +1,5 @@
 import platforms.headless.Sim
-import ops.Proofs
+import app.Proofs
 import engine.renderer.Ttf.Laws
 import tests.vacuity.RendererImages
 import tests.vacuity.RendererLive

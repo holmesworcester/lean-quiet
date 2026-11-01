@@ -26,12 +26,12 @@ report, until the reader and the board land; then `App.step` joins
 Run by tests/check.sh: `lake env lean tests/Doors.lean`.
 -/
 import Lean
-import ops.community.channel.message.attachment.Screen
+import app.community.channel.message.attachment.Screen
 import engine.core.MerkleCost
 import engine.core.CodecCost
 import engine.renderer.Heights
 import engine.renderer.Board
-import ops.Screen
+import app.Screen
 
 open Lean
 

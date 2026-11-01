@@ -51,8 +51,8 @@ Each step is read from the runners' databases through a second
 connection (SQLite's WAL lets it read beside the runner's writer).
 -/
 import tests.engine.Lib
-import ops.connection.Proofs
-import ops.Commands
+import app.connection.Proofs
+import app.Commands
 
 open Engine Engine.Sync Community Tests Connection
 

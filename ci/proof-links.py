@@ -56,9 +56,9 @@ WEND = "<!-- wiring:end -->"
 AREAS = [("engine.core", "Engine"), ("engine.sync", "Sync"), ("engine.world", "The n-node World"),
          ("engine.wire.mdns", "mDNS"),
          ("engine.wire", "Node and wire"),
-         ("ops.connection", "Connections"), ("ops.community", "Community"),
+         ("app.connection", "Connections"), ("app.community", "Community"),
          ("engine.renderer.qr", "QR codes"), ("engine.renderer.pic", "Pictures"),
-         ("engine.renderer", "Screen"), ("ops.Screen", "App"), ("ops.Proofs", "App"), ("ops.Commands", "Node")]
+         ("engine.renderer", "Screen"), ("app.Screen", "App"), ("app.Proofs", "App"), ("app.Commands", "Node")]
 # What a 🟡 row says to name what is missing.
 WANTED = re.compile(r"wanted|not yet|not proven|not covered|todo", re.I)
 # The lead's count, and the share "nearly every" needs.

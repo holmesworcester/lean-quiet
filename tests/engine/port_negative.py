@@ -6,11 +6,11 @@ group = sys.argv[3]
 logs.mkdir(parents=True, exist_ok=True)
 cases = {
     "people": [
-        ("unbounded-admissions", "ops/community/profile/View.lean",
+        ("unbounded-admissions", "app/community/profile/View.lean",
          "  let a ← admission.all.read [c] (limit := some m)",
          "  let a ← admission.all.read [c]",
          "header asks for only the newest 1024 admissions"),
-        ("false-exact-count", "ops/app/Reader.lean",
+        ("false-exact-count", "app/Screen.lean",
          "    return (.people n (all && n < 999), deps)",
          "    return (.people n true, deps)",
          "incomplete scan is marked even when the visible unique count is small"),

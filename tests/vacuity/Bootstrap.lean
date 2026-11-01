@@ -1,4 +1,4 @@
-import ops.community.Proofs
+import app.community.Proofs
 import tests.engine.Lib
 
 /-! Five actual signature verifications and finite key/ID checks certify

@@ -6,7 +6,7 @@ What a node does with hostile frames and with its room index, proven of
   reaches the node only as `openFrame` gives it (`onSealed` never sees
   the frame's bytes), and one that does not open changes nothing and
   sends nothing. With the Connection family's `openFrame`, that is
-  `sealed_auth` (ops/connection/Laws.lean): authenticate before parsing.
+  `sealed_auth` (app/connection/Laws.lean): authenticate before parsing.
 - **The cache law** (`Cached`): the node's room index is the index of
   the ops stored. A write turn keeps it so (`write_cached`), and so does
   a purge, which takes no shared op (`purge_cached`); booting from the

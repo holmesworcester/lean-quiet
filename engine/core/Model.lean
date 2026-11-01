@@ -11,7 +11,7 @@ namespace Engine
 structure DB (F : Type) where
   ops : Id → Option Op
   /-- The stored ops' ids, in arrival order: the ops table's rows.
-  `ops` alone cannot be walked, and a purge walks them. -/
+  `app` alone cannot be walked, and a purge walks them. -/
   stored : List Id
   status : Id → Option (Verdict F)
   waits : Id → List Id

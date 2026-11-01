@@ -1,6 +1,6 @@
-import ops.community.member.remove.View
+import app.community.member.remove.View
 import engine.renderer.Nav
-import ops.Screen
+import app.Screen
 
 namespace Vacuity.RendererFlow
 open Engine Data

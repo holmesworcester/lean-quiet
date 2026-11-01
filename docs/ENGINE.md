@@ -172,7 +172,7 @@ watches are the keys of the lists it read: nothing is recorded.
 - `matching_nodup`: a list's rows name distinct ops, so its `total`
   counts ops (`perm_sortPos`: sorting only reorders).
 
-## The community (`ops/community/`)
+## The community (`app/community/`)
 
 Root (founder, admin), invite (with an approval threshold), request,
 approve, admit (member or linked device), admin grant, removal, post,
@@ -264,9 +264,9 @@ follow-ups in [SYNC.md](SYNC.md).
 Connecting is ops the engine judges, as in poc-17 and tiny (poc-13).
 The daemon only moves bytes. Everything else is engine code
 (engine/wire/Node.lean, engine/core/Purge.lean, engine/core/Families.lean)
-or op code (ops/connection/, one file per op type).
+or op code (app/connection/, one file per op type).
 
-- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`ops/connection/Noise.lean`,
+- **Handshake.** Noise_KK_25519_ChaChaPoly_SHA256 (`app/connection/Noise.lean`,
   checked against cacophony's vector). Its two messages are two
   conn-scope ops on the bare wire, `request` and `connection`, and the
   connection op's id is the connection id. A joiner's request rides in
@@ -284,7 +284,7 @@ or op code (ops/connection/, one file per op type).
   `endpoint`. `established` is each side's session: its validator re-runs
   that side's half of the handshake with the endpoint's secret. A close
   purges them, which makes sessions forward secret (the purge branch).
-- **Frames** (`ops/connection/Frame.lean`, not an op) are as poc-17's: the
+- **Frames** (`app/connection/Frame.lean`, not an op) are as poc-17's: the
   connection id, a random nonce, and XChaCha20-Poly1305 with the id as
   associated data. They carry no counters and need no replay tracking,
   because ops are idempotent.
@@ -299,7 +299,7 @@ or op code (ops/connection/, one file per op type).
 - **Closing purges two ops**, the connection and its request.
   Everything else of the session cites one of them (ephemerals, opened,
   established, couriers, arrivals), so purge takes it along.
-- **Reactions** (`ops/connection/Intents.lean`). `react` opens, delivers
+- **Reactions** (`app/connection/Intents.lean`). `react` opens, delivers
   only a hello's join request of its community (`bare_takes_only_join`),
   answers only peers the trust rule admits (`answer_trusted`), and
   establishes. `onArrival` re-sends an answer only to a trusted peer
@@ -310,14 +310,14 @@ or op code (ops/connection/, one file per op type).
   returning ops, generic in the monad (`Lists`, `Store`, `Fresh`), so
   they run on SQLite and on the model.
 
-Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
-`ops/connection/NoiseSymbolic.lean`, `ops/connection/Frame.lean`,
+Laws (`app/connection/Laws.lean`, `app/connection/Noise.lean`,
+`app/connection/NoiseSymbolic.lean`, `app/connection/Frame.lean`,
 `engine/core/Families.lean`):
 - `wire_kinds`;
 - `established_agrees` (both ends hold one session);
 - `opened_endpoint`, `established_endpoint` (the statics are node keys),
   `meV_node`, `bare_takes_only_join`, `answer_trusted`, `resend_trusted`
-  (`ops/connection/RemovalLaws.lean`);
+  (`app/connection/RemovalLaws.lean`);
 - `handshake_agrees`, `sent1_write1`, `sent1_read1`, `read2_write2'`,
   for any suite whose DH commutes, whose AEAD opens what it seals and
   whose messages split into their key and the rest;
@@ -326,7 +326,7 @@ Laws (`ops/connection/Laws.lean`, `ops/connection/Noise.lean`,
   its AEAD check passes under its session's receive key);
 - `sum_left`.
 
-**The handshake in a symbolic model** (`ops/connection/NoiseSymbolic.lean`,
+**The handshake in a symbolic model** (`app/connection/NoiseSymbolic.lean`,
 namespace `Connection.Noise.Symbolic`). `write1`, `read1`, `sent1`,
 `write2` and `read2` are the functions the validators run, at a term
 algebra `T` instead of bytes. Cryptography is perfect (free hashes,

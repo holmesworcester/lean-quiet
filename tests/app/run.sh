@@ -68,7 +68,7 @@ if [ "${SKIP_X:-${SKIP_TCP:-0}}" != 1 ]; then mise run linux:e2e; mise run linux
 else platforms/linux/build.sh && echo "SKIP linux e2e and links (no local X sockets; the shell built)"; fi
 fi
 if stage navigation; then
-# navigation: each mutant of a rule must fail its law (ops/app/NavLaws)
+# navigation: each mutant of a rule must fail its law (app/app/NavLaws)
 tests/app/nav_negative.sh
 .lake/build/bin/pic_retry out/pic_retry
 tests/app/pic_retry_negative.sh

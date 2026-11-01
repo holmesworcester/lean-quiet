@@ -1,7 +1,7 @@
-import ops.community.Screen
-import ops.Screen
-import ops.Commands
-import ops.community.channel.message.draft.View
+import app.community.Screen
+import app.Screen
+import app.Commands
+import app.community.channel.message.draft.View
 import engine.renderer.bidi.Laws
 
 set_option linter.defProp false

@@ -1,5 +1,5 @@
 import tests.vacuity.IdentityFixture
-import ops.Proofs
+import app.Proofs
 
 namespace Vacuity.IdentityConnection
 open Engine Engine.Sync Codec Tests
