@@ -94,9 +94,6 @@ theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
     · exact ih h
     · exact incoming_source n (List.mem_filter.mp h).1
 
-theorem emitted_incoming (j : Nat) (o : Op) (ho : o ∈ service.emitted j) : o ∈ incoming j :=
-  List.mem_append_right _ ho
-
 def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1
   store := fun n => (receiver n).2
@@ -108,8 +105,6 @@ def receiving (hd : Distinct before) : ReceiverRun sync := {
     hd a (List.mem_append.mp ha |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h))
       b (List.mem_append.mp hb |>.elim (fun h => receiver_log n h) (fun h => incoming_source n h)) he }
 
-theorem receiving_input (hd : Distinct before) : (receiving hd).input = incoming := rfl
-
 def Result : Prop := ∃ k, ∀ j ≥ k,
   (∀ o ∈ before, (receiver j).2.db.ops o.id = some o) ∧
   (receiver j).2.db.status message.id = some (.valid messageFact)
@@ -118,7 +113,7 @@ theorem convergence (hd : Distinct before)
     (available : ∀ o ∈ before, source.db.ops o.id = some o ∧ initial.shows fam o = true)
     (queued : ∀ o ∈ before, o.id ∈ initial.owed)
     (spec : Spec fam source.db.ops message.id (.valid messageFact)) : Result := by
-  obtain ⟨k, _, hk⟩ := closure_delivered service (receiving hd) before source.db.ops message.id
+  obtain ⟨k, _, hk⟩ := closure_delivered (x := sync) (cfg := cfg) service (receiving hd) before source.db.ops message.id
     (.valid messageFact) 0 spec
     (fun i o _ ho => reach_stored (runReach before) i o ho)
     room_recurs
@@ -126,7 +121,9 @@ theorem convergence (hd : Distinct before)
       have e : (sender j).rooms = initial.rooms := (sender_rooms j).trans (want_rooms base _).symm
       exact (shows_rooms fam e o).trans (available o ho).2⟩)
     (fun o ho => Or.inr ⟨0, Nat.le_refl _, queued o ho⟩)
-    (fun j _ o ho => ⟨j, Nat.le_refl _, by rw [receiving_input]; exact emitted_incoming j o ho⟩)
+    (fun j _ o ho => ⟨j, Nat.le_refl _, by
+      change o ∈ (service.emitted j).reverse ++ service.emitted j
+      exact List.mem_append_right _ ho⟩)
   exact ⟨k, hk⟩
 
 instance : Decidable (Distinct before) := by unfold Distinct; infer_instance

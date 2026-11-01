@@ -11,6 +11,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include "../native/desktop_publication.h"
 
 static struct {
     HWND win, edit;
@@ -72,13 +73,14 @@ static LRESULT CALLBACK edit_proc(HWND w,UINT m,WPARAM a,LPARAM b) {
     if(m==WM_KEYUP||m==WM_LBUTTONUP) event(4,0,0,0);
     return r;
 }
-static void paint(HDC dc) {
-    if(!q.pixels) return;
+static bool paint(HDC dc) {
+    if(!q.pixels || !dc) return false;
     BITMAPINFO bi={0}; bi.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
     bi.bmiHeader.biWidth=q.fw; bi.bmiHeader.biHeight=-(LONG)q.fh;
     bi.bmiHeader.biPlanes=1; bi.bmiHeader.biBitCount=32; bi.bmiHeader.biCompression=BI_RGB;
     /* Keep the last complete frame while the shared renderer settles a resize. */
-    StretchDIBits(dc,0,0,q.w,q.h,0,0,q.fw,q.fh,q.pixels,&bi,DIB_RGB_COLORS,SRCCOPY);
+    int rows=StretchDIBits(dc,0,0,q.w,q.h,0,0,q.fw,q.fh,q.pixels,&bi,DIB_RGB_COLORS,SRCCOPY);
+    return rows>0 && rows!=GDI_ERROR;
 }
 static BOOL system_dark(void) {
     DWORD light=1, size=sizeof(light);
@@ -161,8 +163,11 @@ static void init(void) {
     q.n=0; q.handoff=FALSE; ShowWindow(q.win,SW_SHOW); UpdateWindow(q.win);
 }
 lean_obj_res lq_screen(void) { init(); uint32_t v[]={q.w,q.h,0,0,q.dpi*160/96,q.systemDark}; return words(v,6); }
-lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
+lean_obj_res lq_desktop_frame(b_lean_obj_arg rows, uint64_t publication) {
     init(); size_t h=lean_array_size(rows),w=h?lean_sarray_size(lean_array_get_core(rows,0))/4:0;
+    unsigned submitted_w=q.w, submitted_h=q.h;
+    bool completed=false, exact=w==q.w && h==q.h;
+    for(size_t y=0;y<h;y++) exact=exact && lean_sarray_size(lean_array_get_core(rows,y))==w*4;
     if(w&&h) {
         if(w!=q.fw||h!=q.fh) { free(q.pixels); q.pixels=calloc(w*h,4); q.fw=w;q.fh=h; }
         for(size_t y=0;y<h;y++) {
@@ -173,7 +178,7 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
                 else memset(d,0,4);
             }
         }
-        HDC dc=GetDC(q.win); paint(dc); ReleaseDC(q.win,dc);
+        HDC dc=GetDC(q.win); completed=paint(dc) && GdiFlush(); ReleaseDC(q.win,dc);
     }
     q.handoff=FALSE;
     MsgWaitForMultipleObjects(0,NULL,FALSE,16,QS_ALLINPUT);
@@ -182,7 +187,8 @@ lean_obj_res lq_desktop_frame(b_lean_obj_arg rows) {
         if(msg.message==WM_QUIT) { event(1,0,0,0); break; }
         TranslateMessage(&msg); DispatchMessageW(&msg);
     }
-    lean_object *out=words(q.events,q.n); q.n=0; return out;
+    bool accepted=completed && exact && q.w==submitted_w && q.h==submitted_h && IsWindowVisible(q.win) && !IsIconic(q.win);
+    lean_object *out=lq_desktop_result(q.events,q.n,accepted,accepted?publication:0,accepted?publication:0,0); q.n=0; return out;
 }
 lean_obj_res lq_text(void) {
     wchar_t *w=editor(); DWORD a=0,b=0; SendMessageW(q.edit,EM_GETSEL,(WPARAM)&a,(LPARAM)&b);

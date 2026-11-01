@@ -17,6 +17,12 @@ are independent of wrapped UInt32 input-frame serials; ticket exhaustion fails
 closed. Surface replacement revokes old callbacks, including a forced generation
 alias. Completion means the native API seam, not physical display scanout.
 
+The requested UI theorem counts each pipeline stage's completed steps, not
+global app frames or milliseconds. Measurements below report those native
+timings separately. Reader and raster bounds must count selected stale work
+as well as successful actions. Native completion is a separate wait; once its
+receipt is available, the next eligible app presentation step must consume it.
+
 ## Checks
 
 Four kernel laws cover the runtime queue bound, FIFO admission, full refusal
@@ -62,15 +68,19 @@ Activity-recreation checks remain required after integration of that repair.
 
 ## Still open
 
-Desktop's driver currently stages app layers before `DesktopMain.desktopFrame`;
-its empty result is interpreted as synchronous completion. The desktop suite
-above establishes compatibility, not correct native completion. A separate
-follow-up must acknowledge the actual composed desktop publication.
+The subsequent [desktop publication repair](DESKTOP-PRESENTATION.md) removes
+the premature staging acknowledgement. It validates final composed pixels and
+actual native completion, including hover/photo content. Its Linux runtime
+checks and Windows cross-compile are separate from still-outstanding Mac and
+Windows native runtime validation.
 
-Selector service bounds do not give a fixed end-to-end display deadline.
-Native workers and compositor callbacks can be delayed for arbitrarily many
-app steps, even if they eventually run. Reaction cardinality, history queries
-and other frame work also lack a uniform work bound. A lost callback can retain
+The stage-local UI theorem still needs Reader/raster service ranks, bounds on
+their admitted predecessors, retained-paint invariants and composition with
+commit and receipt handling. The eight-entry composer FIFO does not bound all
+Reader/raster jobs. Native workers and callbacks need explicit progress or
+cancellation contracts; their delays are separate from completed-stage counts.
+Reaction cardinality, history queries and other frame work also lack a uniform
+work bound. A lost callback can retain
 the single callback slot across a surface reset until it returns. Exhaustion
 fails closed but does not establish successful presentation of every send.
 Touch lookup still matches retained Nat serials against UInt32 native serials;

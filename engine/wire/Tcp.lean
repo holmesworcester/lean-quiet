@@ -10,9 +10,10 @@ neither carries socket code.
   sockets are not bound to sessions (a sealed frame names its own). An
   accepted socket's address is its peer's "ip:port", so a reply to that
   address goes back on the same socket.
-- A socket silent for `idle` ms is closed: a join request waiting for
-  approval is resent every tick, and sessions exchange rounds, so a
-  live one is never idle that long.
+- Silence expiry gives an already-admitted source one bounded selection
+  opportunity before closing. Junk cannot refill the authenticated session
+  budget; explicit retirement and stalled native writes bypass the grace.
+  Join requests retry on ticks, and established sessions send keepalives.
 - The app's writes come in through `Runner.write`, on a channel of
   their own; three turns prefer local writes, then one turn guarantees
   network service (`Inbox.Priority.next`), falling back immediately when
@@ -53,6 +54,7 @@ import engine.wire.SocketAbort
 import engine.wire.StopFlag
 import engine.wire.Reserved
 import engine.wire.IngressIO
+import engine.wire.ExpiryGrace
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -211,6 +213,10 @@ structure RunState where
   waiting : List ByteArray := []
   slots : Slots
   ingress : Ingress.Hub Event
+  /-- One finite grace per live authenticated heard generation. -/
+  sessionGrace : List (Id × ExpiryGrace.State) := []
+  /-- Socket idle grace is separate; native send stalls never consult it. -/
+  socketGrace : List (Nat × ExpiryGrace.State) := []
 
 /-- Backpressure retains one value on this producer's stack. Closing the
 queue or requesting cancellation releases it without an SDK send waiter. -/
@@ -381,7 +387,40 @@ variable {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (ch : Std.Closea
 def RunState.sockOf (st : RunState) (p : Sock → Bool) : Option Sock := st.socks.find? p
 
 def RunState.drop (st : RunState) (sid : Nat) : RunState :=
-  { st with socks := st.socks.filter (·.id != sid) }
+  { st with
+    socks := st.socks.filter (·.id != sid)
+    socketGrace := st.socketGrace.filter (·.1 != sid) }
+
+/-- The real primary write/event dispatch consumes one unit per selection.
+Producers and timer ticks cannot replenish this finite budget. -/
+def RunState.selected (st : RunState) : RunState :=
+  { st with
+    sessionGrace := st.sessionGrace.map fun (cid, g) => (cid, ExpiryGrace.consume g)
+    socketGrace := st.socketGrace.map fun (sid, g) => (sid, ExpiryGrace.consume g) }
+
+/-- Silence expiry observes only the bounded, already-admitted mailboxes.
+No payload is processed before the normal UI-first selector chooses it. -/
+def RunState.prepareExpiry (cfg : RunConfig) (st : RunState) (now : Nat) : IO (RunState × List Id) := do
+  let ready := (← st.ingress.pending).filterMap fun e => match e with
+    | .frame sid _ => some sid
+    | _ => none
+  let readyAddresses := st.socks.filterMap fun s => if ready.contains s.id then some s.addr else none
+  let mut sessionGrace := []
+  let mut deferred := []
+  for (cid, c) in st.node.conns do
+    let old := (st.sessionGrace.find? (·.1 == cid)).map Prod.snd
+    let pending := (st.node.addr? cid).any readyAddresses.contains
+    let (protect, next) := ExpiryGrace.check (ExpiryGrace.budget cfg.maxSocks) c.heard
+      (Decidable.decide (c.heard + x.cfg.live < now)) pending old
+    if let some g := next then sessionGrace := (cid, g) :: sessionGrace
+    if protect then deferred := cid :: deferred
+  let mut socketGrace := []
+  for s in st.socks do
+    let old := (st.socketGrace.find? (·.1 == s.id)).map Prod.snd
+    let (_, next) := ExpiryGrace.check (ExpiryGrace.budget cfg.maxSocks) s.heard
+      (Decidable.decide (s.heard + cfg.idle < now)) (ready.contains s.id) old
+    if let some g := next then socketGrace := (s.id, g) :: socketGrace
+  return ({ st with sessionGrace, socketGrace }, deferred)
 
 /-- Reserve deferred destinations in their original FIFO order under the
 listener's mutex. Failed quota checks retain both position and frames. -/
@@ -422,7 +461,9 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO 
     s.stopped.request
     if let some input := s.input then st.ingress.retire input
     if drain then s.drain else s.stop
-    return ({ st.drop sid with node }, e)
+    return ({ st.drop sid with
+      node
+      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)
 
 /-- Carry out what the node asked for: push each frame onto the lanes of
 the socket at its address (`framesFor`), dialing if no socket has it.
@@ -582,18 +623,30 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
     if ← ingress.stopped then return some .stop
     ingress.poll ch.tryRecv
   write := fun st ops now => do
+    let st := st.selected
     let (st, e) ← st.node? fun n => n.step x (.write ops) now
     st.apply x ch notify cfg e now
-  event := fun st ev now => st.handle x ch notify cfg ev now
+  event := fun st ev now => st.selected.handle x ch notify cfg ev now
   tick := fun st now => do
+    let (st, deferred) ← st.prepareExpiry x cfg now
     st.ackRetries x
-    let x' := { x with room := ← rooms cfg st.socks, retryRoom := ← retryRooms st.socks }
+    let x' := { x with
+      room := ← rooms cfg st.socks
+      retryRoom := ← retryRooms st.socks
+      tickReady := fun cid => !deferred.contains cid && x.tickReady cid }
     let (st, e) ← st.node? fun n => n.step x' .tick now
     st.apply x ch notify cfg e now
   expire := fun st now => do
     let mut st ← st.reap x ch notify cfg now
+    let ready := (← st.ingress.pending).filterMap fun e => match e with
+      | .frame sid _ => some sid
+      | _ => none
     for s in st.socks do
-      if shut cfg.idle cfg.stallMs now s.heard (← s.since) then
+      let grace := (st.socketGrace.find? (·.1 == s.id)).any fun (_, g) =>
+        g.heard == s.heard && g.left != 0 && ready.contains s.id
+      let since ← s.since
+      let stalled := since.any fun start => start + cfg.stallMs ≤ now
+      if stalled || (!grace && shut cfg.idle cfg.stallMs now s.heard since) then
         st ← st.closeApply x ch notify cfg s.id now
     return st
   stop := fun st now => st.shutdown x ch cfg writes now

@@ -15,6 +15,14 @@ service theorem counts completed turns. It does not prove that an arbitrary
 SQLite/native call completes, or that a separately scheduled display worker
 runs within a fixed number of networking turns.
 
+The UI target counts **each pipeline stage's completed steps**, as clarified
+by the user. Native timings in milliseconds and global app-frame counts are
+reported separately as measurements. A stage counter must include attempted
+selections that skip stale work; it cannot discard completed attempts to make
+a bound hold. Native waits need an explicit completion or cancellation contract,
+followed by a bound on consuming the result. No fixed wall-clock deadline is
+claimed by a completed-step theorem.
+
 ## Completed runtime connection
 
 [Loop.turn](../engine/wire/Loop.lean) is now the polling, dispatch and timer core
@@ -118,7 +126,7 @@ all reader lifetimes, or Windows cancellation.
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
 | Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
-| Write-to-display bound | A bounded composer FIFO pins root/child positions against newer posts and uses exact native completion identity on Android/iOS. Desktop still acknowledges staging before native publication. Full composition, reaction/layout work, worker/callback delays and serial exhaustion prevent a universal bound. |
+| Write-to-display bound | The target is a bound in each stage's completed steps. A bounded composer FIFO pins root/child positions, and mobile/desktop receipts identify actual completion. Reader/raster service ranks, configured backlog-independent bounds, retained-paint invariants and their composition remain unproved. Native waits and exhaustion need explicit progress/failure outcomes; timings are reported separately. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely, and failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite
@@ -203,6 +211,16 @@ The actual Send path admits at most eight pending presentation obligations and
 pins the oldest root/child position against new peer posts. The Android/iOS
 bridge distinguishes accepted publication from its matching native completion;
 a staged, optimistic, blank or shifted image cannot satisfy the receipt.
-The finite TCP regression keeps its 64-frame/1,500 ms limit. Desktop staging
-acknowledgement remains a separate repair, and the iOS wrapper has source review
-only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).
+The finite TCP regression keeps its 64-frame/1,500 ms limit. The subsequent desktop repair acknowledges actual composed native publication;
+Mac/Windows runtime validation remains outstanding, and the iOS wrapper has
+source review only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).
+
+## Admitted-input expiry milestone
+
+Silence expiry now grants a pending source one bounded selection opportunity,
+with the existing UI-first selector unchanged. Junk cannot rearm the same
+authenticated-heard generation; authenticated removal and stalled-send
+cancellation retain immediate cleanup. See [EXPIRY-GRACE.md](EXPIRY-GRACE.md)
+for eleven kernel laws, nonempty witnesses and 29 native checks with controls.
+This does not protect bytes not yet admitted or prove delivery across ordinary
+transport failure and key replacement.

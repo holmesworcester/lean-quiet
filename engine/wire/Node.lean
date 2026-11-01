@@ -117,6 +117,10 @@ structure Sync (F : Type) (m : Type → Type) [Monad m] where
   /-- Production commits a retry ticket after native write completion.
   Direct node interpreters retain immediate cursor bookkeeping. -/
   deferredRetries : Bool := false
+  /-- Native silence grace may defer timed work for an already-admitted
+  source. Dial/reaction, authorization and authenticated retirement still
+  run. Pure/default callers service every connection as before. -/
+  tickReady : Id → Bool := fun _ => true
 
 structure Node where
   ix : Index
@@ -554,6 +558,8 @@ def Node.onTick (n : Node) (now : Nat) : m (Node × Effects) := do
     | none => pure ()
     | some c =>
       let c ← Node.refresh x cid c
+      -- Fresh authenticated notices bypass silence grace.
+      if !x.tickReady cid && c.notices.isEmpty then continue
       let (n', o) ← n.apply x cid (← Conn.tickGive x.fam x.cfg n.ix c now) now
       let (n', retry) ← n'.sweep (n'.afterActs x (out ++ o)) cid
       let (n', o') ← n'.serveOwed (n'.afterActs x (out ++ o ++ retry)) cid now

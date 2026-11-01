@@ -781,25 +781,28 @@ theorem onTick_fresh (hr : ReadOnly x) (n : Node) (now : Nat) (h : Held F) :
       · exact ⟨hm, hok⟩
       · rename_i c _
         simp only [HeldM.run_bind, refresh_carry hr]
-        have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
-        generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
-        rw [e]
-        obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
-          Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
-        generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
-        obtain ⟨g3, g4⟩ := sweep_ok (hr.afterActs B.1.1 (st.2 ++ B.1.2)) B.1.1 a.1 B.2
-        change Moves x.fam B.2 _ at g3
-        change ActsOk x B.2 _ _ at g4
-        generalize HeldM.run (Node.sweep _ B.1.1 a.1) B.2 = C at g3 g4 ⊢
-        obtain ⟨g5, g6⟩ := serveOwed_ok (hr.afterActs C.1.1 (st.2 ++ B.1.2 ++ C.1.2)) C.1.1 a.1 now C.2
-        change Moves x.fam C.2 _ at g5
-        change ActsOk x C.2 _ _ at g6
-        simp only [HeldM.run_pure]
-        refine ⟨hm.trans (g1.trans (g3.trans g5)), ?_⟩
-        exact (((hok.right (g1.trans (g3.trans g5))).append
-          ((g2.left hm).right (g3.trans g5))).append
-          ((g4.left (hm.trans g1)).right g5)).append
-          (g6.left (hm.trans (g1.trans g3))))
+        split
+        · exact ⟨hm, hok⟩
+        · simp only [HeldM.run_bind]
+          have e := tickGive_reads x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now h'
+          generalize hS : HeldM.run (Conn.tickGive x.fam x.cfg st.1.ix (c.carry (((x.hooks.rooms a.1).run h').1)) now) h' = S at e
+          rw [e]
+          obtain ⟨g1, g2⟩ := apply_ok hr st.1 a.1 S.1 now h' (fun o ho =>
+            Or.inr (Or.inr (Or.inl ⟨c, st.1.ix, now, by rw [hS]; exact ho⟩)))
+          generalize HeldM.run (Node.apply x st.1 a.1 S.1 now) h' = B at g1 g2 ⊢
+          obtain ⟨g3, g4⟩ := sweep_ok (hr.afterActs B.1.1 (st.2 ++ B.1.2)) B.1.1 a.1 B.2
+          change Moves x.fam B.2 _ at g3
+          change ActsOk x B.2 _ _ at g4
+          generalize HeldM.run (Node.sweep _ B.1.1 a.1) B.2 = C at g3 g4 ⊢
+          obtain ⟨g5, g6⟩ := serveOwed_ok (hr.afterActs C.1.1 (st.2 ++ B.1.2 ++ C.1.2)) C.1.1 a.1 now C.2
+          change Moves x.fam C.2 _ at g5
+          change ActsOk x C.2 _ _ at g6
+          simp only [HeldM.run_pure]
+          refine ⟨hm.trans (g1.trans (g3.trans g5)), ?_⟩
+          exact (((hok.right (g1.trans (g3.trans g5))).append
+            ((g2.left hm).right (g3.trans g5))).append
+            ((g4.left (hm.trans g1)).right g5)).append
+            (g6.left (hm.trans (g1.trans g3))))
   obtain ⟨mR, okR⟩ := pR
   obtain ⟨m2, ok2⟩ := finish_ok hr R.1.1 R.1.2 now mR okR
   exact ⟨mR.trans m2, ok2⟩
