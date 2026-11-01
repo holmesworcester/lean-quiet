@@ -48,6 +48,30 @@ theorem wire_kinds (o : Op) (h : scopeOf o = .conn) : o.kind = 33 ∨ o.kind = 3
 /-- Every other connection op is local. -/
 theorem local_kinds (o : Op) (h : ¬ (o.kind = 33 ∨ o.kind = 35)) : scopeOf o = .local := by
   simp [scopeOf, h]
+
+/-- **A sync wire op is never a conn op** in the node's family: the
+Connection family owns kinds 32 to 39, and the Community family's scope
+is shared or local. So the bare path, which keeps only conn ops, never
+meets a have or a want: their requirement lists (up to `maxIds` ids) are
+not the intake cap's to refuse (`intakeConn_wire`); a session's are
+never taken either (`recv_take`). -/
+theorem wire_not_conn (C : Community.Crypto) (K : Keys) {o : Op} (h : Engine.Sync.isWire o.kind = true) :
+    (node C K).scope o ≠ .conn := by
+  have hk : owns o.kind = false := by
+    simp only [Engine.Sync.isWire, Engine.Sync.kRbsr, Engine.Sync.kHave, Engine.Sync.kWant,
+      Bool.or_eq_true, beq_iff_eq] at h
+    rcases h with (h | h) | h <;> rw [h] <;> decide
+  rw [node, sum_scope_left _ _ o hk]
+  show Community.scopeOf o ≠ .conn
+  unfold Community.scopeOf
+  split
+  · split <;> simp
+  · simp
+
+/-- **The bare path takes no wire op.** -/
+theorem intakeConn_wire (C : Community.Crypto) (K : Keys) {ops : List Op} {o : Op}
+    (h : Engine.Sync.isWire o.kind = true) : o ∉ intakeConn (node C K) ops :=
+  fun hm => wire_not_conn C K h (intakeConn_conn _ hm).1
 open Engine Codec
 section
 open Engine.Sync
