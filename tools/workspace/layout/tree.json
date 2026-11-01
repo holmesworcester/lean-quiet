@@ -143,8 +143,7 @@
     },
     {
       "path": "app/community/channel/message/draft",
-      "planned": "ephemeral",
-      "summary": "Unsent text for one conversation. Today the composer.",
+      "summary": "Unsent text for one conversation, with its photos. Ephemeral; its component is the composer.",
       "preview": "message.draft",
       "view": true
     },

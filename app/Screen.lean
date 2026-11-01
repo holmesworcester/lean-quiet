@@ -2259,12 +2259,14 @@ removal is not announced again. -/
   mark : Option (Id × Nat) := none
   restoreAnchor : Bool := false
   restorePos : Option Pos := none
+  /-- The newest draft's generation: a stash writes the next. Drafts
+  themselves are ephemeral ops in `eph`, one per entry. -/
+  draftGen : Nat := 0
   /-- A scrollbar seek: the rank (messages newer than the screen's bottom
   edge) being sought, and whether the window is anchored there yet. The
   thumb is drawn at it meanwhile (Desktop.scrollbar), so a drag shows
   where it will land, not where the window still is. -/
   seek : Option (Nat × Bool) := none
-  drafts : List (Id × String × List ByteArray) := []
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []
   queuedWrites : List ByteArray := []
@@ -2552,7 +2554,8 @@ def captureAnchor (s : St) : Option (Id × Nat) := Id.run do
 
 def stashDraft (s : St) : St :=
   if s.me.acc.isEmpty then s else
-  { s with drafts := (s.me.acc, s.text, s.chips.toList.map (·.1)) :: s.drafts.filter (·.1 != s.me.acc) }
+  let gen := s.draftGen + 1
+  { s with eph := Data.draftIn s.eph s.me.acc gen s.text.toUTF8 (s.chips.toList.map (·.1)), draftGen := gen }
 
 def removalBytes (r : Remove.Step) : ByteArray :=
   Codec.encode (match r with
@@ -2572,14 +2575,16 @@ def checkpointAnchor (s : St) : Option (Id × Nat) :=
     if s.spacers.contains x then s.cellRoot[x]?.map (·, 0) else some (x, off)
 
 def checkpoint (s : St) : Lifecycle.Checkpoint :=
+  -- the page the log names, read before the draft is stashed beside it
+  let nav := s.logNav
   let s := { stashDraft s with mark := checkpointAnchor s }
   let a := s.mark.getD (.empty, 0)
-  (1, s.logNav.1, s.cur, a.1, a.2,
-    [Codec.encode s.logNav.2, s.field.toUTF8,
+  (1, nav.1, s.cur, a.1, a.2,
+    [Codec.encode nav.2, s.field.toUTF8,
      ((s.invite.map (·.text)).getD "").toUTF8, s.joinName.toUTF8, s.newCommunity.toUTF8,
      removalBytes s.removal,
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
-     Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
+     Codec.encode (Data.draftsIn s.eph), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
      Codec.encode (s.labelText.toUTF8, s.labelPage),
@@ -2616,7 +2621,9 @@ def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat
     return (b, src.w, src.h, ⟨Image.square src (s.dim.px 64) (Palette.color s.dim.theme .bg), s!"{Arrival.humanBytes b.size}"⟩)).toArray
 
 def useDraft (s : St) : St :=
-  let (_, t, bs) := (s.drafts.find? (·.1 == s.me.acc)).getD (.empty, "", [])
+  let (t, bs) := match Data.draftOf s.eph s.me.acc with
+    | some (_, f) => (String.fromUTF8! f.text, f.pics)
+    | none => ("", [])
   { s with editorContent := s.editorContent + 1, text := t, chips := restoreChips s bs, sel := #[t.length.toUInt32, t.length.toUInt32, 0, 0] }
 
 /-- Called after switchToAcc selected the saved acceptance. A removed or
@@ -2625,8 +2632,10 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let (_, p, _, x, off, bs) := cp
   let b := fun i => bs[i]?.getD .empty
   let str := fun i => String.fromUTF8! (b i)
-  let drafts := ((Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []).map
-    fun (a, t, pics) => (a, String.fromUTF8! t, pics)
+  let drafts := (Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []
+  -- each saved draft, written back into the ephemeral log
+  let (eph, draftGen) := drafts.foldl (fun (h, g) (a, t, pics) => (Data.draftIn h a (g + 1) t pics, g + 1))
+    (s.eph, s.draftGen)
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
@@ -2636,7 +2645,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
   let s := { s.withNav (Nav.go (PageId.ofCode p) nav) with
     field := str 1, invite := Community.Invite.parse (str 2), joinName := str 3, newCommunity := str 4,
-    removal := removalFrom (b 5), profileOf := profile, drafts,
+    removal := removalFrom (b 5), profileOf := profile, eph, draftGen,
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,

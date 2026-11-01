@@ -15,6 +15,7 @@ import app.settings.appearance.Commands
 import app.nav.Commands
 import app.nav.View
 import app.nav.Proofs
+import app.community.channel.message.draft.Proofs
 import engine.renderer.Demand
 
 
@@ -980,6 +981,18 @@ end cost
 #print axioms Nav.query_only
 #print axioms Data.placeIn_newest
 #print axioms App.withNav_cache
+#print axioms Community.Draft.write_valid
+#print axioms Community.Draft.write_ephemeral
+#print axioms Community.Draft.of_write
+#print axioms Community.Draft.key_draft
+#print axioms Community.Draft.query_only
+#print axioms Community.Draft.check_draft
+#print axioms Community.Draft.node_draft
+#print axioms Community.Draft.isFor_of
+#print axioms Community.Body.local_of_ephemeral
+#print axioms Data.draftIn_newest
+#print axioms Data.draftIn_empty
+#print axioms App.stash_use
 #print axioms Engine.Sync.run_eval
 #print axioms Engine.Sync.ofOps_reach
 #print axioms Engine.Sync.ofOps_rest
