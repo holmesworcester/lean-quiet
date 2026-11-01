@@ -486,7 +486,7 @@ has gone stale. This stream did not edit the README.
 2. **"a removal cuts off every device of the removed user, for good"**:
    true of the devices. But the removed *user* is not out for good: its
    invitations and approvals stay Valid, so it can approve a new device
-   on its own node, which the trust rule lets in (`new_device_trusted`).
+   on its own node, which the trust rule lets in (`connect_iff`).
    The README says this under "Not yet proven". A judge may read "for
    good" as "the person is out for good". Suggest: "cuts off every
    device of the removed user; a removed member can come back only

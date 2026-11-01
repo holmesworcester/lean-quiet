@@ -197,7 +197,6 @@ open Engine Community
 #print axioms Community.joinOps_link_unnamed
 #print axioms Community.introduce_named
 #print axioms Community.shipped_introduce_unnamed
-#print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
 #print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
@@ -745,7 +744,6 @@ end net
 #print axioms Community.cut_consented
 #print axioms Community.signed_eq
 #print axioms Community.endpoint_derives
-#print axioms Community.new_device_trusted
 #print axioms Community.removals_at
 #print axioms Community.mine_not_removed
 #print axioms Community.rejoin_fresh

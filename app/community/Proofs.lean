@@ -915,7 +915,7 @@ theorem connect_agree {s t : DB Fact} (hs : Inv (family C) s) (ht : Inv (family 
 /-- **A removal, once held, cuts off the removed user's node.** Every
 device of u is cut, wherever else it is admitted; so a node key that
 names only u's devices is refused. A node is let in again only through
-a live device under its key (`new_device_trusted`). -/
+a live device under its key (`connect_iff`). -/
 theorem removal_cuts_off (h : Inv (family C) s) (hq : s.queue = []) {c u : Id} {e : Key}
     (hr : Removed C s.ops c u)
     (only : ∀ u' d, Admitted C s.ops c u' d e → ∃ e', Admitted C s.ops c u d e') :
@@ -927,15 +927,6 @@ open Engine
 variable {C : Crypto}
 section
 variable {s : DB Fact}
-
-/-- **A new device on a removed user's node is let in
-(`new_device_trusted`).** A node whose key names a removed user's device
-is let in once a live device is admitted under the same key: the cut
-device does not block the node. -/
-theorem new_device_trusted (h : Inv (family C) s) (hq : s.queue = []) {c u u2 : Id} {d d2 e : Key}
-    (_ha : Admitted C s.ops c u d e) (_hr : Removed C s.ops c u)
-    (ha2 : Admitted C s.ops c u2 d2 e) (hl : Live C s.ops c d2) : (allowPeer c e).eval s = true :=
-  (connect_iff h hq c e).2 ⟨u2, d2, ha2, hl⟩
 
 /-- At rest, the ids of a user's removals list are its Valid removals. -/
 theorem byUser_ids (h : Inv (family C) s) (hq : s.queue = []) (c u x : Id) :

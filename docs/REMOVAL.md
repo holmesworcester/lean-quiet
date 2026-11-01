@@ -140,7 +140,7 @@ users").
 `trusts c me peer` keeps its shape, with `me` this node's key while it
 is in c (`meV_node`). So a node whose key names a removed device is let
 in again once a device of a live user is admitted under the same key
-(`new_device_trusted`). That is how a removed member's node rejoins: it
+(`connect_iff`: a removed device under the key does not block it). That is how a removed member's node rejoins: it
 writes a new device, the members approve it, and nothing else changes.
 `recipients c`, the keys content keys are wrapped to, is the same set
 of keys.
@@ -283,7 +283,7 @@ Built and proven, on lq main's layout:
   key with device liveness, and the trust rule, rooms and dial on node
   keys. Laws: `opened_endpoint`, `established_endpoint`,
   `established_agrees` (restated), `endpoint_signed`, `endpoint_derives`,
-  `meV_node`, `connect_iff` and its kin (restated), `new_device_trusted`,
+  `meV_node`, `connect_iff` and its kin (restated),
   `rooms_trusted`, `rooms_cut` (restated over peer keys).
 - **One device, two users**: `Live`, `Cut`, `deviceLive_iff`,
   `cut_stays`, `cut_consented`, `removals_at`; the people list follows it
@@ -401,7 +401,7 @@ validators and the intents. All are theorems in the axiom audit.
 | Does a removal in c disturb the session's other communities? | `rooms_complete` |
 | Whose keys does the handshake run on? | `opened_endpoint`, `established_endpoint`, `endpoint_derives` |
 | How is a node key tied to a device? | `endpoint_signed` |
-| Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `new_device_trusted`, `meV_node`, `members_iff`, `recipients_iff` |
+| Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `meV_node`, `members_iff`, `recipients_iff` |
 | Which removals is a node owed? | `removals_at` |
 | Does a removed node still hold the community? | `mine_not_removed` |
 | How does it rejoin? | `rejoin_fresh`, `join_new_device` |
@@ -461,7 +461,7 @@ removal and not his message.
 - **A removed user is not yet kept off the network.** Its invitations
   and approvals stay Valid (above), so it can invite and approve a new
   device that names its own node's key. That device is a live new user,
-  so the trust rule (`connect_iff`, `new_device_trusted`) lets the
+  so the trust rule (`connect_iff`) lets the
   removed member's node back in, at every node those ops reach. One node
   unaware of the removal, or one colluding member, is enough for them to
   start spreading. `removed_stays_removed` still holds (the old user
