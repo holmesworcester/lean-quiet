@@ -11,6 +11,43 @@ def run(args, name):
 
 assert run(["lake", "build", "engine.wire.LaneLaws", "engine.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "baseline-build") == 0
 assert run([".lake/build/bin/fresh_tcp"], "baseline-run") == 0
+# Control the actual acceptor's scheduling in this scratch snapshot only.
+# The gate uses this runner's completed tick counter, not an elapsed delay:
+# the fixed fixture leaves established empty until admission, while the old
+# ordering publishes during those ticks and dials S's non-listening port.
+tcp = root / "engine/wire/Tcp.lean"
+fixture = root / "tests/engine/FreshTcp.lean"
+tcp_before, fixture_before = tcp.read_text(), fixture.read_text()
+startup_changes = [
+    ("(cfg : RunConfig) : IO Unit := do\n  repeat\n    if ← stopped.get then return",
+     "(cfg : RunConfig) (beforeAdmit : IO Unit := pure ()) : IO Unit := do\n  repeat\n    if ← stopped.get then return"),
+    ("      if ← slots.take cfg peer.toUTF8 then\n        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do",
+     "      if ← slots.take cfg peer.toUTF8 then\n        beforeAdmit\n        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do"),
+    ("  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)\n  let turnCounters ← IO.mkRef ({} : TurnCounters)",
+     "  let turnCounters ← IO.mkRef ({} : TurnCounters)\n  let beforeAdmit : IO Unit := do\n    let before := (← turnCounters.get).ticks.toNat\n    while (← turnCounters.get).ticks.toNat < before + 2 && !(← stopped.get) do IO.sleep 1\n  let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg beforeAdmit)"),
+]
+try:
+    gated = tcp_before
+    for old, new in startup_changes:
+        assert gated.count(old) == 1, ("startup scheduling gate", "missing unique anchor")
+        gated = gated.replace(old, new)
+    tcp.write_text(gated)
+    assert run(["lake", "build", "fresh_tcp"], "startup-gated-build") == 0
+    assert run([".lake/build/bin/fresh_tcp"], "startup-gated-positive") == 0
+    old = "  let admitted ← waitFor 2000 do return (← rr.lanes).any (·.1 == sAddr.toUTF8)"
+    assert fixture_before.count(old) == 1, "startup control missing admission barrier"
+    fixture.write_text(fixture_before.replace(old, "  let admitted := true"))
+    assert run(["lake", "build", "fresh_tcp"], "startup-old-order-build") == 0, "old ordering must compile"
+    code = run([".lake/build/bin/fresh_tcp"], "startup-old-order")
+    result = (logs / "startup-old-order.log").read_text()
+    assert code == 1 and "FAIL: S is not closed before stallMs" in result, "wrong startup-order failure"
+    assert not any(marker in result.lower() for marker in
+                   ["panic", "segmentation fault", "assertion violation", "uncaught exception", "network runner stopped:"]), "invalid startup-order failure"
+    print("refused: startup-before-admission (two completed runner ticks)", flush=True)
+finally:
+    tcp.write_text(tcp_before)
+    fixture.write_text(fixture_before)
+
 # (name, source, unique original, mutant, target, expected failure text, runtime?)
 cases = [
     ("discard-retired", "engine/wire/Tcp.lean",
@@ -121,4 +158,4 @@ for name, source, old, new, target, expected, runtime in cases:
     assert run(["lake", "build", target], name + "-restored") == 0, (name, "restored source did not build")
 assert run(["lake", "build", "engine.wire.LaneLaws", "engine.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "restored-build") == 0
 assert run([".lake/build/bin/fresh_tcp"], "restored-run") == 0
-print(f"fresh negative controls: {len(cases)} refused; restored suite passes")
+print(f"fresh negative controls: {len(cases) + 1} refused; restored suite passes")
