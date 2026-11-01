@@ -1,0 +1,42 @@
+# Ready to activate as .github/workflows/endpoints-devices.yml on a provisioned
+# runner: the Pixel 7 test phone on adb and a second tailnet Linux node reachable
+# by SSH (clean-quiet-test). See docs/PEER-ENDPOINTS.md; this file alone is not an
+# active workflow. Failures keep their logs under out/endpoints.
+name: Peer endpoints on devices
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * 2'
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: endpoints-devices
+  cancel-in-progress: false
+
+jobs:
+  devices:
+    runs-on: [self-hosted, linux, x64, quiet-android, tailnet]
+    timeout-minutes: 60
+    env:
+      TMPDIR: /mnt/storage/holmes-tmp
+      ELAN_HOME: /mnt/storage/elan
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - uses: jdx/mise-action@c37c93293d6b742fc901e1406b8f764f6fb19dac # v2
+        with:
+          install: false
+      - name: LAN DNS-SD between this host and the Pixel 7
+        run: mise run test:endpoints-phone
+      - name: Unicast DNS-SD over Tailscale to a second tailnet node
+        run: mise run test:endpoints-tailnet
+      - name: Keep failure logs
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: endpoints-devices
+          path: out/endpoints

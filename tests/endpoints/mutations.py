@@ -27,6 +27,18 @@ mutants = [
   'app/Proofs.lean', 'example : Discovery.canTry 1001 (some (1000, 200)) = false'),
  ('unsigned_publication', 'app/community/addresses/Validate.lean', 'C.verify d (signedBy o (Body.unsigned ⟨ds, os, issued, expires, sig⟩)) sig', 'True',
   'app/Proofs.lean', 'theorem publication_auth'),
+ ('scan_never_wraps', 'engine/core/Cursor.lean', '  if (past lt key c R).isEmpty && c.isSome then R.take n else (past lt key c R).take n', '  (past lt key c R).take n',
+  'engine/core/Cursor.lean', 'theorem dist_step'),
+ ('stale_names_newest', 'app/Commands.lean', '  return (rs.drop 1 ++ ds.drop 1).map (·.1.2)', '  return (rs ++ ds.drop 1).map (·.1.2)',
+  'app/Proofs.lean', 'theorem olderOf_eval'),
+ ('publish_without_gap', 'app/Commands.lean', "    (decide (issued + gap ≤ now) && (ds != ds' || os != os')) || decide (issued + refresh ≤ now)",
+  "    (ds != ds' || os != os') || decide (issued + refresh ≤ now)", 'app/Proofs.lean', 'theorem publish_gap'),
+ ('attempt_repeats', 'app/Commands.lean', '  | some (_, attempts) => (attempts + 1) % (2^63)', '  | some (_, attempts) => attempts % (2^63)',
+  'app/Proofs.lean', 'theorem nextAttempt_eq'),
+ ('attempt_without_courier', 'app/Commands.lean', '  | some ro => return [retry, Send.op addr ro]', '  | some ro => return [retry]',
+  'app/Proofs.lean', 'theorem attempt_sends'),
+ ('flush_keeps_stale', 'engine/wire/Node.lean', '  let e ← Effects.purge x (box.map (·.1) ++ old) false', '  let e ← Effects.purge x (box.map (·.1)) false',
+  'engine/wire/CloseLaws.lean', 'theorem flush_notifies'),
 ]
 DECL = ('theorem ', 'private theorem ', 'example', 'def ', '/--', 'end ', 'section', 'namespace ', 'lemma ')
 
@@ -51,9 +63,8 @@ COPY = ['engine', 'app', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json'
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--only', choices=[m[0] for m in mutants] + ['unrouted_loser'])
 selected = parser.parse_args().only
-for name, file, before, after, lawfile, anchor in mutants:
-    if selected and selected != name:
-        continue
+def run_mutant(m):
+    name, file, before, after, lawfile, anchor = m
     scratch = pathlib.Path(tempfile.mkdtemp(prefix=name+'-', dir=out))
     # Reflinks, not hardlinks: build caches and changes belong to this copy.
     for item in COPY:
@@ -66,14 +77,23 @@ for name, file, before, after, lawfile, anchor in mutants:
         result = subprocess.run(['lake', 'build', '+app.Proofs'], cwd=scratch, stdout=log, stderr=subprocess.STDOUT)
     logtext = (out/(name+'.log')).read_text()
     if result.returncode == 0 or 'error:' not in logtext:
-        raise RuntimeError(f'Mutant {name} was not rejected; retained {scratch}')
+        return f'Mutant {name} was not rejected; retained {scratch}'
     # Ensure failure was a proof obligation, not a missing artifact/toolchain.
     if not any(marker in logtext.lower() for marker in ['unsolved goals', 'tactic', 'type mismatch', 'omega', 'decide']):
-        raise RuntimeError(f'Mutant {name} failed for an unexpected reason; inspect log')
+        return f'Mutant {name} failed for an unexpected reason; inspect {scratch}'
     if not broke(logtext, scratch, lawfile, anchor):
-        raise RuntimeError(f'Mutant {name} did not break its intended law ({lawfile}: {anchor})')
-    print('REJECTED', name, flush=True)
+        return f'Mutant {name} did not break its intended law ({lawfile}: {anchor}); retained {scratch}'
     shutil.rmtree(scratch)
+    return None
+
+import concurrent.futures, os
+chosen = [m for m in mutants if not selected or selected == m[0]]
+# Each mutant builds in its own copy; a few at a time under the caller's memory cap.
+with concurrent.futures.ThreadPoolExecutor(max_workers=int(os.environ.get('LQ_MUTANTS', '4'))) as pool:
+    for m, err in zip(chosen, pool.map(run_mutant, chosen)):
+        if err:
+            raise RuntimeError(err)
+        print('REJECTED', m[0], flush=True)
 if selected and selected != 'unrouted_loser':
     raise SystemExit(0)
 # Socket retirement is a native boundary: require the late losing attempt to

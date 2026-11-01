@@ -12,7 +12,7 @@
 # `layout` checks the op tree's layout (ci/layout.py --self-test).
 # `reorg` checks the reorg's import rewriter for branches begun on the old
 # layout (ci/reorg-imports.py --self-test).
-#   ci/local.sh [part...]   (default: driver check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity)
+#   ci/local.sh [part...]   (default: driver check layout engine mdns qr net endpoints app visual zoom site workspace readme reorg vacuity)
 # `site` and `workspace` need Chromium's headless shell (CHROME, or Playwright's); `android-links`
 # needs the Android SDK and an emulator image (it starts its own AVD).
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
@@ -24,7 +24,7 @@ export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 logs=$top/out/ci
 mkdir -p "$logs"
-parts=("${@:-driver check layout engine mdns qr net app visual zoom site workspace readme reorg vacuity}")
+parts=("${@:-driver check layout engine mdns qr net endpoints app visual zoom site workspace readme reorg vacuity}")
 read -r -a parts <<< "${parts[*]}"
 gate() {
   case $1 in
@@ -59,6 +59,9 @@ gate() {
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
+    # Peer endpoints: laws' concrete premises and mutation controls, then real
+    # TCP/Noise/SQLite processes on this host (the phone and tailnet tasks need devices).
+    endpoints) mise run test:endpoints && mise run test:endpoints-simultaneous && mise run test:endpoints-late && mise run test:endpoints-ops && mise run test:endpoints-invite && mise run test:endpoints-lan ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;
     *) echo "no part $1" >&2; return 2 ;;
   esac

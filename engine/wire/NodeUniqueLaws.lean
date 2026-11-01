@@ -247,6 +247,8 @@ theorem flush_shape (n : Node) (out : Acts) :
   unfold Node.flush
   apply Ensures.bind_any
   intro box
+  apply Ensures.bind_any
+  intro old
   try dsimp only
   split
   · exact Ensures.pure' rfl

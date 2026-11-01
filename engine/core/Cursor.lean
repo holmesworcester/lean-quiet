@@ -44,6 +44,9 @@ def next (R : List β) (n : Nat) (c : Option κ) : Option κ :=
 /-- Ascending, strictly. -/
 def Sorted (R : List β) : Prop := R.Pairwise fun x y => lt (key x) (key y) = true
 
+instance (R : List β) : Decidable (Sorted lt key R) :=
+  inferInstanceAs (Decidable (R.Pairwise fun x y => lt (key x) (key y) = true))
+
 /-- How far the cursor is from key t, counted in U's keys: the ones between
 them before the scan wraps, or past the cursor plus before t, plus the wrap. -/
 def dist (U : List κ) (t : κ) (c : Option κ) : Nat :=
@@ -221,34 +224,39 @@ theorem dist_step (hs : Strict lt) (U : List κ) (R : List β) (n : Nat) (hn : 0
 
 end
 
-/-- **Every row is visited within |U| + 2 steps.** Whatever is filed or
-unfiled between steps (anywhere, just ahead of the cursor included), as long
-as t stays filed and U holds every key filed during the window. -/
+/-- **Every row is visited within |U| + 2 steps.** A row at position p,
+filed at every step of the window (its payload may change), is in a step's
+page within |U| + 2 steps, whatever is filed or unfiled meanwhile and
+wherever (just ahead of the cursor included), as long as U holds every key
+filed during the window. -/
 theorem visits {κ β : Type} {lt : κ → κ → Bool} {key : β → κ} (hs : Strict lt) (n : Nat) (hn : 0 < n)
     (U : List κ) (R : Nat → List β) (c : Nat → Option κ)
     (hR : ∀ k, k ≤ U.length + 1 → Sorted lt key (R k))
     (hU : ∀ k, k ≤ U.length + 1 → ∀ x ∈ R k, key x ∈ U)
     (hc : ∀ k, c (k + 1) = next lt key (R k) n (c k))
-    {t : β} (ht : ∀ k, k ≤ U.length + 1 → t ∈ R k) :
-    ∃ k, k ≤ U.length + 1 ∧ t ∈ page lt key (R k) n (c k) := by
+    {p : κ} (ht : ∀ k, k ≤ U.length + 1 → ∃ x ∈ R k, key x = p) :
+    ∃ k, k ≤ U.length + 1 ∧ ∃ x ∈ page lt key (R k) n (c k), key x = p := by
   -- if every step up to j missed, the distance fell by j
-  have fall : ∀ j, j ≤ U.length + 2 → (∀ k, k < j → t ∉ page lt key (R k) n (c k)) →
-      dist lt U (key t) (c j) + j ≤ dist lt U (key t) (c 0) := by
+  have fall : ∀ j, j ≤ U.length + 2 → (∀ k, k < j → ∀ x ∈ page lt key (R k) n (c k), key x ≠ p) →
+      dist lt U p (c j) + j ≤ dist lt U p (c 0) := by
     intro j
     induction j with
     | zero => intros; simp
     | succ j ih =>
       intro hj hm
       have h1 := ih (by omega) (fun k hk => hm k (by omega))
-      have h2 := dist_step hs U (R j) n hn (hR j (by omega)) (hU j (by omega)) (ht j (by omega)) (c j) (hm j (by omega))
+      obtain ⟨x, hx, hxp⟩ := ht j (by omega)
+      have h2 := dist_step hs U (R j) n hn (hR j (by omega)) (hU j (by omega)) hx (c j)
+        (fun hin => hm j (by omega) x hin hxp)
+      rw [hxp] at h2
       rw [hc j]; omega
   apply Classical.byContradiction
   intro hno
-  have hm : ∀ k, k < U.length + 2 → t ∉ page lt key (R k) n (c k) := by
-    intro k hk hk'
-    exact hno ⟨k, by omega, hk'⟩
+  have hm : ∀ k, k < U.length + 2 → ∀ x ∈ page lt key (R k) n (c k), key x ≠ p := by
+    intro k hk x hx hxp
+    exact hno ⟨k, by omega, x, hx, hxp⟩
   have := fall (U.length + 2) (by omega) hm
-  have := dist_le hs U (key t) (c 0)
+  have := dist_le hs U p (c 0)
   omega
 
 end Engine.Cursor

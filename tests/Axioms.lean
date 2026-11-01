@@ -1348,6 +1348,24 @@ end cost
 #print axioms Connection.DiscoveryStorage.step_retains
 #print axioms Connection.DiscoveryStorage.step_settled
 
+-- Discovery bounds: a fair scan, superseded local ops purged, publication rate, reach.
+#print axioms Engine.Cursor.visits
+#print axioms Engine.Cursor.dist_step
+#print axioms Connection.DiscoveryBounds.page_run
+#print axioms Connection.DiscoveryBounds.rows_strict
+#print axioms Connection.DiscoveryBounds.scan_visits
+#print axioms Connection.DiscoveryBounds.stale_sound
+#print axioms Connection.DiscoveryBounds.stale_complete
+#print axioms Connection.DiscoveryBounds.stale_gone
+#print axioms Connection.DiscoveryBounds.publish_gap
+#print axioms Connection.DiscoveryBounds.publish_refresh
+#print axioms Connection.DiscoveryBounds.attempts_reach
+#print axioms Connection.DiscoveryBounds.attempt_within
+#print axioms Connection.DiscoveryBounds.reaches
+#print axioms Connection.DiscoveryStorage.stale_reads
+#print axioms Connection.DiscoveryBounds.attempt_sends
+#print axioms Connection.DiscoveryBounds.member_attempts
+
 #print axioms Connection.secret_unfiled
 #print axioms Connection.purge_forgets
 #print axioms Connection.forget_stays

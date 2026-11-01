@@ -491,6 +491,33 @@ def observe (c pk peer : B) (now : Nat) : m (List Op) := do
   let b : Community.Body := .sighting peer addr now .empty
   return [Community.mkOp reqs (.sighting peer addr now (Community.sig d.sk reqs b))]
 
+/-- The request this node sent `peer` for community c, if it is stored: the
+same handshake bytes are resent until answered. -/
+def sentRequest (K : Keys) (sk pk c peer : B) : List (Pos × Fact) → m (Option Op)
+  | [] => pure none
+  | ((_, rid), .request _ frm m1) :: rest => do
+    if frm != pk then return ← sentRequest K sk pk c peer rest
+    match ← helloOf K sk rid peer m1 with
+    | some (room, _, _) =>
+      if room != c then return ← sentRequest K sk pk c peer rest
+      match ← Store.getOp (m := m) rid with
+      | some ro => return some ro
+      | none => sentRequest K sk pk c peer rest
+    | none => sentRequest K sk pk c peer rest
+  | _ :: rest => sentRequest K sk pk c peer rest
+
+/-- A planned attempt's ops: the retry clock, and a courier of this node's
+request to `peer` at `addr`, the stored request or a new one
+(`attempt_sends`). -/
+def attempt (K : Keys) (listen pk sk c peer addr : B) (retry : Op) : m (List Op) := do
+  let a : Answer F ← Lists.list (m := m) (request.byTo.query [peer] (limit := some 8) (cap := 8))
+  match ← sentRequest K sk pk c peer a.rights with
+  | some ro => return [retry, Send.op addr ro]
+  | none =>
+    let e ← Fresh.fresh
+    let some ro := Request.op K sk peer e (hello c listen []) | return []
+    return [retry, ro, Eph.op e ro.id, Send.op addr ro]
+
 /-- Reuse the same handshake bytes until answered. An advertisement never
 forces replacement of an established session (the POC-7 bootstrap race). -/
 def memberOne (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (f : Community.Fact) : m (List Op) := do
@@ -501,17 +528,7 @@ def memberOne (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (f : Communit
   if !ok || !mine then return []
   if ← connectedTo peer then return ← observe c pk peer now
   let some (addr, retry) ← plan c peer [] now | return []
-  let a : Answer F ← Lists.list (m := m) (request.byTo.query [peer] (limit := some 8) (cap := 8))
-  for ((_, rid), fact) in a.rights do
-    let .request _ frm m1 := fact | continue
-    if frm != pk then continue
-    let some (room, _, _) ← helloOf K sk rid peer m1 | continue
-    if room != c then continue
-    if let some ro ← Store.getOp (m := m) rid then
-      return [retry, Send.op addr ro]
-  let e ← Fresh.fresh
-  let some ro := Request.op K sk peer e (hello c listen []) | return []
-  return [retry, ro, Eph.op e ro.id, Send.op addr ro]
+  attempt K listen pk sk c peer addr retry
 
 /-- One step of the dialer's scan of list r (`Cursor.page`, `Cursor.next`):
 at most `pageSize` rows past the cursor, or from the start once none is
@@ -572,6 +589,12 @@ def olderAll : List B → View F (List Id)
     let b ← olderAll ps
     return a ++ b
 
+/-- The node keys the newest of these scan positions visited. -/
+def visitedOf (scans : List (Pos × Community.Fact)) : List B :=
+  match scans.head? with
+  | some (_, .scan _ v _) => v
+  | _ => []
+
 /-- What newer local ops supersede: every scan position but the newest, and
 for this node and each node the newest scan visited, every retry clock and
 observation but the newest. The node purges them with its shipped couriers
@@ -580,10 +603,7 @@ one read (`stale_complete`). So each list of these keys holds one op after
 the step (`stale_bound`), and every member's within one scan cycle. -/
 def staleV (me : List B) : View F (List Id) := do
   let scans ← readCommunity Community.scan.all [] 4
-  let visited := match scans.head? with
-    | some (_, .scan _ v _) => v
-    | _ => []
-  let rest ← olderAll (me ++ visited).eraseDups
+  let rest ← olderAll (me ++ visitedOf scans).eraseDups
   return (scans.drop 1).map (·.1.2) ++ rest
 
 section

@@ -217,6 +217,8 @@ bridge Engine.stepS Engine.run_step
 bridge Engine.drainS Engine.run_drain
 bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
+bridge Engine.Cursor.page Connection.DiscoveryBounds.page_run
+bridge Engine.Cursor.next Connection.DiscoveryBounds.page_run
 # The purge: the running `purge` on the model's tables is `purgeS`, and
 # what it returns, the ops it deleted, is `purgeSet`.
 bridge Engine.purgeS Engine.run_purge

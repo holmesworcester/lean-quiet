@@ -108,6 +108,157 @@ def policyWitness (lan tail : ByteArray) :=
       PLift.up (Hints.fresh_expires 1000 900 1100 h.2.1))
   else none
 
+/-! ## Discovery bounds: concrete premises -/
+
+instance bytesLawfulBEq : LawfulBEq ByteArray where
+  rfl := by intro a; change (a.data == a.data) = true; simp
+  eq_of_beq := by intro a b h; change (a.data == b.data) = true at h; exact ByteArray.ext (by simpa using h)
+
+/-- Keys as numbers, for the scan core. -/
+def natLt (a b : Nat) : Bool := decide (a < b)
+
+theorem natLt_strict : Engine.Cursor.Strict natLt where
+  irrefl a := by simp [natLt]
+  trans h1 h2 := by simp only [natLt, decide_eq_true_eq] at *; omega
+  total a b h := by simp only [natLt, decide_eq_true_eq]; omega
+
+def insertSorted (x : Nat) : List Nat → List Nat
+  | [] => [x]
+  | y :: ys => if x < y then x :: y :: ys else if x = y then y :: ys else y :: insertSorted x ys
+
+/-- A scan under an adaptive adversary: before each of steps 1–5 it files two
+rows just past the cursor, ahead of the target 500. -/
+def adv : Nat → List Nat × Option Nat
+  | 0 => ([100, 200, 300, 400, 500], none)
+  | k + 1 =>
+    let R := (adv k).1
+    let c' := Engine.Cursor.next natLt id R 2 (adv k).2
+    let base := c'.getD 0
+    ((if k < 5 then insertSorted (base + 1) (insertSorted (base + 2) R) else R), c')
+
+def advR (k : Nat) : List Nat := (adv k).1
+def advC (k : Nat) : Option Nat := (adv k).2
+theorem adv_c (k : Nat) : advC (k + 1) = Engine.Cursor.next natLt id (advR k) 2 (advC k) := rfl
+
+/-- The step when the adversarial scan first visits 500. -/
+def advVisit : Option Nat :=
+  (List.range 40).find? fun k => (Engine.Cursor.page natLt id (advR k) 2 (advC k)).contains 500
+
+def cursorWitness :=
+  if h : (∀ k, k ≤ (advR 5).length + 1 → Engine.Cursor.Sorted natLt id (advR k)) ∧
+      (∀ k, k ≤ (advR 5).length + 1 → ∀ x ∈ advR k, id x ∈ advR 5) ∧
+      (∀ k, k ≤ (advR 5).length + 1 → ∃ x ∈ advR k, id x = 500) then
+    some (PLift.up (Engine.Cursor.visits natLt_strict 2 (by decide) (advR 5) advR advC h.1 h.2.1 adv_c h.2.2))
+  else none
+
+def distWitness :=
+  let R := [10, 20, 30, 40, 50]
+  if h : Engine.Cursor.Sorted natLt id R ∧ (∀ x ∈ R, id x ∈ R) ∧ 50 ∈ R ∧
+      50 ∉ Engine.Cursor.page natLt id R 2 none then
+    some (PLift.up (Engine.Cursor.dist_step natLt_strict R R 2 (by decide) h.1 h.2.1 h.2.2.1 none h.2.2.2))
+  else none
+
+/-- The members list a real store files, scanned from no cursor. -/
+def membersRows (s : Execution.Memory) := DiscoveryBounds.rowsOf s.held.db Community.discoveryMembers
+
+def scanC (s : Execution.Memory) : Nat → Option Engine.Pos
+  | 0 => none
+  | k + 1 => ((Discovery.page Community.discoveryMembers (scanC s k) : Execution.M _) s).1.2
+
+theorem ownSorted (ops : List Op) :
+    Engine.Cursor.Sorted DiscoveryBounds.ltPos (·.1) (membersRows (memory ops)) := by
+  obtain ⟨_, hr, _⟩ := memory_reachable ops
+  exact DiscoveryBounds.rows_strict (Engine.reach_inv hr) _
+
+def scanWitness (s : Execution.Memory) (p : Engine.Pos) :=
+  let U := (membersRows s).map fun (x : Engine.Pos × F) => x.1
+  if h : (∀ k, k ≤ U.length + 1 → Engine.Cursor.Sorted DiscoveryBounds.ltPos (fun (x : Engine.Pos × F) => x.1) (membersRows s)) ∧
+      (∀ k, k ≤ U.length + 1 → ∀ x ∈ membersRows s, x.2.isLeft = true) ∧
+      (∀ k, k ≤ U.length + 1 → ∀ x ∈ membersRows s, x.1 ∈ U) ∧
+      (∀ k, k ≤ U.length + 1 → p ∈ (membersRows s).map fun (x : Engine.Pos × F) => x.1) then
+    some (PLift.up (DiscoveryBounds.scan_visits Community.discoveryMembers (fun _ => s) (scanC s) U
+      h.1 h.2.1 h.2.2.1 (fun _ => rfl) h.2.2.2))
+  else none
+
+def pageWitness (s : Execution.Memory) :=
+  PLift.up (DiscoveryBounds.page_run Community.discoveryMembers none s)
+
+def staleSoundWitness (me : List ByteArray) (db : Engine.DB F) (x : Id) :=
+  if h : x ∈ (Discovery.staleV me).eval db then
+    some (PLift.up (DiscoveryBounds.stale_sound me db h))
+  else none
+
+def staleCompleteWitness (me : List ByteArray) (db : Engine.DB F) :=
+  PLift.up (DiscoveryBounds.stale_complete me db)
+
+def staleGoneWitness (me : List ByteArray) (db : Engine.DB F) (x : Id) (p : ByteArray) :=
+  match ho : db.ops x with
+  | some o =>
+    if h : (p ∈ me ++ DiscoveryBounds.visitedIn db ∧
+        x ∈ DiscoveryBounds.older Community.retry.byPeer [p] Discovery.staleCap db) ∧
+        Execution.family.room o = none then
+      some (PLift.up (DiscoveryBounds.stale_gone Execution.family me db ((Discovery.staleV me).eval db)
+        (fun _ hx => hx) (Or.inr ⟨p, h.1.1, Or.inl h.1.2⟩) ho h.2))
+    else none
+  | none => none
+
+def gapWitness (old new : ByteArray) :=
+  if h : Discovery.due 70000 [new] [] (some (.addresses c (key "A") [old] [] 1000 2000)) = true then
+    some (PLift.up (DiscoveryBounds.publish_gap 70000 [new] [] c (key "A") [old] [] 1000 2000 h))
+  else none
+
+def refreshWitness (lan : ByteArray) :=
+  if h : Discovery.due (1000 + Discovery.refresh) [lan] [] (some (.addresses c (key "A") [lan] [] 1000 2000)) = true then
+    some (PLift.up (DiscoveryBounds.publish_refresh (1000 + Discovery.refresh) [lan] [] c (key "A") 1000 2000 h))
+  else none
+
+/-- Visits 10 s apart, from a retry clock at attempt 3, 1 s in. -/
+def visitT (i : Nat) : Nat := 1000 + 10000 * i
+def visitSt : Nat → Option (Nat × Nat)
+  | 0 => some (1000, 3)
+  | i + 1 => DiscoveryBounds.visitStep (visitT i) (visitSt i)
+theorem visitT_step (i : Nat) : visitT i + 10000 ≤ visitT (i + 1) := by simp only [visitT]; omega
+theorem visit_past : DiscoveryBounds.Past visitT visitSt 0 := by
+  intro t a h; simp only [visitSt, Option.some.injEq, Prod.mk.injEq] at h; simp only [visitT]; omega
+
+def attemptsWitness (L : List ByteArray) :=
+  if h : 2 < (L.take Hints.dialCap).length then
+    some (PLift.up (DiscoveryBounds.attempts_reach L h 7))
+  else none
+
+def withinWitness :=
+  PLift.up (DiscoveryBounds.attempt_within visitT visitSt 10000 (by decide) (fun _ => rfl) visitT_step 0 visit_past)
+
+def reachWitness (L : List ByteArray) :=
+  if h : 2 < (L.take Hints.dialCap).length ∧
+      DiscoveryBounds.nextNo (visitSt 0) + (L.take Hints.dialCap).length < 2^63 then
+    some (PLift.up (DiscoveryBounds.reaches L h.1 visitT visitSt 10000 (by decide) (fun _ => rfl)
+      visitT_step visit_past h.2))
+  else none
+
+/-- A suite whose Diffie-Hellman never fails: a request can always be built. -/
+def totalKeys : Keys := { sodium with suite := { Noise.suite with dh := fun a b => some (Engine.sha256 (a ++ b)) } }
+
+def attemptWitness (s : Execution.Memory) (addr : ByteArray) (retry : Op) :=
+  PLift.up (DiscoveryBounds.attempt_sends totalKeys addr (key "A") (nk "A") c (key "B") addr retry s
+    (fun e => by simp [Connection.Request.op, Noise.write1, totalKeys]))
+
+def memberWitness (s : Execution.Memory) (addr : ByteArray) :=
+  if h : ((key "B") == (key "A")) = false ∧
+      ((Community.allowPeer c (key "B")).liftL : View F Bool).eval s.held.db = true ∧
+      ((Community.allowPeer c (key "A")).liftL : View F Bool).eval s.held.db = true ∧
+      ((connectedTo (key "B") : Execution.M Bool) s).1 = false ∧
+      (Discovery.retryState (key "B")).eval s.held.db = none ∧
+      Discovery.canTry 1000 none = true ∧
+      (Discovery.advertised c (key "B") 1000).eval s.held.db = [] ∧
+      (Discovery.discovered (key "B") 1000).eval s.held.db = [addr] ∧
+      Hints.pick (Discovery.candidates [] [] [addr]) (Discovery.nextAttempt none) = some addr then
+    some (PLift.up (DiscoveryBounds.member_attempts sodium addr (key "A") (nk "A") 1000 (adm "B") c (adm "B")
+      (dev "B").pk (key "B") s addr _ h.1 h.2.1 h.2.2.1 h.2.2.2.1
+      (DiscoveryProgress.plan_ready s c (key "B") [] [] [addr] 1000 none addr
+        h.2.2.2.2.1 h.2.2.2.2.2.1 h.2.2.2.2.2.2.1 h.2.2.2.2.2.2.2.1 h.2.2.2.2.2.2.2.2)))
+  else none
+
 def main : IO Unit := do
   let lan := "192.168.4.35:47100".toUTF8
   let tail := "100.67.2.56:47100".toUTF8
@@ -192,6 +343,47 @@ def main : IO Unit := do
   let found := Mdns.found DiscoveryNet.serviceType reply
   require "same DNS-SD result maps to a bounded endpoint op" ((found.head?.bind (DiscoveryNet.foundOp · 1000)).isSome)
   require "malformed key cannot become a discovery op" ((DiscoveryNet.foundOp { inst := "bad", host := "bad", port := 1, txt := ["key=00"], addrs := [], ttl := 120 } 1000).isNone)
+  -- Discovery bounds: each law applied to concrete premises.
+  require "an adaptive adversary filing rows just ahead of the cursor still lets the scan reach its target"
+    (cursorWitness.isSome && (advVisit.any fun k => k ≤ (advR 5).length + 1) && (advR 5).length == 15)
+  require "a scan step that misses the target moves the cursor strictly closer" distWitness.isSome
+  let _ := pageWitness ownMemory
+  let some (root, _) := (membersRows ownMemory).head? | throw (IO.userError "no member rows")
+  require "the dialer's real member scan visits every member within |U| + 2 steps"
+    ((scanWitness ownMemory root).isSome && ((membersRows ownMemory).map (·.1)).all fun p => (scanWitness ownMemory p).isSome)
+  let _ := ownSorted ownOps
+  let retryOld := Community.mkOp [] (.retry (key "B") 1000 0)
+  let retryNew := Community.mkOp [] (.retry (key "B") 2000 1)
+  let scanOld := Community.mkOp [] (.scan (Codec.encode ((none : Option Engine.Pos), (none : Option Engine.Pos))) [] 1500)
+  let scanNew := Community.mkOp [] (.scan (Codec.encode ((none : Option Engine.Pos), (none : Option Engine.Pos))) [key "B"] 2000)
+  let staleMemory := memory (ownOps ++ [retryOld, retryNew, scanOld, scanNew])
+  let named := (Discovery.staleV [key "A"]).eval staleMemory.held.db
+  require "stale names the older retry clock and scan position, never the newest"
+    (named.contains retryOld.id && named.contains scanOld.id && !named.contains retryNew.id && !named.contains scanNew.id)
+  require "stale_sound applies to a named op" (staleSoundWitness [key "A"] staleMemory.held.db retryOld.id).isSome
+  let _ := staleCompleteWitness [key "A"] staleMemory.held.db
+  require "stale_gone applies: the older retry clock is a stored local op" (staleGoneWitness [key "A"] staleMemory.held.db retryOld.id (key "B")).isSome
+  let after := ((Engine.Sync.Turn.purge fam named false : Engine.Sync.HeldM F Unit) staleMemory.held).2
+  require "after the step's purge one retry clock and one scan position remain"
+    ((after.db.ops retryOld.id).isNone && (after.db.ops scanOld.id).isNone &&
+      (after.db.ops retryNew.id).isSome && (after.db.ops scanNew.id).isSome)
+  require "changed hints after the gap are due" (gapWitness lan tail).isSome
+  require "unchanged hints are due at half their life" (refreshWitness lan).isSome
+  require "unchanged hints are not reissued before then"
+    (!Discovery.due (1000 + Discovery.refresh - 1) [lan] [] (some (.addresses c (key "A") [lan] [] 1000 2000)))
+  require "every retained address is attempted within |L| attempts" (attemptsWitness [lan, tail, "10.0.0.9:1".toUTF8]).isSome
+  let _ := withinWitness
+  require "a reachable third address is attempted within the reach bound" (reachWitness [lan, tail, "10.0.0.9:1".toUTF8]).isSome
+  let heardB := memory (ownOps ++ [Community.mkOp [] (.discovered (key "B") [lan] 1000 100000)])
+  require "a ready member visit runs the attempt, from a real store with B heard on the LAN"
+    (memberWitness heardB lan).isSome
+  let attemptOps := ((Discovery.attempt sodium lan (key "A") (nk "A") c (key "B") lan retryOld : Execution.M (List Op)) heardB).1
+  require "the attempt holds the retry clock and a courier to the planned address"
+    (attemptOps.contains retryOld && attemptOps.any fun o =>
+      match (Codec.decode o.body : Option Connection.Body) with
+      | some (.send a) => a == lan
+      | _ => false)
+  let _ := attemptWitness heardB lan retryOld
   IO.println "PASS endpoint validation, source selection, expiry and DNS-SD checks"
 
 end EndpointChecks

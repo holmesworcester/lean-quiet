@@ -216,6 +216,8 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
   (assumed, and doubtful on journaling filesystems and flash);
 - that every member eventually gets every op: proven so far for two
   nodes, over a model ([towards n clients](#towards-proofs-for-n-clients));
+- that a discovered peer's handshake completes: discovery is proved up to
+  repeated requests at a reachable address ([peer endpoints](#peer-endpoints-and-discovery));
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
   ([evidence and remaining boundary](#bootstrap-witnesses-and-running-app-checks));
@@ -232,10 +234,13 @@ code being written: [what the proofs caught](docs/CAUGHT.md).
 
 Invites carry up to eight detected LAN/tailnet IPv4 addresses; Docker bridges
 are excluded. Signed `addresses` ops publish up to eight detected/observed
-addresses per member, with the newest publication superseding older ones and a
-maximum five-minute lifetime. A signed `sighting` reports the observed IP plus
-the authenticated listening port, never an accepted TCP socket's ephemeral port.
-The owner republishes these hints. They do not certify reachability.
+addresses per member; the newest a member issued supersedes the rest, expired
+or not, and each lives at most a day. A member reissues on change (60 s apart)
+or at half its life, so an honest member's shared history grows by its address
+changes and two a day. A signed `sighting` reports an address a member does not
+already publish: the observed IP plus the authenticated listening port, never an
+accepted socket's ephemeral port. The owner republishes these hints. They do
+not certify reachability.
 
 LAN DNS-SD and direct unicast DNS-SD on known Tailscale IPv4 addresses feed local
 `discovered` ops. Tailscale multicast is not required: queries request unicast
@@ -246,55 +251,82 @@ simplest tie-break available in this app; it requires no direction ranks,
 arrival timestamps, or additional handshake round trips. POC-7's bootstrap race
 is avoided by suppressing member dials while an authenticated session is open.
 
-**Proved over code called by the app:**
-[DiscoveryLaws](app/Proofs.lean) proves that two simultaneous
-attempts select the same single connection at both ends, regardless of local
-arrival order, direction or clock, and reconsidering the loser does not flap
-the winner. A delayed-loser regression also checks that its actual native
-socket reservation is released, even if that attempt was never selected.
-It proves signature/cap checks on endpoint publications, at most
-24 dial candidates (eight per source), expiry enforcement, a backoff capped at
-60 seconds, and selection of every retained candidate within an address cycle.
-[DiscoveryProgress](app/Proofs.lean) connects that policy
-to the actual planner: eligible hints produce a retry op and destination;
-backoff prevents premature plans. [DiscoveryStorage](app/Proofs.lean)
-extends the existing full-node storage theorem to the discovery hooks: every
-event preserves shared ops and settles validation from a reachable, settled
-store, with advancing entropy, the catalog, and durable per-peer retry cursors.
-This uses the existing Held interpreter and its
-explicit native-storage boundary. The underlying local-write receipt law
-([`onWrite_receives`]) also checks byte commitment through the complete handler.
-Concrete native witnesses check the premises
-for all three sources, real signatures, and a tick that stores discovery ops.
+The dialer scans pending joins and members two rows per tick with a cursor kept
+in a local `scan` op, and keeps one local `retry` clock per node. Local
+discovery ops (scan positions, retry clocks, DNS-SD observations) are
+superseded: the engine purges the older ones the family names (`stale`) with
+the shipped couriers, so each node keeps the newest of each. Their times come
+from one clock that never runs below the newest stored (`floor`), across
+restarts too.
 
-**Assumed for progress:** continuing completed runner turns, available socket
-quotas, completing/cancellable native operations, an authorized remote peer,
-correct crypto/storage, and an address that remains reachable and advertised
-long enough for retries. Shared expiry uses Unix time, requiring clocks close
-enough that a live advertisement is not consistently treated as future/expired.
-Backoff uses a fixed wall/monotonic offset within a runner lifetime.
+**Proved over code the app runs:**
+- *A winner:* two simultaneous attempts select the same single connection at
+  both ends, whatever the arrival order, direction or clock, and reconsidering
+  the loser does not flap it ([`both_choose_same`], [`single_survivor`],
+  [`no_flapping`]). A delayed-loser test also checks that the loser's native
+  socket is released.
+- *Bounded hints:* publications are signed by the owner's admitted device,
+  carry at most eight addresses, and expire within a day; at most 24 candidates
+  are dialed, one per attempt, each within a cycle; backoff is at most 60 s
+  ([`publication_auth`], [`candidate_cap`], [`candidate_visited`],
+  [`retry_eventually_due`]).
+- *A fair scan:* the dialer's scan step is the cursor's ([`page_run`]), and a
+  member row filed throughout a window is visited within |U| + 2 ticks, U every
+  position filed in the list meanwhile, wherever rows are inserted, just ahead
+  of the cursor included ([`Cursor.visits`], [`scan_visits`]). So |U| is the
+  members at the start plus those admitted during the window, and only admins
+  admit: a hostile non-admin member cannot slow anyone's scan.
+- *Bounded local history:* `stale` never names the newest of a list
+  ([`stale_sound`]) and names every older one it reads ([`stale_complete`]),
+  and the step's purge deletes them ([`stale_gone`], [`flush_notifies`]).
+- *Rate of shared publications:* reissue is at least 60 s apart, and unchanged
+  hints at least half a day apart ([`publish_gap`], [`publish_refresh`]).
+- *Discovery reaches a reachable address:* while a member stays authorized and
+  unconnected, with candidates L holding a reachable address, and visits at
+  least δ apart run the planner's retry step, that address is attempted within
+  |L|·(60000/δ + 2) visits, and again within as many after any visit
+  ([`attempts_reach`], [`attempt_within`], [`reaches`]). The planner's steps
+  are proved over its code ([`plan_ready`], [`plan_backoff`]), and a visit
+  whose plan is ready writes the retry clock and a courier of this node's
+  request to the planned address ([`member_attempts`], [`attempt_sends`]).
+- *Storage:* every node event with discovery enabled preserves shared ops and
+  settles validation ([`step_moves`], [`step_settled`]).
 
-**Not yet proved:** universal discovery-to-established-session liveness under
-fair-loss transport, fair cursor service under adversarial ongoing admission
-history, and a bound on accumulated immutable endpoint-op history. The enforced
-caps bound active addresses and new candidate rows/couriers per tick; they do
-not establish whole-app storage, CPU or scheduling bounds. Socket closure still
-has the native completion boundary described in [execution progress](docs/EXECUTION-PROGRESS.md).
+Each law's premises are checked on concrete inputs (`test:endpoints`): among
+them an adaptive adversary that files rows just ahead of the cursor, the real
+member scan of a store built from signed ops, and a store where the purge leaves
+one retry clock and one scan position.
+
+**Assumed for progress:** each tick reads back the cursor and retry clock the
+previous tick wrote (its local ops commit, and the newest is the last written);
+the dial ticks and its visits are at least δ > 0 apart; the member's row stays
+filed and its candidates and authorization are stable during the window; a
+request reaching a reachable address under fair loss is eventually answered and
+the answer delivered (the handshake's own progress); a request op can be built
+(the Noise suite's Diffie-Hellman succeeds); and, as before, correct
+crypto and storage, available socket quotas, and completing native operations.
+Shared expiry uses Unix time, so clocks must be close enough that a live
+publication is not treated as future or expired.
+
+**Not yet proved:** the store carry between ticks through the full node step
+and the native runner (witnessed, not proved); the handshake's completion once
+a request is delivered (main's open bootstrap-convergence item); and a bound on a hostile member's shared endpoint ops: like any shared
+op, the engine never deletes them (`purge_shared`), although every discovery
+read stays capped whatever the history. Whole-app CPU and storage bounds remain
+open as elsewhere, and socket closure has the native completion boundary in
+[execution progress](docs/EXECUTION-PROGRESS.md).
 
 Named tasks build their binaries before testing and retain failure logs under
-`out/endpoints`: `test:endpoints`, `test:endpoints-invite`,
-`test:endpoints-ops`, `test:endpoints-simultaneous`, `test:endpoints-late`,
-`test:endpoints-lan`,
-`test:endpoints-phone` (Pixel 7 only), and `test:endpoints-tailnet`
-(`desktop` to `clean-quiet-test`, isolated temporary process). All their Lean
-builds run in a 48 GiB systemd scope with swap disabled. Local simultaneous
-dials, signed endpoint ops, dead-first-address invite bootstrap, and two-process
-LAN discovery have passed with encrypted marker exchange and identical stable
-session IDs. The Pixel 7 also passed LAN discovery and signed marker exchange
-with the desktop, retaining the same session ID at both ends. Its test dismisses
-the test device's keyguard and keeps it awake so the activity holds its multicast
-lock. `clean-quiet-test` was offline during the Tailscale test preflight; that
-cross-node result is still open. See the [test report](docs/PEER-ENDPOINTS.md).
+`out/endpoints`: `test:endpoints` (laws' concrete premises, axiom audit, and
+15 mutation controls, run four at a time in their own copies),
+`test:endpoints-invite`, `test:endpoints-ops`, `test:endpoints-simultaneous`,
+`test:endpoints-late`, `test:endpoints-lan`, `test:endpoints-phone` (Pixel 7
+only) and `test:endpoints-tailnet` (`desktop` to `clean-quiet-test`). All their
+Lean builds run in a 48 GiB systemd scope with swap disabled. CI runs the
+deterministic ones (`ci/local.sh endpoints`); the phone and tailnet tasks need
+the devices and run by hand. The Tailscale run needs a second tailnet node with
+SSH: on one machine, traffic to its own tailnet address goes over loopback, not
+Tailscale. See the [test report](docs/PEER-ENDPOINTS.md).
 
 ### Towards Proofs for n Clients
 
@@ -530,8 +562,9 @@ World); the rest are over models so far
 | ✅ | 🥊🥊 | **Display order.** A channel sorts by a counter its devices share, then the time, then the id, with no ties, so devices with the same ops order it alike. Past the counter's cap, each device's own arrival order shows instead, and that exception is itself a law. | [`msg_cmp`], [`time_is_display`], [`order_total`], [`Pos.cmp_eq_iff`], [`Pos.cmp_lt_trans`], [`send_after`], [`arrival_order`], [`receipt_once`], [`order_local`], [`display_agrees`], [`readable_held`], [`readable_complete`] |
 | | | **Codes, pictures and discovery** | |
 | 🟡 | 🥊🥊 | **Simultaneous attempts select one common connection.** The running selector agrees across directions and clocks and is stable when reconsidering the loser. Not yet: native socket-close completion. | [`Winner.choose_comm`], [`Winner.choose_stable`], [`Winner.exactly_one`], [`DiscoveryLaws.kept_pair`], [`DiscoveryLaws.both_choose_same`], [`DiscoveryLaws.single_survivor`], [`DiscoveryLaws.no_flapping`] |
-| ✅ | 🥊🥊 | **Endpoint publications authenticate their owner and bound active hints.** Eight addresses per publication, 24 retained candidates, strict expiry, and a retry delay of at most 60 seconds. Each retained address is selected within a candidate cycle. | [`DiscoveryLaws.publication_auth`], [`DiscoveryLaws.candidate_cap`], [`DiscoveryLaws.retry_eventually_due`], [`DiscoveryLaws.candidate_visited`], [`Hints.bounded_cap`], [`Hints.delay_bounded`], [`Hints.fresh_expires`] |
-| 🟡 | 🥊🥊 | **Eligible discovery data produces a plan through the actual hook, and node events preserve shared storage.** Concrete advancing-entropy store witnesses cover all sources. Not yet: universal discovery-to-connection liveness or native storage refinement. | [`plan_ready`], [`plan_backoff`], [`plan_after_backoff`], [`dial_reads`], [`readOnly`], [`setup_readOnly`], [`step_moves`], [`step_retains`], [`step_settled`] |
+| ✅ | 🥊🥊 | **Endpoint publications authenticate their owner and bound active hints.** Eight addresses per publication, a lifetime of at most a day, 24 retained candidates, strict expiry, and a retry delay of at most 60 seconds. Each retained address is selected within a candidate cycle. | [`DiscoveryLaws.publication_auth`], [`DiscoveryLaws.candidate_cap`], [`DiscoveryLaws.retry_eventually_due`], [`DiscoveryLaws.candidate_visited`], [`Hints.bounded_cap`], [`Hints.delay_bounded`], [`Hints.fresh_expires`] |
+| 🟡 | 🥊🥊 | **Discovery reaches a reachable address.** The dialer's scan step is the cursor's, and a member is visited within |U| + 2 ticks however rows are admitted (U the positions filed meanwhile); while it stays authorized and unconnected, its reachable address is attempted within |L|·(60000/δ + 2) visits δ apart, again and again, each attempt writing a courier of its request there. Node events preserve shared storage. Not yet: the cursor and retry clock carried between ticks are premises (witnessed natively), and the handshake's completion is assumed. | [`Cursor.visits`], [`Cursor.dist_step`], [`page_run`], [`rows_strict`], [`scan_visits`], [`attempts_reach`], [`attempt_within`], [`reaches`], [`member_attempts`], [`attempt_sends`], [`plan_ready`], [`plan_backoff`], [`plan_after_backoff`], [`dial_reads`], [`readOnly`], [`setup_readOnly`], [`step_moves`], [`step_retains`], [`step_settled`] |
+| 🟡 | 🥊🥊 | **Discovery history stays bounded.** Each node keeps the newest of its local scan positions, retry clocks and DNS-SD observations: the family names every older one it reads and never the newest, and the step's purge deletes them. Shared publications are reissued at least 60 s apart, unchanged ones half a day apart. Not yet: a hostile member's shared endpoint ops, like any shared op, are never deleted. | [`stale_sound`], [`stale_complete`], [`stale_gone`], [`stale_reads`], [`flush_notifies`], [`publish_gap`], [`publish_refresh`] |
 | ✅ | 🥊🥊 | **What the encoders write reads back:** QR segments and codewords, invite links and mDNS packets, and QR error correction is sound. The app sends mDNS packets; invite URI encoding is also checked independently. | [`parse_segsBits`], [`parse_dataStream`], [`RS.correct_sound`], [`RS.correct_clean`], [`decodeFormat_correct`], [`decodeVersion_correct`], [`parse_text`], [`parse_uri`], [`Base62.decode_encode`], [`Mdns.decode_encode`], [`decode_valid`], [`decode_roundtrip`] |
 | 🟡 | 🥊 | **Pictures render whole:** scaled and composited pictures are well-formed and opaque, and the tray's layout fits. Not yet: proven of `Pic`, which only qr's Android harness runs; the app draws its own. | [`render_wellFormed`], [`render_opaque`], [`scale_wellFormed`], [`fit_round`], [`Pic.layout_inside`], [`Pic.layout_apart`] |
 

@@ -1,150 +1,145 @@
 # Peer endpoints: implementation and verification
 
-Work is isolated on `peer-endpoints`, merged with `origin/main` 9565d58. This is an
-implementation and component-proof report, not a certificate that all requested
-end-to-end progress obligations are complete. No iroh is used.
+Branch `peer-endpoints`, merged with `origin/main` (op tree). No iroh. This report
+says what is proved, what is assumed, what the real-network tests showed, and
+what is still open. The README's [peer endpoints](../README.md#peer-endpoints-and-discovery)
+section is the short form.
 
-## Policy and prior art
+## What runs
 
-POC-6's small signed address publications fit the existing shared-op engine.
-POC-10 supplies the invite bootstrap-address pattern. POC-7's bootstrap race
-motivates retaining authenticated sessions when new endpoint information arrives.
-Its current iroh transport was not adopted. Keeping the minimum shared connection
-op ID is simpler here than introducing direction ranks or a new handshake field:
-both parties already possess that exact ID after the existing two-message Noise
-exchange. Reversing local arrival order or clock values does not change it.
+- **Invite addresses.** An invite carries up to eight LAN/tailnet IPv4 hints
+  (Docker bridges excluded; a tailnet slot reserved after the first LAN address).
+  A pending join dials one hint per attempt, rotating, under its retry clock.
+- **Endpoint ops.** `addresses` (shared, signed by the member's admitted device,
+  at most eight hints, lifetime at most a day; the newest supersedes, expired or
+  not) and `sighting` (shared, signed: where a member saw another node, with that
+  node's authenticated listening port). A member republishes on change (60 s
+  apart) or at half the lifetime. A sighting is written only for an address the
+  node does not already publish.
+- **Discovery.** LAN DNS-SD (multicast on explicit LAN interfaces), and unicast
+  DNS-SD queries to known tailnet addresses on UDP 5353 with QU answers (RFC 6762
+  §5.5), because Tailscale does not carry multicast. Results become local
+  `discovered` ops for known node keys only.
+- **One dial path.** Invite hints, publications and DNS-SD observations feed one
+  planner: at most 24 candidates, one attempt per visit, a per-node retry clock
+  (local `retry` op) with backoff capped at 60 s that no advertisement can reset.
+  The dialer scans pending joins and members two rows per tick with a cursor in a
+  local `scan` op that also records the node keys it visited.
+- **A winner.** Both ends keep the session with the least connection-op id, which
+  both hold after the two-message handshake: no extra round trip.
+- **Bounded local history.** The engine's node gained one hook, `stale`: local ops
+  newer ones supersede, purged with the shipped couriers (`Node.flush`). A purge
+  deletes no shared op. The family names every scan position but the newest and,
+  for this node and each node the newest scan visited, every retry clock and
+  DNS-SD observation but the newest. Local discovery times come from a clock that
+  never runs below the newest stored (`floor`).
 
-The app bundles up to eight LAN/tailnet IPv4 addresses in invites, excluding
-Docker/bridge interfaces. A tailnet slot is reserved immediately after the
-first LAN address so LAN aliases cannot crowd it out. Shared, signed `addresses` ops bind the publisher to
-its admission's node key and carry up to eight detected plus observed endpoints
-in total. The latest publication supersedes older ones, even after expiry.
-Lifetime is at most five minutes. A peer signs a `sighting` of the authenticated
-remote IP and listening port; the owner republishes it. An accepted socket's
-transient source port is never advertised as its listening port.
+Prior art: POC-6's address ops, POC-10's persisted invite bootstrap, POC-7's
+bootstrap race (an advertisement never replaces an established session).
 
-All three sources use one address planner: invite, shared publication, and local
-DNS-SD observation. It retains at most eight from each source (24 in total),
-tries one address at a time, and persists a per-peer retry clock independent of
-advertisement replacement. Backoff grows to 60 seconds. Each tick visits at most
-two invite rows and two membership rows. The cursor and retry decisions are ops.
-No initial empty publication is written before interface detection completes.
+## What is proved
 
-DNS-SD uses the existing vendored Lean mDNS codec and service code. LAN traffic
-uses explicit LAN multicast interfaces, with a unique key-derived instance name.
-Known tailnet seeds receive QU queries directly at UDP port 5353 and answer by
-unicast, as specified by [RFC 6762 §5.5](https://www.rfc-editor.org/rfc/rfc6762.html#section-5.5).
-This does not require Tailscale to carry multicast, and does not scan the tailnet.
-Seeds come from known invite/endpoint addresses or explicit test arguments.
+All laws are over code the app runs, rest on Lean's standard axioms only, and
+have their premises checked on concrete inputs (`test:endpoints`).
 
-The Android activity holds a Wi-Fi multicast lock while resumed. The Pixel 7
-test uses its own package, `com.holmes.leanquiet.endpoints`, dismisses the test
-phone's keyguard, and keeps the screen awake. It does not clear the normal app.
-The Pixel 10 Pro and the reserved MacBook were not used.
-
-## Proof boundary
-
-`DiscoveryLaws` proves agreement and exactly one selected ID for two distinct
-simultaneous connections, invariance under direction/arrival-clock changes, and
-stability when reconsidering the loser. It also proves publication authorization
-and the address, expiry and retry-policy bounds. Actual socket retirement still
-requires the existing native completion contract.
-
-`DiscoveryProgress` proves that the actual planner returns the selected address
-and retry op when its store reads supply eligible hints, that it refuses a plan
-before the retry deadline, and that the maximum backoff suffices for its next
-selected address. These laws use the existing advancing-entropy Held interpreter.
-Concrete native witnesses check every premise for invite, signed publication and
-DNS-SD observations. They are step results, not a universal liveness theorem.
-
-`DiscoveryStorage` discharges the new hooks' read-only obligations and composes
-Astra's existing `NodeTape.step_goes` theorem. With discovery enabled, every
-actual node input preserves shared ops, and validation settles from a reachable,
-settled store. Entropy may advance. A native witness starts with real signed
-community ops and performs a tick that actually stores discovery actions. After
-merging Astra’s catalog work, the theorem also keeps its catalog and durable
-retry-store adapters enabled in that interpreter.
-SQLite/native refinement and the history-dependent validation budget have the
-same boundaries as the existing storage work.
-
-The axiom audit includes these laws. Mutation controls change the production
-sources, require rejection in the intended law file, and retain failure logs:
-arrival-order arbitration, missing address cap, inclusive expiry, unbounded
-backoff, bypassed retry delay, unsigned publication, suppressed ready plan, and
-a direct store write from a hook. A ninth control runs real TCP with the old
-selected-only route hook; it must fail because the late losing socket remains
-allocated. Native witnesses use evaluated hypotheses;
-the tests do not introduce `sorryAx` or native-decision axioms into the laws.
-
-Still open are universal discovery-to-established-session progress under
-fair-loss transport, fair cursor service under continuously adversarial admission
-history, and a bound on accumulated immutable endpoint-op history. The active
-address and per-tick caps do not prove a whole-app CPU or storage bound. These
-are substantive remaining obligations. Progress also needs authorized peers,
-correct crypto/storage, continued execution, available transport capacity,
-completion or cancellation of native operations, and repeatedly usable addresses.
-Shared expiry requires sufficiently compatible clocks.
-
-## Reproduction and observed results
-
-All endpoint tasks include their builds under a 48 GiB systemd user scope with
-swap disabled and `TMPDIR=/mnt/storage/holmes-tmp`. Their scripts retain logs and
-SQLite databases under `out/endpoints`. A network failure is a failure, not a
-silently accepted skip.
-
-| Mise task | Observed result |
+| Claim | Laws |
 |---|---|
-| `test:endpoints` | Pass: 34 native checks, explicit theorem applications, axiom audit, eight proof mutations and the native socket-retirement mutation. |
-| `test:endpoints-invite` | Pass: a dead first invite address is skipped; the reachable second address bootstraps membership and encrypted signed-marker exchange. |
-| `test:endpoints-ops` | Pass: two OS processes establish a session from a signed endpoint publication. |
-| `test:endpoints-simultaneous` | Pass: each process independently answers one attempt; both keep the smaller of the two connection IDs, exchange markers, and retain one stable session. |
-| `test:endpoints-late` | Pass: test entropy forces the late reply above the existing winner; both processes retain one actual native socket reservation. Restoring the old route hook is a failing runtime control. |
-| `test:endpoints-lan` | Pass: two OS processes discover each other by LAN mDNS, exchange signed markers and endpoint publications, and report the correct listening ports. |
-| `test:endpoints-phone` | Pass: desktop and Pixel 7 discover over LAN mDNS, exchange signed markers/publications, and report listening ports. Both retain the same session ID and shut down cleanly. |
-| `test:endpoints-tailnet` | Not established: `clean-quiet-test` was offline and SSH preflight failed. No remote process or service was changed. |
+| Both ends select the same single session, whatever the arrival order, direction or clock; reconsidering the loser does not flap it | `Winner.choose_comm`, `Winner.choose_stable`, `Winner.exactly_one`, `kept_pair`, `both_choose_same`, `single_survivor`, `no_flapping` |
+| Publications are the owner's, at most eight hints, expiring within a day; at most 24 candidates; backoff at most 60 s; every candidate tried within a cycle | `publication_auth`, `candidate_cap`, `candidate_visited`, `retry_eventually_due`, `Hints.bounded_cap`, `Hints.delay_bounded`, `Hints.fresh_expires` |
+| The dialer's scan step is the cursor's | `page_run` (bridge: `Cursor.page`, `Cursor.next`) |
+| A row filed throughout a window is visited within \|U\| + 2 steps, U every position filed meanwhile, wherever rows are inserted | `Cursor.visits`, `Cursor.dist_step`, `rows_strict`, `scan_visits` |
+| `stale` never names the newest of a list, names every older one it reads, and the step's purge deletes them | `stale_sound`, `stale_complete`, `stale_gone`, `flush_notifies`, `stale_reads` |
+| Reissue at least 60 s apart; unchanged hints at least half a day apart | `publish_gap`, `publish_refresh` |
+| The planner's steps: a due clock plans an attempt and a retry op; an early one plans nothing | `plan_ready`, `plan_backoff`, `plan_after_backoff` |
+| A reachable address in the candidates is attempted within \|L\|·(60000/δ + 2) visits δ apart, and again after any visit | `attempts_reach`, `attempt_within`, `reaches` |
+| A visit whose plan is ready writes the retry clock and a courier of this node's request to the planned address | `member_attempts`, `attempt_sends` |
+| Every node event with discovery enabled preserves shared ops and settles validation | `dial_reads`, `readOnly`, `setup_readOnly`, `step_moves`, `step_retains`, `step_settled` |
 
-After merging b44a7af, the simultaneous run is retained in
-`out/endpoints/simultaneous-1793503428049548379`: the two response IDs begin
-`acd01d7e` and `614f3ff1`, and both peers keep `614f3ff1` with one native socket.
-The deterministic late-loser run is
-`out/endpoints/simultaneous-1793503437930410076` (both keep `13e036cb`).
-The LAN run is `out/endpoints/lan-1793503938510880860` (both keep `72183e86`),
-and Pixel 7 is `out/endpoints/phone-1793503948` (both keep `60e49c82`).
+Together: a member admitted before a window of |U| + 2 dial ticks is visited in
+it, and while it stays authorized and unconnected, a reachable address among its
+candidates receives a request at least once every |L|·(60000/δ + 2) visits. Only
+admins admit, so a hostile non-admin member cannot slow anyone's scan; its own
+publications can name at most eight addresses for itself, and its sightings are
+republished only by their target, under the same cap.
 
-Failure artifacts are retained too. A delayed higher-ID attempt exposed an
-unselected-route retirement bug. The hook now gives the node every authenticated
-route before its common finish path retires losers. Restoring the old hook
-still fails with two native sockets in
-`out/endpoints/mutations/unrouted_loser-es4r7vqm`.
-The merged database schema also exposed an observer race in
-`out/endpoints/simultaneous-1793503285125150084`: observers were rerunning
-schema/catalog migrations while the writer retired a session. Discovery and
-test observers now use query-only connections to the initialized database.
-Initial phone failures showed the locked activity releasing its multicast
-lock; the test wakes the phone and dismisses its keyguard. An initial desktop
-shutdown failure exposed UDP receive cancellation; the worker now polls and
-cancels its native receive promise.
+### Mutation controls
 
-The complete axiom/build gate and native retirement control are in
-`out/endpoints/final-proof-native-control.log`. The complete vacuity gate and
-proof-link negative controls pass in `out/endpoints/merged-audits2.log`:
-618 evidence entries cover all 618 linked declarations, including explicit
-applications of all 23 endpoint laws. A metadata entry alone does not count:
-the audit checks each witness's dependency on its named theorem, its axioms,
-and that its native executable actually calls it.
-The final UI-only merge from main (9565d58) leaves endpoint/transport code
-unchanged. The full build, all 1,236 axiom checks, all 618 vacuity evidence
-checks and proof-link controls pass again in `out/endpoints/final-main-audits.log`.
+`tests/endpoints/mutations.py` changes the production source in its own copy of
+the tree and requires the build to fail inside the intended law (an error within
+that declaration's lines), four copies at a time. Fifteen controls:
 
-Existing `test:join-fair` passes its 37 baseline and 24 ordered-hint checks;
-its intentionally broken schedulers/hint handling fail their required progress
-assertions. The fairness certificates also pass (including 26 storage checks).
-The catalog retry test passes 14 checks, rejects a compiled disabled-retry
-mutation, and passes again after restoration (`out/endpoints/final-catalog.log`).
-The last address-selection build, 34 native checks, LAN/Pixel 7 reruns and
-proof-link inventory checks are in `out/endpoints/final-address-mix.log`.
+| Mutant | Law it must break |
+|---|---|
+| arrival order picks the winner | `Winner.choose_comm` |
+| no address cap | `Hints.bounded_cap` |
+| inclusive expiry | `Hints.fresh_expires` |
+| unbounded backoff | `Hints.delay_bounded` |
+| retry every tick | the backoff example beside `retry_eventually_due` |
+| unsigned publication | `publication_auth` |
+| ready plan dropped | `plan_ready` |
+| a direct store write from the planner | `plan_reads` (storage) |
+| scan never wraps | `Cursor.dist_step` |
+| `stale` names the newest | `olderOf_eval` (under `stale_sound`) |
+| publication without the gap | `publish_gap` |
+| attempt number repeats | `nextAttempt_eq` (under `reaches`) |
+| an attempt without its courier | `attempt_sends` |
+| `flush` keeps superseded ops | `flush_notifies` |
+| the old route hook (real TCP) | the late-loser test's native socket count |
 
-The final remote preflight is retained in `out/endpoints/tailnet-1793503639`;
-`clean-quiet-test` remained offline. No remote test process started. Main is not
-promoted while that real-network test and the remaining universal progress and
-resource-bound obligations are open.
+## What is assumed
+
+- The store carries the dialer's state between ticks: each tick reads back the
+  cursor and retry clock the previous one wrote (its local ops commit; the newest
+  is the last written, which `floor` keeps true across restarts).
+- The dial ticks, and a member's visits are at least δ > 0 apart in time.
+- The member's row stays filed; its candidates and authorization are stable
+  during the window.
+- A request that reaches a reachable address under fair loss is eventually
+  answered, and the answer delivered (the handshake's own progress); a request
+  op can be built (the suite's Diffie-Hellman succeeds).
+- Correct crypto and storage, available socket quotas, completing or cancellable
+  native operations; clocks close enough that a live publication is not treated
+  as future or expired.
+
+## What is not yet proved
+
+- The store carry above, through the full node step and the native runner
+  (witnessed natively, not proved).
+- The handshake's completion once a request is delivered (main's open bootstrap
+  convergence item).
+- A bound on a hostile member's shared endpoint ops. Like any shared op, the
+  engine never deletes them (`purge_shared`); every discovery read stays capped
+  whatever the history. An honest member's shared history grows by its address
+  changes and two publications a day.
+- Whole-app CPU and storage bounds; socket closure's native completion boundary.
+
+## Real-network tests
+
+Each named task builds what it runs in a 48 GiB systemd scope with swap off and
+keeps its logs and databases under `out/endpoints`.
+
+| Task | Result on this branch |
+|---|---|
+| `test:endpoints` | see the final run below |
+| `test:endpoints-simultaneous` | pass: both processes answer one attempt each and keep the smaller id |
+| `test:endpoints-late` | pass: a late, never-selected loser's socket is released; the old route hook fails |
+| `test:endpoints-ops` | pass: a session from a signed endpoint publication |
+| `test:endpoints-invite` | pass: a dead first invite address is skipped |
+| `test:endpoints-lan` | pass: LAN DNS-SD, signed markers and publications both ways, each end's own publication lists its listening port |
+| `test:endpoints-phone` | see the final run below |
+| `test:endpoints-tailnet` | not run: see below |
+
+### Why the Tailscale test cannot run on the desktop alone
+
+On one machine, packets to the machine's own tailnet address never enter
+Tailscale: `ip route get 100.67.2.56` on `desktop` gives `local 100.67.2.56 dev lo
+table local`, while another node, `ip route get 100.110.168.19`, goes via
+`dev tailscale0 table 52`. A same-host run would test loopback. The test needs a
+second tailnet node. `clean-quiet-test` is that node: a separate Linux machine
+behind the same eero Wi-Fi as the user's phone (they share the eero's NAT address
+10.0.0.89). On 2026-11-01 it answered `tailscale ping` (7 ms, direct) but refused
+SSH on port 22, including `tailscale ssh`, so the test could not start its
+remote process. Either enable sshd there, or run a second, ephemeral tailscaled
+on the desktop in its own network namespace (traffic then crosses both WireGuard
+data planes); the latter adds a device to the tailnet and needs the owner's
+login approval.

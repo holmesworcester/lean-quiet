@@ -1,4 +1,5 @@
 import engine.core.Project
+import engine.core.Cursor
 import engine.wire.NodeLaws
 import app.Commands
 import app.community.member.invite.request.Commands
@@ -4125,11 +4126,23 @@ private theorem observe_reads (c pk peer : B) (now : Nat) :
   unfold Discovery.observe
   readsHeld [Execution.view_reads, signer_reads, Execution.list_reads, Execution.sessionOf_reads, port_reads]
 
+private theorem sentRequest_reads (K : Keys) (sk pk c peer : B) :
+    ∀ l, ReadsHeld (Discovery.sentRequest K sk pk c peer l : M _)
+  | [] => ReadsHeld.pure' _
+  | ((_, _), f) :: rest => by
+    cases f <;> simp only [Discovery.sentRequest] <;>
+      readsHeld [Execution.helloOf_reads, sentRequest_reads K sk pk c peer rest]
+
+private theorem attempt_reads (K : Keys) (listen pk sk c peer addr : B) (retry : Op) :
+    ReadsHeld (Discovery.attempt K listen pk sk c peer addr retry : M _) := by
+  unfold Discovery.attempt
+  readsHeld [Execution.list_reads, sentRequest_reads, ReadsHeld.fresh]
+
 private theorem member_reads (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (f : Community.Fact) :
     ReadsHeld (Discovery.memberOne K listen pk sk now adm f : M _) := by
   cases f <;> simp only [Discovery.memberOne] <;>
     readsHeld [publish_reads, Execution.view_reads, Execution.connectedTo_reads, observe_reads, plan_reads,
-      Execution.list_reads, Execution.helloOf_reads, ReadsHeld.fresh]
+      attempt_reads]
 
 private theorem page_reads (r : Rel Community.Fact) (cursor : Option Pos) :
     ReadsHeld (Discovery.page r cursor : M _) := by
@@ -4188,5 +4201,466 @@ theorem step_settled (listen : B) (wall mono : Nat) (cfg : Config)
   (step_moves listen wall mono cfg n input now s).store_settled hr hq
 
 end Connection.DiscoveryStorage
+
+end
+
+/-! ## Discovery bounds: scan fairness, superseded ops, publication rate, reach -/
+
+section
+namespace Connection.DiscoveryBounds
+open Engine Engine.Sync Codec Execution
+
+/-- Positions' strict order, as the scan tests it. -/
+def ltPos (a b : Pos) : Bool := a.cmp b == .lt
+
+theorem ltPos_strict : Cursor.Strict ltPos where
+  irrefl a := by simp [ltPos, (Pos.cmp_eq_iff a a).2 rfl]
+  trans h1 h2 := by
+    simp only [ltPos, beq_iff_eq] at *
+    exact Pos.cmp_lt_trans h1 h2
+  total a b hne := by
+    simp only [ltPos, beq_iff_eq]
+    cases e : a.cmp b
+    · exact Or.inl rfl
+    · exact absurd ((Pos.cmp_eq_iff a b).1 e) hne
+    · right; rw [Pos.cmp_swap, e]; rfl
+
+/-- The rows of list r, ascending: what a scan step reads a window of. -/
+def rowsOf (db : DB F) (r : Rel Community.Fact) : List (Pos × F) := matching db (r.query [])
+
+/-- These rows' community rows (`Answer.lefts`). -/
+def leftsOf (rows : List (Pos × F)) : List (Pos × Community.Fact) := (⟨rows, 0, 0⟩ : Answer F).lefts
+
+theorem lefts_eq (a : Answer F) : a.lefts = leftsOf a.rows := rfl
+
+theorem pure_run {α : Type} (a : α) (s : Memory) : (pure a : M α) s = (a, s) := rfl
+
+theorem list_run (q : ListQ) (s : Memory) : (Lists.list q : M (Answer F)) s = (eval s.held.db q, s) := rfl
+
+theorem inside_after (r : Rel Community.Fact) (c : Option Pos) (p : Pos) :
+    (r.query [] (some Discovery.pageSize) false c (cap := Discovery.pageSize)).inside p =
+      Cursor.after ltPos c p := by
+  cases c with
+  | none => rfl
+  | some a =>
+    simp only [ListQ.inside, Rel.query, Cursor.after, ltPos, Bool.and_true]
+    rw [Pos.cmp_swap a p]
+    generalize a.cmp p = o
+    cases o <;> rfl
+
+theorem window_rows (db : DB F) (r : Rel Community.Fact) (c : Option Pos) :
+    (eval db (r.query [] (some Discovery.pageSize) false c (cap := Discovery.pageSize))).rows =
+      (Cursor.past ltPos (·.1) c (rowsOf db r)).take Discovery.pageSize := by
+  simp only [eval, ListQ.cut, Rel.query, Cursor.past, rowsOf, if_false, Bool.false_eq_true]
+  congr 1
+  apply List.filter_congr
+  intro x _
+  exact inside_after r c x.1
+
+/-- **The dialer's scan step is the cursor's** (`Cursor.page`,
+`Cursor.next`) over the list's rows, and reads only. -/
+theorem page_run (r : Rel Community.Fact) (c : Option Pos) (s : Memory) :
+    (Discovery.page r c : M _) s =
+      ((leftsOf (Cursor.page ltPos (·.1) (rowsOf s.held.db r) Discovery.pageSize c),
+        Cursor.next ltPos (·.1) (rowsOf s.held.db r) Discovery.pageSize c), s) := by
+  have hpast : ((Cursor.past ltPos (·.1) c (rowsOf s.held.db r)).take Discovery.pageSize).isEmpty =
+      (Cursor.past ltPos (·.1) c (rowsOf s.held.db r)).isEmpty := by
+    cases h : Cursor.past ltPos (·.1) c (rowsOf s.held.db r) with
+    | nil => rfl
+    | cons x t => simp [Discovery.pageSize]
+  have hnone : (Cursor.past ltPos (·.1) none (rowsOf s.held.db r)) = rowsOf s.held.db r := by
+    simp [Cursor.past, Cursor.after]
+  unfold Discovery.page
+  simp only [ProgressTape.run_bind]
+  generalize hq : (Lists.list (r.query [] (some Discovery.pageSize) false c (cap := Discovery.pageSize)) :
+    M (Answer F)) s = P
+  rw [list_run] at hq
+  subst hq
+  dsimp only
+  split
+  · rename_i hw
+    rw [window_rows, hpast] at hw
+    rw [ProgressTape.run_bind, list_run]
+    simp only [pure_run, window_rows, hnone, Cursor.next, Cursor.page, hw, ite_true]
+    refine Prod.ext (Prod.ext ?_ ?_) rfl
+    · dsimp only; rw [lefts_eq, window_rows, hnone]
+    dsimp only
+    cases (List.take Discovery.pageSize (rowsOf s.held.db r)).getLast? <;> rfl
+  · rename_i hw
+    rw [window_rows, hpast] at hw
+    simp only [Bool.not_eq_true] at hw
+    rw [ProgressTape.run_bind]
+    simp only [pure_run, Cursor.next, Cursor.page, hw, Bool.false_eq_true, ite_false]
+    refine Prod.ext (Prod.ext ?_ ?_) rfl
+    · dsimp only; rw [lefts_eq, window_rows]
+    · dsimp only
+      rw [window_rows]
+      cases (List.take Discovery.pageSize (Cursor.past ltPos (·.1) c (rowsOf s.held.db r))).getLast? <;> rfl
+
+end Connection.DiscoveryBounds
+
+namespace Connection.DiscoveryBounds
+open Engine Engine.Sync Codec Execution
+
+private theorem bytesLawful : LawfulBEq ByteArray where
+  rfl := by intro a; change (a.data == a.data) = true; simp
+  eq_of_beq := by intro a b h; change (a.data == b.data) = true at h; exact ByteArray.ext (by simpa using h)
+attribute [local instance] bytesLawful
+
+theorem rows_strict {fam : Family F} {db : DB F} (h : Inv fam db) (r : Rel Community.Fact) :
+    Cursor.Sorted ltPos (·.1) (rowsOf db r) := by
+  have hs : Engine.Sorted (matching db (r.query [])) := by unfold matching; exact sortPos_sorted _
+  have hn := matching_nodup h (r.query [])
+  rw [List.nodup_iff_pairwise_ne, List.pairwise_map] at hn
+  have both := List.Pairwise.and hs hn
+  unfold Cursor.Sorted rowsOf
+  refine both.imp fun ⟨h1, h2⟩ => ?_
+  simp only [ltPos, beq_iff_eq]
+  exact strict_of h1 fun e => h2 (congrArg Prod.snd e)
+
+theorem mem_leftsOf {rows : List (Pos × F)} {p : Pos} {f : Community.Fact}
+    (h : (p, (.inl f : F)) ∈ rows) : (p, f) ∈ leftsOf rows :=
+  List.mem_filterMap.2 ⟨_, h, rfl⟩
+
+/-- **The dialer visits every member within |U| + 2 scan steps**, whatever
+is admitted meanwhile, and wherever: U holds every position filed in the
+list during the window (so |U| is the members at the start plus those
+admitted during it; only admins admit). Premises: the list's rows ascend
+(`rows_strict`, from the store invariant), they are community rows, and
+each step's cursor is the one the step before wrote (its scan op is the
+newest). -/
+theorem scan_visits (r : Rel Community.Fact) (s : Nat → Memory) (c : Nat → Option Pos) (U : List Pos)
+    (hR : ∀ k, k ≤ U.length + 1 → Cursor.Sorted ltPos (·.1) (rowsOf (s k).held.db r))
+    (hl : ∀ k, k ≤ U.length + 1 → ∀ x ∈ rowsOf (s k).held.db r, x.2.isLeft = true)
+    (hU : ∀ k, k ≤ U.length + 1 → ∀ x ∈ rowsOf (s k).held.db r, x.1 ∈ U)
+    (hc : ∀ k, c (k + 1) = ((Discovery.page r (c k) : M _) (s k)).1.2)
+    {p : Pos} (ht : ∀ k, k ≤ U.length + 1 → p ∈ (rowsOf (s k).held.db r).map (·.1)) :
+    ∃ k, k ≤ U.length + 1 ∧ p ∈ (((Discovery.page r (c k) : M _) (s k)).1.1).map (·.1) := by
+  have hc' : ∀ k, c (k + 1) = Cursor.next ltPos (·.1) (rowsOf (s k).held.db r) Discovery.pageSize (c k) := by
+    intro k; rw [hc k, page_run]
+  obtain ⟨k, hk, x, hx, hxp⟩ := Cursor.visits ltPos_strict Discovery.pageSize (by decide) U
+    (fun k => rowsOf (s k).held.db r) c hR hU hc'
+    (fun k hk => by obtain ⟨x, hx, e⟩ := List.mem_map.1 (ht k hk); exact ⟨x, hx, e⟩)
+  refine ⟨k, hk, ?_⟩
+  rw [page_run]
+  obtain ⟨q, g⟩ := x
+  have hin : (q, g) ∈ rowsOf (s k).held.db r := by
+    unfold Cursor.page at hx
+    split at hx
+    · exact List.mem_of_mem_take hx
+    · exact (List.mem_filter.1 (List.mem_of_mem_take hx)).1
+  cases g with
+  | inl f => exact List.mem_map.2 ⟨(q, f), mem_leftsOf hx, hxp⟩
+  | inr _ => have := hl k hk _ hin; simp at this
+
+/-! ## What `stale` names -/
+
+/-- The rows of list (r, args) after its newest, as `stale` reads them. -/
+def older (r : Rel Community.Fact) (args : List B) (k : Nat) (db : DB F) : List Id :=
+  (((Discovery.readCommunity r args k).eval db).drop 1).map (·.1.2)
+
+/-- The node keys the newest scan op names. -/
+def visitedIn (db : DB F) : List B :=
+  Discovery.visitedOf ((Discovery.readCommunity Community.scan.all [] 4).eval db)
+
+theorem olderOf_eval (p : B) (db : DB F) :
+    (Discovery.olderOf p).eval db =
+      older Community.retry.byPeer [p] Discovery.staleCap db ++
+        older Community.discovered.byPeer [p] Discovery.staleCap db := by
+  simp only [Discovery.olderOf, older, View.eval_bind, View.eval_pure, List.map_append]
+
+theorem olderAll_eval (db : DB F) : ∀ ps : List B,
+    (Discovery.olderAll ps).eval db = ps.flatMap fun p => (Discovery.olderOf p).eval db
+  | [] => rfl
+  | p :: ps => by
+    simp only [Discovery.olderAll, View.eval_bind, View.eval_pure, List.flatMap_cons, olderAll_eval db ps]
+
+theorem staleV_eval (me : List B) (db : DB F) :
+    (Discovery.staleV me).eval db =
+      older Community.scan.all [] 4 db ++
+        ((me ++ visitedIn db).eraseDups.flatMap fun p =>
+          older Community.retry.byPeer [p] Discovery.staleCap db ++
+            older Community.discovered.byPeer [p] Discovery.staleCap db) := by
+  simp only [Discovery.staleV, View.eval_bind, View.eval_pure, olderAll_eval, olderOf_eval, older, visitedIn]
+
+/-- **`stale` never names the newest of a list**: each id it names is a
+row after the first of the scan positions, or of a node's retry clocks or
+observations, newest first. So the purge keeps every newest. -/
+theorem stale_sound (me : List B) (db : DB F) {x : Id} (hx : x ∈ (Discovery.staleV me).eval db) :
+    x ∈ older Community.scan.all [] 4 db ∨ ∃ p,
+      x ∈ older Community.retry.byPeer [p] Discovery.staleCap db ∨
+      x ∈ older Community.discovered.byPeer [p] Discovery.staleCap db := by
+  rw [staleV_eval, List.mem_append, List.mem_flatMap] at hx
+  rcases hx with h | ⟨p, _, h⟩
+  · exact Or.inl h
+  · exact Or.inr ⟨p, List.mem_append.1 h⟩
+
+/-- **`stale` names every older one it reads**: every scan position but
+the newest (of four read), and for this node and each node the newest
+scan visited, every retry clock and observation but the newest (of
+`staleCap` read). -/
+theorem stale_complete (me : List B) (db : DB F) :
+    (∀ x ∈ older Community.scan.all [] 4 db, x ∈ (Discovery.staleV me).eval db) ∧
+    ∀ p ∈ me ++ visitedIn db,
+      (∀ x ∈ older Community.retry.byPeer [p] Discovery.staleCap db, x ∈ (Discovery.staleV me).eval db) ∧
+      (∀ x ∈ older Community.discovered.byPeer [p] Discovery.staleCap db, x ∈ (Discovery.staleV me).eval db) := by
+  rw [staleV_eval]
+  refine ⟨fun x hx => List.mem_append_left _ hx, fun p hp => ⟨fun x hx => ?_, fun x hx => ?_⟩⟩ <;>
+  · apply List.mem_append_right
+    rw [List.mem_flatMap]
+    exact ⟨p, List.mem_eraseDups.2 hp, by simp [hx]⟩
+
+/-- **After the step's purge, every older one read is gone**, unfiled and
+deleted (`purge_named`), given each is a stored local op: the node purges
+what `stale` names with its shipped couriers (`Node.flush`). -/
+theorem stale_gone (fam : Family F) (me : List B) (db : DB F) (ids : List Id)
+    (hsub : ∀ x ∈ (Discovery.staleV me).eval db, x ∈ ids) {x : Id} {o : Op}
+    (hx : x ∈ older Community.scan.all [] 4 db ∨ ∃ p ∈ me ++ visitedIn db,
+      x ∈ older Community.retry.byPeer [p] Discovery.staleCap db ∨
+      x ∈ older Community.discovered.byPeer [p] Discovery.staleCap db)
+    (ho : db.ops x = some o) (hl : fam.room o = none) :
+    (purgeS fam ids db).ops x = none ∧ ∀ k, x ∉ (purgeS fam ids db).idx k := by
+  have hc := stale_complete me db
+  apply purge_named db (hsub x ?_) ho hl
+  rcases hx with h | ⟨p, hp, h | h⟩
+  · exact hc.1 x h
+  · exact (hc.2 p hp).1 x h
+  · exact (hc.2 p hp).2 x h
+
+/-! ## Publication rate -/
+
+/-- **Publications are `gap` apart**: `due` allows none sooner after the
+node's newest. -/
+theorem publish_gap (now : Nat) (ds os : List B) (c p : B) (ds' os' : List B) (issued e : Nat)
+    (h : Discovery.due now ds os (some (.addresses c p ds' os' issued e)) = true) :
+    issued + Discovery.gap ≤ now := by
+  have : Discovery.gap ≤ Discovery.refresh := by decide
+  simp only [Discovery.due, Bool.or_eq_true, Bool.and_eq_true, decide_eq_true_eq] at h
+  omega
+
+/-- **Unchanged hints are reissued only at half their life**: honest
+history grows by address changes and two a day. -/
+theorem publish_refresh (now : Nat) (ds os : List B) (c p : B) (issued e : Nat)
+    (h : Discovery.due now ds os (some (.addresses c p ds os issued e)) = true) :
+    issued + Discovery.refresh ≤ now := by
+  simp only [Discovery.due, bne_self_eq_false, Bool.or_self, Bool.and_false, Bool.false_or,
+    decide_eq_true_eq] at h
+  exact h
+
+end Connection.DiscoveryBounds
+
+namespace Connection.DiscoveryBounds
+open Engine Engine.Sync Codec Execution
+
+/-! ## Discovery reaches a reachable address -/
+
+/-- What a visit does to a node's retry clock (`plan`): an attempt, if
+the clock allows (`plan_ready`), or nothing (`plan_backoff`). -/
+def visitStep (t : Nat) (st : Option (Nat × Nat)) : Option (Nat × Nat) :=
+  if Discovery.canTry t st then some (t, Discovery.nextAttempt st) else st
+
+/-- The attempt number the next attempt takes. -/
+def nextNo : Option (Nat × Nat) → Nat
+  | none => 0
+  | some (_, a) => a + 1
+
+theorem nextAttempt_eq (st : Option (Nat × Nat)) (h : nextNo st < 2^63) :
+    Discovery.nextAttempt st = nextNo st := by
+  cases st with
+  | none => rfl
+  | some p => obtain ⟨t, a⟩ := p; simp only [Discovery.nextAttempt, nextNo] at h ⊢; exact Nat.mod_eq_of_lt h
+
+/-- **Within |L| attempts, every retained address is tried**: attempt
+numbers rise by one, and `Hints.pick` takes them modulo |L|. -/
+theorem attempts_reach (L : List B) {j : Nat} (hj : j < (L.take Hints.dialCap).length) (a0 : Nat) :
+    ∃ n, n < (L.take Hints.dialCap).length ∧
+      Hints.pick L (a0 + n) = (L.take Hints.dialCap)[j]? := by
+  let m := (L.take Hints.dialCap).length
+  have hm : 0 < m := by omega
+  let r := a0 % m
+  refine ⟨(j + (m - r)) % m, Nat.mod_lt _ hm, ?_⟩
+  have hr : r < m := Nat.mod_lt _ hm
+  have key : (a0 + (j + (m - r)) % m) % m = j := by
+    rw [Nat.add_mod_mod]
+    have hd := Nat.div_add_mod a0 m
+    have h1 : a0 + (j + (m - r)) = (j + m) + m * (a0 / m) := by simp only [r] at hr ⊢; omega
+    rw [h1, Nat.add_mul_mod_self_left, Nat.add_mod_right, Nat.mod_eq_of_lt hj]
+  simp only [Hints.pick]
+  rw [key]
+
+/-- Retry clocks are in the past. -/
+def Past (τ : Nat → Nat) (st : Nat → Option (Nat × Nat)) (i : Nat) : Prop :=
+  ∀ t a, st i = some (t, a) → t ≤ τ i
+
+theorem past_step (τ : Nat → Nat) (st : Nat → Option (Nat × Nat)) (i : Nat)
+    (hstep : st (i + 1) = visitStep (τ i) (st i)) (hτ : τ i ≤ τ (i + 1)) (hp : Past τ st i) :
+    Past τ st (i + 1) := by
+  intro t a h
+  rw [hstep] at h
+  unfold visitStep at h
+  split at h
+  · cases h; exact hτ
+  · exact Nat.le_trans (hp t a h) hτ
+
+/-- **An attempt comes within 60000/δ + 1 visits**, the clock unchanged
+till then: visits are at least δ apart, and backoff is at most 60 s
+(`retry_eventually_due`). -/
+theorem attempt_within (τ : Nat → Nat) (st : Nat → Option (Nat × Nat)) (δ : Nat) (hδ : 0 < δ)
+    (hstep : ∀ i, st (i + 1) = visitStep (τ i) (st i)) (hτ : ∀ i, τ i + δ ≤ τ (i + 1))
+    (i : Nat) (hp : Past τ st i) :
+    ∃ k, k ≤ 60000 / δ + 1 ∧ st (i + k) = st i ∧ Discovery.canTry (τ (i + k)) (st (i + k)) = true := by
+  -- first: until an attempt, the clock stays and time moves on
+  have stay : ∀ k, (∀ k', k' < k → Discovery.canTry (τ (i + k')) (st (i + k')) = false) →
+      st (i + k) = st i ∧ τ i + k * δ ≤ τ (i + k) := by
+    intro k
+    induction k with
+    | zero => intro _; simp
+    | succ k ih =>
+      intro hno
+      obtain ⟨h1, h2⟩ := ih (fun k' hk' => hno k' (by omega))
+      have hk := hno k (by omega)
+      refine ⟨?_, ?_⟩
+      · rw [show i + (k + 1) = (i + k) + 1 by omega, hstep, visitStep, hk]; simpa using h1
+      · have := hτ (i + k)
+        rw [show i + (k + 1) = (i + k) + 1 by omega]
+        rw [Nat.succ_mul]; omega
+  -- by the 60000/δ + 1-th visit, 60 s have passed
+  have hlong : 60000 ≤ (60000 / δ + 1) * δ := by
+    have := Nat.lt_div_mul_add (a := 60000) hδ
+    rw [Nat.succ_mul]; omega
+  have first : ∀ k, (∃ k₀, k₀ ≤ k ∧ Discovery.canTry (τ (i + k₀)) (st (i + k₀)) = true ∧
+        ∀ k₁, k₁ < k₀ → Discovery.canTry (τ (i + k₁)) (st (i + k₁)) = false) ∨
+      (∀ k₁, k₁ ≤ k → Discovery.canTry (τ (i + k₁)) (st (i + k₁)) = false) := by
+    intro k
+    induction k with
+    | zero =>
+      cases e : Discovery.canTry (τ (i + 0)) (st (i + 0))
+      · right; intro k₁ hk₁; have : k₁ = 0 := by omega
+        subst this; exact e
+      · left; exact ⟨0, Nat.le_refl _, e, fun k₁ h => absurd h (Nat.not_lt_zero _)⟩
+    | succ k ih =>
+      rcases ih with ⟨k₀, hk₀, hc, hb⟩ | hnone
+      · left; exact ⟨k₀, by omega, hc, hb⟩
+      · cases e : Discovery.canTry (τ (i + (k + 1))) (st (i + (k + 1)))
+        · right; intro k₁ hk₁
+          rcases Nat.lt_or_eq_of_le hk₁ with h | h
+          · exact hnone k₁ (by omega)
+          · subst h; exact e
+        · left; exact ⟨k + 1, Nat.le_refl _, e, fun k₁ h => hnone k₁ (by omega)⟩
+  rcases first (60000 / δ + 1) with ⟨k₀, hk₀, hc, hb⟩ | hnone
+  · exact ⟨k₀, hk₀, (stay k₀ hb).1, hc⟩
+  · exfalso
+    have ⟨h1, h2⟩ := stay (60000 / δ + 1) (fun k' hk' => hnone k' (by omega))
+    have hlast := hnone (60000 / δ + 1) (Nat.le_refl _)
+    have hdue : Discovery.canTry (τ (i + (60000 / δ + 1))) (st (i + (60000 / δ + 1))) = true := by
+      cases hs : st i with
+      | none => rw [h1, hs]; rfl
+      | some p =>
+        obtain ⟨t, a⟩ := p
+        rw [h1, hs]
+        apply DiscoveryLaws.retry_eventually_due
+        have := hp t a hs
+        omega
+    rw [hdue] at hlast; cases hlast
+
+/-- **Discovery reaches a reachable address.** Visits of a node's row
+(`scan_visits` gives one every |U| + 2 steps) at least δ apart, each
+running `plan`'s step on its retry clock (`visitStep`: `plan_ready`,
+`plan_backoff`, the clock read back as written); its candidates L hold
+address a at index j. Then within |L|·(60000/δ + 2) visits, one attempts
+a: its clock allows (`canTry`) and `plan` picks a. Applied from any
+visit, a is attempted again within the same bound, so an address that
+is reachable under fair loss receives requests infinitely often. -/
+theorem reaches (L : List B) {j : Nat} (hj : j < (L.take Hints.dialCap).length)
+    (τ : Nat → Nat) (st : Nat → Option (Nat × Nat)) (δ : Nat) (hδ : 0 < δ)
+    (hstep : ∀ i, st (i + 1) = visitStep (τ i) (st i)) (hτ : ∀ i, τ i + δ ≤ τ (i + 1))
+    (hp : Past τ st 0) (hw : nextNo (st 0) + (L.take Hints.dialCap).length < 2^63) :
+    ∃ i, i ≤ (L.take Hints.dialCap).length * (60000 / δ + 2) ∧
+      Discovery.canTry (τ i) (st i) = true ∧
+      Hints.pick L (Discovery.nextAttempt (st i)) = (L.take Hints.dialCap)[j]? := by
+  let m := (L.take Hints.dialCap).length
+  let K := 60000 / δ + 2
+  have hK : K = 60000 / δ + 2 := rfl
+  have past : ∀ i, Past τ st i := by
+    intro i
+    induction i with
+    | zero => exact hp
+    | succ i ih => exact past_step τ st i (hstep i) (by have := hτ i; omega) ih
+  -- after n attempts the next number is nextNo (st 0) + n, within n·K visits
+  have chain : ∀ n, n ≤ m → ∃ i, i ≤ n * K ∧ nextNo (st i) = nextNo (st 0) + n := by
+    intro n
+    induction n with
+    | zero => intro _; exact ⟨0, by simp, rfl⟩
+    | succ n ih =>
+      intro hn
+      obtain ⟨i, hi, hno⟩ := ih (by omega)
+      obtain ⟨k, hk, hsame, hc⟩ := attempt_within τ st δ hδ hstep hτ i (past i)
+      refine ⟨i + k + 1, ?_, ?_⟩
+      · rw [Nat.succ_mul]; omega
+      · rw [hstep, visitStep, hc, if_pos rfl]
+        show Discovery.nextAttempt (st (i + k)) + 1 = nextNo (st 0) + (n + 1)
+        rw [nextAttempt_eq _ (by rw [hsame, hno]; omega), hsame, hno]
+        omega
+  obtain ⟨n, hn, hpick⟩ := attempts_reach L hj (nextNo (st 0))
+  obtain ⟨i, hi, hno⟩ := chain n (by omega)
+  obtain ⟨k, hk, hsame, hc⟩ := attempt_within τ st δ hδ hstep hτ i (past i)
+  have h1 : (n + 1) * K ≤ m * K := Nat.mul_le_mul_right K (by omega)
+  have h2 : (n + 1) * K = n * K + K := Nat.succ_mul n K
+  refine ⟨i + k, ?_, hc, ?_⟩
+  · show i + k ≤ m * K
+    omega
+  · rw [nextAttempt_eq _ (by rw [hsame, hno]; omega), hsame, hno]
+    exact hpick
+
+end Connection.DiscoveryBounds
+
+end
+
+section
+namespace Connection.DiscoveryBounds
+open Engine Engine.Sync Codec Execution
+
+/-- **A planned attempt sends**: its ops hold the retry clock and a courier
+of this node's request to the planned address (the stored request, or a new
+one, when one can be built). -/
+theorem attempt_sends (K : Keys) (listen pk sk c peer addr : B) (retry : Op) (s : Memory)
+    (hreq : ∀ e, (Request.op K sk peer e (hello c listen [])).isSome) :
+    retry ∈ ((Discovery.attempt K listen pk sk c peer addr retry : M _) s).1 ∧
+      ∃ ro, Send.op addr ro ∈ ((Discovery.attempt K listen pk sk c peer addr retry : M _) s).1 := by
+  unfold Discovery.attempt
+  simp only [ProgressTape.run_bind, list_run]
+  generalize (Discovery.sentRequest K sk pk c peer _ : M _) s = r
+  obtain ⟨res, s'⟩ := r
+  cases res with
+  | some ro => exact ⟨by simp [pure_run], ro, by simp [pure_run]⟩
+  | none =>
+    simp only [ProgressTape.run_bind]
+    generalize (Fresh.fresh : M ByteArray) s' = fe
+    obtain ⟨e, s''⟩ := fe
+    obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hreq e)
+    simp only [hro, pure_run]
+    exact ⟨by simp, ro, by simp⟩
+
+theorem connectedTo_run (peer : B) (s : Memory) :
+    (connectedTo peer : M Bool) s = (((connectedTo peer : M Bool) s).1, s) := rfl
+
+/-- **A member visit whose plan is ready runs the attempt**: an authorized,
+unconnected member other than this node, its plan ready (`plan_ready`). -/
+theorem member_attempts (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (c u d peer : B)
+    (s : Memory) (addr : B) (retry : Op)
+    (hne : (peer == pk) = false)
+    (hok : ((Community.allowPeer c peer).liftL : View F Bool).eval s.held.db = true)
+    (hmine : ((Community.allowPeer c pk).liftL : View F Bool).eval s.held.db = true)
+    (hconn : ((connectedTo peer : M Bool) s).1 = false)
+    (hplan : (Discovery.plan c peer [] now : M _) s = (some (addr, retry), s)) :
+    (Discovery.memberOne K listen pk sk now adm (.admission c u d peer) : M _) s =
+      (Discovery.attempt K listen pk sk c peer addr retry : M _) s := by
+  simp only [Discovery.memberOne, hne, Bool.false_eq_true, ite_false, ProgressTape.run_bind,
+    ProgressTape.run_view, hok, hmine, Bool.not_true, Bool.or_self]
+  rw [connectedTo_run, hconn]
+  simp only [Bool.false_eq_true, ite_false, ProgressTape.run_bind]
+  rw [hplan]
+
+end Connection.DiscoveryBounds
 
 end
