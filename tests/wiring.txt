@@ -252,6 +252,21 @@ spec Merkle.climbInputs What a Merkle climb hashes, for the no-collision hypothe
 spec Merkle.slices A file's chunks, as the tree cuts it.
 spec Engine.Sync.Inbox.Run.selected The result of the actual Inbox.next chooser on a queue trace; every transition runs that chooser with arbitrary FIFO producer appends. Native channel linearization and completion remain assumptions.
 spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue operations and retain its returned preference; this is a harness around the running chooser, not a second selection algorithm.
+spec Engine.Sync.Inbox.Priority.Run.selected The running Priority.step's choice at a poll of a run: every transition of a run runs that step, with arbitrary FIFO producer appends (the loop's channels as queues: Sync.popW).
+spec Engine.Sync.Inbox.Priority.State.append The producers' FIFO appends a run allows: any writes and events after each poll.
+spec Engine.Sync.Inbox.Priority.phaseAfter The phase after n polls: the running `advance`, n times.
+spec Engine.Sync.Ingress.Run.selected The running State.poll's choice (Hub.poll's core) at a poll of a run: every transition runs poll, then any producers' offers.
+spec Engine.Sync.Ingress.State.arrivals Producers' offers between polls, each the running State.offer (Hub.offer's core); any number, to any source.
+spec Engine.Sync.Ingress.distance How many slots the cursor is from a source: the progress measure of the running scan.
+spec Engine.Sync.Ingress.flooded A run in which every source stays busy forever: the adversary the laws allow, as a witness.
+spec Engine.Sync.Ingress.State.cancelAll Retirements between polls, each the running State.cancel (Hub.retire's core).
+spec Engine.Sync.Ingress.Prioritized.step One turn as Loop.turn runs it: the running Priority.next over the writes queue and the running ingress poll (Tcp's loopBackend: writes.tryRecv, ingress.poll), on the queue model of the channels (Sync.popW).
+spec Engine.Sync.Ingress.Prioritized.Run.selected Prioritized.step's choice at a turn of a run: every transition runs that turn, then any arrivals.
+spec Engine.Sync.Ingress.Prioritized.State.arrivals Local writes and peer offers between turns (the running State.offer).
+spec Engine.Sync.Ingress.Prioritized.rank The progress measure of a queued peer value: its distance and the phase.
+spec Engine.Sync.Ingress.Prioritized.State.changes Local writes, retirements and offers between turns, each by the running cores (State.cancel, State.offer).
+spec Engine.Sync.Ingress.Prioritized.ChurnRun.selected Prioritized.step's choice at a turn of a churning run: every transition runs that turn, then any writes, retirements and offers.
+spec Engine.Sync.Ingress.Prioritized.churnFlood A churning run in which local input and two peers flood forever while a third source is retired and refilled each turn: the adversary the laws allow, as a witness.
 spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
 spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.

@@ -182,9 +182,6 @@ Screen.past_hull_le
 Screen.screen_index
 Screen.screen_subs
 
-# engine.renderer.WriteQueueLaws
-Data.WriterQueue.local_share
-
 # engine.renderer.pic.Laws
 Pic.add_stored
 Pic.fit_le
@@ -260,37 +257,8 @@ Engine.Sync.ExpiryGrace.source_before_exhaustion
 # engine.wire.Frame
 Engine.Sync.buffer_bounded
 
-# engine.wire.IngressChurnLaws
-Engine.Sync.Ingress.Prioritized.Waiting.same_inputs
-Engine.Sync.Ingress.Prioritized.changes_preserve
-Engine.Sync.Ingress.Prioritized.churnFlood_exact
-Engine.Sync.Ingress.Prioritized.churnFlood_source
-Engine.Sync.Ingress.Prioritized.churnFlood_write
-Engine.Sync.Ingress.Prioritized.served_or_cancelled
-Engine.Sync.Ingress.Prioritized.source_or_cancelled_within
-Engine.Sync.Ingress.Prioritized.write_served_churn
-Engine.Sync.Ingress.Prioritized.write_within_churn
-Engine.Sync.Ingress.cancelAll_preserves
-
 # engine.wire.IngressLaws
-Engine.Sync.Ingress.arrivals_preserve
 Engine.Sync.Ingress.distance_zero
-Engine.Sync.Ingress.flooded_prefix
-Engine.Sync.Ingress.poll_progress
-Engine.Sync.Ingress.served
-Engine.Sync.Ingress.source_within
-
-# engine.wire.IngressPriorityLaws
-Engine.Sync.Ingress.Prioritized.served
-Engine.Sync.Ingress.Prioritized.source_within
-Engine.Sync.Ingress.Prioritized.step_empty_event
-Engine.Sync.Ingress.Prioritized.step_event
-Engine.Sync.Ingress.Prioritized.step_only_event
-Engine.Sync.Ingress.Prioritized.step_progress
-Engine.Sync.Ingress.Prioritized.step_write
-Engine.Sync.Ingress.Prioritized.write_progress
-Engine.Sync.Ingress.Prioritized.write_served
-Engine.Sync.Ingress.Prioritized.write_within
 
 # engine.wire.LaneLaws
 Engine.Sync.ahead_bytes
@@ -299,10 +267,6 @@ Engine.Sync.urgent_ahead
 
 # engine.wire.NoiseSymbolic
 Connection.Noise.Symbolic.exposed_parts
-
-# engine.wire.PriorityLaws
-Engine.Sync.Inbox.Priority.local_share
-Engine.Sync.Inbox.Priority.phase_cycle
 
 # engine.wire.Reserved
 Engine.Sync.Reserved.offer_bounded
