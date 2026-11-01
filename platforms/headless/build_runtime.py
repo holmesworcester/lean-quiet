@@ -136,9 +136,12 @@ def closure(module):
     source = local if local.exists() else LEAN / 'src/lean' / rel.with_suffix('.lean')
     c = ROOT / '.lake/build/ir' / rel.with_suffix('.c') if local.exists() else core_c(module)
     deps = {module}
+    # Recorded before its imports, as build_apk.sh's walk does: a line in a
+    # doc comment can read as an import (Std/Http.lean's example imports
+    # Std.Http itself, from Lean 4.35 on), and must not recurse forever.
+    modules[module] = (c, deps)
     for dep in re.findall(r'^\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?([\w.]+)', source.read_text(), re.M):
         deps |= closure(dep)
-    modules[module] = (c, deps)
     return deps
 
 
