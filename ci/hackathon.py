@@ -30,6 +30,7 @@ landing makes the block stale.
 """
 import argparse
 import datetime
+import json
 import os
 import re
 import subprocess
@@ -199,6 +200,29 @@ def lean_stats(git, rev):
     return {'files': len(files), 'lines': total(''), 'theorems': total('-E', THEOREM)}
 
 
+def build_facts(git, rev):
+    """What a judge's build reads at a revision: the Lean toolchain, the
+    Makefile's .PHONY targets, the Comparator challenge, a LICENSE."""
+    tc = git.show(rev, 'lean-toolchain')
+    mk = git.show(rev, 'Makefile')
+    targets = None
+    if mk is not None:
+        targets = []
+        for l in mk.splitlines():
+            if l.startswith('.PHONY:'):
+                targets += [t for t in l.split(':', 1)[1].split() if t not in targets]
+    cj = git.show(rev, 'comparator.json')
+    comparator = None
+    if cj is not None:
+        try:
+            d = json.loads(cj)
+            comparator = {'theorems': len(d['theorem_names']), 'axioms': list(d.get('permitted_axioms', []))}
+        except (ValueError, KeyError, TypeError) as e:
+            raise Malformed(f'comparator.json at {rev[:12]}: {e}')
+    return {'toolchain': tc.strip() if tc else None, 'make': targets, 'comparator': comparator,
+            'license': git.has(rev, 'LICENSE')}
+
+
 def history(git, base, head):
     """Commits in base..head, merges among them, and those authored before START."""
     commits = [l.split(' ') for l in git('log', '--format=%H %at %P', f'{base}..{head}').splitlines()]
@@ -236,7 +260,7 @@ def compute(git, base, head):
         side[name] = {'lead': parse_lead(readme), 'rows': parse_rows(readme),
                       'vacuity': parse_vacuity(readme),
                       'caught': parse_caught(git.show(rev, 'docs/CAUGHT.md')),
-                      'lean': lean_stats(git, rev)}
+                      'lean': lean_stats(git, rev), 'build': build_facts(git, rev)}
     when = git('log', '-1', '--format=%cd', '--date=format:%Y-%m-%d %H:%M %z', head).strip()
     return {'base_rev': base, 'head_rev': head, 'when': when, **side, 'history': history(git, base, head)}
 
@@ -317,6 +341,16 @@ def render(s):
                 part += f', of which {sec["test_only"]} say they are pinned by a test, not yet a law'
             parts.append(part)
         out.append(f'- **docs/CAUGHT.md** at {name}: ' + '. '.join(parts) + '.')
+    bb, bh = b['build'], h['build']
+    tc = lambda t: t.split(':', 1)[-1] if t else 'none'
+    out.append(f'- **Lean toolchain** (lean-toolchain): base {tc(bb["toolchain"])}; head {tc(bh["toolchain"])}.')
+    for name, side in (('the base', bb), ('the head', bh)):
+        mk, cj = side['make'], side['comparator']
+        out.append(f'- **Build and judging files** at {name}: '
+                   + (f'a Makefile with targets {", ".join(f"`{t}`" for t in mk)}' if mk is not None else 'no Makefile')
+                   + '; ' + (f'comparator.json with {cj["theorems"]} theorems, permitted axioms '
+                             + ', '.join(f'`{a}`' for a in cj['axioms']) if cj else 'no comparator.json')
+                   + '; ' + ('a LICENSE file' if side['license'] else 'no LICENSE file') + '.')
     hist = s['history']
     early = hist['early']
     text = (f'- **Commits** since the base: {hist["commits"]:,}, of which {hist["merges"]:,} are merges. ')
@@ -446,6 +480,9 @@ def self_test():
            parse_lead(NO_MODELS_LEAD) == {'wired': 1159, 'total': 1288, 'world': 35, 'not_yet': 94,
                                           'steps': 59, 'controls': 25})
 
+    bf = build_facts(git, BASE)
+    expect('the base: Lean v4.34.0, no Makefile, no comparator.json, no LICENSE',
+           bf == {'toolchain': 'leanprover/lean4:v4.34.0', 'make': None, 'comparator': None, 'license': False})
     # Negative controls: a malformed lead line fails loudly.
     line = next(l for l in base_readme.splitlines() if LEAD_MARK in l)
     for name, bad in [

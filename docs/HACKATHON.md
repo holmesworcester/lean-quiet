@@ -70,11 +70,13 @@ Computed by `ci/hackathon.py` from git alone, at [`91c27abb3b75`](https://github
 - The numbers count main as it is. So they include the six commits that
   were written before the start (see "Work from before the start").
 
-**Refresh before submission.** Run `python3 ci/hackathon.py --refresh` (or
-`mise run hackathon:refresh`) at main's head. It writes the block above,
-commits this file alone, and then runs the script's self-test and
-`--check`. `mise run hackathon:check` fails when anything but this file
-has changed since the commit that the block names.
+**Refresh before submission.** On a checkout of the submitted commit,
+run `mise run hackathon:refresh` (`python3 ci/hackathon.py --refresh`).
+It writes the block above from git, commits this file alone, and then
+runs the script's self-test and `--check`. `python3 ci/hackathon.py
+--head REV` prints the block for any commit REV, and `--write --head REV`
+writes it here. `mise run hackathon:check` fails when anything but this
+file has changed since the commit that the block names.
 
 ## What changed
 
@@ -222,6 +224,15 @@ has changed since the commit that the block names.
      switcher change ([`e62ab114`][e62ab114];
      [docs/CAUGHT.md](CAUGHT.md)).
 
+8. **Lean 4.35, Comparator and `make`.** The block above reads these
+   from the commit it names: the Lean toolchain (`lean-toolchain`), the
+   Makefile's targets (the rules ask for `make install && make run`),
+   `comparator.json` (the headline laws that Comparator checks, and the
+   axioms it permits), and the LICENSE file. Where the block says "no
+   Makefile" or "no comparator.json", that part is not in the commit.
+   The headline laws and how to check them are in `docs/HEADLINE.md`
+   when `comparator.json` is there.
+
 **Also on main.** The op tree: each op type is a folder with its
 validator, and [ci/layout.py](../ci/layout.py) checks the layout
 ([`930b39f3`][930b39f3], [`04322c45`][04322c45], [`db9eaf6f`][db9eaf6f]).
@@ -253,19 +264,11 @@ macOS release scripts ([`0cdc5982`][0cdc5982], [`fb66dee0`][fb66dee0];
   replayed handshake, was found on 2026-10-28. Its fix is not on main.
 - Everything at the base: see "What existed at the base".
 
-## In progress (not on main)
+## In progress
 
-Nothing in this section is on main. Each item names its branch, and it
-moves up to "What changed" when it lands.
+Nothing in this section is in the submitted commit. Each item names its
+branch.
 
-- `vibecheck/toolchain`: Lean v4.35.0, with the phone and desktop runtimes
-  built from v4.35.0 sources.
-- `vibecheck/theorems`: the headline laws (`docs/HEADLINE.md` on the
-  branch), each with its spec surface and axioms, and a Comparator
-  challenge for them, with a weakened challenge as a negative control.
-- `vibecheck/make`: a Makefile with `install` and `run` targets for Linux,
-  which the rules require, with pinned published assets and a clean-room
-  test in Docker.
 - `vibecheck/mac`: `make install && make run` on macOS.
 - `vibecheck/demo`: a two-window demo.
 - `vibecheck/claims`: fixes to README claims, the SQLite contract, and
@@ -278,25 +281,6 @@ moves up to "What changed" when it lands.
   running code uses) are counted apart. At its tip [`5c1da634`][5c1da634],
   its README's lead line reads: 1159 of 1288 laws about running code, 35
   in a World, 94 not yet, 59 proof steps and 25 negative controls.
-
-<!--
-For the lead: when a3/no-models lands, update theme 3's "Limits" (the
-priority laws may then count as about running code) and the note on
-harness laws under "The numbers".
-
-When vibecheck/toolchain, vibecheck/theorems and
-vibecheck/make (and vibecheck/mac) land, check these sentences against
-main, then move them up as theme 8 and drop those branches from the list:
-
-8. **Lean 4.35, Comparator, and make.** The toolchain is Lean v4.35.0
-   (`lean-toolchain`), and the phone and desktop runtimes are built from
-   v4.35.0 sources. docs/HEADLINE.md picks the headline laws, with each
-   law's spec surface and axioms (tests/Headline.lean), and Comparator
-   accepts each law against its stated challenge and rejects a weakened
-   one (`mise run test:headline`). `make install && make run` works on
-   Linux (and macOS), tested from a clean clone in Docker
-   (`mise run make:clean-room`).
--->
 
 [89914bea]: https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797
 [74dea236]: https://github.com/holmesworcester/lean-quiet/commit/74dea2361edfe17ea860812302b6617f271e6fd5
