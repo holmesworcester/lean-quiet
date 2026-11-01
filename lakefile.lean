@@ -301,6 +301,10 @@ lean_exe two_nodes where
 lean_exe notify where
   root := `platforms.headless.Notify
 
+-- Linked devices app to app: link, approve, sync, removal cuts both.
+lean_exe link_devices where
+  root := `platforms.headless.LinkDevices
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
@@ -308,6 +312,10 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `platforms.headless.NetJoin
+
+-- Linked devices over real TCP on loopback: four apps, four nodes.
+lean_exe net_link where
+  root := `platforms.headless.NetLink
 
 lean_exe write_admission where
   root := `platforms.headless.WriteAdmission
