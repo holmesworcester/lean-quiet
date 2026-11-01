@@ -110,6 +110,42 @@ def dialQueueChecks (t : Checks) : IO Unit := do
   t.ok "a saturated host does not block a different available host"
     ((DialQueue.reserve { cfg with maxSocks := 5 } occupied [hints[4]!, other]).1 == [other])
 
+/-- A transport-domain regression, not a message-size policy. App.sendNow
+passes its trimmed draft to this same Community.send intent. The resulting
+oversized post verifies locally, and AEAD opens it, but TCP framing rejects
+it. Do not publish this poison op into the runners' syncing databases. -/
+def frameLimitChecks (t : Checks) (a : Peer) (c cid : Id) : IO Unit := do
+  let some (sk, _) ← look a (sessionKeys cid : SqlM F _) |
+    t.ok "frame-boundary fixture has actual session keys" false; return
+  let text := String.fromUTF8! (⟨Array.replicate (maxFrame + 1) 120⟩ : ByteArray)
+  let nonce := (sha256 "frame-limit/large-nonce".toUTF8).extract 0 24
+  let write ← viewOn a (Community.send c c (device "A") key nonce text.trimAscii.toString.toUTF8 9000)
+  let some op := write.ops.head? | t.ok "App send intent returns a post" false; return
+  let statuses ← look a (op.reqs.mapM fun id => (Store.getStatus id : SqlM F _))
+  let valid := match judge fam op statuses with
+    | some (.valid (.inl (.message ..))) => true
+    | _ => false
+  t.ok "actual App send intent accepts a signed draft above the frame limit"
+    (text.utf8ByteSize == maxFrame + 1 && valid)
+  let payload := Codec.encode [op.bytes]
+  let sealed := Frame.seal sodium cid sk nonce payload
+  t.ok "oversized locally valid post still satisfies native AEAD roundtrip"
+    (Frame.open sodium sk sealed == some (cid, payload))
+  let packet := tagged sealedTag sealed
+  let parsed := frames (frame packet)
+  t.ok "actual TCP reader rejects oversized encrypted post despite valid signature"
+    (packet.size == 74 + payload.size && packet.size > maxFrame && parsed.1.isEmpty && parsed.2.isNone)
+  let smallNonce := (sha256 "frame-limit/small-nonce".toUTF8).extract 0 24
+  let small ← viewOn a (Community.send c c (device "A") key smallNonce "small accepted draft".toUTF8 9001)
+  let smallPayload := Codec.encode [small.ops.head!.bytes]
+  let smallSealed := Frame.seal sodium cid sk smallNonce smallPayload
+  let smallPacket := tagged sealedTag smallSealed
+  let accepted := frames (frame smallPacket)
+  t.ok "small positive control crosses the same AEAD and TCP frame boundary"
+    (accepted.1 == [smallPacket] && accepted.2 == some .empty &&
+      Frame.open sodium sk smallSealed == some (cid, smallPayload))
+  IO.println s!"frame-limit: draft={text.utf8ByteSize}, op={op.bytes.size}, bundle={payload.size}, encrypted frame={packet.size}, limit={maxFrame}"
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/join-fair"
   let relayPort := (args[1]?.getD "0").toNat!
@@ -202,6 +238,7 @@ def main (args : List String) : IO UInt32 := do
       t.ok "deferred-hint join admits a subsequently readable signed post"
         (← waitFor 5000 (readable a post.id "post after deferred hint".toUTF8))
       return ← finish
+    frameLimitChecks t a c originalSessions.head!
     context.set (some ⟨a.run, c⟩)
     active.set true
     let initial := postAt c c "A" 1 "start sustained writes".toUTF8
