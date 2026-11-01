@@ -278,7 +278,7 @@ theorem notice_then_cut (s : DB F) {cid : B}
     obtain ⟨⟨cid', p, dialer, a, t⟩, ho, rfl⟩ := he
     exact hopen _ ho
   · rintro ⟨e, he, rfl⟩
-    simp only [retired, Model.run_bind, Model.run_pure]
+    simp only [retired, sessions, Model.run_bind, Model.run_pure]
     rw [allSessions_state]
     rw [List.mem_filterMap]
     refine ⟨e, he, ?_⟩
@@ -286,7 +286,7 @@ theorem notice_then_cut (s : DB F) {cid : B}
       rw [List.any_eq_false]
       intro x hx hb
       exact hopen x hx (of_decide_eq_true hb)
-    rw [this]; rfl
+    simpa only [List.any_map, Function.comp_def, this, Bool.false_eq_true, ite_false]
 
 /-! ## E2 on the bare wire -/
 

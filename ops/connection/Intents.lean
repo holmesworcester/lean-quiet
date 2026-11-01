@@ -433,7 +433,7 @@ def routedSessions : m (List (Id × B × Bool)) := do
 /-- Sessions not kept open: to be closed and purged. -/
 def retired : m (List Id) := do
   let all ← allSessions
-  let open_ ← openSessions
+  let open_ ← sessions
   return all.filterMap fun (cid, _) => if open_.any (fun e => decide (e.1 = cid)) then none else some cid
 
 /-- A session's transport keys: send, receive. -/

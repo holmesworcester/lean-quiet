@@ -2,155 +2,162 @@
   "Winner.choose_comm": {
     "status": "runtime-witness",
     "theorem": "Connection.Winner.choose_comm",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "Winner.choose_stable": {
     "status": "runtime-witness",
     "theorem": "Connection.Winner.choose_stable",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "Winner.exactly_one": {
     "status": "runtime-witness",
     "theorem": "Connection.Winner.exactly_one",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "DiscoveryLaws.kept_pair": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.kept_pair",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "DiscoveryLaws.both_choose_same": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.both_choose_same",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "DiscoveryLaws.single_survivor": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.single_survivor",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "DiscoveryLaws.no_flapping": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.no_flapping",
-    "witness": "main",
+    "witness": "EndpointChecks.arbitrationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Distinct IDs 01 and 02, peer 09, opposite directions and reversed clocks select one common minimum and keep it on reconsideration. A separate real two-process simultaneous-dial task checks the minimum of both independently produced response IDs."
   },
   "DiscoveryLaws.publication_auth": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.publication_auth",
-    "witness": "publicationWitness",
+    "witness": "EndpointChecks.publicationWitness",
     "module": "tests.endpoints.Check",
     "detail": "Real Ed25519 publication satisfies the exact acceptance premise and applies the authorization law. Wrong-author signatures, oversized lists and invalid lifetimes are rejected."
   },
   "DiscoveryLaws.candidate_cap": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.candidate_cap",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "DiscoveryLaws.retry_eventually_due": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.retry_eventually_due",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "DiscoveryLaws.candidate_visited": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryLaws.candidate_visited",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "Endpoint.bounded_cap": {
     "status": "runtime-witness",
     "theorem": "Endpoint.bounded_cap",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "Endpoint.delay_bounded": {
     "status": "runtime-witness",
     "theorem": "Endpoint.delay_bounded",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "Endpoint.fresh_expires": {
     "status": "runtime-witness",
     "theorem": "Endpoint.fresh_expires",
-    "witness": "main",
+    "witness": "EndpointChecks.policyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Concrete LAN and tailnet candidates exercise the cap, strict expiry, retained-candidate selection and retry deadline; malformed endpoints and premature retries are rejected. Production-source mutations must fail the corresponding kernel laws."
   },
   "plan_ready": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryProgress.plan_ready",
-    "witness": "readyWitness, backoffWitness, laterWitness",
+    "witness": "EndpointChecks.readyWitness",
     "module": "tests.endpoints.Check",
     "detail": "Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate."
   },
   "plan_backoff": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryProgress.plan_backoff",
-    "witness": "readyWitness, backoffWitness, laterWitness",
+    "witness": "EndpointChecks.backoffWitness",
     "module": "tests.endpoints.Check",
     "detail": "Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate."
   },
   "plan_after_backoff": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryProgress.plan_after_backoff",
-    "witness": "readyWitness, backoffWitness, laterWitness",
+    "witness": "EndpointChecks.laterWitness",
     "module": "tests.endpoints.Check",
     "detail": "Exact planner hypotheses are evaluated for invite, signed-publication and DNS-SD inputs, before the deadline and at maximum backoff; PLift terms apply the corresponding laws. These are step witnesses, not a fair-loss liveness certificate."
   },
   "dial_reads": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryStorage.dial_reads",
-    "witness": "storageCertificate",
+    "witness": "EndpointChecks.adapterWitness",
     "module": "tests.endpoints.Check",
-    "detail": "Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external."
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
   },
   "readOnly": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryStorage.readOnly",
-    "witness": "storageCertificate",
+    "witness": "EndpointChecks.adapterWitness",
     "module": "tests.endpoints.Check",
-    "detail": "Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external."
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
   },
   "step_moves": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryStorage.step_moves",
-    "witness": "storageCertificate",
+    "witness": "EndpointChecks.storageCertificate",
     "module": "tests.endpoints.Check",
-    "detail": "Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external."
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
   },
   "step_retains": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryStorage.step_retains",
-    "witness": "storageCertificate",
+    "witness": "EndpointChecks.storageCertificate",
     "module": "tests.endpoints.Check",
-    "detail": "Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external."
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
   },
   "step_settled": {
     "status": "runtime-witness",
     "theorem": "Connection.DiscoveryStorage.step_settled",
-    "witness": "storageCertificate",
+    "witness": "EndpointChecks.storageCertificate",
     "module": "tests.endpoints.Check",
-    "detail": "Real signed community ops construct a reachable, settled Held store; readOnly is discharged for Discovery.sync. The native tick stores discovery actions, retains the shared root and leaves the validation queue empty. Native SQLite refinement is external."
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
+  },
+  "setup_readOnly": {
+    "status": "runtime-witness",
+    "theorem": "Connection.DiscoveryStorage.setup_readOnly",
+    "witness": "EndpointChecks.adapterWitness",
+    "module": "tests.endpoints.Check",
+    "detail": "Real signed community ops construct a reachable, settled Held store. DiscoveryStorage.setup keeps catalog and durable retry-store adapters enabled. Its read-only certificate composes NodeTape.step_goes; the native tick stores discovery actions, retains the shared root and settles validation. Native SQLite refinement is external."
   }
 }

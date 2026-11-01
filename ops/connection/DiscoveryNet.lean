@@ -149,7 +149,10 @@ def start (r : Runner) (path : String) (tailnet : List IPv4Addr := []) : IO Unit
   discard <| IO.asTask (prio := .dedicated) do
     while !(← r.stopped.get) do
       try
-        let db ← Db.openAt path
+        -- The runner owns schema initialization and all writes. Discovery
+        -- only reads here; observations enter through its bounded write queue.
+        let db ← Db.open path
+        db.exec "PRAGMA query_only = ON"
         run r db tailnet
       catch e => IO.eprintln s!"discovery: {e}"
       IO.sleep 1000

@@ -205,7 +205,7 @@ theorem routedSessions_reads : ReadsHeld (routedSessions : M _) := by
 /-- `retired`, as this base has it (another branch reads the
 established facts themselves: redo this lemma there). -/
 theorem retired_reads : ReadsHeld (retired : M (List Id)) := by
-  unfold retired; readsHeld [allSessions_reads, openSessions_reads, rows_reads]
+  unfold retired; readsHeld [allSessions_reads, sessions_reads, rows_reads]
 
 theorem sealFor_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (cid : Id) (p : B) :
     ReadsHeld (sealFor K cid p : M (Option B)) := by

@@ -25,7 +25,12 @@ def adm (name : String) : Id := if name == "A" then c else shared.getLast!.id
 
 def marker (name : String) : Op := profile c (adm name) (dev name) s!"hello from {name}".toUTF8 1
 
-def look {α} (path : String) (q : SqlM F α) : IO α := do q.run (← Db.openAt path)
+/-- Observe the initialized store without rerunning schema/catalog migrations
+while the real writer is committing or scrubbing a retired session. -/
+def look {α} (path : String) (q : SqlM F α) : IO α := do
+  let db ← Db.open path
+  db.exec "PRAGMA query_only = ON"
+  q.run db
 
 def main (args : List String) : IO UInt32 := do
   let name := args[0]?.getD "A"

@@ -4,6 +4,8 @@ import ops.connection.DiscoveryProgress
 
 open Engine Community Connection EndpointNetwork
 
+namespace EndpointChecks
+
 def require (name : String) (ok : Bool) : IO Unit :=
   if ok then IO.println s!"ok: {name}" else throw (IO.userError s!"FAIL: {name}")
 
@@ -63,22 +65,49 @@ theorem memory_reachable (ops : List Op) : (memory ops).held.Reachable Execution
   have h : Engine.Sync.Moves Execution.family {} (memory ops).held := .single (.turn ops {})
   exact h.store_reachable (Engine.Sync.held_empty_reachable Execution.family)
 
-def storageCertificate (x : Engine.Sync.Sync F Execution.M)
-    (hx : Execution.NodeTape.ReadOnly x) (hfamily : x.fam = Execution.family)
-    (s : Execution.Memory) (hr : s.held.Reachable Execution.family)
-    (n : Engine.Sync.Node) (o : Op) : Bool :=
+set_option maxRecDepth 4000 in
+def storageCertificate (listen : ByteArray) (wall mono now : Nat) (cfg : Engine.Sync.Config)
+    (input : Engine.Sync.Node.Input) (s : Execution.Memory)
+    (hr : s.held.Reachable Execution.family) (n : Engine.Sync.Node) (o : Op) : Bool :=
   if ho : s.held.db.ops o.id = some o then
     if hs : (Execution.family.room o).isSome then
       if hq : s.held.db.queue = [] then
-        have moves : Engine.Sync.Moves Execution.family s.held ((n.step x .tick 1000) s).2.held := by
-          rw [← hfamily]
-          exact Execution.NodeTape.step_goes x hx n .tick 1000 s
-        let _retained := moves.shared_retained ho hs
-        let _settled := moves.store_settled hr hq
+        let _moves := DiscoveryStorage.step_moves listen wall mono cfg n input now s
+        let _retained := DiscoveryStorage.step_retains listen wall mono cfg n input now s ho hs
+        let _settled := DiscoveryStorage.step_settled listen wall mono cfg n input now s hr hq
         true
       else false
     else false
   else false
+
+def adapterWitness (listen : ByteArray) :=
+  some (PLift.up (DiscoveryStorage.readOnly fam sodium listen 1000 1000 {}),
+    PLift.up (DiscoveryStorage.setup_readOnly listen 1000 1000 {}))
+
+/-- Evaluate distinctness, then apply every arbitration law to those same IDs. -/
+def arbitrationWitness (a b peer : ByteArray) :=
+  if h : a ≠ b then
+    some (PLift.up (Winner.choose_comm a b),
+      PLift.up (Winner.choose_stable a b),
+      PLift.up (Winner.exactly_one a b h),
+      PLift.up (DiscoveryLaws.kept_pair a b peer .empty .empty true false 1 99),
+      PLift.up (DiscoveryLaws.both_choose_same a b peer peer .empty .empty .empty .empty 1 99 2 0),
+      PLift.up (DiscoveryLaws.single_survivor a b peer .empty .empty 1 99 h),
+      PLift.up (DiscoveryLaws.no_flapping a b peer .empty))
+  else none
+
+/-- Concrete successful premises and applications for the bounded policy laws. -/
+def policyWitness (lan tail : ByteArray) :=
+  let xs := [lan, tail]
+  if h : 1 < (xs.take Endpoint.dialCap).length ∧
+      Endpoint.fresh 1000 900 1100 = true ∧ 1000 + 60000 ≤ 61000 then
+    some (PLift.up (DiscoveryLaws.candidate_cap xs xs xs),
+      PLift.up (DiscoveryLaws.retry_eventually_due 1000 200 61000 h.2.2),
+      PLift.up (DiscoveryLaws.candidate_visited xs 1 h.1),
+      PLift.up (Endpoint.bounded_cap xs),
+      PLift.up (Endpoint.delay_bounded 200),
+      PLift.up (Endpoint.fresh_expires 1000 900 1100 h.2.1))
+  else none
 
 def main : IO Unit := do
   let lan := "192.168.4.35:47100".toUTF8
@@ -90,6 +119,8 @@ def main : IO Unit := do
     (a != b && kept [(b,peer,true,.empty,1),(a,peer,false,.empty,99)] == [a] &&
       kept [(a,peer,true,.empty,2),(b,peer,false,.empty,0)] == [a] &&
       Winner.choose (Winner.choose a b) b == a)
+  require "arbitration premises and theorem applications" (arbitrationWitness a b peer).isSome
+  require "bounded policy premises and theorem applications" (policyWitness lan tail).isSome
   let good := ad [lan] [tail] 1000 2000
   require "actual Ed25519 endpoint-op acceptance witness" (accepted good)
   require "publication proof premises hold on a real signature" (publicationWitness [lan] [tail]).isSome
@@ -131,8 +162,8 @@ def main : IO Unit := do
     accept c (dev "A").pk, selfDiscovery, report]
   let ownMemory := memory ownOps
   require "discovery Node tick has inhabited storage-preservation premises"
-    (storageCertificate (DiscoveryStorage.setup lan 1000 1000 {})
-      (DiscoveryStorage.setup_readOnly lan 1000 1000 {}) rfl ownMemory (memory_reachable ownOps) (Engine.Sync.Node.boot fam [] 0) rootOp)
+    (storageCertificate lan 1000 1000 1000 {} .tick ownMemory (memory_reachable ownOps) (Engine.Sync.Node.boot fam [] 0) rootOp)
+  require "both discovery adapter certificates are exercised" (adapterWitness lan).isSome
   let node := Engine.Sync.Node.boot fam [] 0
   let result := (node.step (DiscoveryStorage.setup lan 1000 1000 {}) .tick 1000) ownMemory
   require "storage witness tick actually stores discovery actions" (result.2.held.log.length > ownMemory.held.log.length)
@@ -158,3 +189,7 @@ def main : IO Unit := do
   require "same DNS-SD result maps to a bounded endpoint op" ((found.head?.bind (DiscoveryNet.foundOp · 1000)).isSome)
   require "malformed key cannot become a discovery op" ((DiscoveryNet.foundOp { inst := "bad", host := "bad", port := 1, txt := ["key=00"], addrs := [], ttl := 120 } 1000).isNone)
   IO.println "PASS endpoint validation, source selection, expiry and DNS-SD checks"
+
+end EndpointChecks
+
+def main : IO Unit := EndpointChecks.main

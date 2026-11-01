@@ -2,7 +2,7 @@
 """Each actual-source mutant must fail the same Lean law build.
 Scratch copies stay inside this worktree; never modify another checkout.
 """
-import pathlib, shutil, subprocess, tempfile
+import argparse, pathlib, shutil, subprocess, tempfile
 root = pathlib.Path.cwd()
 out = root / 'out/endpoints/mutations'
 out.mkdir(parents=True, exist_ok=True)
@@ -26,10 +26,15 @@ expected = {
  'retry_every_tick': 'ops/connection/DiscoveryLaws.lean',
  'unsigned_publication': 'ops/connection/DiscoveryLaws.lean',
 }
+parser = argparse.ArgumentParser(description=__doc__)
+parser.add_argument('--only', choices=[m[0] for m in mutants] + ['unrouted_loser'])
+selected = parser.parse_args().only
 for name, file, before, after in mutants:
+    if selected and selected != name:
+        continue
     scratch = pathlib.Path(tempfile.mkdtemp(prefix=name+'-', dir=out))
     # Reflinks, not hardlinks: build caches and changes belong to this copy.
-    for item in ['engine', 'ops', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json', 'lean-toolchain', 'third_party']:
+    for item in ['engine', 'ops', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json', 'lean-toolchain', 'third_party', 'platforms']:
         subprocess.run(['cp', '-a', '--reflink=auto', str(root/item), str(scratch/item)], check=True)
     p = scratch/file
     data = p.read_text()
@@ -47,10 +52,12 @@ for name, file, before, after in mutants:
         raise RuntimeError(f'Mutant {name} did not break its intended law file')
     print('REJECTED', name, flush=True)
     shutil.rmtree(scratch)
+if selected and selected != 'unrouted_loser':
+    raise SystemExit(0)
 # Socket retirement is a native boundary: require the late losing attempt to
 # release its actual socket reservation, not merely disappear from `sessions`.
 scratch = pathlib.Path(tempfile.mkdtemp(prefix='unrouted_loser-', dir=out))
-for item in ['engine', 'ops', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json', 'lean-toolchain', 'third_party']:
+for item in ['engine', 'ops', 'tests', '.lake', 'lakefile.lean', 'lake-manifest.json', 'lean-toolchain', 'third_party', 'platforms']:
     subprocess.run(['cp', '-a', '--reflink=auto', str(root/item), str(scratch/item)], check=True)
 p = scratch/'ops/connection/Intents.lean'
 data = p.read_text()
@@ -67,4 +74,4 @@ if result.returncode == 0 or '2 native sockets' not in logtext:
 print('REJECTED unrouted_loser (real TCP socket count)', flush=True)
 # Keep its network logs/databases as evidence, including the intentionally failed run.
 print('Native retirement mutation artifacts:', scratch, flush=True)
-print('PASS all endpoint mutation controls')
+print('PASS ' + ('all endpoint mutation controls' if selected is None else selected))

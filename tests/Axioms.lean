@@ -1328,7 +1328,6 @@ end cost
 #print axioms Connection.DiscoveryStorage.step_moves
 #print axioms Connection.DiscoveryStorage.step_retains
 #print axioms Connection.DiscoveryStorage.step_settled
-||||||| f325982
 
 #print axioms App.WriteAdmission.admitted_frames
 #print axioms App.WriteAdmission.admitted_count

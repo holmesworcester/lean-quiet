@@ -1,6 +1,6 @@
 # Peer endpoints: implementation and verification
 
-Work is isolated on `peer-endpoints`, based on `origin/main` f325982. This is an
+Work is isolated on `peer-endpoints`, merged with `origin/main` b44a7af. This is an
 implementation and component-proof report, not a certificate that all requested
 end-to-end progress obligations are complete. No iroh is used.
 
@@ -60,7 +60,9 @@ DNS-SD observations. They are step results, not a universal liveness theorem.
 Astra's existing `NodeTape.step_goes` theorem. With discovery enabled, every
 actual node input preserves shared ops, and validation settles from a reachable,
 settled store. Entropy may advance. A native witness starts with real signed
-community ops and performs a tick that actually stores discovery actions.
+community ops and performs a tick that actually stores discovery actions. After
+merging Astra’s catalog work, the theorem also keeps its catalog and durable
+retry-store adapters enabled in that interpreter.
 SQLite/native refinement and the history-dependent validation budget have the
 same boundaries as the existing storage work.
 
@@ -68,7 +70,9 @@ The axiom audit includes these laws. Mutation controls change the production
 sources, require rejection in the intended law file, and retain failure logs:
 arrival-order arbitration, missing address cap, inclusive expiry, unbounded
 backoff, bypassed retry delay, unsigned publication, suppressed ready plan, and
-a direct store write from a hook. Native witnesses use evaluated hypotheses;
+a direct store write from a hook. A ninth control runs real TCP with the old
+selected-only route hook; it must fail because the late losing socket remains
+allocated. Native witnesses use evaluated hypotheses;
 the tests do not introduce `sorryAx` or native-decision axioms into the laws.
 
 Still open are universal discovery-to-established-session progress under
@@ -89,23 +93,44 @@ silently accepted skip.
 
 | Mise task | Observed result |
 |---|---|
-| `test:endpoints` | Native validation, proof-premise witnesses, axiom audit, and source mutation controls. |
+| `test:endpoints` | Pass: 33 native checks, explicit theorem applications, axiom audit, eight proof mutations and the native socket-retirement mutation. |
 | `test:endpoints-invite` | Pass: a dead first invite address is skipped; the reachable second address bootstraps membership and encrypted signed-marker exchange. |
 | `test:endpoints-ops` | Pass: two OS processes establish a session from a signed endpoint publication. |
 | `test:endpoints-simultaneous` | Pass: each process independently answers one attempt; both keep the smaller of the two connection IDs, exchange markers, and retain one stable session. |
+| `test:endpoints-late` | Pass: test entropy forces the late reply above the existing winner; both processes retain one actual native socket reservation. Restoring the old route hook is a failing runtime control. |
 | `test:endpoints-lan` | Pass: two OS processes discover each other by LAN mDNS, exchange signed markers and endpoint publications, and report the correct listening ports. |
 | `test:endpoints-phone` | Pass: desktop and Pixel 7 discover over LAN mDNS, exchange signed markers/publications, and report listening ports. Both retain the same session ID and shut down cleanly. |
 | `test:endpoints-tailnet` | Not established: `clean-quiet-test` was offline and SSH preflight failed. No remote process or service was changed. |
 
-The stronger simultaneous run is retained in
-`out/endpoints/simultaneous-1793500739747644699`; its two answer IDs start
-`cb7d8b5f` and `c62c6009`, and both peers retain `c62c6009`. The stronger LAN run
-is in `out/endpoints/lan-1793501004216046946`, retaining `57e70da7` at both ends.
-The stronger Pixel 7 run is in `out/endpoints/phone-1793501098`, retaining
-`e4282070` at both ends. Initial failed phone runs are also retained: the locked
-activity released its multicast lock and Android rejected sends. A separate
-initial desktop shutdown failure exposed an async UDP receive cancellation
-problem; the worker now polls and cancels the native receive promise.
+After merging b44a7af, the simultaneous run is retained in
+`out/endpoints/simultaneous-1793503428049548379`: the two response IDs begin
+`acd01d7e` and `614f3ff1`, and both peers keep `614f3ff1` with one native socket.
+The deterministic late-loser run is
+`out/endpoints/simultaneous-1793503437930410076` (both keep `13e036cb`).
+The LAN run is `out/endpoints/lan-1793503448570286815` (both keep `631d46b7`),
+and Pixel 7 is `out/endpoints/phone-1793503457` (both keep `55be1bc7`).
+
+Failure artifacts are retained too. A delayed higher-ID attempt exposed an
+unselected-route retirement bug. The hook now gives the node every authenticated
+route before its common finish path retires losers. Restoring the old hook
+still fails with two native sockets in
+`out/endpoints/mutations/unrouted_loser-es4r7vqm`.
+The merged database schema also exposed an observer race in
+`out/endpoints/simultaneous-1793503285125150084`: observers were rerunning
+schema/catalog migrations while the writer retired a session. Discovery and
+test observers now use query-only connections to the initialized database.
+Initial phone failures showed the locked activity releasing its multicast
+lock; the test wakes the phone and dismisses its keyguard. An initial desktop
+shutdown failure exposed UDP receive cancellation; the worker now polls and
+cancels its native receive promise.
+
+The complete axiom/build gate and native retirement control are in
+`out/endpoints/final-proof-native-control.log`. The complete vacuity gate and
+proof-link negative controls pass in `out/endpoints/merged-audits2.log`:
+618 evidence entries cover all 618 linked declarations, including explicit
+applications of all 23 endpoint laws. A metadata entry alone does not count:
+the audit checks each witness's dependency on its named theorem, its axioms,
+and that its native executable actually calls it.
 
 Existing `test:join-fair` and the fairness certificate suite pass, including the
 expected failing mutations. The full project check and generated proof-link
