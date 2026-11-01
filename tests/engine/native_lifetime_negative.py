@@ -116,7 +116,7 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
          '  pure ()\n  discard <| client.native.cancelRecv.toBaseIO',
          'writer cleanup stops the actual backpressured reader body'),
         ('omit-production-reader-join', 'engine/wire/Tcp.lean', '--reader-only',
-         '      (finishReader stopped c readerDone)', '      (pure ())',
+         '        (finishReader stopped c readerDone)', '        (pure ())',
          'production addSock writer stops and joins its original reader task'),
         ('no-connect-abort', 'engine/wire/SocketAbort.lean', '--connect-only',
          '        unless ← cap.abort do', '        unless true do',
@@ -134,7 +134,7 @@ with tempfile.TemporaryDirectory(prefix='native-lifetime-', dir=os.environ['TMPD
          '    unless ← enqueue ch (.dialed addr none) cancel do pure ()',
          'dial task releases its own lease when stopped completion cannot enqueue'),
         ('lost-queued-failure-lease', 'engine/wire/Tcp.lean', '--connect-only',
-         '    | .dialed addr none => r.slots.release addr',
+         '    | .dialed addr none => slots.release addr',
          '    | .dialed addr none => pure ()',
          'stop drain releases an unhandled failed-dial completion exactly once'),
     ]

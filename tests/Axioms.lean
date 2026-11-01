@@ -1,3 +1,5 @@
+import app.connection.NodeUnique
+import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
 import engine.renderer.HoldCacheLaws
@@ -1500,3 +1502,20 @@ end cost
 #print axioms Engine.Sync.Ingress.Registry.frozen_refuses
 #print axioms Engine.Sync.Ingress.Registry.freeze_preserves_poll
 #print axioms Engine.Sync.Ingress.Registry.freeze_idempotent
+
+-- Original native job ownership admission; no IO trace/completion claim.
+#print axioms Engine.Sync.JobOwners.admitted_bounded
+#print axioms Engine.Sync.JobOwners.full_refuses
+#print axioms Engine.Sync.JobOwners.available_creates
+
+-- Actual Node session-ID and retry-order preservation.
+#print axioms Engine.Sync.NodeUnique.boot_valid
+#print axioms Engine.Sync.NodeUnique.open_valid
+#print axioms Engine.Sync.NodeUnique.sweepAll_valid
+#print axioms Engine.Sync.NodeUnique.step_valid
+#print axioms Engine.Sync.NodeUnique.sql_step_valid
+#print axioms Connection.Execution.production_step_unique
+#print axioms Connection.Execution.world_step_unique
+#print axioms Connection.Execution.world_trace_unique
+#print axioms Connection.Execution.empty_trace_unique
+#print axioms Connection.Execution.Run.unique

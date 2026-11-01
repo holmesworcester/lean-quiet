@@ -1,0 +1,23 @@
+{
+  "JobOwners.admitted_bounded": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.JobOwners.admitted_bounded",
+    "witness": "Vacuity.JobOwners.bounded",
+    "module": "tests.vacuity.JobOwners",
+    "detail": "A nonempty one-job table admits its second entry under cap2. These laws concern the runtime-called admission gate, not complete concurrent IO refinement, OS completion or whole-app resource bounds."
+  },
+  "JobOwners.full_refuses": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.JobOwners.full_refuses",
+    "witness": "Vacuity.JobOwners.refused",
+    "module": "tests.vacuity.JobOwners",
+    "detail": "A full one-job table refuses a stateful factory and leaves state8 unchanged. These laws concern the runtime-called admission gate, not complete concurrent IO refinement, OS completion or whole-app resource bounds."
+  },
+  "JobOwners.available_creates": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.JobOwners.available_creates",
+    "witness": "Vacuity.JobOwners.accepted",
+    "module": "tests.vacuity.JobOwners",
+    "detail": "The same nonempty table under cap2 runs the actual supplied factory, returning7 and advancing state8 to9. These laws concern the runtime-called admission gate, not complete concurrent IO refinement, OS completion or whole-app resource bounds."
+  }
+}

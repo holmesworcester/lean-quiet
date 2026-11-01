@@ -47,8 +47,8 @@ The trace is observed at the post-reconcile selection boundary. Its next
 queue is the previous scan's actual offer rotation, reconciled against the
 live sessions seen at the following pass. The proof names the same streaming
 `scan` that the runtime calls for each candidate; `scan_append` composes
-these singleton calls. The required uniqueness and transition premises are
-explicit. `waiting_rank` shows that a waiting target's rank never increases,
+these singleton calls. The transition premises are explicit. Uniqueness is now derived from actual
+Node boot and handler transitions; see [Node uniqueness](NODE-UNIQUENESS.md). `waiting_rank` shows that a waiting target's rank never increases,
 and decreases on each eligible vacancy. No unserved waiter moves behind a
 later arrival just because a busy tick completed.
 
@@ -62,8 +62,9 @@ premise. A second closed instantiation uses the running `Engine.Id` and
 `Engine.lawfulBEqByteArray` theorem. These are core execution witnesses, not
 a complete application run.
 
-Still open: derive candidate eligibility, queue uniqueness and recurring
-vacancies along every suitable full Node/Sweep/native execution, and compose
+Still open: derive candidate eligibility and recurring vacancies along every
+suitable full Node/Sweep/native execution, connect its successive streaming
+scans to the rank trace, and compose
 admission with actual writer completion, durable cursor acknowledgment and
 semantic fair-loss delivery. The rank theorem does not assume those app
 obligations have already happened, and does not prove them. In particular,

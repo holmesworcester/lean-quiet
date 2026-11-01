@@ -617,3 +617,9 @@ lean_exe writer_checkpoint where
 
 lean_exe writer_diagnostics where
   root := `tests.engine.WriterDiagnostics
+
+lean_exe runner_ownership where
+  root := `tests.engine.RunnerOwnership
+
+lean_exe node_uniqueness where
+  root := `tests.engine.NodeUnique

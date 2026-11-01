@@ -158,12 +158,28 @@ controls, and the original 29-check expiry gate with both controls. The
 689-reference evidence inventory has no pending entries; 14 entries retain
 explicit conditional premises. Full app/platform integration remains open.
 
+Actual Node boot and every returned handler now preserve unique connection IDs
+and retry order. The generic proof permits arbitrary effectful hooks and
+specializes to the actual SqlM/IO action; the pinned SDK monad laws are proved.
+This removes a free uniqueness premise, but not the pending/vacant opportunity
+recurrence obligation. See [NODE-UNIQUENESS.md](NODE-UNIQUENESS.md).
+
+Native runner failures now retain original dial/socket jobs independently of a
+completed loop turn. A capacity-checked registry and fixed teardown task retain
+same-turn ownership and retiring notices; three laws cover the actual admission
+gate. The combined source passes 1,355 audited laws, all 707 evidence entries and
+registered runtime certificates, native ownership's 24 checks/ten runtime
+controls/kernel control, and uniqueness's ten native checks/two runtime
+controls/three kernel controls, with restoration. The earlier transport counts
+above describe their earlier integration. Full app/platform validation remains
+open. See [RUNNER-OWNERSHIP.md](RUNNER-OWNERSHIP.md).
+
 ## Obstructions found by the stronger target
 
 | Obligation | Concrete remaining issue |
 |---|---|
 | Per-peer service | Fixed peer mailboxes remove competition for the shared network queue, and the admitted-source deadline survives peer churn. Competing local/control producers still lack a fair admission bound; completion of a loop turn remains separate. |
-| Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Native callback/worker progress, final OS-thread teardown, handler-exception cleanup and Windows cancellation remain open. |
+| Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Returned handler exceptions now retain original native jobs and request cancellation. Native callback/worker progress, complete concurrent trace refinement, final OS-thread teardown and Windows cancellation remain open. |
 | Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
 | Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; the actual retry selector now has a pending-eligible vacancy rank bound, but recurrence of those opportunities along complete Node/native executions remains open. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |

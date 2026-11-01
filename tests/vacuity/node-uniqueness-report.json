@@ -1,0 +1,107 @@
+{
+  "NodeUnique.boot_valid": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.NodeUnique.boot_valid",
+    "witness": "Vacuity.NodeUnique.boot",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Actual boot has no duplicate IDs. The linked fixture also opens and replaces a nonempty session."
+  },
+  "NodeUnique.open_valid": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.NodeUnique.open_valid",
+    "witness": "Vacuity.NodeUnique.replacing",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Actual open replaces the same concrete session, with the kernel proving one resulting ID and discharging the incoming invariant."
+  },
+  "NodeUnique.sweepAll_valid": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.NodeUnique.sweepAll_valid",
+    "witness": "Vacuity.NodeUnique.sweeping",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The actual sweep over one concrete live session produces the singleton retry queue; its incoming invariant is proved."
+  },
+  "NodeUnique.step_valid": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.NodeUnique.step_valid",
+    "witness": "Vacuity.NodeUnique.infinite_unique",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "An infinite actual Node.step execution follows two real timer steps with continuing empty hostile frames. The kernel proves a nonempty session at every position and derives uniqueness without fairness."
+  },
+  "NodeUnique.sql_step_valid": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.NodeUnique.sql_step_valid",
+    "witness": "Vacuity.NodeUnique.native_return_factorization",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The actual SQLite-backed Node.step action is instantiated on the production family and factors through a checked return value. This is a returned-value law, not a guarantee that native IO returns; the named suite separately supplies actual signed/Noise/SQLite/TCP sessions."
+  },
+  "Execution.production_step_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.production_step_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "Execution.world_step_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.world_step_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "Execution.world_trace_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.world_trace_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "Execution.empty_trace_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.empty_trace_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "Execution.Run.unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.Run.unique",
+    "witness": "Vacuity.NodeUnique.production_run",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary."
+  },
+  "production_step_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.production_step_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "world_step_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.world_step_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "world_trace_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.world_trace_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "empty_trace_unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.empty_trace_unique",
+    "witness": "Vacuity.NodeUnique.production_prefix",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
+  },
+  "unique": {
+    "status": "kernel-witness",
+    "theorem": "Connection.Execution.Run.unique",
+    "witness": "Vacuity.NodeUnique.production_run",
+    "module": "tests.vacuity.NodeUnique",
+    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary."
+  }
+}

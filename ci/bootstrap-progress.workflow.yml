@@ -68,6 +68,8 @@ jobs:
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run test:writer-checkpoint && mise run test:writer-job-retry'
       - name: Preserve lifecycle outcomes and reject synchronous UI waits
         run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run host:lifecycle-node && mise run host:lifecycle-node-negative'
+      - name: Check actual Node ID and retry-order uniqueness
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 mise run test:node-uniqueness
       - name: Retain failure logs, databases and relay diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
@@ -81,6 +83,7 @@ jobs:
             out/catalog-retry
             out/reserved-retry
             out/retry-admission
+            out/node-uniqueness
             out/ingress
             out/native-lifetime
             out/ref-publications
@@ -96,6 +99,7 @@ jobs:
             out/writer-job-retry
             out/expiry-grace
             out/close-ingress
+            out/runner-ownership
             out/demand-rank
             out/simplify-negative
             out/tree-negative
