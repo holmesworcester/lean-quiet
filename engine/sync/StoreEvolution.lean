@@ -83,37 +83,21 @@ end Engine
 namespace Engine.Sync
 variable {F : Type} {fam : Family F}
 
-theorem turn_settles_reachable (fam : Family F) (ops : List Op) (h : Held F)
-    (hr : h.Reachable fam) :
-    (((Turn.turn fam ops : HeldM F Unit) h).2).db.queue = [] := by
-  obtain ⟨history, hr, same⟩ := hr
-  have hsame : ∀ o, o ∈ ops.reverse ++ history ↔ o ∈ h.log ++ ops := by
-    intro o
-    simp only [List.mem_append, List.mem_reverse, same]
-    exact or_comm
-  rw [turn_apply]
-  exact drain_history_budget _ _ (ingest_many_reachable fam ops history h.db hr)
-    (Nat.le_of_eq (budget_same_ops _ _ _ hsame))
-
 theorem purge_reachable (fam : Family F) (ids : List Id) (scrub : Bool) (h : Held F)
     (hr : h.Reachable fam) :
     (((Turn.purge fam ids scrub : HeldM F Unit) h).2).Reachable fam := by
   obtain ⟨history, hr, same⟩ := hr
   refine ⟨history.filter fun o => !has (purgeSet fam h.db ids) o.id,
-    reach_drain (.purge ids hr) _, ?_⟩
+    reach_purgeCapped hr drainCap ids, ?_⟩
   intro o
   simp only [purge_apply, List.mem_filter, same]
 
-theorem purge_settles_reachable (fam : Family F) (ids : List Id) (scrub : Bool) (h : Held F)
-    (hr : h.Reachable fam) :
-    (((Turn.purge fam ids scrub : HeldM F Unit) h).2).db.queue = [] := by
-  obtain ⟨history, hr, same⟩ := hr
-  rw [purge_apply]
-  apply drain_history_budget _ _ (.purge ids hr)
-  apply Nat.le_of_eq
-  apply budget_same_ops
-  intro o
-  simp only [List.mem_filter, same]
+/-- **A purge keeps urgent work settled** (`purge_waiting`): it judges the
+urgent ops it requeued ahead, as a turn does. -/
+theorem purge_waiting_held (fam : Family F) (ids : List Id) (scrub : Bool) (h : Held F)
+    (hr : h.Reachable fam) (hw : UrgentWaiting fam h.db) :
+    UrgentWaiting fam (((Turn.purge fam ids scrub : HeldM F Unit) h).2).db :=
+  let ⟨_, hr, _⟩ := hr; purge_waiting hr hw drainCap ids
 
 /- Reuse the exact primitive transition relation already derived from Node
 in EgressLaws; these results add its storage consequences. -/
@@ -127,10 +111,12 @@ theorem shared_retained {a b : Held F} (step : Moves fam a b)
   | tail _ hm ih =>
     cases hm with
     | turn ops h =>
-      simp only [HeldM.run, turn_apply, drainS_ops]
+      simp only [HeldM.run, turn_apply]
+      rw [turnCappedS_ops]
       exact foldl_ingest_keep _ ih
     | purge ids scrub h =>
-      simp only [HeldM.run, purge_apply, drainS_ops]
+      simp only [HeldM.run, purge_apply]
+      rw [purgeCappedS_ops]
       exact purge_shared _ ids ih hs
 
 theorem store_reachable {a b : Held F} (step : Moves fam a b)
@@ -142,14 +128,17 @@ theorem store_reachable {a b : Held F} (step : Moves fam a b)
     | turn ops h => exact turn_reachable fam ops _ ih
     | purge ids scrub h => exact purge_reachable fam ids scrub _ ih
 
-theorem store_settled {a b : Held F} (step : Moves fam a b)
-    (hr : a.Reachable fam) (hq : a.db.queue = []) : b.db.queue = [] := by
+/-- **Every store step keeps urgent work settled** (`UrgentWaiting`, so
+`UrgentSettled`: an urgent op whose closure is all urgent has its spec
+verdict), whatever is left queued. -/
+theorem store_waiting {a b : Held F} (step : Moves fam a b)
+    (hr : a.Reachable fam) (hw : UrgentWaiting fam a.db) : UrgentWaiting fam b.db := by
   induction step with
-  | refl => exact hq
-  | tail h1 hm _ =>
+  | refl => exact hw
+  | tail h1 hm ih =>
     cases hm with
-    | turn ops h => exact turn_settles_reachable fam ops _ (h1.store_reachable hr)
-    | purge ids scrub h => exact purge_settles_reachable fam ids scrub _ (h1.store_reachable hr)
+    | turn ops h => exact turn_waiting_held fam ops _ (h1.store_reachable hr) ih
+    | purge ids scrub h => exact purge_waiting_held fam ids scrub _ (h1.store_reachable hr) ih
 
 end Moves
 end Engine.Sync

@@ -400,10 +400,10 @@ def deleteAll : List Id → m Unit
 /-- **Purge `ids`** (engine/core/Purge.lean): walk to them and every
 stored op that requires one of them, transitively; un-decide each; delete
 the conn and local ones; queue the shared ones to be judged again. The
-ops it deleted; or none, having changed nothing, if the walk did not end
-within as many steps as there are ops stored and named, which only
-tables that disagree can cause. -/
-def purge (fam : Family F) (ids : List Id) : m (Option (List Id)) := do
+ops it deleted and the ops it queued; or none, having changed nothing, if
+the walk did not end within as many steps as there are ops stored and
+named, which only tables that disagree can cause. -/
+def purgeR (fam : Family F) (ids : List Id) : m (Option (List Id × List Id)) := do
   let n ← countOps (F := F)
   let r := pushNew ids [] {}
   match ← walkDeps (F := F) (ids.length + n) r.1 [] r.2 with
@@ -412,7 +412,23 @@ def purge (fam : Family F) (ids : List Id) : m (Option (List Id)) := do
     let p ← unsettle fam c [] []
     deleteAll (F := F) p.1
     pushAll (F := F) p.2
-    pure (some p.1)
+    pure (some p)
+
+/-- The ops a purge deleted (`purgeR`'s first list). -/
+def purge (fam : Family F) (ids : List Id) : m (Option (List Id)) := do
+  return (← purgeR fam ids).map (·.1)
+
+/-- **A purge, capped** (engine/core/TurnLaws.lean `purge_waiting`): the
+purge, then the urgent closure over the ops it queued to be judged again,
+then at most `cap` queued ops, as a write turn does. -/
+def purgeCapped (fam : Family F) (cap : Nat) (ids : List Id) : m (Option (List Id)) := do
+  match ← purgeR fam ids with
+  | none => pure none
+  | some (gone, again) =>
+    let n ← countOps (F := F)
+    let _ ← urgentClose fam (again.length + n * (n + 1)) again
+    drain fam cap
+    pure (some gone)
 
 end
 end Engine

@@ -44,8 +44,8 @@ theorem purge_log_agrees (fam : Family F) (h : Held F) (ids : List Id) (scrub : 
   intro o ho
   rw [purge_apply] at ho ⊢
   obtain ⟨ho, hn⟩ := List.mem_filter.mp ho
-  change (drainS fam _ _).ops o.id = some o
-  rw [drainS_ops, purgeS_ops_not]
+  change (purgeCappedS fam drainCap ids h.db).ops o.id = some o
+  rw [purgeCappedS_ops, purgeS_ops_not]
   · exact ha o ho
   · intro hm
     have := (Engine.has_iff _ _).mpr hm
@@ -62,7 +62,8 @@ theorem write_log_agrees (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : L
   · exact ha
   · intro o ho
     rw [turn_apply] at ho ⊢
-    simp only [drainS_ops]
+    show (turnCappedS _ _ _ _).ops o.id = some o
+    rw [turnCappedS_ops]
     rcases List.mem_append.mp ho with ho | ho
     · exact foldl_ingest_keep _ (ha o ho)
     · obtain ⟨hnew, hdistinct⟩ := absentOf_new h.db ops

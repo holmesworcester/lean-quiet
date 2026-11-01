@@ -245,13 +245,15 @@ def tallyRows : SqlM F (Nat × Nat × Nat) := do
   let n ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'ops'"
   return (q, u, n)
 
-/-- One write turn: take in ops and judge everything that became
-decidable, atomically, with the proven `drain` and a budget read in the
-same transaction (`drain_bounded`: it empties the queue). -/
-def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit :=
+/-- One write turn, atomically: the capped turn (`turnCapped`: the job
+and its urgent closure judged ahead, then at most `drainCap` queued;
+engine/core/TurnLaws.lean). An idle turn (no ops) with nothing queued
+takes no write lock. -/
+def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit := do
+  if ops.isEmpty then
+    if (← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'queue'") == 0 then return
   transact do
-    for o in ops do ingest (m := SqlM F) o
-    drain (m := SqlM F) fam (← budgetSql (F := F))
+    let _ ← turnCapped (m := SqlM F) fam drainCap ops
 
 /-! ## Purging -/
 
@@ -298,9 +300,8 @@ def reindexOnce [Codec F] [SortKey F] (version : String) (keys : F → List Byte
 judging to rest. A walk that does not end means the tables disagree, and
 the purge aborts. -/
 def purgeTx [Codec F] [SortKey F] (fam : Family F) (ids : List Id) : SqlM F (List Id) := do
-  let some gone ← purge (m := SqlM F) fam ids
+  let some gone ← purgeCapped (m := SqlM F) fam drainCap ids
     | throw (IO.userError "purge: the dependents walk did not end")
-  drain (m := SqlM F) fam (← budgetSql (F := F))
   return gone
 
 /-- Copy the WAL into the database and truncate it, so no old frame

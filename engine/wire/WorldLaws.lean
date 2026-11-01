@@ -71,8 +71,7 @@ theorem admit_one (cap : Nat) (asked : Std.HashSet Id) (i : Id) (hi : i ∉ aske
 
 /-- The held store after a write turn of these ops. -/
 def turnH (fam : Family F) (ops : List Op) (h : Held F) : Held F :=
-  let s := ops.foldl (fun s o => ingestS o s) h.db
-  { log := h.log ++ ops, db := drainS fam (budget (h.log ++ ops) s) s }
+  { log := h.log ++ ops, db := turnCappedS fam drainCap ops h.db }
 
 @[simp] theorem HeldM.run_turn (fam : Family F) (ops : List Op) (h : Held F) :
     (Turn.turn fam ops : HeldM F Unit).run h = ((), turnH fam ops h) := rfl
@@ -80,7 +79,7 @@ def turnH (fam : Family F) (ops : List Op) (h : Held F) : Held F :=
 /-- A write turn of an op the store lacks stores it. -/
 theorem turnH_one (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id = none) :
     (turnH fam [o] h).db.ops o.id = some o := by
-  simp [turnH, drainS_ops, ingestS, hn, DB.putOp, DB.push]
+  simp [turnH, turnCappedS_ops, ingestS, hn, DB.putOp, DB.push]
 
 theorem Acts.append_def (a b : Acts) : a ++ b =
     ⟨a.send ++ b.send, a.drop ++ b.drop, a.serve ++ b.serve,
@@ -1070,7 +1069,7 @@ theorem write_mem (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (o : Op) (h 
     · exact h
   generalize (List.foldl (fun b a => writeAbsent h.db b a) [] ops).reverse = news at hA' hsub ⊢
   have hget : (turnH x.fam news h).db.ops o.id = some o := by
-    simp only [turnH, drainS_ops]
+    simp only [turnH, turnCappedS_ops]
     exact ingest_get o news h.db (fun y hy => hu y (hsub y hy)) (Or.inr ⟨hn, hA'⟩)
   rw [forIn_yield news _ (fun a b => if ((turnH x.fam news h).db.ops a.id).isSome then
     (b.1.add x.fam a, a.id :: b.2) else b) _ (fun y _ b => by

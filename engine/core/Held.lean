@@ -1,8 +1,8 @@
 /-
 A store as plain data, so a node can run without SQLite: the ops taken
 in, in order, and the engine's tables (`DB`). Reads and writes are the
-model's (`Model`), lifted; a write turn ingests and then drains with
-the proven budget (`budget log db`, so `drain_bounded` applies).
+model's (`Model`), lifted; a write turn is the capped turn on the tables
+(`turnCappedS`, engine/core/TurnLaws.lean).
 
 `Turn` is one write turn, in whatever store a node runs on: SQLite's
 `receive`, or this.
@@ -11,6 +11,7 @@ import engine.core.Sqlite
 import engine.core.Budget
 import engine.core.Query
 import engine.core.Purge
+import engine.core.TurnLaws
 
 namespace Engine.Sync
 
@@ -67,17 +68,13 @@ instance {F} : Store F (HeldM F) where
 instance {F} [SortKey F] : Lists F (HeldM F) where
   list q := lift (Lists.list q)
 
-/-- A write turn on held data: ingest, then drain with the budget read
-off the tables (`drain_bounded`: it empties the queue). -/
+/-- A write turn on held data: the capped turn (`turnCappedS`: the job
+and its urgent closure judged ahead, then at most `drainCap` queued). -/
 instance {F} : Turn F (HeldM F) where
-  turn fam ops := fun h =>
-    let log := h.log ++ ops
-    let s := ops.foldl (fun s o => ingestS o s) h.db
-    ((), { log, db := drainS fam (budget log s) s })
+  turn fam ops := fun h => ((), { log := h.log ++ ops, db := turnCappedS fam drainCap ops h.db })
   purge fam ids _ := fun h =>
-    -- `Reach.purge`: the log keeps what purge kept; then drain again.
+    -- `Reach.purge`: the log keeps what purge kept; then the capped purge.
     let log := h.log.filter fun o => !has (purgeSet fam h.db ids) o.id
-    let s := purgeS fam ids h.db
-    ((), { log, db := drainS fam (budget log s) s })
+    ((), { log, db := purgeCappedS fam drainCap ids h.db })
 
 end Engine.Sync

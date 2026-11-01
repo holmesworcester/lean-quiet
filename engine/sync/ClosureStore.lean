@@ -1,6 +1,7 @@
 /- Store progress for the actual Node.write deduplication path. -/
 import engine.wire.NodeLaws
 import engine.core.Locality
+import engine.core.CarryLaws
 
 namespace Engine.Sync
 variable {F : Type}
@@ -108,7 +109,8 @@ theorem write_preserves_op (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops :
   split
   · exact ho
   · rw [turn_apply]
-    simp only [drainS_ops]
+    show (turnCappedS _ _ _ _).ops i = some o
+    rw [turnCappedS_ops]
     exact foldl_ingest_keep _ ho
 
 /-- An incoming operation is stored, including when its id was already
@@ -133,7 +135,9 @@ theorem write_takes (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List O
       | nil => rw [he] at hp; cases hp
       | cons q qs => rfl
     rw [write_store]
-    simp only [hn, Bool.false_eq_true, ite_false, turn_apply, drainS_ops]
+    simp only [hn, Bool.false_eq_true, ite_false, turn_apply]
+    show (turnCappedS _ _ _ _).ops o.id = some o
+    rw [turnCappedS_ops]
     obtain ⟨hnew, hdistinct⟩ := absentOf_new h.db ops
     exact (foldl_ingest_new x.fam hi (ops.foldl (absentStep h.db) []).reverse
       (fun q hq => hnew q (List.mem_reverse.mp hq))
@@ -178,26 +182,22 @@ theorem ingest_many_reachable (fam : Family F) (ops history : List Op) (s : DB F
 theorem turn_reachable (fam : Family F) (ops : List Op) (h : Held F) (hr : h.Reachable fam) :
     (((Turn.turn fam ops : HeldM F Unit) h).2).Reachable fam := by
   obtain ⟨history, hr, same⟩ := hr
-  refine ⟨ops.reverse ++ history, reach_drain (ingest_many_reachable fam ops history h.db hr) _, ?_⟩
+  refine ⟨ops.reverse ++ history, reach_turnCapped hr drainCap ops, ?_⟩
   intro o
   simpa only [turn_apply, List.mem_append, List.mem_reverse, same] using
     (or_comm : o ∈ ops ∨ o ∈ h.log ↔ o ∈ h.log ∨ o ∈ ops)
 
-/-- The actual turn's computed budget settles validation; it is not a
-fairness assumption about a separate judging process. -/
-theorem turn_settles (fam : Family F) (ops : List Op) (h : Held F)
-    (hr : h.Reachable fam) (hd : Distinct (h.log ++ ops)) :
-    (((Turn.turn fam ops : HeldM F Unit) h).2).db.queue = [] := by
-  obtain ⟨history, hr, same⟩ := hr
-  have hsame : ∀ o, o ∈ ops.reverse ++ history ↔ o ∈ h.log ++ ops := by
-    intro o
-    simp only [List.mem_append, List.mem_reverse, same]
-    exact or_comm
-  have hdistinct : Distinct (ops.reverse ++ history) :=
-    fun a ha b hb he => hd a ((hsame a).mp ha) b ((hsame b).mp hb) he
-  have hreach := ingest_many_reachable fam ops history h.db hr
-  rw [turn_apply]
-  exact drain_bounded hdistinct _ _ hreach (Nat.le_of_eq (budget_same_ops _ _ _ hsame))
+/-- **A write turn keeps urgent work settled** (`turn_waiting`), on the
+store a node runs: whatever it leaves queued, every urgent op whose
+closure is all urgent is decided or waits on an undecided requirement. -/
+theorem turn_waiting_held (fam : Family F) (ops : List Op) (h : Held F)
+    (hr : h.Reachable fam) (hw : UrgentWaiting fam h.db) :
+    UrgentWaiting fam (((Turn.turn fam ops : HeldM F Unit) h).2).db :=
+  let ⟨_, hr, _⟩ := hr; turn_waiting hr hw drainCap ops
+
+/-- A write turn's tables are a capped turn's. -/
+theorem turn_step (fam : Family F) (ops : List Op) (h : Held F) :
+    TurnStep fam drainCap h.db (((Turn.turn fam ops : HeldM F Unit) h).2).db := Or.inr ⟨ops, rfl⟩
 
 theorem write_reachable (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List Op)
     (hr : h.Reachable x.fam) : ((n.write x ops h).2).Reachable x.fam := by
@@ -220,34 +220,47 @@ theorem write_log_subset (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : L
     · exact List.mem_append_right _
         ((absentFold_source h.db ops [] (List.mem_reverse.mp ho)).resolve_left (by simp))
 
-theorem write_settles (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List Op)
-    (hr : h.Reachable x.fam) (hq : h.db.queue = []) (hd : Distinct (h.log ++ ops)) :
-    (n.write x ops h).2.db.queue = [] := by
+theorem write_waiting (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List Op)
+    (hr : h.Reachable x.fam) (hw : UrgentWaiting x.fam h.db) :
+    UrgentWaiting x.fam (n.write x ops h).2.db := by
   rw [write_store]
   dsimp only
   split
-  · exact hq
-  · apply turn_settles x.fam _ h hr
-    have sub : (ops.foldl (absentStep h.db) []).reverse ⊆ ops := by
-      intro o ho
-      exact (absentFold_source h.db ops [] (List.mem_reverse.mp ho)).resolve_left (by simp)
-    intro a ha b hb he
-    apply hd a (List.mem_append.mp ha |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h)))
-      b (List.mem_append.mp hb |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h))) he
+  · exact hw
+  · exact turn_waiting_held x.fam _ h hr hw
+
+/-- A write's tables are its turn's, or unchanged. -/
+theorem write_step (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List Op) :
+    TurnStep x.fam drainCap h.db (n.write x ops h).2.db := by
+  rw [write_store]
+  dsimp only
+  split
+  · exact Or.inl rfl
+  · exact turn_step x.fam _ h
 
 /-- Receive turns of the actual `Node.put` path after wire decoding and
-session authorization. The transport contract supplies input operations,
-not a claim about the final database. Each input can contain duplicates and
-arrive in arbitrary dependency order. -/
+session authorization, and idle turns (a tick's `Turn.turn` of no ops,
+`Node.onTick`) that carry what a capped turn left queued. The transport
+contract supplies input operations, not a claim about the final
+database. Each input can contain duplicates and arrive in arbitrary
+dependency order. -/
 structure ReceiverRun (x : Sync F (HeldM F)) where
   node : Nat → Node
   store : Nat → Held F
   input : Nat → List Op
-  next : ∀ n, store (n + 1) = ((node n).put x (input n) false (store n)).2
+  /-- Whether step n is an idle turn rather than a receive. -/
+  idle : Nat → Bool
+  next : ∀ n, store (n + 1) = if idle n then ((Turn.turn x.fam [] : HeldM F Unit) (store n)).2
+    else ((node n).put x (input n) false (store n)).2
   initial : (store 0).Reachable x.fam
-  initialQueue : (store 0).db.queue = []
+  initialWaiting : UrgentWaiting x.fam (store 0).db
   /-- Collision agreement on this finite prefix, including retransmissions. -/
   distinct : ∀ n, Distinct ((store n).log ++ input n)
+
+/-- **Turns keep coming**: the receiver's process keeps getting scheduled,
+so idle turns recur (the environment's assumption; the runner's timer
+fires ticks: holmes-ce's selector/timer law). -/
+def ReceiverRun.Ticks {x : Sync F (HeldM F)} (r : ReceiverRun x) : Prop := ∀ N, ∃ j ≥ N, r.idle j = true
 
 namespace ReceiverRun
 variable {x : Sync F (HeldM F)} (r : ReceiverRun x)
@@ -255,26 +268,48 @@ variable {x : Sync F (HeldM F)} (r : ReceiverRun x)
 theorem store_reachable (n : Nat) : (r.store n).Reachable x.fam := by
   induction n with
   | zero => exact r.initial
-  | succ n ih => rw [r.next]; exact write_reachable x _ _ _ ih
+  | succ n ih =>
+    rw [r.next]
+    split
+    · exact turn_reachable x.fam _ _ ih
+    · exact write_reachable x _ _ _ ih
 
 theorem invariant (n : Nat) : Inv x.fam (r.store n).db :=
   let ⟨_, hr, _⟩ := r.store_reachable n; reach_inv hr
 
-theorem settled (n : Nat) : (r.store n).db.queue = [] := by
+/-- **Urgent work is settled at every step** (`UrgentWaiting`, so
+`UrgentSettled`). -/
+theorem waiting (n : Nat) : UrgentWaiting x.fam (r.store n).db := by
   induction n with
-  | zero => exact r.initialQueue
+  | zero => exact r.initialWaiting
   | succ n ih =>
     rw [r.next]
-    apply write_settles x _ _ _ (r.store_reachable n) ih
-    intro a ha b hb he
-    have sub : intake x.fam false (r.input n) ⊆ r.input n := fun _ ho => intake_sub x.fam ho
-    exact r.distinct n a (List.mem_append.mp ha |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h)))
-      b (List.mem_append.mp hb |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h))) he
+    split
+    · exact turn_waiting_held x.fam _ _ (r.store_reachable n) ih
+    · exact write_waiting x _ _ _ (r.store_reachable n) ih
+
+/-- Each step's tables are a capped turn's, or unchanged. -/
+theorem step (n : Nat) : TurnStep x.fam drainCap (r.store n).db (r.store (n + 1)).db := by
+  rw [r.next]
+  split
+  · exact turn_step x.fam _ _
+  · exact write_step x _ _ _
+
+/-- With ticks, turns recur. -/
+theorem turnsRecur (ht : r.Ticks) : TurnsRecur x.fam drainCap fun n => (r.store n).db := by
+  intro N
+  obtain ⟨j, hj, hi⟩ := ht N
+  refine ⟨j, hj, [], ?_⟩
+  show (r.store (j + 1)).db = _
+  rw [r.next, if_pos hi]; rfl
 
 theorem keeps {n : Nat} {i : Id} {o : Op} (ho : (r.store n).db.ops i = some o) :
     (r.store (n + 1)).db.ops i = some o := by
   rw [r.next]
-  exact write_preserves_op x _ _ _ ho
+  split
+  · show (turnCappedS _ _ _ _).ops i = some o
+    rw [turnCappedS_ops]; exact ho
+  · exact write_preserves_op x _ _ _ ho
 
 theorem retains {n k : Nat} {i : Id} {o : Op} (hnk : n ≤ k)
     (ho : (r.store n).db.ops i = some o) : (r.store k).db.ops i = some o := by
@@ -285,10 +320,10 @@ theorem retains {n k : Nat} {i : Id} {o : Op} (hnk : n ≤ k)
 /-- Actual receive intake stores every shared input within the
 requirement cap; duplicate and out-of-order receipt do not weaken this
 guarantee. -/
-theorem receives {n : Nat} {o : Op} (ho : o ∈ r.input n) (hs : x.fam.shared o = true)
+theorem receives {n : Nat} {o : Op} (hn : r.idle n = false) (ho : o ∈ r.input n) (hs : x.fam.shared o = true)
     (hc : o.capped = true) :
     (r.store (n + 1)).db.ops o.id = some o := by
-  rw [r.next]
+  rw [r.next, if_neg (by rw [hn]; exact Bool.false_ne_true)]
   apply write_takes x _ _ _ (r.invariant n)
   · exact mem_intake_shared x.fam ho hs hc
   · intro p hp he

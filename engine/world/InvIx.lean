@@ -546,31 +546,32 @@ theorem write_ixinv (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held 
       simp only [HeldM.bind_apply, turn_apply]
       generalize absent.reverse = news
       have hS := fun o (ho : o ∈ news) => foldl_ingestS_isSome news h.db ho
-      generalize hT : List.foldl (fun s o => ingestS o s) h.db news = t at hS ⊢
-      generalize budget (h.log ++ news) t = k
-      have hS' : ∀ o ∈ news, ((drainS x.fam k t).ops o.id).isSome = true := by
-        intro o ho; rw [drainS_ops]; exact hS o ho
-      rw [HeldM.forIn_reads (g := fileStep x.fam (drainS x.fam k t))]
+      have eo := turnCappedS_ops (fam := x.fam) drainCap news h.db
+      generalize turnCappedS x.fam drainCap news h.db = u at eo ⊢
+      generalize hT : List.foldl (fun s o => ingestS o s) h.db news = t at hS eo
+      have hS' : ∀ o ∈ news, (u.ops o.id).isSome = true := by
+        intro o ho; rw [eo]; exact hS o ho
+      rw [HeldM.forIn_reads (g := fileStep x.fam u)]
       · simp only [HeldM.pure_apply]
-        show IxInv x.fam { n with ix := (news.foldl (fileStep x.fam (drainS x.fam k t)) (n.ix, [])).1, fresh := _ }
-          (Held.mk (h.log ++ news) (drainS x.fam k t))
+        show IxInv x.fam { n with ix := (news.foldl (fileStep x.fam u) (n.ix, [])).1, fresh := _ }
+          (Held.mk (h.log ++ news) u)
         rw [foldl_fileStep x.fam _ news _ hS']
         refine ⟨fun r y o hy hr => ?_, keyed_foldl x.fam hk news, fun y o hy => ?_⟩
-        · change (drainS x.fam k t).ops y = some o at hy
-          rw [drainS_ops, ← hT] at hy
+        · change u.ops y = some o at hy
+          rw [eo, ← hT] at hy
           rcases foldl_ingestS_ops news h.db hy with hy | ⟨hm, he⟩
           · obtain ⟨a, ha, ea⟩ := hc r y o hy hr
             exact ⟨a, items_foldl_mono x.fam ha, ea⟩
           · subst he; exact covers_foldl x.fam hk hm hr
-        · change (drainS x.fam k t).ops y = some o at hy
-          rw [drainS_ops, ← hT] at hy
+        · change u.ops y = some o at hy
+          rw [eo, ← hT] at hy
           rcases foldl_ingestS_ops news h.db hy with hy | ⟨hm, he⟩
           · obtain ⟨e, hlog⟩ := hl y o hy; exact ⟨e, List.mem_append_left _ hlog⟩
           · exact ⟨he, List.mem_append_right _ hm⟩
       · intro a b
         rw [HeldM.bind_apply, HeldM.getOp_apply]
         unfold fileStep
-        by_cases h1 : ((drainS x.fam k t).ops a.id).isSome = true
+        by_cases h1 : (u.ops a.id).isSome = true
         · rw [ite_eq_left h1, ite_eq_left h1]; rfl
         · rw [ite_eq_right h1, ite_eq_right h1]; rfl
   · intro a b

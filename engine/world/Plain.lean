@@ -55,16 +55,16 @@ theorem foldl_ingestS_some (ops : List Op) : ∀ {s : DB F} {x : Id} {o' : Op}, 
 theorem turn_keeps (fam : Family F) (ops : List Op) (h : Held F) :
     KeepsRooms fam h ((Turn.turn fam ops : HeldM F Unit).run h).2 := by
   intro x o r hx _
-  show (drainS fam _ (ops.foldl (fun s o => ingestS o s) h.db)).ops x = some o
-  rw [drainS_ops]
+  show (turnCappedS fam drainCap ops h.db).ops x = some o
+  rw [turnCappedS_ops]
   exact foldl_ingestS_some ops hx
 
 /-- **A purge keeps every op of a room**: it takes only ops of no room. -/
 theorem purge_keeps (fam : Family F) (ids : List Id) (scrub : Bool) (h : Held F) :
     KeepsRooms fam h ((Turn.purge fam ids scrub : HeldM F Unit).run h).2 := by
   intro x o r hx hr
-  show (drainS fam _ (purgeS fam ids h.db)).ops x = some o
-  rw [drainS_ops]
+  show (purgeCappedS fam drainCap ids h.db).ops x = some o
+  rw [purgeCappedS_ops]
   simp only [purgeS]
   have hn : has (purgeSet fam h.db ids) x = false := by
     cases e : has (purgeSet fam h.db ids) x with

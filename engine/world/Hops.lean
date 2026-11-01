@@ -74,14 +74,14 @@ theorem forIn_after {α β} (f : α → β → HeldM F (ForInStep β)) (P Q : He
 /-- A write turn keeps every op stored. -/
 theorem turnH_some (fam : Family F) (ops : List Op) (h : Held F) {x : Id} {o : Op} (hx : h.db.ops x = some o) :
     (turnH fam ops h).db.ops x = some o := by
-  show (drainS fam _ (ops.foldl (fun s o => ingestS o s) h.db)).ops x = some o
-  rw [drainS_ops]; exact foldl_ingestS_some ops hx
+  show (turnCappedS fam drainCap ops h.db).ops x = some o
+  rw [turnCappedS_ops]; exact foldl_ingestS_some ops hx
 
 /-- A write turn of one op the store lacks adds exactly that op. -/
 theorem turnH_one_ops (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id = none) (x : Id) :
     (turnH fam [o] h).db.ops x = if x = o.id then some o else h.db.ops x := by
-  show (drainS fam _ (ingestS o h.db)).ops x = _
-  rw [drainS_ops]; simp [ingestS, hn, DB.putOp, DB.push]
+  show (turnCappedS fam drainCap [o] h.db).ops x = _
+  rw [turnCappedS_ops]; simp [ingestS, hn, DB.putOp, DB.push]
 
 /-! ## What a connection step does with a payload -/
 

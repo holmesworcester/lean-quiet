@@ -2903,13 +2903,15 @@ theorem production_step_reachable (S : Setup) (side : Side) (n : Engine.Sync.Nod
     (((n.step (S.sync side) input now) s).2.held).Reachable family :=
   (production_step_moves S side n input now s).store_reachable hr
 
-/-- Finite settling of this call's validation queue, not a uniform bound on
-work per event: the proven runtime budget depends on stored history size. -/
-theorem production_step_settled (S : Setup) (side : Side) (n : Engine.Sync.Node)
+/-- **Urgent work is settled after every production step**
+(`UrgentWaiting`, so `UrgentSettled`: an urgent op whose closure is all
+urgent has its spec verdict), whatever the capped turns left queued; the
+rest is carried by idle turns (`carry_bounded`, `spec_eventually`). -/
+theorem production_step_waiting (S : Setup) (side : Side) (n : Engine.Sync.Node)
     (input : Node.Input) (now : Nat) (s : Memory)
-    (hr : s.held.Reachable family) (hq : s.held.db.queue = []) :
-    ((n.step (S.sync side) input now) s).2.held.db.queue = [] :=
-  (production_step_moves S side n input now s).store_settled hr hq
+    (hr : s.held.Reachable family) (hw : UrgentWaiting family s.held.db) :
+    UrgentWaiting family ((n.step (S.sync side) input now) s).2.held.db :=
+  (production_step_moves S side n input now s).store_waiting hr hw
 
 theorem world_run_moves (S : Setup) (w : World) (side target : Side) (queue : List Packet)
     (f : Engine.Sync.Node → M (Engine.Sync.Node × Effects)) (closed : Bool)
@@ -2967,17 +2969,18 @@ theorem world_trace_moves (S : Setup) (w : World) (actions : List Action) (targe
   | nil => exact .refl _
   | cons a rest ih => exact (world_step_moves S w a target).trans (ih (step S w a))
 
-/-- Arbitrary full production-event prefixes remain reachable and settled.
-The schedule need not be fair; entropy can differ at every fresh draw. -/
+/-- Arbitrary full production-event prefixes remain reachable, with urgent
+work settled. The schedule need not be fair; entropy can differ at every
+fresh draw. -/
 theorem empty_trace_store (S : Setup) (ea eb : Nat → ByteArray)
     (actions : List Action) (target : Side) :
     let h := ((trace S (empty ea eb) actions).peer target).memory.held
-    h.Reachable family ∧ h.db.queue = [] := by
+    h.Reachable family ∧ UrgentWaiting family h.db := by
   have hm := world_trace_moves S (empty ea eb) actions target
   have he : ((empty ea eb).peer target).memory.held = ({} : Held F) := by cases target <;> rfl
   rw [he] at hm
   exact ⟨hm.store_reachable (held_empty_reachable family),
-    hm.store_settled (held_empty_reachable family) rfl⟩
+    hm.store_waiting (held_empty_reachable family) waiting_empty⟩
 
 /-- The byte-retention statement applies to every execution, not only a
 chosen fair schedule. It does not claim an invalid op becomes valid. -/
@@ -3548,8 +3551,8 @@ verdict; an `established` verdict naming one). `Forgets s hs`: no row
 does.
 
 Proven, over the running code:
-- `purge_forgets`: the running purge (`purge`, which is `purgeS` on the
-  model's tables, `run_purge`), then judging, leaves no key row of the
+- `purge_forgets`: the running purge (`purgeCapped`, which is `purgeCappedS` on the
+  model's tables, `run_purgeCapped`), then judging, leaves no key row of the
   handshakes it was given, whatever else the store holds. Any key row
   cites one of them, so the purge's walk reaches it, and it is local.
 - `close_forgets`: so the close step every session end runs
@@ -3804,13 +3807,14 @@ theorem forgets_of_uncited {C : Community.Crypto} {K : Keys} {s : DB F} (hi : In
   obtain ⟨o, ho, hl, r, hr, hrs⟩ := keyRow_op hi hy
   exact hu y o ho hl r hr hrs
 
-/-- The running purge of `hs` (`purgeS`, which the running `purge` is:
-`run_purge`), then any judging, leaves no conn or local op that cites
-one of `hs`: the purge's walk reaches every op that cites one. -/
-theorem purge_uncited {fam : Family F} {s : DB F} (hi : Inv fam s) (hs : List Id) (n : Nat) :
-    Uncited (drainS fam n (purgeS fam hs s)) fam hs := by
+/-- The running purge of `hs` (`purgeCappedS`, which the running
+`purgeCapped` is: `run_purgeCapped`), whatever it then judges, leaves no
+conn or local op that cites one of `hs`: the purge's walk reaches every
+op that cites one. -/
+theorem purge_uncited {fam : Family F} {s : DB F} (hi : Inv fam s) (hs : List Id) (cap : Nat) :
+    Uncited (purgeCappedS fam cap hs s) fam hs := by
   intro y o ho hl r hr hrs
-  rw [drainS_ops] at ho
+  rw [purgeCappedS_ops] at ho
   have hnot : y ∉ purgeSet fam s hs := fun hm => by rw [purgeS_ops_mem s hs hm] at ho; cases ho
   rw [purgeS_ops_not s hs hnot] at ho
   have hst : y ∈ s.stored := (hi.stored y).2 (by rw [ho]; rfl)
@@ -3820,9 +3824,9 @@ theorem purge_uncited {fam : Family F} {s : DB F} (hi : Inv fam s) (hs : List Id
 /-- **What a purge leaves uncited stays so** through any later purge: a
 purge deletes, and judging writes no op. -/
 theorem uncited_stays {fam : Family F} {s : DB F} {hs : List Id} (hu : Uncited s fam hs)
-    (ids : List Id) (n : Nat) : Uncited (drainS fam n (purgeS fam ids s)) fam hs := by
+    (ids : List Id) (cap : Nat) : Uncited (purgeCappedS fam cap ids s) fam hs := by
   intro y o ho hl r hr hrs
-  rw [drainS_ops] at ho
+  rw [purgeCappedS_ops] at ho
   have hnot : y ∉ purgeSet fam s ids := fun hm => by rw [purgeS_ops_mem s ids hm] at ho; cases ho
   rw [purgeS_ops_not s ids hnot] at ho
   exact hu y o ho hl r hr hrs
@@ -3831,15 +3835,15 @@ theorem uncited_stays {fam : Family F} {s : DB F} {hs : List Id} (hu : Uncited s
 purge of `hs` and any judging, no row holds an ephemeral drawn for one
 of `hs`, nor the keys of a session one of them names. -/
 theorem purge_forgets {C : Community.Crypto} {K : Keys} {s : DB F} (hi : Inv (node C K) s) (hs : List Id)
-    (n : Nat) : Forgets (drainS (node C K) n (purgeS (node C K) hs s)) hs :=
-  forgets_of_uncited (inv_drainS (purge_inv hi hs) n) (purge_uncited hi hs n)
+    (cap : Nat) : Forgets (purgeCappedS (node C K) cap hs s) hs :=
+  forgets_of_uncited (inv_purgeCapped hi cap hs) (purge_uncited hi hs cap)
 
 /-- **Forgotten stays forgotten**: once nothing local cites `hs`, no
 later purge brings a key row of them back. -/
 theorem forget_stays {C : Community.Crypto} {K : Keys} {s : DB F} (hi : Inv (node C K) s) {hs : List Id}
-    (hu : Uncited s (node C K) hs) (ids : List Id) (n : Nat) :
-    Forgets (drainS (node C K) n (purgeS (node C K) ids s)) hs :=
-  forgets_of_uncited (inv_drainS (purge_inv hi ids) n) (uncited_stays hu ids n)
+    (hu : Uncited s (node C K) hs) (ids : List Id) (cap : Nat) :
+    Forgets (purgeCappedS (node C K) cap ids s) hs :=
+  forgets_of_uncited (inv_purgeCapped hi cap ids) (uncited_stays hu ids cap)
 
 /-! ## The close step forgets -/
 

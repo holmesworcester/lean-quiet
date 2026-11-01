@@ -432,9 +432,7 @@ theorem foldl_fileStep (fam : Family F) (s : DB F) (L : List Op) (a : Index × L
     unfold fileStep; rw [ite_eq_left (h o (List.mem_cons_self ..))]
 
 theorem turn_apply (fam : Family F) (ops : List Op) (h : Held F) :
-    (Turn.turn fam ops : HeldM F Unit) h =
-      ((), Held.mk (h.log ++ ops) (drainS fam (budget (h.log ++ ops) (ops.foldl (fun s o => ingestS o s) h.db))
-        (ops.foldl (fun s o => ingestS o s) h.db))) := rfl
+    (Turn.turn fam ops : HeldM F Unit) h = ((), Held.mk (h.log ++ ops) (turnCappedS fam drainCap ops h.db)) := rfl
 
 /-- **A write turn keeps the cache law**: the index grows by exactly
 the ops it newly stores. -/
@@ -455,21 +453,23 @@ theorem write_cached (x : Sync F (HeldM F)) {n : Node} {h : Held F} (ops : List 
       have hd' : (absent.reverse.map (·.id)).Nodup := by rw [List.map_reverse]; exact (List.reverse_perm _).nodup_iff.2 hd
       obtain ⟨hI, hF, hS⟩ := foldl_ingest_new x.fam hi absent.reverse hn' hd'
       generalize absent.reverse = news at hI hF hS ⊢
-      generalize List.foldl (fun s o => ingestS o s) h.db news = t at hI hF hS ⊢
-      generalize budget (h.log ++ news) t = k
-      have hS' : ∀ o ∈ news, ((drainS x.fam k t).ops o.id).isSome = true := by
-        intro o ho; rw [drainS_ops, hS o ho]; rfl
-      rw [HeldM.forIn_reads (g := fileStep x.fam (drainS x.fam k t))]
+      have eo := turnCappedS_ops (fam := x.fam) drainCap news h.db
+      have es := turnCappedS_stored (fam := x.fam) drainCap news h.db
+      have hIt := inv_turnCapped (fam := x.fam) hi drainCap news
+      generalize turnCappedS x.fam drainCap news h.db = u at eo es hIt ⊢
+      generalize List.foldl (fun s o => ingestS o s) h.db news = t at hI hF hS eo es
+      have hS' : ∀ o ∈ news, (u.ops o.id).isSome = true := by
+        intro o ho; rw [eo, hS o ho]; rfl
+      rw [HeldM.forIn_reads (g := fileStep x.fam u)]
       · simp only [HeldM.pure_apply]
-        refine ⟨inv_drain x.fam hI k, ?_⟩
-        show (news.foldl (fileStep x.fam (drainS x.fam k t)) (n.ix, [])).1 =
-          Index.ofOps x.fam ((drainS x.fam k t).stored.filterMap (drainS x.fam k t).ops)
-        rw [foldl_fileStep x.fam _ news _ hS', drainS_ops, drainS_stored, hF, hc]
+        refine ⟨hIt, ?_⟩
+        show (news.foldl (fileStep x.fam u) (n.ix, [])).1 = Index.ofOps x.fam (u.stored.filterMap u.ops)
+        rw [foldl_fileStep x.fam _ news _ hS', eo, es, hF, hc]
         simp only [Index.ofOps, List.foldl_append]
       · intro a b
         rw [HeldM.bind_apply, HeldM.getOp_apply]
         unfold fileStep
-        by_cases h1 : ((drainS x.fam k t).ops a.id).isSome = true
+        by_cases h1 : (u.ops a.id).isSome = true
         · rw [ite_eq_left h1, ite_eq_left h1]; rfl
         · rw [ite_eq_right h1, ite_eq_right h1]; rfl
   · intro a b
@@ -484,8 +484,7 @@ theorem write_cached (x : Sync F (HeldM F)) {n : Node} {h : Held F} (ops : List 
 theorem purge_apply (fam : Family F) (ids : List Id) (scrub : Bool) (h : Held F) :
     (Turn.purge fam ids scrub : HeldM F Unit) h =
       ((), Held.mk (h.log.filter fun o => !has (purgeSet fam h.db ids) o.id)
-        (drainS fam (budget (h.log.filter fun o => !has (purgeSet fam h.db ids) o.id) (purgeS fam ids h.db))
-          (purgeS fam ids h.db))) := rfl
+        (purgeCappedS fam drainCap ids h.db)) := rfl
 
 theorem filter_purged (fam : Family F) (s : DB F) (P : List Id)
     (hP : ∀ x ∈ P, ∀ o, s.ops x = some o → (fam.room o).isSome = false) (l : List Id) :
@@ -515,10 +514,10 @@ theorem purge_cached (fam : Family F) {n : Node} {h : Held F} (ids : List Id) (s
     Inv fam ((Turn.purge fam ids scrub : HeldM F Unit) h).2.db ∧
       Cached fam n ((Turn.purge fam ids scrub : HeldM F Unit) h).2.db := by
   rw [purge_apply]
-  refine ⟨inv_drain fam (purge_inv hi ids) _, ?_⟩
-  show n.ix = Index.ofOps fam ((drainS fam _ (purgeS fam ids h.db)).stored.filterMap
-    (drainS fam _ (purgeS fam ids h.db)).ops)
-  rw [drainS_ops, drainS_stored, hc, Index.ofOps, Index.ofOps, foldl_add_shared,
+  refine ⟨inv_purgeCapped hi drainCap ids, ?_⟩
+  show n.ix = Index.ofOps fam ((purgeCappedS fam drainCap ids h.db).stored.filterMap
+    (purgeCappedS fam drainCap ids h.db).ops)
+  rw [purgeCappedS_ops, purgeCappedS_stored, hc, Index.ofOps, Index.ofOps, foldl_add_shared,
     foldl_add_shared fam _ ((purgeS fam ids h.db).stored.filterMap _)]
   congr 1
   symm

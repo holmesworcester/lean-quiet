@@ -218,8 +218,10 @@ theorem finite_eventually_held {F : Type} {x : Sync F (HeldM F)} (r : ReceiverRu
 `requested` concerns queue admission, `transport` concerns eventual input
 of each emitted payload into the actual receiver write path. Neither
 assumes possession of the final closure or its final verdict. Once every
-required operation arrives, the running write turn's own drain budget
-settles validation, and locality transfers the source's verdict. Ongoing
+required operation arrives, and turns keep coming (`ticks`, the
+receiver's process keeps getting scheduled), the capped write turns judge
+it: the queue is first in, first out, so the seed's place only falls
+(`spec_eventually`), and locality transfers the source's verdict. Ongoing
 tail requests and out-of-order/duplicate input are permitted.
 
 This is the post-discovery connection component: the round/walk/hold laws
@@ -236,8 +238,8 @@ theorem closure_delivered {F : Type} {x : Sync F (HeldM F)} {cfg : Config}
     (requested : ∀ o ∈ whole, (recv.store start).db.ops o.id = some o ∨
       ∃ j ≥ start, o.id ∈ (send.conn j).owed)
     (transport : ∀ j ≥ start, ∀ o ∈ send.emitted j,
-      ∃ k ≥ j, o ∈ recv.input k)
-    (capped : ∀ o ∈ whole, o.capped = true) :
+      ∃ k ≥ j, recv.idle k = false ∧ o ∈ recv.input k)
+    (capped : ∀ o ∈ whole, o.capped = true) (ticks : recv.Ticks) :
     ∃ k ≥ start, ∀ j ≥ k,
       (∀ o ∈ whole, (recv.store j).db.ops o.id = some o) ∧
       (recv.store j).db.status seed = some v := by
@@ -247,7 +249,7 @@ theorem closure_delivered {F : Type} {x : Sync F (HeldM F)} {cfg : Config}
     · exact ⟨start, Nat.le_refl _, held⟩
     · obtain ⟨j, hnj, emitted⟩ := send.eventually_emitted service queued
         (fun j hj => available o ho j (by omega))
-      obtain ⟨k, hjk, received⟩ := transport j (by omega) o emitted
+      obtain ⟨k, hjk, hidle, received⟩ := transport j (by omega) o emitted
       have shown := (available o ho j (by omega)).2
       have shared : x.fam.shared o = true := by
         unfold Family.shared
@@ -255,16 +257,15 @@ theorem closure_delivered {F : Type} {x : Sync F (HeldM F)} {cfg : Config}
         cases hr : x.fam.room o with
         | none => simp [hr] at shown
         | some r => rfl
-      exact ⟨k + 1, by omega, recv.receives received shared (capped o ho)⟩
+      exact ⟨k + 1, by omega, recv.receives hidle received shared (capped o ho)⟩
   obtain ⟨k, hk, held⟩ := finite_eventually_held recv whole start each
-  refine ⟨k, hk, ?_⟩
-  intro j hj
-  refine ⟨held j hj, ?_⟩
-  apply (status_iff_spec (recv.invariant j) (recv.settled j) seed v).mpr
-  apply spec_local x.fam spec
-  intro i o reach sourceOp
-  obtain ⟨ho, hid⟩ := closure i o reach sourceOp
-  rw [← hid]
-  exact held j hj o ho
+  obtain ⟨n, hn⟩ := spec
+  obtain ⟨k', hk', hst⟩ := spec_eventually (fam := x.fam) drainCap_pos (st := fun j => (recv.store j).db)
+    recv.step (recv.turnsRecur ticks) recv.invariant (source := source) (seed := seed) (T := k)
+    (fun y o hy hs j hj => by
+      obtain ⟨ho, hid⟩ := closure y o hy hs
+      rw [← hid]; exact held j hj o ho)
+    n seed v .refl hn
+  exact ⟨k', by omega, fun j hj => ⟨held j (by omega), hst j hj⟩⟩
 
 end Engine.Sync

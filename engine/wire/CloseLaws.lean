@@ -27,8 +27,8 @@ theorem close_gone (x : Sync F (HeldM F)) (cid : Id) (h : Held F) (ids : List Id
   rw [endSession_purges, HeldM.bind_apply, hc]
   simp only [he, Bool.not_false, ite_true]
   simp only [HeldM.bind_apply, HeldM.pure_apply]
-  change (drainS x.fam _ (purgeS x.fam ids h.db)).ops i = none
-  rw [drainS_ops]
+  change (purgeCappedS x.fam drainCap ids h.db).ops i = none
+  rw [purgeCappedS_ops]
   exact (purge_named (fam := x.fam) h.db hi ho hr).1
 
 /-- The runner's finish executes the purge step for every drop, every

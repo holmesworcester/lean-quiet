@@ -536,6 +536,61 @@ theorem turnCappedS_ops (cap : Nat) (ops : List Op) (s : DB F) :
     (turnCappedS fam cap ops s).ops = (ops.foldl (fun s o => ingestS o s) s).ops := by
   simp only [turnCappedS, drainS_ops, urgentCloseS_ops, judgeJobS_ops]
 
+theorem judgeAheadS_stored (onlyUrgent : Bool) (x : Id) (s : DB F) :
+    (judgeAheadS fam onlyUrgent x s).2.stored = s.stored := by
+  rcases judgeAheadS_eq (fam := fam) onlyUrgent x s with e | e <;> rw [e]
+  exact stepS_stored _
+
+theorem judgeJobS_stored : ∀ (xs : List Id) (s : DB F), (judgeJobS fam xs s).2.stored = s.stored
+  | [], _ => rfl
+  | x :: xs, s => by
+    show (judgeJobS fam xs (judgeAheadS fam false x s).2).2.stored = _
+    rw [judgeJobS_stored xs, judgeAheadS_stored]
+
+theorem urgentCloseS_stored : ∀ (n : Nat) (xs : List Id) (s : DB F), (urgentCloseS fam n xs s).stored = s.stored
+  | 0, _, _ => rfl
+  | _ + 1, [], _ => rfl
+  | n + 1, x :: xs, s => by
+    show (urgentCloseS fam n _ (judgeAheadS fam true x s).2).stored = _
+    rw [urgentCloseS_stored n, judgeAheadS_stored]
+
+theorem drainS_stored' : ∀ (n : Nat) (s : DB F), (drainS fam n s).stored = s.stored
+  | 0, _ => rfl
+  | n + 1, s => by unfold drainS; split <;> simp only [drainS_stored' n, stepS_stored]
+
+/-- Judging leaves the stored list: a turn's is its intake's. -/
+theorem turnCappedS_stored (cap : Nat) (ops : List Op) (s : DB F) :
+    (turnCappedS fam cap ops s).stored = (ops.foldl (fun s o => ingestS o s) s).stored := by
+  simp only [turnCappedS, drainS_stored', urgentCloseS_stored, judgeJobS_stored]
+
+theorem inv_judgeAhead {s : DB F} (h : Inv fam s) (onlyUrgent : Bool) (x : Id) :
+    Inv fam (judgeAheadS fam onlyUrgent x s).2 := by
+  rcases judgeAheadS_eq (fam := fam) onlyUrgent x s with e | e <;> rw [e]
+  · exact h
+  · exact inv_step (inv_front h x)
+
+theorem inv_drainS {s : DB F} (h : Inv fam s) : ∀ n, Inv fam (drainS fam n s)
+  | 0 => h
+  | n + 1 => by unfold drainS; split; exact inv_step h; exact inv_drainS (inv_step h) n
+
+theorem inv_judgeJob : ∀ (xs : List Id) {t : DB F}, Inv fam t → Inv fam (judgeJobS fam xs t).2
+  | [], _, ht => ht
+  | y :: ys, _, ht => inv_judgeJob ys (inv_judgeAhead ht false y)
+
+theorem inv_urgentClose : ∀ (n : Nat) (xs : List Id) {t : DB F}, Inv fam t → Inv fam (urgentCloseS fam n xs t)
+  | 0, _, _, ht => ht
+  | _ + 1, [], _, ht => ht
+  | n + 1, y :: ys, _, ht => inv_urgentClose n _ (inv_judgeAhead ht true y)
+
+/-- **A turn keeps `Inv`.** -/
+theorem inv_turnCapped {s : DB F} (h : Inv fam s) (cap : Nat) (ops : List Op) :
+    Inv fam (turnCappedS fam cap ops s) := by
+  have h1 : Inv fam (ops.foldl (fun s o => ingestS o s) s) := by
+    induction ops generalizing s with
+    | nil => exact h
+    | cons o os ih => exact ih (inv_ingest h o)
+  exact inv_drainS (inv_urgentClose _ _ (inv_judgeJob _ h1)) cap
+
 theorem drainCap_pos : 0 < drainCap := by unfold drainCap; decide
 
 /-! ## Urgent verdicts agree
@@ -560,5 +615,96 @@ theorem urgent_agree {L M : List Op} {s t : DB F} (hs : Reach fam L s) (ht : Rea
     | some w =>
       have := (es w).2 (hops ▸ (et w).1 h2)
       rw [h1] at this; cases this
+
+/-! ## A purge, capped
+
+A purge undecides the ops that require what it forgets and requeues the
+shared ones (`rejudgeSet`); the capped purge judges the urgent ones among
+them ahead, as a turn does, then at most `cap` queued. -/
+
+variable (fam) in
+/-- The capped purge on the tables. -/
+def purgeCappedS (cap : Nat) (ids : List Id) (s : DB F) : DB F :=
+  let t := purgeS fam ids s
+  let R := rejudgeSet fam s ids
+  let n := t.stored.length
+  drainS fam cap (urgentCloseS fam (R.length + n * (n + 1)) R t)
+
+/-- **What runs is the capped purge on the tables.** -/
+theorem run_purgeCapped (cap : Nat) (ids : List Id) (s : DB F) :
+    ((purgeCapped (m := Model F) fam cap ids).run s).2 = purgeCappedS fam cap ids s := by
+  unfold purgeCapped purgeCappedS
+  simp only [Model.run_bind, run_purgeR, run_countOps]
+  rw [run_urgentClose, run_drain]; rfl
+
+theorem purgeCappedS_ops (cap : Nat) (ids : List Id) (s : DB F) :
+    (purgeCappedS fam cap ids s).ops = (purgeS fam ids s).ops := by
+  simp only [purgeCappedS, drainS_ops, urgentCloseS_ops]
+
+theorem purgeCappedS_stored (cap : Nat) (ids : List Id) (s : DB F) :
+    (purgeCappedS fam cap ids s).stored = (purgeS fam ids s).stored := by
+  simp only [purgeCappedS, drainS_stored', urgentCloseS_stored]
+
+theorem inv_purgeCapped {s : DB F} (h : Inv fam s) (cap : Nat) (ids : List Id) :
+    Inv fam (purgeCappedS fam cap ids s) :=
+  inv_drainS (inv_urgentClose _ _ (purge_inv h ids)) cap
+
+theorem reach_purgeCapped {L : List Op} {s : DB F} (h : Reach fam L s) (cap : Nat) (ids : List Id) :
+    Reach fam (L.filter fun o => !has (purgeSet fam s ids) o.id) (purgeCappedS fam cap ids s) :=
+  reach_drain (reach_urgentClose _ _ (Reach.purge ids h)) cap
+
+/-- An op whose closure avoids the purge's closure reaches the same ops
+after it. -/
+theorem reach_purgeS {s : DB F} (hi : Inv fam s) (ids : List Id) {x y : Id}
+    (h : Sync.Reach s.ops x y) (hx : x ∉ closeUp s ids) : Sync.Reach (purgeS fam ids s).ops x y ∧ y ∉ closeUp s ids := by
+  have hy : y ∉ closeUp s ids := fun hy =>
+    hx (reach_closed (C := (· ∈ closeUp s ids)) (closeUp_dependents hi ids) h hy)
+  refine ⟨?_, hy⟩
+  induction h with
+  | refl => exact .refl
+  | @step y' o' r hxy hy' hr ih =>
+    have hy'c : y' ∉ closeUp s ids := fun hc =>
+      hx (reach_closed (C := (· ∈ closeUp s ids)) (closeUp_dependents hi ids) hxy hc)
+    refine .step (ih hy'c) ?_ hr
+    rw [purgeS_ops_not s ids (fun hp => hy'c (purgeSet_closeUp hp))]; exact hy'
+
+/-- **After a purge, urgent work waits or is to be judged again**: every
+urgent op whose closure is all urgent is decided, requeued by the purge,
+or waiting as before. -/
+theorem but_purge {s : DB F} (hi : Inv fam s) (h : UrgentWaiting fam s) (ids : List Id) :
+    UrgentWaitingBut fam (rejudgeSet fam s ids) (purgeS fam ids s) := by
+  intro x o ho hc hx
+  have hnp : x ∉ purgeSet fam s ids := fun hp => by rw [purgeS_ops_mem s ids hp] at ho; cases ho
+  have hos : s.ops x = some o := by rw [← purgeS_ops_not s ids hnp]; exact ho
+  by_cases hxc : x ∈ closeUp s ids
+  · left
+    refine mem_rejudgeSet_iff.2 ⟨hxc, o, hos, ?_⟩
+    cases hr : fam.room o with
+    | some _ => rfl
+    | none => exact absurd (mem_purgeSet_iff.2 ⟨hxc, o, hos, hr⟩) hnp
+  · right
+    rw [purgeS_status_not s ids hxc] at hx
+    have hcs : UrgentClosed fam s x := fun y p hy hp => by
+      obtain ⟨hy', hyc⟩ := reach_purgeS hi ids hy hxc
+      exact hc y p hy' (by rw [purgeS_ops_not s ids (fun hp' => hyc (purgeSet_closeUp hp'))]; exact hp)
+    obtain ⟨hj, hw⟩ := (h x o hos hcs hx).resolve_left List.not_mem_nil
+    have hreq : ∀ r ∈ o.reqs, r ∉ closeUp s ids := fun r hr =>
+      (reach_purgeS (fam := fam) hi ids (.step .refl hos hr) hxc).2
+    have hmap : o.reqs.map (purgeS fam ids s).status = o.reqs.map s.status :=
+      List.map_congr_left fun r hr => purgeS_status_not s ids (hreq r hr)
+    refine ⟨by rw [hmap]; exact hj, fun r hr hrs => ?_⟩
+    rw [purgeS_status_not s ids (hreq r hr)] at hrs
+    exact (mem_purgeS_waits s ids r x).2
+      ⟨fun hp => hreq r hr (purgeSet_closeUp hp), hw r hr hrs, hnp⟩
+
+/-- **A capped purge keeps urgent work settled.** -/
+theorem purge_waiting {L : List Op} {s : DB F} (hr : Reach fam L s) (h : UrgentWaiting fam s)
+    (cap : Nat) (ids : List Id) : UrgentWaiting fam (purgeCappedS fam cap ids s) := by
+  unfold purgeCappedS
+  apply waiting_drain
+  refine urgentClose_waiting _ _ (Reach.purge ids hr) (but_purge (reach_inv hr) h ids) ?_
+  have := undecided_le (purgeS fam ids s)
+  have hm := Nat.mul_le_mul_right ((purgeS fam ids s).stored.length + 1) this
+  omega
 
 end Engine
