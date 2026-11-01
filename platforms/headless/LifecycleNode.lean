@@ -134,7 +134,10 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     discard <| step [.foreground]
     ck.ok "resume does not join the stopping runner" ((← IO.monoMsNow) < begin + 100)
     ck.ok "resume neither starts a second runner nor offers parked writes early"
-      ((← get).net.isNone && (← get).netBoot.isNone && (← get).toNode.size == 2 && (← sm.frames.get) == frames)
+      ((← get).net.isNone && (← get).netBoot.isNone && (← get).toNode.size == 2)
+    -- Pending native cleanup no longer holds the foreground frame
+    -- (docs/APP-STOP-UI.md); only network work waits for it.
+    ck.ok "resume publishes its frame while teardown is pending" ((← sm.frames.get) == frames + 1)
     let third := Community.react before.me.c before.me.adm message before.me.dev "4".toUTF8 4
     submit ⟨[third], true⟩
     flushNode
@@ -189,10 +192,15 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     ck.ok "late boot teardown remains owned" (← pure (← get).netStop.isSome)
     discard <| IO.wait boot
     if let some t := (← get).netStop then discard <| IO.wait t
+    let lateStopped ← match ← late.get with
+      | some r => r.stopped.get | none => pure false
+    ck.ok "a runner born after timeout is stopped" lateStopped
+    -- Replay waits for that runner's loop to end. A runner left running is
+    -- already a failure above; stop it here only so the later cases run.
+    unless lateStopped do
+      if let some r ← late.get then r.stop
     if let some t := (← get).netReplay then discard <| IO.wait t
     reap
-    ck.ok "a runner born after timeout is stopped" (← match ← late.get with
-      | some r => r.stopped.get | none => pure false)
     -- A reader scheduled before unmount, and a producer/decoder that
     -- finish afterwards. No future can publish into the detached page.
     modify fun s => { s with active := true, netCfg := none }
