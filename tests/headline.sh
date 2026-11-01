@@ -66,6 +66,11 @@ if [ "$(printf '%s\n4.35.0\n' "$tc" | sort -V | head -1)" = 4.35.0 ]; then
   lake comparator --config tests/comparator/comparator.json ||
     { echo "lake comparator rejected the headline solution" >&2; exit 1; }
   echo "lake comparator: accepted"
+  # Its control: the challenge with one statement weakened must be
+  # rejected (exit 1; 2 would mean Comparator did not start).
+  rc=0; lake comparator --config tests/comparator/comparator-weak.json >"$tmp/weak.out" 2>&1 || rc=$?
+  [ "$rc" -eq 1 ] || { cat "$tmp/weak.out"; echo "control not caught: lake comparator exit $rc on a weakened challenge" >&2; exit 1; }
+  echo "control caught: lake comparator rejects a weakened challenge"
 else
   echo "lake comparator: skipped, Lean $tc has none (it comes in v4.35)"
 fi
