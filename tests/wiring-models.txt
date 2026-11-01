@@ -140,9 +140,6 @@ Screen.past_hull_le
 Screen.screen_index
 Screen.screen_subs
 
-# engine.sync.RetryLaws
-Engine.Sync.work_retry_bounded
-
 # engine.sync.RoundLaws
 Engine.Sync.exchange_complete
 
@@ -192,9 +189,6 @@ Engine.Sync.Tree.fold_congr
 
 # engine.sync.Witnesses
 Engine.Sync.secrecy_runs
-
-# engine.wire.Frame
-Engine.Sync.buffer_bounded
 
 # engine.wire.NoiseSymbolic
 Connection.Noise.Symbolic.exposed_parts

@@ -290,6 +290,8 @@ spec Text.numberRuns A line's maximal European or Arabic number runs, as its bid
 spec Text.bidiControls The explicit bidi controls.
 spec ViewLaws.nameIn A user's name, as the store holds it.
 spec ViewLaws.factIn A message's fact, as the store holds it.
+spec Engine.Sync.keeps The buffers the TCP reader keeps over a run of reads: each read runs the running `frames` on the kept buffer and the read, keeping its rest or ending the connection (Tcp.reader: `frames (buf ++ chunk)`).
+spec Engine.Sync.retried The want ids an output carries, decoded: the measure the retry bound counts.
 spec Community.Invite.uri The link the join page opens (site/join.html, tested by site/test.py): leanquiet://join/ and the invite's code.
 spec Hold.messagePlane The uncached placeholder plane: the generator the running cache (cachedMessagePlane) is proven to return exactly.
 spec App.PageId.all Every page (all_pages): the count Nav's depth bound is stated against.
@@ -397,7 +399,6 @@ todo Net.sent = Net.Scene.approval
 todo Net.step = Net.Scene.approval
 todo Net.table = Net.Scene.approval
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
-todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode

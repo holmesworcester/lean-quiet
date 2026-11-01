@@ -148,7 +148,7 @@ law, in the meter, over a door nothing runs as it is), laws that must be negativ
 budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Net.step, `Pic.render]
 def models : List Name :=
-  [`Net.Scene.bootstrap, `Engine.Sync.buffer_bounded, `Engine.list_costs]
+  [`Net.Scene.bootstrap, `Engine.Sync.RoundRun.collisionCheck_sound, `Engine.list_costs]
 /-- Laws that must be negative controls: a mutant over its budget. -/
 def controlLaws : List Name := [`Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/
