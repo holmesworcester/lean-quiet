@@ -93,6 +93,7 @@ open Engine Community
 #print axioms Engine.status_iff_spec
 #print axioms Engine.order_free
 #print axioms Engine.reach_drain
+#print axioms Engine.reach_inv
 #print axioms Engine.spec_extends
 #print axioms Engine.Codec.decode_encode
 #print axioms Engine.Codec.encode_decode
