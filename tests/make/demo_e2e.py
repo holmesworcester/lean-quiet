@@ -75,8 +75,9 @@ def timed(name, t0):
     results.append(f'{name}_seconds={time.monotonic() - t0:.1f}')
 
 
+# emptied (in the clean room the folder itself is the judge's, its parent root's)
 shutil.rmtree(OUT, ignore_errors=True)
-OUT.mkdir(parents=True)
+OUT.mkdir(parents=True, exist_ok=True)
 # Fail clearly when the sandbox forbids Xvfb's local socket.
 probe = OUT / f'socket-probe-{os.getpid()}'
 with socket.socket(socket.AF_UNIX) as s:

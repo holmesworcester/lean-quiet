@@ -116,7 +116,7 @@ step demo
 mkdir -p "$out/demo-e2e" && chown judge "$out/demo-e2e"
 t0=$(date +%s)
 judge "DEMO_E2E_OUT=$out/demo-e2e python3 tests/make/demo_e2e.py" > "$out/demo.log" 2>&1 ||
-  die "make demo: $(grep -m1 '^FAIL' "$out/demo.log") (demo.log, demo-e2e/)"
+  die "make demo: $(grep -m1 '^FAIL' "$out/demo.log" || tail -n 1 "$out/demo.log") (demo.log, demo-e2e/)"
 echo "demo_e2e_seconds=$(($(date +%s) - t0))" >> "$res"
 sed 's/^/demo_/' "$out/demo-e2e/result.txt" >> "$res"
 step pass

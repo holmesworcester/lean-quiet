@@ -248,7 +248,7 @@ class X:
             raise RuntimeError('this needs xdotool (on Debian or Ubuntu: sudo apt-get install xdotool)')
 
     def run(self, *args):
-        return sp.check_output(['xdotool', *map(str, args)], env=self.env, text=True).strip()
+        return sp.check_output(['xdotool', *map(str, args)], env=self.env, text=True, timeout=20).strip()
 
     def window(self, device):
         if device.win is None:
@@ -257,7 +257,7 @@ class X:
         return device.win
 
     def find(self, title):
-        p = sp.run(['xdotool', 'search', '--name', title], env=self.env, text=True, capture_output=True)
+        p = sp.run(['xdotool', 'search', '--name', title], env=self.env, text=True, capture_output=True, timeout=20)
         return p.stdout.split()[-1] if p.returncode == 0 and p.stdout.split() else None
 
     def click(self, device, key, timeout=30):
@@ -270,13 +270,15 @@ class X:
         give it the keyboard."""
         win = self.window(device)
         if self.wm():
-            self.run('windowactivate', '--sync', win)
+            # not --sync: a window manager may refuse focus, and never answer
+            self.run('windowactivate', win)
+            time.sleep(.3)
         else:
             self.run('windowraise', win)
             self.run('windowfocus', '--sync', win)
 
     def wm(self):
-        p = sp.run(['xdotool', 'getactivewindow'], env=self.env, capture_output=True)
+        p = sp.run(['xdotool', 'getactivewindow'], env=self.env, capture_output=True, timeout=20)
         return p.returncode == 0
 
     def type(self, device, text):
@@ -336,7 +338,8 @@ def guide(alice, bob):
             say("2. Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then the purple ✓.")
         if not admitted and bob.community() == 'Quiet' and not bob.waiting():
             admitted = True
-            say("3. Bob is in: Alice's messages are on his screen. Type in either window and it shows in the other.")
+            say("3. Bob is in: Alice's messages are on his screen. In Alice's window, click # general.")
+            say('   Then type in either window: it shows in the other.')
             say('   Point at a message to react to it: the reaction shows in the other window too.')
             say('Close both windows (or press Ctrl-C) to stop.')
         time.sleep(.2)
@@ -360,7 +363,8 @@ def main(argv):
     say(f'(Alice on port {pa}, Bob on port {pb}; their files are in {OUT})')
     try:
         if auto:
-            say('Joining Bob to Alice\'s community, as you would: his name, Agree & Join, then Approve')
+            say("Joining Bob to Alice's community, as you would: his name, Agree & Join, then Approve")
+            say('(hands off the mouse and keyboard for a few seconds)')
             join(alice, bob, x)
             x.compose(bob, "Hi Alice, it's Bob!")
             wait(lambda: alice.rows()[:1] == [('Bob', "Hi Alice, it's Bob!", False)], "Bob's hi reaches Alice", 30,
@@ -374,7 +378,7 @@ def main(argv):
             guide(alice, bob)
     except KeyboardInterrupt:
         pass
-    except (RuntimeError, TimeoutError) as e:
+    except (RuntimeError, TimeoutError, sp.SubprocessError) as e:
         print(f'make demo: {e}', file=sys.stderr)
         return 1
     finally:
