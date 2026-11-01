@@ -12,6 +12,9 @@ import engine.wire.IngressChurnLaws
 import app.Proofs
 import app.settings.appearance.Proofs
 import app.settings.appearance.Commands
+import app.nav.Commands
+import app.nav.View
+import app.nav.Proofs
 import engine.renderer.Demand
 
 
@@ -65,7 +68,7 @@ import app.community.key.View
 import app.community.profile.View
 import app.community.member.remove.View
 import engine.renderer.Ttf.Laws
-import engine.renderer.Ttf.Cache
+import engine.renderer.Ttf.Memo
 import app.community.channel.message.attachment.Screen
 import app.community.channel.message.attachment.View
 import engine.renderer.qr.Qr
@@ -316,7 +319,6 @@ open Engine Community
 #print axioms Connection.Noise.Symbolic.kk_authentic_tight
 #print axioms Connection.Noise.Symbolic.kk_authentic_resp_tight
 #print axioms Connection.Noise.Symbolic.read1Slip_forged
-#print axioms Connection.Noise.Symbolic.exposed_parts
 #print axioms Connection.Noise.Symbolic.kk_secret_init_tight
 #print axioms Community.root_of_admission
 #print axioms Community.removeMember_valid
@@ -959,7 +961,25 @@ end cost
 #print axioms Engine.left_status
 #print axioms Engine.rightKey_of
 #print axioms Engine.top_right
-#print axioms Quiet.node_app
+#print axioms Quiet.node_settings
+#print axioms Quiet.node_nav
+#print axioms Quiet.node_nav_ephemeral
+#print axioms Engine.intake_durable
+#print axioms Engine.durable_of_room
+#print axioms Engine.stored_durable
+#print axioms Settings.Appearance.query_only
+#print axioms Nav.place_valid
+#print axioms Quiet.node_nav_kind
+#print axioms Nav.query_only
+#print axioms Data.placeIn_newest
+#print axioms App.withNav_cache
+#print axioms Engine.Sync.run_eval
+#print axioms Engine.Sync.ofOps_reach
+#print axioms Engine.Sync.ofOps_rest
+#print axioms Engine.Sync.ofOps_inv
+#print axioms Engine.Sync.ofOps_ops
+#print axioms Engine.Sync.ofOps_valid
+#print axioms Engine.Sync.ofOps_from
 #print axioms Quiet.node_left
 #print axioms Connection.removal_cuts_off_node
 #print axioms Connection.members_iff_node
@@ -985,7 +1005,7 @@ end cost
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
 
--- Noto reader, raster and bounded cache.
+-- Noto reader, raster and glyph memo.
 #print axioms Ttf.byte_in_bounds
 #print axioms Ttf.cmap_entry
 #print axioms Ttf.lookup_singleton
@@ -998,11 +1018,10 @@ end cost
 #print axioms Ttf.raster_valid
 #print axioms Ttf.ink_witness
 #print axioms Ttf.raster_pixel
-#print axioms Ttf.Cache.empty_valid
-#print axioms Ttf.Cache.checked_valid
-#print axioms Ttf.Cache.put_bound
-#print axioms Ttf.Cache.payload_le_bytes
-#print axioms Ttf.Cache.put_payload_bound
+#print axioms Ttf.Memo.Table.get_eq
+#print axioms Ttf.Memo.compact_eq
+#print axioms Ttf.Memo.bitmap_eq_fast
+#print axioms Ttf.Memo.shifted_not_exact
 
 #print axioms Surface.row_place
 #print axioms Surface.row_pinned

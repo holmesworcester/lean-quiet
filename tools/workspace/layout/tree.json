@@ -17,8 +17,7 @@
     },
     {
       "path": "app/nav",
-      "planned": "ephemeral",
-      "summary": "Where this window is: the page, its subject and the way back."
+      "summary": "Where this window is: the page and the way back. Ephemeral."
     },
     {
       "path": "app/settings",

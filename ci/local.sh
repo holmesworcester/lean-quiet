@@ -120,7 +120,7 @@ gate() {
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links && mise run premises:check ;;
-    layout) mise run layout:check ;;
+    layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
     forensics) mise run forensics:check ;;
