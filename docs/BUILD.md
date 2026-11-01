@@ -99,16 +99,12 @@ hashes in `tools/*.sha256`, the glyph and UI font stamps, or the scripts
 that make `font.bin`, `emoji.bin` and the photos). Then rebuild `assets/`
 (`tools/fetch_assets.sh`), run `tools/make/assets.py pack`, which writes
 the tarball to `out/make/` and rewrites the pin and the list, publish the
-tarball under the pinned tag, and commit the pin and the list. The join
-page links `releases/latest/download/...`, so the assets release must
-never become the latest one:
-
-```sh
-. tools/make/assets.pin
-gh release create "$LQ_ASSETS_TAG" "out/make/$LQ_ASSETS_NAME" \
-  --repo "$LQ_ASSETS_REPO" --latest=false --title "Assets $LQ_ASSETS_TAG" \
-  --notes "The app's assets for make install (sha256 $LQ_ASSETS_SHA256)"
-```
+tarball under the pinned tag with `tools/make/publish_assets.sh`, and
+commit the pin and the list. The script never marks the release latest
+(the join page links `releases/latest/download/...`) and checks the
+sha256 of the tarball it downloads back. Then
+`CLEAN_ROOM_ASSETS=published mise run make:clean-room` tests what a judge
+downloads.
 
 Packing is deterministic: sorted names, time 0, owner 0, mode 0644, and
 no name or time in the gzip header, so the same `assets/` gives the same

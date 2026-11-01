@@ -35,7 +35,7 @@ trap 'rm -rf "$tmp"' EXIT INT TERM
 
 fetch() {
   say "assets: downloading $url"
-  curl --proto '=https,file' -fsSL --retry 3 -o "$tmp/assets.tar.gz" "$url" || { warn "could not download $url"; return 1; }
+  curl --proto '=https,file' --proto-redir '=https' -fsSL --retry 3 -o "$tmp/assets.tar.gz" "$url" || { warn "could not download $url"; return 1; }
   got=$(sha256 "$tmp/assets.tar.gz" | cut -d' ' -f1)
   if [ "$got" != "$LQ_ASSETS_SHA256" ]; then
     warn "rejected $url: its sha256 is $got, not the pinned $LQ_ASSETS_SHA256"
