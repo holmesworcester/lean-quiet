@@ -103,6 +103,12 @@ cases = [
     ("reader-continues", "component_demand", [
         ("ops/app/Reader.lean", "if !(← s.enabled) then return default", "if false then return default"),
     ], "FAIL: superseded reader stops at the next query boundary"),
+    ("reader-restores-failed-position", "component_demand", [
+        ("ops/app/Reader.lean", '  let rd := (← get).rd\n  rd.exec "BEGIN"',
+         '  let rd := (← get).rd\n  let priorQueue ← sh.queue.get\n  rd.exec "BEGIN"'),
+        ("ops/app/Reader.lean", '  catch e =>\n    rd.exec "ROLLBACK"\n    throw e',
+         '  catch e =>\n    sh.queue.modify (fun _ => priorQueue)\n    rd.exec "ROLLBACK"\n    throw e'),
+    ], "FAIL: repeatable read failure cannot starve a retained later query across transaction rollback"),
     ("child-never-unmounts", "op_components", [
         ("App.lean", "if Raster.near childBottom bx.h offset viewport imageOver then", "if true then"),
     ], "FAIL: offscreen attachment children release every chunk query"),
