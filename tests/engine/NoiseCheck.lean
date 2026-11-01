@@ -11,7 +11,7 @@ of its secret. The suite must meet what the laws assume of it
 (`Suite.Good`) on the vector's keys.
 -/
 import tests.engine.Lib
-import ops.connection.Noise
+import engine.wire.Noise
 import ops.connection.Frame
 
 open Engine Community Tests Connection.Noise

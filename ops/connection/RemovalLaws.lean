@@ -39,6 +39,8 @@ holds.
   node closes it and purges its ops.
 -/
 import ops.connection.Intents
+import ops.connection.opened.Proofs
+import ops.connection.established.Proofs
 import ops.connection.RoomLaws
 import ops.sync.NoticeLaws
 
@@ -204,7 +206,8 @@ theorem roomsV_nil (s : DB F) {cid : B}
 
 theorem sessionOf_state (f : Fact) (s : DB F) : ((sessionOf f : Model F _).run s).2 = s := by
   cases f with
-  | established cid c peer h sk rk dialer =>
+  | ofEstablished x =>
+    obtain ⟨cid, c, peer, h, sk, rk, dialer⟩ := x
     simp only [sessionOf, Model.run_bind, Model.run_pure]
     cases dialer
     · simp only [Bool.false_eq_true, ite_false, Model.run_bind, run_getOp, Model.run_pure]; rfl
@@ -298,24 +301,26 @@ key is the request's addressee; message 1 is read with that endpoint's
 secret as the responder's static and the request's sender key as the
 initiator's. -/
 theorem opened_endpoint (K : Keys) {o : Op} {fs : List F} {r c frm addr : B} {hs : List B}
-    (h : Opened.check K o fs = some (.opened r c frm addr hs)) :
+    (h : check K o .opened fs = some (.opened r c frm addr hs)) :
     ∃ to m1 pk sk, fs = [.inr (.request to frm m1), .inl (.endpoint pk sk)] ∧ pk = to ∧
       (Noise.read1 K.suite prologue sk frm m1).isSome := by
-  unfold Opened.check at h
-  split at h
-  · rename_i to frm' m1 pk sk
-    split at h
-    · cases h
-    · rename_i hpk
-      split at h
-      · rename_i x hr
-        split at h
-        · simp only [Option.some.injEq, Fact.opened.injEq] at h
-          obtain ⟨_, _, rfl, _, _⟩ := h
-          exact ⟨to, m1, pk, sk, rfl, Decidable.of_not_not hpk, by rw [hr]; rfl⟩
-        · cases h
-      · cases h
-  · cases h
+  obtain ⟨q, e, a, rfl, ha, hfa⟩ := check_opened h
+  simp only [Fact.opened, Fact.ofOpened.injEq] at hfa
+  subst hfa
+  obtain ⟨to, frm', m1⟩ := q
+  obtain ⟨pk, sk⟩ := e
+  simp only [Opened.check] at ha
+  split at ha
+  · cases ha
+  · rename_i hpk
+    split at ha
+    · rename_i x hr
+      split at ha
+      · simp only [Option.some.injEq, Opened.Fact.mk.injEq] at ha
+        obtain ⟨_, _, rfl, _, _⟩ := ha
+        exact ⟨to, m1, pk, sk, rfl, Decidable.of_not_not hpk, by rw [hr]; rfl⟩
+      · cases ha
+    · cases ha
 
 /-- **A session is between two nodes' keys (`established_endpoint`).**
 An `established` checks out only citing the connection, the request,
@@ -325,17 +330,21 @@ initiator's is the sender and its peer the addressee; each side runs
 its half of KK with sk as its static and the peer's key as the remote
 static. Device keys never enter the handshake. -/
 theorem established_endpoint (K : Keys) {o : Op} {fs : List F} {cid c peer h sk' rk : B}
-    {dialer : Bool} (hc : Established.check K o fs = some (.established cid c peer h sk' rk dialer)) :
+    {dialer : Bool} (hc : check K o .established fs = some (.established cid c peer h sk' rk dialer)) :
     ∃ r m2 to frm m1 ofE pkE esk pk sk,
       fs = [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofE pkE esk),
         .inl (.endpoint pk sk)] ∧
       ((dialer = false ∧ pk = to ∧ peer = frm ∧ (Noise.read1 K.suite prologue sk frm m1).isSome) ∨
        (dialer = true ∧ pk = frm ∧ peer = to ∧ (Noise.sent1 K.suite prologue sk esk to m1).isSome)) := by
-  unfold Established.check at hc
-  split at hc
-  · rename_i r m2 to frm m1 ofE pkE esk pk sk
-    refine ⟨r, m2, to, frm, m1, ofE, pkE, esk, pk, sk, rfl, ?_⟩
-    simp only at hc
+  obtain ⟨cn, rq, ep, en, a, rfl, ha, hfa⟩ := check_established hc
+  simp only [Fact.established, Fact.ofEstablished.injEq] at hfa
+  subst hfa
+  obtain ⟨r, m2⟩ := cn; obtain ⟨to, frm, m1⟩ := rq; obtain ⟨ofE, pkE, esk⟩ := ep; obtain ⟨pk, sk⟩ := en
+  clear hc
+  have hc := ha
+  simp only [Established.check] at hc
+  · refine ⟨r, m2, to, frm, m1, ofE, pkE, esk, pk, sk, rfl, ?_⟩
+    try simp only at hc
     split at hc
     · cases hc
     · split at hc
@@ -356,7 +365,7 @@ theorem established_endpoint (K : Keys) {o : Op} {fs : List F} {cid c peer h sk'
               simp only [h4, Option.bind_some] at hc
               split at hc
               · cases hc
-              · simp only [Option.some.injEq, Fact.established.injEq] at hc
+              · simp only [Option.some.injEq, Established.Fact.mk.injEq] at hc
                 obtain ⟨_, _, rfl, _, _, _, rfl⟩ := hc
                 exact ⟨rfl, hto, rfl, rfl⟩
       · split at hc
@@ -374,11 +383,10 @@ theorem established_endpoint (K : Keys) {o : Op} {fs : List F} {cid c peer h sk'
               cases h5 : Noise.read2 K.suite st sk esk m2 with
               | none => simp [h5] at hc
               | some q =>
-                simp only [h5, Option.bind_some, Option.some.injEq, Fact.established.injEq] at hc
+                simp only [h5, Option.bind_some, Option.some.injEq, Established.Fact.mk.injEq] at hc
                 obtain ⟨_, _, rfl, _, _, _, rfl⟩ := hc
                 exact ⟨rfl, hfrm, rfl, rfl⟩
         · cases hc
-  · cases hc
 
 /-- **"Me" is this node's key (`meV_node`).** The node is in c as its
 key: `meV c` is this node's endpoint key, and only while `Community.mine`
@@ -479,7 +487,8 @@ theorem answerOne_out (K : Keys) (eps : List (B × B × Id)) (r c frm : B) (s : 
     | none => left; rfl
     | some b =>
       cases b with
-      | request to frm' m1 =>
+      | ofRequest x =>
+        obtain ⟨to, frm', m1⟩ := x
         simp only
         cases hf : eps.find? (fun x => decide (x.1 = to)) with
         | none => left; rfl
@@ -506,7 +515,8 @@ theorem answerAll_conn (K : Keys) (eps : List (B × B × Id)) : ∀ (rs : List (
   | [], _, _, h => by cases h
   | (x, f) :: t, s, o, h => by
     cases f with
-    | opened r c frm _ _ =>
+    | ofOpened x =>
+      obtain ⟨r, c, frm, _, _⟩ := x
       simp only [answerAll, Model.run_bind, Model.run_pure, List.mem_append] at h
       rcases h with h | h
       · rcases answerOne_out K eps r c frm s with he | ⟨_, _, _, _, _, _, _, co, _, _, _, _, hco, he⟩
@@ -588,7 +598,8 @@ theorem deliverAll_join (fam : Family F) : ∀ (rs : List (Id × Fact)) (s : DB 
   | [], _, _, h => by cases h
   | (x, f) :: t, s, o, h => by
     cases f with
-    | opened r c frm addr hs =>
+    | ofOpened x =>
+      obtain ⟨r, c, frm, addr, hs⟩ := x
       simp only [deliverAll, Model.run_bind, Model.run_pure, List.mem_append] at h
       rcases h with h | h
       · obtain ⟨hb, hj⟩ := joinsOf_join fam c hs s o h
@@ -666,7 +677,8 @@ theorem answerOne_state (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id))
     | none => rfl
     | some b =>
       cases b with
-      | request to frm' m1 =>
+      | ofRequest x =>
+        obtain ⟨to, frm', m1⟩ := x
         simp only
         cases hf : eps.find? (fun x => decide (x.1 = to)) with
         | none => rfl
@@ -709,7 +721,8 @@ theorem answerAll_trusted (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id
   | [], _, _, h, _, _ => by cases h
   | (x, f) :: t, s, o, h, m2, hb => by
     cases f with
-    | opened r c frm addr hs =>
+    | ofOpened x =>
+      obtain ⟨r, c, frm, addr, hs⟩ := x
       simp only [answerAll, Model.run_bind, Model.run_pure, List.mem_append] at h
       rcases h with h | h
       · rcases answerOne_out K eps r c frm s with he | ⟨ro, to, frm', m1, _, _, _, co, _, hro, hrb, hok, hco, he⟩
@@ -759,7 +772,8 @@ theorem deliverAll_state (fam : Family F) : ∀ (rs : List (Id × Fact)) (s : DB
   | [], _ => rfl
   | (_, f) :: t, s => by
     cases f with
-    | opened r c frm addr hs =>
+    | ofOpened x =>
+      obtain ⟨r, c, frm, addr, hs⟩ := x
       simp only [deliverAll, Model.run_bind, Model.run_pure]
       rw [deliverAll_state fam t, joinsOf_state]
     | _ => exact deliverAll_state fam t s
@@ -988,7 +1002,8 @@ theorem requestOf_state (K : Keys) (sk inviter : B) (req : Id) :
   | [], _ => rfl
   | (r, f) :: rest, s => by
     cases f with
-    | request t frm m1 =>
+    | ofRequest x =>
+      obtain ⟨t, frm, m1⟩ := x
       simp only [requestOf, Model.run_bind]
       by_cases ht : t = inviter
       · rw [if_pos ht]

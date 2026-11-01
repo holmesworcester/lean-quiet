@@ -143,13 +143,13 @@ def roomsRemoved (s : Session) := do
   pure (PLift.up (rooms_removed (run (cutOps s)) hl hr))
 
 def openedEndpoint (s : Session) :=
-  if h : Opened.check sodium (opened s) [.inr (.request pkA pkB s.m1), .inl (.endpoint pkA staticA)] =
+  if h : check sodium (opened s) .opened [.inr (.request pkA pkB s.m1), .inl (.endpoint pkA staticA)] =
       some (.opened s.req.id c pkB "127.0.0.1:7447".toUTF8 [requestB.bytes]) then
     some (PLift.up (opened_endpoint sodium h))
   else none
 
 def establishedEndpoint (s : Session) :=
-  if h : Established.check sodium (established s)
+  if h : check sodium (established s) .established
       [.inr (.connection s.req.id s.m2), .inr (.request pkA pkB s.m1),
        .inr (.eph s.reply.id (sodium.suite.pub eA) eA), .inl (.endpoint pkA staticA)] =
       some (.established s.reply.id c pkB s.hash s.sendKey s.recvKey false) then

@@ -3,12 +3,13 @@ The community family's wire format and judgements, as values: every op
 type's body and fact as bytes (and read back), its tag, whether it is
 local, where its fact sorts and the keys it is filed under, and the
 validator's verdict on sample requirements. tests/engine/wire-golden.txt
-holds this program's output from main before the family was split into
+holds this program's output from main before the families were split into
 op folders (e727b5e); the split must print exactly the same: no byte, id
 or verdict moved. Signatures are a parameter: a scheme that accepts every
 signature, and one that accepts none.
 -/
 import ops.community.Community
+import ops.connection.Family
 
 open Engine Codec Community
 
@@ -95,6 +96,46 @@ def reqs : List (List Fact) :=
 
 def op (b : Body) (rs : List Id) : Op := Op.make b.tag rs (encode b)
 
+
+def cbodies : List (String × Connection.Body) :=
+  [("eph", .eph (bs "sk")), ("request", .request (bs "to") (bs "frm") (bs "m1")), ("opened", .opened),
+   ("connection", .connection (bs "m2")), ("established", .established), ("send", .send (bs "addr")),
+   ("recv", .recv true (bs "via") (bs "addr") 77), ("given", .given (bs "x"))]
+
+def cfacts : List (String × Connection.Fact) :=
+  [("eph", .eph (bs "of") (bs "pk") (bs "sk")), ("request", .request (bs "to") (bs "frm") (bs "m1")),
+   ("opened", .opened (bs "req") (bs "c") (bs "frm") (bs "addr") [bs "op1"]),
+   ("connection", .connection (bs "req") (bs "m2")),
+   ("established", .established (bs "cid") (bs "c") (bs "peer") (bs "h") (bs "s") (bs "r") true),
+   ("send", .send (bs "op") (bs "addr")), ("recv", .recv (bs "op") false (bs "via") (bs "addr") 78),
+   ("given", .given (bs "conn") (bs "x"))]
+
+def creqs : List (List Connection.F) :=
+  let pk := ByteArray.mk (Array.replicate 32 7)
+  let pk2 := ByteArray.mk (Array.replicate 32 9)
+  let req := Connection.Fact.request pk pk2 (ByteArray.mk (Array.replicate 48 1))
+  let conn := Connection.Fact.connection (bs "r") (bs "m2")
+  [[], [.inr req], [.inr req, .inl (Community.Fact.endpoint pk (bs "sk"))], [.inr conn],
+   [.inr conn, .inr req, .inr (Connection.Fact.eph (bs "o") pk (bs "e")), .inl (Community.Fact.endpoint pk (bs "sk"))],
+   [.inl (Community.Fact.secret (bs "pk") (bs "seed"))]]
+
+def connection : IO Unit := do
+  for (n, b) in cbodies do
+    let e := encode b
+    IO.println s!"conn body {n} kind={b.kind} bytes={hex e} back={((decode e : Option Connection.Body).map fun x => hex (encode x)) == some (hex e)}"
+    let o := Connection.mkOp [bs "x", bs "r"] b
+    IO.println s!"  op id={hex o.id} scope={match Connection.scopeOf o with | .local => "local" | .shared c => "shared:" ++ hex c | .conn => "conn"} owns={Connection.owns o.kind}"
+    let sk := ByteArray.mk (Array.replicate 32 3)
+    for (fs, i) in creqs.zipIdx do
+      let b' := match b with | .eph _ => Connection.Body.eph sk | .send _ => .send (bs "addr") | b => b
+      let o' := Connection.mkOp [bs "x", bs "r"] b'
+      match Connection.check Connection.sodium o' b' fs with
+      | some f => IO.println s!"  check reqs{i} = {hex (encode f)}"
+      | none => pure ()
+  for (n, f) in cfacts do
+    let e := encode f
+    IO.println s!"conn fact {n} bytes={hex e} back={decode e == some f} sort={hex (Connection.sortOf f)} keys={(Connection.keys f).map hex}"
+
 def main : IO Unit := do
   for (n, b) in bodies do
     let e := encode b
@@ -110,3 +151,4 @@ def main : IO Unit := do
     IO.println s!"fact {n} local={f.isLocal} bytes={hex e} back={decode e == some f} sort={hex (sortOf f)}"
     IO.println s!"  keys={(keys f).map hex}"
     IO.println s!"  isAdmin={isAdmin (bs "c") (bs "u") f} prevMax={prevMax (bs "c") [f]} approvers={(approvers (bs "c") (bs "r") [f]).map (·.map hex)}"
+  connection

@@ -401,3 +401,33 @@ def suite : Suite ByteArray where
   lit b := b
 
 end Connection.Noise
+
+/-! ## Running it: a node's handshake keys and its frames' AEAD -/
+
+namespace Connection
+
+abbrev B := ByteArray
+
+/-- Noise, run on node keys, and the frames' AEAD. -/
+structure Keys where
+  suite : Noise.Suite B
+  /-- The frames' AEAD (XChaCha20-Poly1305): key, 24-byte nonce,
+  associated data, plaintext. -/
+  fenc : B → B → B → B → B
+  fdec : B → B → B → B → Option B
+
+/-- What the laws assume: a good suite, and an AEAD that opens what it
+seals. -/
+def Keys.Good (K : Keys) : Prop :=
+  K.suite.Good ∧ ∀ k n ad p, K.fdec k n ad (K.fenc k n ad p) = some p
+
+/-- libsodium's (the Rust crates'). -/
+def sodium : Keys where
+  suite := Noise.suite
+  fenc := Noise.xchachaSeal
+  fdec := Noise.xchachaOpen
+
+/-- The prologue both ends mix in. -/
+def prologue : B := "quiet connection v1".toUTF8
+
+end Connection

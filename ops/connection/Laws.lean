@@ -66,11 +66,12 @@ theorem established_agrees (K : Keys) (G : K.suite.Good)
     {oR oI : Op} {r m2 to frm m1 ofR ofI pkR pkI f e skR skI : B}
     {cidR cR pR hR sR kR cidI cI pI hI sI kI : B}
     (hto : to = K.suite.pub skR) (hfrm : frm = K.suite.pub skI) (hne : to ≠ frm)
-    (hRc : Established.check K oR [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofR pkR f),
+    (hRc : check K oR .established [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofR pkR f),
       .inl (.endpoint to skR)] = some (.established cidR cR pR hR sR kR false))
-    (hIc : Established.check K oI [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofI pkI e),
+    (hIc : check K oI .established [.inr (.connection r m2), .inr (.request to frm m1), .inr (.eph ofI pkI e),
       .inl (.endpoint frm skI)] = some (.established cidI cI pI hI sI kI true)) :
     hR = hI ∧ cR = cI ∧ sR = kI ∧ kR = sI ∧ pR = frm ∧ pI = to := by
+  simp only [check, Option.map_eq_some_iff, Fact.established, Fact.ofEstablished.injEq, exists_eq_right] at hRc hIc
   unfold Established.check at hRc hIc
   simp only [ite_true, hne.symm, ite_false, Ne] at hRc hIc
   split at hRc
@@ -104,7 +105,7 @@ theorem established_agrees (K : Keys) (G : K.suite.Good)
             | none => simp [h5] at hIc
             | some q =>
               obtain ⟨si, pp⟩ := q
-              simp only [h5, Option.bind_some, Option.some.injEq, Fact.established.injEq] at hRc hIc
+              simp only [h5, Option.bind_some, Option.some.injEq, Established.Fact.mk.injEq] at hRc hIc
               obtain ⟨hh, hs, hr⟩ := Noise.read2_write2' G h4 h5
               obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hRc
               obtain ⟨_, rfl, rfl, rfl, rfl, rfl, -⟩ := hIc

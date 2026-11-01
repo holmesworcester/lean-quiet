@@ -1,3 +1,6 @@
+import engine.wire.Noise
+import engine.core.Engine
+
 /-
 `request` (conn scope: the bare wire, one peer, never synced): Noise
 message 1 (`e, es, ss`), as poc-17's conn.request and tiny's
@@ -25,27 +28,45 @@ responder finds what is addressed to it) and `conn.request.byFrm [frm]`
 courier carrying the request's bytes to the address. Redialing only
 writes the courier again: the request is the same op, with the same
 bytes and the same id.
+
+This op type's body and fact, their bytes, and the lists its fact is
+filed in. Its validator is Validate.lean; the registry is
+ops/connection/Family.lean.
 -/
-import ops.connection.Eph
 
 namespace Connection
-open Engine Engine.Sync
+open Engine Codec
 
-def Request.check (to frm m1 : B) : List F → Option Fact
-  | [] =>
-    if to.size = 32 ∧ frm.size = 32 ∧ to ≠ frm ∧ 48 ≤ m1.size
-    then some (.request to frm m1) else none
-  | _ => none
+namespace Request
 
-namespace request
-def byTo : Rel Fact := ⟨"conn.request", "byTo", fun | .request t _ _ => some [t] | _ => none⟩
-def byFrm : Rel Fact := ⟨"conn.request", "byFrm", fun | .request _ f _ => some [f] | _ => none⟩
-end request
+/-- What its author writes. -/
+structure Body where
+  to : B
+  frm : B
+  m1 : B
+  deriving BEq
 
-/-- The request from this node (key secret `sk`) to the node whose key is
-`to`, with ephemeral secret `e`, sealing `hello`. -/
-def Request.op (K : Keys) (sk to e helloBytes : B) : Option Op :=
-  (Noise.write1 K.suite prologue sk e to helloBytes).map fun (_, m1) =>
-    mkOp [] (.request to (K.suite.pub sk) m1)
+instance : Codec Body := Codec.tagged 33 (fun x => (x.to, x.frm, x.m1)) (fun (p : B × B × B) => ⟨p.1, p.2.1, p.2.2⟩) (fun _ => rfl)
+
+@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 33 :: Codec.enc (x.to, x.frm, x.m1) := rfl
+
+/-- Its fact, `request`. -/
+structure Fact where
+  to : B
+  frm : B
+  m1 : B
+  deriving Inhabited, BEq
+
+instance : Codec Fact := Codec.tagged 1 (fun x => (x.to, x.frm, x.m1)) (fun (p : B × B × B) => ⟨p.1, p.2.1, p.2.2⟩) (fun _ => rfl)
+
+@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 1 :: Codec.enc (x.to, x.frm, x.m1) := rfl
+
+/-! ## The lists its fact is filed in (`conn.request.*`) -/
+def byTo : Rel Fact := ⟨"conn.request", "byTo", fun f => some [f.to]⟩
+@[simp] theorem byTo_args (f : Fact) : byTo.args f = (some [f.to]) := rfl
+def byFrm : Rel Fact := ⟨"conn.request", "byFrm", fun f => some [f.frm]⟩
+@[simp] theorem byFrm_args (f : Fact) : byFrm.args f = (some [f.frm]) := rfl
+
+end Request
 
 end Connection

@@ -42,6 +42,14 @@ engine's model, so the same code runs in proofs by induction over a
 world of nodes.
 -/
 import ops.connection.Family
+import ops.connection.eph.Commands
+import ops.connection.request.Commands
+import ops.connection.opened.Commands
+import ops.connection.connection.Commands
+import ops.connection.established.Commands
+import ops.connection.send.Commands
+import ops.connection.recv.Commands
+import ops.connection.given.Commands
 import ops.connection.Frame
 import engine.wire.Node
 import ops.sync.Notice
