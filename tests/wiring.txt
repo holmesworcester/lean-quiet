@@ -300,6 +300,13 @@ world Engine.Sync.Who.other = Engine.Sync.World.peer
 world Engine.Sync.Setup.sync = Engine.Sync.World.peer
 world Engine.Sync.plainFrame = Engine.Sync.World.peer
 world Engine.Sync.oneRoom = Engine.Sync.World.peer
+world Engine.World.World.step Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired.
+world Engine.World.Exec.world = Engine.World.World.step
+world Engine.World.Plain.setup = Engine.World.World.step
+world Engine.World.Setup.at? = Engine.World.World.step
+world Engine.World.Plain.start = Engine.World.World.step
+spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
+spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
