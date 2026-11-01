@@ -54,10 +54,13 @@ private def traceState (d : Desktop.Driver) : IO Unit := do
     controls := controls ++ s!"field {d.app.field}\n"
     -- requests to join this community, and whether this device still waits
     controls := controls ++ s!"asking {d.app.asking.size} waiting {if d.app.me.waiting && !d.app.me.c.isEmpty then 1 else 0}\n"
-    -- the newest mounted messages, newest first: author and text, quoted
+    -- the newest mounted messages, newest first: the author's name (the
+    -- community's member list's; a row under the same author's header
+    -- draws none) and the text, quoted
     for (_, x) in d.app.ids.toList.take 12 do
       if let some r := d.app.rows[x]? then
-        controls := controls ++ s!"row {repr r.data.name} {repr r.data.text}{if r.data.pending then " pending" else ""}\n"
+        let name := ((d.app.memberIds.findIdx? (· == r.data.author)).bind (d.app.members[·]?)).map (·.1)
+        controls := controls ++ s!"row {repr (name.getD r.data.name)} {repr r.data.text}{if r.data.pending then " pending" else ""}\n"
     controls := controls ++ s!"pointer {repr d.ui.hover} cursor {Desktop.cursor d}\n"
     controls := controls ++ s!"tap {d.app.input.lastTap[0]?.getD 0} {d.app.input.lastTap[1]?.getD 0} {d.app.input.lastTap[2]?.getD 0}\n"
     controls := controls ++ s!"zoom {zoomPercent d} dpi {d.dpi} cell {d.app.font.cell}\n"

@@ -33,9 +33,10 @@
 # 3. --full: every other part, longest first. The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt; the app's, among
 #    its stages), real TCP (engine:tcp, net, mdns), X and the desktop
-#    shell, qr, zoom, site, the workspace, and `make install && make run`
-#    from a fresh clone in Docker (make:clean-room). A mutant works in a
-#    snapshot (tests/snapshot.sh); the app's stages edit sources in place,
+#    shell, qr, zoom, site, the workspace, `make install && make run` and
+#    `make demo` from a fresh clone in Docker (make:clean-room), and make
+#    demo under Xvfb with its negative control (make:demo). A mutant works
+#    in a snapshot (tests/snapshot.sh); the app's stages edit sources in place,
 #    so they run in three groups (app:1, app:2, app:3), each in its own copy of
 #    the built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
 #
@@ -69,7 +70,7 @@ fast=(engine:suites visual headless vacuity make:assets)
 rest=(make:clean-room app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 |
     grep -vx 'harden\|ref-publications\|catalog-retry\|fresh' | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace)
+  engine:tcp mdns net make:demo zoom owned-input site workspace)
 # the app's stages, in three groups, each run in its own copy of the tree
 declare -A app_group=([app:1]="fonts input network" [app:2]="desktop navigation lifecycle"
   [app:3]="appearance safety components")
@@ -120,6 +121,7 @@ gate() {
     pixel-scroll) mise run android:scroll-measure ;;
     make:assets) mise run make:assets-test ;;
     make:clean-room) mise run make:clean-room ;;
+    make:demo) mise run make:demo-e2e && mise run make:demo-negative ;;
     readme) mise run readme:links ;;
     layout) mise run layout:check ;;
     reorg) mise run reorg:test ;;

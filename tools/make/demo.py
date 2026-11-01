@@ -310,7 +310,7 @@ def guide(alice, bob):
     say("Left: Alice's laptop. Right: Bob's laptop, a second device on this computer.")
     say("In Bob's window: type a name, press Enter, then Agree & Join.")
     asked = admitted = False
-    while alice.alive() or bob.alive():
+    while any([alice.alive(), bob.alive()]):  # polls (reaps) both
         if not asked and alice.asking() > 0:
             asked = True
             say("Bob's request reached Alice's laptop. In Alice's window: click Waiting to join, then Approve.")
@@ -343,7 +343,7 @@ def main(argv):
             x.compose(bob, "Hi Alice, it's Bob!")
             say("Bob is in, and said hi. Type in either window and it shows in the other.")
             say('Close both windows (or press Ctrl-C) to stop.')
-            while alice.alive() or bob.alive():
+            while any([alice.alive(), bob.alive()]):  # polls (reaps) both
                 time.sleep(.2)
         else:
             guide(alice, bob)

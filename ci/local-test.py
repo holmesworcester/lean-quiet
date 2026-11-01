@@ -34,6 +34,10 @@ with tempfile.TemporaryDirectory(prefix="quiet-ci-driver-", dir=os.environ.get("
         ("clean-room", "make:clean-room", "", ["run make:clean-room"], 0),
         ("clean-room-fails", "make:clean-room", "make:clean-room", ["run make:clean-room"], 1),
         ("make-assets", "make:assets", "", ["run make:assets-test"], 0),
+        ("make-demo", "make:demo", "", ["run make:demo-e2e", "run make:demo-negative"], 0),
+        ("make-demo-e2e-fails", "make:demo", "make:demo-e2e", ["run make:demo-e2e"], 1),
+        ("make-demo-negative-fails", "make:demo", "make:demo-negative",
+         ["run make:demo-e2e", "run make:demo-negative"], 1),
         ("make-assets-fails", "make:assets", "make:assets-test", ["run make:assets-test"], 1),
     ]
     for name, part, fail, expected, code in cases:
