@@ -3,7 +3,7 @@
 # tools/make/assets.sh (make install), which checks the download against
 # LQ_ASSETS_SHA256 before opening it and each file against assets.sha256.
 LQ_ASSETS_REPO=holmesworcester/lean-quiet
-LQ_ASSETS_TAG=assets-299164f257a9
-LQ_ASSETS_NAME=lean-quiet-assets-299164f257a9.tar.gz
-LQ_ASSETS_SHA256=299164f257a920255f63ddcd14d6e6834427ca11b8adf05bd4cbd84553491412
+LQ_ASSETS_TAG=assets-4790d098c3f1
+LQ_ASSETS_NAME=lean-quiet-assets-4790d098c3f1.tar.gz
+LQ_ASSETS_SHA256=4790d098c3f1cdcd41e858677cf362beab2f0703aa8d3ad2782809d70dee141a
 LQ_ASSETS_MAKERS=8a417b087d7ccd3bbaabf583ef793e9580db8846a179aa1e20d5ab01d42d8cec

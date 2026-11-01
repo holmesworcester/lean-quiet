@@ -89,8 +89,10 @@ ui-glyphs.bin
   from ui/glyphs/*.svg: TryQuiet/libquiet's icon paths (app/src/icons.ts
   and app/src/Glyph.svelte at commit bd9d9a010062ab59a0ab0fc67731d827dd02fe27)
   and the Quiet mark (app/src/brand/quiet.json at ab3d244cfb99), see
-  ui/glyphs/SOURCE.txt. The Quiet name and mark are TryQuiet's.
-  Licence: LIBQUIET_LICENCE_PENDING
+  ui/glyphs/SOURCE.txt. The Quiet name and mark are trademarks of
+  TryQuiet.
+  Licence: AGPL-3.0-or-later, as libquiet's README states
+  (LICENSE-AGPL-3.0.txt).
 
 ui-glyphs.sha256, noto-ui.sha256
   Build stamps: digests of the scripts and sources that made ui-glyphs.bin
