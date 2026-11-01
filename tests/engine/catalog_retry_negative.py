@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Lost-control/data regression, plus a compiling disabled-retry mutant."""
+"""Catalog delivery and initialization regressions with compiling controls."""
 from pathlib import Path
 import os
 import subprocess
@@ -29,22 +29,34 @@ with tempfile.TemporaryDirectory(prefix="catalog-retry-", dir=os.environ["TMPDIR
         ["bash", "-c", '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
          'engine/renderer ops/sync ops/community ops/connection ops/app tests/engine',
          "catalog-snapshot", str(scratch)], cwd=ROOT, check=True)
-    path = scratch / "engine/wire/Node.lean"
-    original = path.read_text()
-    anchor = "  let some catalog := x.catalog | return (n, {})"
-    assert original.count(anchor) == 1, "disabled-sweep anchor missing"
-    path.write_text(original.replace(anchor,
-        "  let some catalog := (none : Option (Catalog m)) | return (n, {})"))
-    build(scratch, "disabled-sweep")
-    result = subprocess.run([str(scratch / ".lake/build/bin/catalog_retry")], cwd=scratch,
-                            capture_output=True, text=True, timeout=180)
-    transcript = result.stdout + result.stderr
-    (OUT / "disabled-sweep.log").write_text(transcript)
-    assert result.returncode != 0, "disabled retry survived"
-    assert "PANIC" not in transcript, "mutant panicked instead of reaching the assertion"
-    assert "FAIL: target arrives despite lost opening, all controls lost, and continuing producers" in transcript
-    print("refused: disabled-sweep (compiled, target delivery assertion failed)", flush=True)
-    path.write_text(original)
+    cases = [
+        ("disabled-sweep", "engine/wire/Node.lean",
+         "  let some catalog := x.catalog | return (n, {})",
+         "  let some catalog := (none : Option (Catalog m)) | return (n, {})",
+         "FAIL: target arrives despite lost opening, all controls lost, and continuing producers"),
+        ("open-takes-writer", "engine/core/Sqlite.lean",
+         '  db.exec schemaCore\n  let version ← db.query "SELECT version FROM catalog_version WHERE version = 1" #[]\n  if version.isEmpty then db.exec catalogMigration',
+         "  db.exec schema",
+         "FAIL: initialized database opens without acquiring the held writer lock"),
+    ]
+    for name, source, anchor, mutation, expected in cases:
+        path = scratch / source
+        original = path.read_text()
+        assert original.count(anchor) == 1, f"{name}: mutation anchor missing"
+        try:
+            path.write_text(original.replace(anchor, mutation))
+            build(scratch, name)
+            result = subprocess.run([str(scratch / ".lake/build/bin/catalog_retry")], cwd=scratch,
+                                    capture_output=True, text=True, timeout=180)
+            transcript = result.stdout + result.stderr
+            (OUT / f"{name}.log").write_text(transcript)
+            assert result.returncode != 0, f"{name}: mutation survived"
+            assert "PANIC" not in transcript and "uncaught exception" not in transcript, \
+                f"{name}: crashed instead of reaching the assertion"
+            assert expected in transcript, f"{name}: failed for an unrelated reason"
+            print(f"refused: {name} (compiled, actual regression assertion failed)", flush=True)
+        finally:
+            path.write_text(original)
     build(scratch, "restored")
     print(run_checked([str(scratch / ".lake/build/bin/catalog_retry")], scratch,
                       OUT / "restored.log", timeout=180), end="", flush=True)
