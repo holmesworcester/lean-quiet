@@ -80,6 +80,13 @@ theorem Sim.ite {α : Type} (c : Prop) [Decidable c] {a b : SqlM F α} {a' b' : 
   · simp only [hc, ite_true]; exact ha
   · simp only [hc, ite_false]; exact hb
 
+/-- `Sim` only reads its model program's runs. -/
+theorem Sim.congr {α : Type} {x : SqlM F α} {y y' : Model F α} (hy : ∀ s, y s = y' s)
+    (hx : Sim holds x y) : Sim holds x y' := by
+  intro db w s hs v w' h
+  rw [← hy s]
+  exact hx db w s hs v w' h
+
 theorem Sim.forIn {γ β : Type} (l : List γ) (b : β) {f : γ → β → SqlM F (ForInStep β)}
     {g : γ → β → Model F (ForInStep β)} (hf : ∀ a b, Sim holds (f a b) (g a b)) :
     Sim holds (forIn l b f) (forIn l b g) := by
@@ -258,5 +265,85 @@ theorem receive_refused (h : SqliteStore F holds) (fam : Family F) (ops : List O
     (hr : receive fam ops db w = .error e w') : holds db w' s := by
   unfold receive at hr
   exact h.rollback _ db w s hs e w' hr
+
+/-! ## A purge -/
+
+/-- An action that only fails runs as anything. -/
+theorem Sim.throw {α : Type} (e : IO.Error) {y : Model F α} : Sim holds (throw e : SqlM F α) y := by
+  intro db w s _ v w' hx
+  rw [sql_throw] at hx
+  cases hx
+
+theorem walkDeps_sim (h : SqliteStore F holds) :
+    ∀ (n : Nat) (todo found : List Id) (seen : Std.HashSet Id),
+      Sim holds (walkDeps (F := F) (m := SqlM F) n todo found seen)
+        (walkDeps (F := F) (m := Model F) n todo found seen)
+  | _, [], found, seen => by unfold walkDeps; exact Sim.pure
+  | 0, _ :: _, _, _ => by unfold walkDeps; exact Sim.pure
+  | n + 1, x :: todo, found, seen => by
+    unfold walkDeps
+    exact Sim.bind (Sim.op h (.dependents x)) fun ys => walkDeps_sim h n _ _ _
+
+theorem unsettle_sim (h : SqliteStore F holds) (fam : Family F) :
+    ∀ (xs gone again : List Id),
+      Sim holds (unsettle (m := SqlM F) fam xs gone again) (unsettle (m := Model F) fam xs gone again)
+  | [], gone, again => by unfold unsettle; exact Sim.pure
+  | x :: xs, gone, again => by
+    unfold unsettle
+    refine Sim.bind (Sim.op h (.undecide x)) fun _ => Sim.bind (Sim.op h (.getOp x)) fun r => ?_
+    cases r with
+    | none => exact unsettle_sim h fam xs gone again
+    | some o => exact Sim.ite _ (unsettle_sim h fam xs gone _) (unsettle_sim h fam xs _ again)
+
+theorem deleteAll_sim (h : SqliteStore F holds) :
+    ∀ l : List Id, Sim holds (deleteAll (F := F) (m := SqlM F) l) (deleteAll (F := F) (m := Model F) l)
+  | [] => by unfold deleteAll; exact Sim.pure
+  | x :: rest => by
+    unfold deleteAll
+    exact Sim.bind (Sim.op h (.deleteOp x)) fun _ => deleteAll_sim h rest
+
+theorem purge_sim (h : SqliteStore F holds) (fam : Family F) (ids : List Id) :
+    Sim holds (purge (m := SqlM F) fam ids) (purge (m := Model F) fam ids) := by
+  unfold purge
+  refine Sim.bind (Sim.op h .countOps) fun n => Sim.bind (walkDeps_sim h _ _ _ _) fun r => ?_
+  cases r with
+  | none => exact Sim.pure
+  | some c =>
+    exact Sim.bind (unsettle_sim h fam c [] []) fun p =>
+      Sim.bind (deleteAll_sim h p.1) fun _ => Sim.bind (pushAll_sim h p.2) fun _ => Sim.pure
+
+/-- A purge's `VACUUM` and checkpoint change no table (the contract's
+`scrub`). -/
+theorem scrub_sim (h : SqliteStore F holds) (vacuum : Bool) :
+    Sim holds (scrubSql (F := F) vacuum) (pure ()) := by
+  intro db w s hs v w' hx
+  have := h.scrub vacuum db w s hs
+  rw [hx] at this
+  exact ⟨rfl, this⟩
+
+/-- **A purge on SQLite runs as the model's purge.** `purgeSql` runs the
+engine's `purge` and then `drain`, in one transaction, then (with
+`scrub`) rewrites the file. If it returns, the database holds the tables
+the same purge and drain leave on the model. -/
+theorem purge_as_model (h : SqliteStore F holds) (fam : Family F) (ids : List Id) (scrub : Bool) :
+    Sim holds (purgeSql fam ids scrub)
+      (do match ← purge (m := Model F) fam ids with
+          | some _ => drain (m := Model F) fam (← budgetM)
+          | none => pure ()) := by
+  have key : Sim holds (purgeSql fam ids scrub)
+      ((do match ← purge (m := Model F) fam ids with
+            | some g => do drain (m := Model F) fam (← budgetM); pure g
+            | none => pure ([] : List Id)) >>= fun _ => pure ()) := by
+    unfold purgeSql purgeTx
+    refine Sim.bind (Sim.transact h (Sim.bind (purge_sim h fam ids) fun r => ?_)) fun _ => ?_
+    · cases r with
+      | some g => exact Sim.bind h.budget fun n => Sim.bind (drain_sim h fam n) fun _ => Sim.pure
+      | none => exact Sim.throw _
+    · cases scrub
+      · exact Sim.pure
+      · exact scrub_sim h _
+  refine Sim.congr (fun s => ?_) key
+  simp only [model_bind]
+  cases (purge (m := Model F) fam ids s).1 <;> rfl
 
 end Trust
