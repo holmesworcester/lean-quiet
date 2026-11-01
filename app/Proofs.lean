@@ -1933,7 +1933,9 @@ pure, bind, `for`, `getOp`, `getStatus` and lists. If `f` draws fresh
 bytes, add `[Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))` and
 pass `hfr` to `keeps`. The law then holds on the held store and at
 `Execution.M` as stated. A new store monad needs only a `ReadsOnly`
-instance, plus `ListsRead` if its lists read only.
+instance, plus `ListsRead` if its lists read only. That instance's
+`reads` must say "the store is as it was", because a generic law means
+no more than the instance it is used at (see `ReadsOnly`).
 
 `view_held`: a view run on held data is its evaluation over the tables;
 so `rooms` gives `roomsV` (`rooms_held`).

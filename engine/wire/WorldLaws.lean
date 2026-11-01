@@ -128,7 +128,14 @@ a pure step and the store's reads do, and so does a bind of steps that
 do. The held store is one (below), and so is the production
 interpreter, whose entropy tape advances while its store stays
 (`Connection.Execution.M`). A "reads only" law of code generic in its
-monad is proven once, for every such monad. -/
+monad is proven once, for every such monad.
+
+`reads` means only what an instance makes it mean. A law over a generic
+`m` is as strong as the instance it is used at, and nothing more: an
+instance whose `reads` were `fun _ => True` would make every such law
+say nothing. An instance must give "run from any store, the store is as
+it was", as both here do (the held store unchanged; Execution's held
+store unchanged while its entropy tape advances). -/
 class ReadsOnly (F : outParam Type) (m : Type → Type) [Monad m] [Store F m] where
   reads {α} : m α → Prop
   pure' {α} (a : α) : reads (pure a : m α)
