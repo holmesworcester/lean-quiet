@@ -1105,8 +1105,9 @@ CI runs locally for now:
   (`-j N`, 6 by default), each isolated: the engine's suites and each of
   its negative controls (`tests/engine/controls.txt`) are parts of their
   own, and the app's stages run in three groups, each in its own copy of
-  the built tree. `ci/local.sh check app` runs just those gates. Logs go
-  to `out/ci/`. `mise run ci` runs it.
+  the built tree. Each part has a time limit (`PART_TIMEOUT`, 90 minutes):
+  a part that hangs fails and the rest go on. `ci/local.sh check app` runs
+  just those gates. Logs go to `out/ci/`. `mise run ci` runs it.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
 
 Sync's design is [docs/SYNC.md](docs/SYNC.md).

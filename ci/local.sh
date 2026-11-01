@@ -22,6 +22,8 @@
 #    run in three groups (app:1, app:2, app:3), each in its own copy of the
 #    built tree ($TMPDIR/ci-app-*, deleted after; its out/ copied back).
 #
+# Each part has PART_TIMEOUT seconds (5400 by default): a part that hangs
+# fails, its processes killed, and the others go on.
 # Logs: out/ci/<part>.log. Exits non-zero if any part fails.
 # `site` and `workspace` need Chromium's headless shell (CHROME, or
 # Playwright's); `android-links` needs the Android SDK and an emulator image.
@@ -96,6 +98,9 @@ gate() {
   esac
 }
 
+# One gate, as a process of its own (so a time limit kills all of it).
+if [ "${1:-}" = --gate ]; then gate "$2"; exit $?; fi
+
 # Run one part, logging to out/ci/<part>.log; app:N in a copy of the tree.
 run() {
   local p=$1 t0 dir=$top log=$logs/${1//:/-}.log ok=0
@@ -104,13 +109,15 @@ run() {
     dir=$(mktemp -d "$TMPDIR/ci-${p//:/-}.XXXXXX")
     rsync -a --exclude=/out --exclude=/.git "$top/" "$dir/"
   fi
-  (cd "$dir" && MISE_TRUSTED_CONFIG_PATHS="$dir" gate "$p") > "$log" 2>&1 || ok=$?
+  (cd "$dir" && MISE_TRUSTED_CONFIG_PATHS="$dir" timeout -k 30 "${PART_TIMEOUT:-5400}" \
+    bash "$dir/ci/local.sh" --gate "$p") > "$log" 2>&1 || ok=$?
+  [ "$ok" = 124 ] && echo "timed out after ${PART_TIMEOUT:-5400} s" >> "$log"
   if [ "$dir" != "$top" ]; then
     [ -d "$dir/out" ] && rsync -a "$dir/out/" "$top/out/"
     case $dir in "$TMPDIR"/ci-app-*) rm -rf -- "$dir" ;; esac
   fi
   if [ "$ok" = 0 ]; then echo "ok   $p ($(( $(date +%s) - t0 )) s)"
-  else echo "FAIL $p ($(( $(date +%s) - t0 )) s): $log"; echo "$p" >> "$logs/failed"; fi
+  else echo "FAIL $p ($(( $(date +%s) - t0 )) s$([ "$ok" = 124 ] && echo ', timed out')): $log"; echo "$p" >> "$logs/failed"; fi
   return "$ok"
 }
 
