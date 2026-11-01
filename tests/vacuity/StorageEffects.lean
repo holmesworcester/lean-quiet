@@ -340,11 +340,16 @@ def main : IO UInt32 := do
     (refuseCertificateFor acts rm bobUser).isSome
   t.ok "removal stored: Alice's trust rule natively refuses Bob's node"
     (!(view (trace setup initial acts) .a (allowPeer c keyB)))
-  t.ok "removal stored: the live session still names Bob's node"
-    ((peersAt acts acid).contains keyB)
-  t.ok "removal stored: the trace law cuts the live session's sync"
+  t.ok "removal stored: Bob's admission is still Valid, so the ownership premise is not vacuous"
+    (admissionCertificateFor acts bobUser).isSome
+  -- The write's own entry point closes Alice's session with Bob, so no
+  -- reachable two-peer state keeps a session naming a removed peer:
+  -- rooms_cut_trace's peer premise holds here only over no peers.
+  t.ok "removal stored: the same write closed Alice's session with Bob"
+    ((trace setup initial acts).a.node.conns.isEmpty && (peersAt acts acid).isEmpty)
+  t.ok "removal stored: rooms_cut_trace applies (live member; over no peers)"
     (roomsCutCertificateFor acts acid rm bobUser).isSome
-  t.ok "removal stored: the session natively carries no sync room of c"
+  t.ok "removal stored: the closed session natively carries no sync room of c"
     (!syncs ((Connection.roomsV acid).eval (storeAfter acts .a)))
   t.ok "a run from empty through the removal: Run.good applies, and its state holds the removal"
     ((runGoodCertificate scene).isSome &&
