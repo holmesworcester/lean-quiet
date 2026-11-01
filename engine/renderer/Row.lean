@@ -49,6 +49,9 @@ structure Dim where
   deriving Inhabited, BEq
 
 def Dim.px (d : Dim) (dp : Nat) : Nat := (dp * d.dpi + 80) / 160
+/-- A CSS length in quarter pixels, in device pixels (rounded, as the
+browser snaps a box's edges). -/
+def Dim.q (d : Dim) (n : Nat) : Nat := (n * d.dpi + 320) / 640
 def Dim.hot (d : Dim) (x y w h : Nat) (enabled := true) : Bool :=
   Hover.active d.hover ⟨x, y, w, h⟩ enabled
 

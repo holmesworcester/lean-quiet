@@ -72,8 +72,10 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
   let io := { sm.io with wall := pure (29330000, 0) }
   let mut d ← Desktop.start io width height db
   d ← Desktop.zoom d zoom
+  -- Get started is what a node in no community opens on: no fixture.
+  let blank := fixtureName == "get-started"
   let (_, s) ← (do
-    fixture
+    unless blank do fixture
     if fixtureName == "conversation" then conversation
     if fixtureName == "sidebar" then sidebarPeople
     if fixtureName == "switcher-many" || fixtureName == "switcher-end" then switcherCommunities
@@ -105,11 +107,14 @@ def capture (dir name : String) (width height : Nat) (theme scenario : String) (
     else
       let (_, s) ← (App.onPageAct action).run d.app
       d := { d with app := s }
-  else d ← Desktop.act d (.page target)
+  else unless blank do d ← Desktop.act d (.page target)
   for _ in [0:30] do
     d ← Desktop.tick d
     IO.sleep 2
-  unless d.app.me.name == "Rowing club" &&
+  if blank then
+    unless d.app.comms.isEmpty && d.app.page == .getStarted do
+      throw (IO.userError s!"{name}: a new install did not open on Get started")
+  else unless d.app.me.name == "Rowing club" &&
       (!(width ≥ 720 || target == .home || target == .you) || d.app.ownName == "Alice Nakamura") do
     throw (IO.userError s!"{name}: component query fixture did not settle: {d.app.ownName}, {d.app.people}")
   unless d.app.dim.theme == (if theme == "dark" then Theme.Value.dark else .light) do

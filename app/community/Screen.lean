@@ -1,5 +1,6 @@
 import app.Commands
 import engine.renderer.Row
+import engine.renderer.Brand
 import app.community.Proofs
 import app.community.channel.message.View
 import app.community.channel.message.attachment.View
@@ -817,23 +818,166 @@ end
 namespace Pages
 open Paint Text Font Row
 
-/-- Get started: the wordmark, then join or create. (Device linking is
-left out for now.) -/
-def getStarted {α : Type} [BEq α] [Inert α] (onJoin : α) (onCreate : α) (f : Font) (dm : Dim) (W h : Nat) : PageOf α := Id.run do
-  let mut b := blank W h dm.theme
-  let ly := dm.px 72
-  let d := dm.px 64
-  let lx := (W - d - dm.px 16 - 5 * f.cell / 2) / 2
-  b := b.round lx ly (lx + d) (ly + d) (d / 2) (Palette.color dm.theme .accentInk)
-  b := b.line f (oneLine f f.cell "Q") (lx + (d - f.cell / 2) / 2) (ly + (d - f.cell) / 2) (Palette.color dm.theme .bg) true
-  b := b.line f (oneLine f (W / 2) "Quiet") (lx + d + dm.px 16) (ly + (d - f.cell) / 2) (Palette.color dm.theme .accentInk) true
-  let (b1, hh) := heading f dm b "Let’s get started…" (ly + d + dm.px 32)
-  b := b1
-  let y := ly + d + dm.px 32 + hh + dm.px 16
-  let (b2, taps, rh) := rows f dm b y #[("+", "Join a community", onJoin), ("✚", "Create a new community", onCreate)]
-  b := b2
-  let (b3, _) := para f dm b "⚠ Quiet is in beta and shouldn't be used for activities requiring security." (dm.px 24) (y + rh + dm.px 12) (W - dm.px 48) (Palette.color dm.theme .muted)
-  return ⟨b3, taps⟩
+/-! ### Get started (libquiet `GetStarted.svelte` in its `Stage`)
+
+Measured from libquiet's own render: a full-window stage on the panel
+colour, a 60 px bar with nothing in it, and a column 24rem wide with
+16 px gutters. The column stacks the lockup (252 × 72.5), the 28/34
+title, the `Rows` card (1 px Gray 10 edge, radius 16, 48 px rows on
+Gray 06 dividers) and the 12/16 caption, on 24 px gaps (8 above the
+caption). Phones and narrow windows top-anchor it under the bar; from
+45rem it is centred in the window below the bar (`margin: auto`). -/
+
+/-- Get started's column, in device pixels on the page (whose first row
+is `px 56` below the stage's top): its left edge and width, the lockup's
+top, and the column's top in quarter CSS pixels below the stage's top,
+from which every other box is snapped. -/
+structure Start where
+  col : Nat
+  colW : Nat
+  logoY : Nat
+  top4 : Nat
+  deriving Repr, BEq, Inhabited
+
+/-- The card's top edge, in quarter CSS pixels below the stage's top. -/
+def Start.card4 (g : Start) : Nat := g.top4 + 714
+
+/-- The column's height in quarter CSS pixels with `lines` caption lines:
+24 + 72.5 + 24 + 34 + 24 + 148 + 8 + 16·lines + 32. -/
+def startBody (lines : Nat) : Nat := 1466 + 64 * lines
+
+/-- Where the column starts, in quarter CSS pixels below the stage's top:
+under the 60 px bar, and centred in the rest from 45rem when it fits. -/
+def startTop (wide : Bool) (stage4 lines : Nat) : Nat :=
+  if wide && 240 + startBody lines ≤ stage4 then 240 + (stage4 - 240 - startBody lines) / 2 else 240
+
+def startGeom (dm : Dim) (W stage lines : Nat) : Start :=
+  let bodyW := min W (dm.px 384)
+  let top4 := startTop (dm.px 720 ≤ W) (stage * 640 / max 1 dm.dpi) lines
+  let y (a : Nat) := dm.q a - dm.px 56
+  { col := (W - bodyW + 1) / 2 + dm.px 16, colW := bodyW - 2 * dm.px 16, logoY := y (top4 + 96), top4 }
+
+/-- The cell top that puts `size` px Noto text on the baseline CSS gives a
+`line` px line box at quarter-pixel `top4` below the page's top
+(ascender 1.069, descender 0.293; the cell's baseline is 4/5 down it). -/
+def textTop (dm : Dim) (top4 size line : Nat) : Nat :=
+  let base := ((top4.toFloat / 4 + line.toFloat / 2 + 0.388 * size.toFloat) * dm.dpi.toFloat / 160).round
+  (base.toUInt64.toNat) - dm.px size * 4 / 5
+
+/-- One line with 0.4 px after each cluster (each placed glyph), starting
+`start` 1/64 px in; spacing and start are added in 1/64 px before glyph
+origins are rounded, as the browser spaces them. -/
+def spaced (f : Font) (dm : Dim) (t : String) (start : Nat := 0) : Line :=
+  let fine := Text.oneLine (Text.metricFont f) (Text.metricWidth 100000) t
+  Text.pixelLine (fine.mapIdx fun i g => { g with x := g.x + start + (i * 256 * dm.dpi + 800) / 1600 })
+
+/-- Words wrapped at `w` with 0.4 px letter-spacing, the first line
+starting `start` 1/64 px in, as the caption is. -/
+def spacedLines (f : Font) (dm : Dim) (w : Nat) (s : String) (start : Nat := 0) : Array Line := Id.run do
+  let width (t : String) (first : Bool) : Nat := Paint.Line.width f (spaced f dm t (if first then start else 0))
+  let mut out : Array String := #[]
+  let mut cur := ""
+  for word in s.splitOn " " do
+    let next := if cur.isEmpty then word else cur ++ " " ++ word
+    if cur.isEmpty || width next out.isEmpty ≤ w then cur := next
+    else out := out.push cur; cur := word
+  if !cur.isEmpty then out := out.push cur
+  return out.mapIdx fun i t => spaced f dm (if i == 0 then " " ++ t else t) (if i == 0 then start else 0)
+
+/-- The caption's mark, as its own span: Noto Color Emoji at 12 px draws
+its 136 × 128 picture at 12/109 px a unit (14 px tall, 101 of them above
+the baseline) and advances 2550/2048 em, then the 0.4 px spacing. -/
+def markCell (dm : Dim) : Nat := (12 * 128 * dm.dpi + 109 * 80) / (109 * 160)
+def markAscent (dm : Dim) : Nat := (12 * 101 * dm.dpi + 109 * 80) / (109 * 160)
+def markAdvance64 (dm : Dim) : Nat := (12 * 2550 * 64 * dm.dpi + 2048 * 80) / (2048 * 160) + (256 * dm.dpi + 800) / 1600
+
+def betaWarning : String := "Quiet is in beta and shouldn't be used for activities requiring security."
+
+/-- Get started's rows: libquiet's three, each a glyph, a label and the
+chevron. Link devices opens the explanatory page (linking is not built). -/
+def startRows {α : Type} (onJoin onCreate onDevices : α) : Array (String × String × α) :=
+  #[("person-add", "Join a community", onJoin), ("plus", "Create a new community", onCreate),
+    ("devices", "Link devices", onDevices)]
+
+/-- Row i's box: 48 CSS px under the card's 1 px top edge, 49 a row
+(each later row's 1 px Gray 06 divider is above its box), each edge
+snapped on its own as the browser snaps it, so no rounding accumulates. -/
+def startRow (dm : Dim) (g : Start) (i : Nat) : Box :=
+  let top := g.card4 + 4 + 196 * i
+  ⟨g.col + dm.px 1, dm.q top - dm.px 56, g.colW - 2 * dm.px 1, dm.q (top + 192) - dm.q top⟩
+
+/-- A divider's rows: the pixel(s) above row i, from its own snapped edges. -/
+def startDivider (dm : Dim) (g : Start) (i : Nat) : Nat × Nat :=
+  (dm.q (g.card4 + 196 * i) - dm.px 56, dm.q (g.card4 + 196 * i + 4) - dm.px 56)
+
+/-- Get started's geometry with its caption wrapped (the caption's line
+count is the only text measure the boxes depend on). -/
+def startOf (f : Font) (dm : Dim) (W stage : Nat) : Start × Array Line :=
+  let small := f.atSize (dm.px 12)
+  let caption := spacedLines small dm (startGeom dm W stage 0).colW betaWarning (markAdvance64 dm)
+  (startGeom dm W stage caption.size, caption)
+
+/-- What a tap on Get started does: row i's box, row i's action. The
+painter draws every row in exactly this box (`getStarted_taps`). -/
+def startTaps {α : Type} (dm : Dim) (g : Start) (rows : Array (String × String × α)) : Array (Box × α) :=
+  rows.mapIdx fun i (_, _, act) => (startRow dm g i, act)
+
+/-- Get started's pixels for geometry g and its wrapped caption. -/
+def startPaint {α : Type} (f : Font) (dm : Dim) (W h : Nat) (g : Start) (caption : Array Line)
+    (rows : Array (String × String × α)) : Bitmap := Id.run do
+  let px := dm.px
+  let color := Palette.color dm.theme
+  let small := f.atSize (px 12)
+  let mut b := Bitmap.blank W h (solid (color .panel) W)
+  let lw := (252 * dm.dpi).toFloat / 160
+  b := b.mask (Brand.lockup lw ((W.toFloat - lw) / 2) g.logoY.toFloat) (color .accentInk)
+  let title := (f.atSize (px 28)).medium
+  -- centred in 1/64 px, then rounded once (as the browser centres it)
+  let fine := Text.oneLine (Text.metricFont title) (Text.metricWidth g.colW) "Let’s get started..."
+  -- on the window's centre line, which is the column's, also at odd widths
+  let inset := (W * 64 - min (W * 64) (Paint.Line.width (Text.metricFont title) fine)) / 2
+  let tl := Text.pixelLine (fine.map fun c => { c with x := c.x + inset })
+  b := b.line title tl 0 (textTop dm (g.top4 + 482) 28 34 - px 56) (color .fg) (exactInk := true)
+  let (c0, c1) := (dm.q g.card4 - px 56, dm.q (g.card4 + 592) - px 56)
+  let (i0, i1) := (dm.q (g.card4 + 4) - px 56, dm.q (g.card4 + 588) - px 56)
+  b := b.round g.col c0 (g.col + g.colW) c1 (px 16) (color .line)
+  b := b.round (g.col + px 1) i0 (g.col + g.colW - px 1) i1 (px 15) (color .panel)
+  let label := f.atSize (px 16)
+  for i in [0:rows.size] do
+    let some (glyph, text, _) := rows[i]? | continue
+    let r := startRow dm g i
+    let (d0, d1) := startDivider dm g i
+    if i > 0 then b := b.fill r.x d0 (r.x + r.w) d1 (color .selected)
+    if dm.hot r.x r.y r.w r.h then
+      -- `.rows .row:hover`: Gray 06 over the row and its divider, inside
+      -- the card's rounded inner edge
+      let top := if i == 0 then r.y else d0
+      b := if i == 0 then (b.round r.x r.y (r.x + r.w) (r.y + 2 * px 15) (px 15) (color .selected)).fill r.x (r.y + px 15) (r.x + r.w) (r.y + r.h) (color .selected)
+        else if i + 1 == rows.size then (b.fill r.x top (r.x + r.w) (r.y + r.h - px 15) (color .selected)).round r.x (r.y + r.h - 2 * px 15) (r.x + r.w) (r.y + r.h) (px 15) (color .selected)
+        else b.fill r.x top (r.x + r.w) (r.y + r.h) (color .selected)
+    b := b.icon f glyph (r.x + px 16) (r.y + px 12) (px 24) (color .fg)
+    let l := Text.oneLineFine label (r.w - px 112) text
+    let rowTop4 := (r.y + px 56) * 640 / max 1 dm.dpi
+    b := b.line label l (r.x + px 56) (textTop dm (rowTop4 + 44) 16 26 - px 56) (color .fg) (exactInk := true)
+    b := b.icon f "chevron" (r.x + r.w - px 40) (r.y + px 12) (px 24) (color .fg)
+  for i in [0:caption.size] do
+    let top := textTop dm (g.top4 + 1338 + 64 * i) 12 16 - px 56
+    if i == 0 then
+      let mark := f.atSize (markCell dm)
+      match (f.emoji.emojify #[0x26A0, Emoji.vs16])[0]? with
+      | some c => b := b.emoji mark c g.col (top + px 12 * 4 / 5 - markAscent dm)
+      | none => pure ()
+    b := b.line small caption[i]! g.col top (color .muted) (exactInk := true)
+  return b
+
+/-- Get started (libquiet `2811:2550`): the lockup, the title, the rows
+and the beta caption, on the panel colour. `stage` is the window's
+height below the status bar. -/
+def getStarted {α : Type} [BEq α] [Inert α] (onJoin onCreate onDevices : α) (f : Font) (dm : Dim)
+    (W h stage : Nat) : PageOf α :=
+  let rows := startRows onJoin onCreate onDevices
+  let (g, caption) := startOf f dm W stage
+  ⟨startPaint f dm W h g caption rows, startTaps dm g rows⟩
 
 /-- Create a community: a heading, the name field, Continue. -/
 def create {α : Type} [BEq α] [Inert α] (onContinue onField : α) (f : Font) (dm : Dim) (W h : Nat) (name : String) (focused : Bool) : PageOf α := Id.run do

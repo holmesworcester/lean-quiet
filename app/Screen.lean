@@ -1946,6 +1946,13 @@ def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
 
+/-- libquiet's full-window stages (`Onboarding.svelte`, `Waiting.svelte`,
+the scan overlay): the ways into a community, drawn without the shell. -/
+def PageId.stage : PageId → Bool
+  | .getStarted | .create | .createName | .joinChoice | .openInvite | .paste | .scan | .name | .agree
+  | .waiting => true
+  | _ => false
+
 /-- Pages whose bodies use the native scroll view. -/
 def PageId.scrolls (p : PageId) : Bool := p.drawer || p == .switcher
 
@@ -1978,6 +1985,9 @@ structure PageIn where
   people : Nat := 0
   W : Nat
   h : Nat
+  /-- The window's height below the status bar and above the navigation
+  bar: what libquiet's full-window stages centre in. -/
+  stage : Nat := 0
   insetTop : Nat
   dim : Dim
   field : String
@@ -2239,6 +2249,14 @@ def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
 /-- The page and the back stack, set to a Nav step's. -/
 def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+
+/-- In at least one community: some acceptance that is not a join still
+waiting to be let in. -/
+def St.member (s : St) : Bool := s.comms.any (!·.waiting)
+
+/-- Whether libquiet's shell (sidebar, panes, drawer) is drawn: only for a
+member, and never over a stage (`App.svelte`'s `screen`). -/
+def St.shell (s : St) : Bool := s.member && !s.page.stage
 
 
 end App
@@ -3938,7 +3956,7 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
   let h := k.h
   let me := k.me
   let pg : Pages.Page := match k.page with
-    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity f dm W h
+    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity (Pages.Act.stub "Linked devices") f dm W h k.stage
     | .create => Pages.create Pages.Act.continue_ Pages.Act.field f dm W h k.field true
     | .joinChoice => Pages.joinChoice Pages.Act.inviteLink Pages.Act.qrCode f dm W h none
     | .openInvite => Pages.openInvite Pages.Act.pasteLink f dm W h
@@ -3974,8 +3992,9 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
   -- a first launch's Get started has nowhere to go back to
   let top := if k.page == .home then
       Pages.homeBand f dm W k.insetTop me.name k.communityId k.ownName k.ownId
-    else if (k.page == .getStarted && k.backEmpty && k.comms.isEmpty) || k.page == .waiting
-    then Bitmap.blank W (k.insetTop + dm.px 56) bg
+    else if k.page == .getStarted && k.backEmpty && k.comms.isEmpty
+    then Bitmap.blank W (k.insetTop + dm.px 56) (solid (Palette.color dm.theme .panel) W)
+    else if k.page == .waiting then Bitmap.blank W (k.insetTop + dm.px 56) bg
     else if k.page == .switcher then Pages.switcherBar f dm W k.insetTop
     else if k.page.drawer then Appearance.header f dm W k.insetTop (if k.page == .stub then Appearance.leafTitle k.labelText else t) k.drawerBack
     else Pages.bar f dm W k.insetTop t cross
@@ -3994,7 +4013,8 @@ theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw 
 
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
-  { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, insetTop := s.insetTop, dim := s.dim, field := s.field,
+  { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, stage := s.Hs - s.insetTop - s.insetBot,
+    insetTop := s.insetTop, dim := s.dim, field := s.field,
     ownName := s.ownName, ownId := Pages.identity s.me.user, communityId := Pages.identity s.me.c, devices := s.ownDevices, people := s.people,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,

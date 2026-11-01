@@ -7,7 +7,7 @@ export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 test -f assets/font.bin
 tools/noto_assets.sh
 python3 platforms/linux/font.py assets/font.bin out/desktop/font.bin
-lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws platforms.desktop.HoverLaws
+lake build desktop engine.renderer.desktop.Laws platforms.desktop.Laws platforms.desktop.HoverLaws app.Proofs
 # the desktop's laws, on standard axioms only (tests/app/DesktopAxioms.lean)
 out=$(lake env lean tests/app/DesktopAxioms.lean 2>&1)
 want=$(grep -c "^#print axioms" tests/app/DesktopAxioms.lean)
