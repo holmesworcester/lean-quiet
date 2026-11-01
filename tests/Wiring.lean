@@ -85,6 +85,13 @@ output, and local CI fails when it goes stale.
 - **Copies:** a `copy` restates running code instead of naming it: a
   law (a model until it names the code), or a definition (a model,
   until the code calls it). The README lists them.
+- **The ratchet** (AGENTS.md: no proofs over models): tests/wiring-models.txt
+  lists the model laws there were when the rule was made. A model law
+  it does not list fails the check, and so does a name it lists that is
+  no longer a model law, until its line is deleted: the list only
+  shrinks. (ci/proof-links.py --check also fails on a line the merge
+  base did not have, and runs the negative control: a model law left
+  out of the list must be caught.)
 
 It fails (exit 1) if a note is stale or wrong: a name it gives is
 missing; a `spec`, `todo` or mirror runs; no law waits on a `todo`; a
@@ -96,7 +103,9 @@ its law is not an audited equation naming it; a `copy`
 law names the code it copies, a copied definition runs, or the code
 does not run; a `subject` names what its law's conclusion does not; an
 `assume` or `holds` no law takes; a law marked `wired` is not. It fails
-too if an audited law is missing. Controls: the entry points must reach
+too if an audited law is missing, if a model law is not in
+tests/wiring-models.txt, or if that list names a law that is not a model
+law. Controls: the entry points must reach
 `App.step` and the node's `onFrame`, and not the harnesses (`harnesses`);
 the laws `models` names must be models, and `worlds` World laws; no law
 is both wired and World; and with `Engine.Sync.Node` taken out of what
@@ -106,7 +115,8 @@ law, wired).
 
   lake env lean --run tests/Wiring.lean   (needs `lake build` and `lake build +Main`)
 
-`WIRING_NOTES=path` reads other notes. Output, one line each,
+`WIRING_NOTES=path` reads other notes, `WIRING_MODELS=path` another
+list of model laws. Output, one line each,
 tab-separated: `law NAME STATUS SUBJECT MISSING ASSUMES MODULE PREMISES`
 (STATUS: wired, world, control or model)
 (PREMISES: as above), `stmt NAME STATUS SUBJECT
@@ -454,6 +464,20 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | _ => throw <| IO.userError s!"tests/wiring.txt:{i}: not a note: {l}"
   return ns
 
+/-- tests/wiring-models.txt: the laws over models today, with their lines.
+A line's first word is a law; `#` starts a comment. -/
+def readModels (path : System.FilePath) : IO (List (Name × Nat)) := do
+  let mut out := #[]
+  let mut i := 0
+  for l in (← IO.FS.readFile path).splitOn "\n" do
+    i := i + 1
+    let l := ((l.splitOn "#").headD "").trimAscii.toString
+    if l.isEmpty then continue
+    match fields l 1 with
+    | ([n], "") => out := out.push (n.toName, i)
+    | _ => throw <| IO.userError s!"{path}:{i}: not a law name: {l}"
+  return out.toList
+
 /-! ## The classification -/
 
 structure Law where
@@ -733,6 +757,21 @@ unsafe def main : IO UInt32 := do
   for m in controlLaws do
     if !(lawList.find? (·.name == m)).any (·.control) then
       problems := problems.push s!"control: {m}, a mutant's law, is not classified a negative control"
+  -- the ratchet (AGENTS.md): no new law over a model, and the list of
+  -- today's only shrinks
+  let base ← readModels ((← IO.getEnv "WIRING_MODELS").getD "tests/wiring-models.txt")
+  let mut listed : NameSet := {}
+  for (n, i) in base do
+    if listed.contains n then problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is listed twice"
+    listed := listed.insert n
+    match lawList.find? (·.name == n) with
+    | some l =>
+      if l.wired || l.world || l.control then
+        problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is no longer a model law ({if l.wired then "wired" else if l.world then "World" else "control"}): delete the line (ci/proof-links.py --prune)"
+    | none => problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is not an audited law: delete the line (ci/proof-links.py --prune)"
+  for l in lawList do
+    if !l.wired && !l.world && !l.control && !listed.contains l.name then
+      problems := problems.push s!"model: {l.name} is a new law over a model (it misses {if l.missing.isEmpty then "every running definition: its subject is empty" else commas l.missing}): state it over the code that runs, or prove its model equal to running code (a bridge); AGENTS.md"
   let nw := (lawList.filter (·.wired)).length
   let nW := (lawList.filter (·.world)).length
   let nc := (lawList.filter (·.control)).length

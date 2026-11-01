@@ -1,0 +1,462 @@
+# Laws over models: the laws tests/Wiring.lean classes `model` (they
+# name a definition nothing that runs calls, or nothing of this
+# repository's code at all), as of origin/main 59fa463 (2026-11-01).
+#
+# The rule (AGENTS.md): a law is about running code, or about a model
+# that a `bridge` law proves equal to running code. This list only
+# shrinks:
+# - tests/Wiring.lean fails on a model law it does not name: state the
+#   law over the code that runs, or bridge its model (tests/wiring.txt);
+# - it fails on a name here that is no longer a model law (ported,
+#   bridged, a World or control law, or gone): delete the line
+#   (ci/proof-links.py --prune does);
+# - ci/proof-links.py --check fails on a name the merge base with
+#   origin/main did not list. A renamed law keeps its line as
+#   `NEW  # was OLD`.
+#
+# One law per line, grouped by module.
+
+# app.Proofs
+Connection.Execution.HistoryStep.catalog_read
+Connection.Execution.HistoryStep.ceiling_mono
+Connection.Execution.Run.history
+Connection.Execution.Run.shared_retained
+Connection.Execution.Run.unique
+Connection.Execution.empty_trace_history
+Connection.Execution.empty_trace_store
+Connection.Execution.empty_trace_unique
+Connection.Execution.production_step_history
+Connection.Execution.production_step_moves
+Connection.Execution.production_step_reachable
+Connection.Execution.production_step_retains
+Connection.Execution.production_step_settled
+Connection.Execution.production_step_unique
+Connection.Execution.production_write_receives
+Connection.Execution.world_step_history
+Connection.Execution.world_step_moves
+Connection.Execution.world_step_unique
+Connection.Execution.world_trace_history
+Connection.Execution.world_trace_moves
+Connection.Execution.world_trace_unique
+Connection.Execution.write_store_tape
+Connection.ProgressTape.answer_ready
+Connection.ProgressTape.run_arrivedFrom
+Connection.ProgressTape.run_bind
+Connection.ProgressTape.run_count
+Connection.ProgressTape.run_fresh
+Connection.ProgressTape.run_get
+Connection.ProgressTape.run_view
+LifecycleLaws.viewport_possible
+NavLaws.depth
+
+# app.Screen
+App.pageIn_acc
+Lifecycle.live_exact
+NodeOffer.offer_runs
+Reader.Want.withViewLast_moves
+Reader.Want.withView_ofFrame
+
+# app.community.Family
+Community.nodup_full
+
+# app.community.Op
+Community.openBody_sealBody
+Community.unbox_box
+
+# app.community.Proofs
+Community.admission_consented
+Community.member_opens
+Community.members_iff
+Community.openSealed_seal
+Community.recipients_iff
+Community.unscoped_signs_all
+Net.FairExecution.fair
+Net.FairExecution.ideal
+Net.Scene.admitted_inv
+Net.Scene.allowedA
+Net.Scene.allowedB
+Net.Scene.bootstrap
+Net.Scene.bootstrap_possible
+Net.Scene.no_connection_before_approval
+Net.Scene.reachable_inv
+Net.Scene.sessions_trusted
+Net.allowPeer_iff
+Net.allowPeer_settles
+
+# app.community.Screen
+PeopleLaws.deviceLive_lists
+PeopleLaws.live_lists_ge
+PeopleLaws.live_lists_le
+PeopleLaws.presentW_lists
+PeopleLaws.presentW_lists_eq
+PeopleLaws.present_lists_eq
+PeopleLaws.present_scans
+PeopleLaws.unremoved_lists
+ViewLaws.message_own
+ViewLaws.message_read
+ViewLaws.row_marked
+
+# app.community.channel.message.Proofs
+Community.sum_map_add
+
+# app.community.channel.message.attachment.Screen
+Pics.decoded_started
+Pics.image_settles
+Pics.image_steady
+Pics.image_twice
+
+# app.community.channel.message.attachment.View
+ArrivalLaws.lit_clockwise
+ArrivalLaws.lit_full
+ArrivalLaws.lit_mono
+ArrivalLaws.lit_zero
+ArrivalLaws.ring_counts
+
+# app.community.channel.message.reaction.View
+RowLaws.tally_mem
+RowLaws.tally_nodup
+
+# app.community.member.invite.Proofs
+Community.parse_uri
+
+# app.connection.Family
+Community.reads_members
+Community.reads_recipients
+
+# app.connection.Proofs
+Connection.members_iff_node
+Connection.recipients_iff_node
+
+# engine.core.Cost
+Engine.Costs.mono
+Engine.Costs.time
+Engine.costs_bind
+Engine.costs_bindP
+Engine.within_bind
+Engine.within_bindP
+
+# engine.core.CostErase
+Engine.CostT.erase_bind
+Engine.CostT.erase_charged
+Engine.CostT.erase_chargedBy
+Engine.CostT.erase_lift
+Engine.CostT.erase_pure
+Engine.CostT.erase_run
+Engine.CostT.erase_tick
+Engine.Counted.cost_run
+Engine.Counted.val_erase
+
+# engine.core.Decl
+Engine.perm_sortPos
+
+# engine.core.FIFO
+Net.FIFO.eventually_delivered
+
+# engine.core.ListCost
+Engine.list_costs
+Engine.model_fits
+
+# engine.core.Locality
+Engine.Sync.spec_local
+
+# engine.core.Merkle
+Merkle.no_injective_hash
+
+# engine.core.Order
+Engine.eval_partition
+Engine.lexCmp_append_zero
+Engine.sortPos_sorted
+
+# engine.core.Project
+Engine.All2.of_map
+Engine.All2.to_map
+Engine.View.Reads.mono
+Engine.eval_proj
+Engine.filterMap_inlRow
+Engine.insertBy_map
+Engine.leftOps_eq_some
+Engine.leftOps_isSome
+Engine.matching_proj
+Engine.mem_proj_idx
+Engine.sortPos_map
+Engine.specAt_valid_inv
+Engine.specVerdict_eq_some
+
+# engine.core.Proofs
+Engine.distinct_of_collisionFree
+
+# engine.core.Query
+Engine.Stmt.walks_le
+Engine.id_bind
+Engine.plan_stmt_cost
+Engine.readPlan_cost
+Engine.readPlan_cost_le
+Engine.readPlan_cost_range
+Engine.sideCount_run
+Engine.sortPos_eq_fast
+Engine.splitWalk_cost
+Engine.splitWalk_exact
+Engine.splitWalk_steps
+
+# engine.core.SpecLemmas
+Engine.spec_extends
+
+# engine.core.Union
+Engine.foldr_insertBy
+Engine.insertBy_merge
+Engine.mergeRuns_eq_sortPos
+Engine.union_rows
+
+# engine.core.WindowIndex
+Engine.Subs.has_ofList
+Engine.Subs.ofList_wf
+
+# engine.renderer.ActsLaws
+Live.AWorld.passActs_acts
+Live.AWorld.passActs_comp
+Live.AWorld.passActs_indep
+Live.AWorld.type_only
+Live.RWorld.acts_shown
+Live.RWorld.idxok_passActs
+Live.RWorld.inv_passActs
+Live.RWorld.passActs_nil
+Live.RWorld.passActs_picks
+
+# engine.renderer.BoardLaws
+Live.Board.seen_take
+Live.World.acts_shown
+Live.World.fold_commits
+Live.World.inv_commit
+Live.World.inv_frame
+Live.World.inv_pass
+Live.World.marked_pass
+Live.World.passActs_acts
+Live.World.passActs_comp
+Live.World.passActs_indep
+Live.World.settle
+Live.World.settle_passes
+Live.World.type_only
+
+# engine.renderer.DemandRank
+Demand.filter_rank
+
+# engine.renderer.Heights
+Heights.Both.rowAt_spec
+Heights.Rows.push_ok
+Heights.T.above_window
+Heights.T.below_window
+Heights.T.buildM_cost
+Heights.T.build_ok
+Heights.T.findM_cost
+Heights.T.find_spec
+Heights.T.setM_cost
+Heights.T.set_toList
+Heights.T.startM_cost
+Heights.T.start_eq
+Heights.T.start_mono
+Heights.T.start_size
+Heights.anchor_stable
+Heights.clog_least
+Heights.le_pow_clog
+Heights.rebuild_cost
+Heights.rebuild_ok
+Heights.rows_cost
+Heights.window_rows
+
+# engine.renderer.HoldCacheLaws
+Hold.cachedMessagePlane_exact
+
+# engine.renderer.ReaderLaws
+Live.RWorld.inv_commit
+Live.RWorld.inv_evict
+Live.RWorld.inv_frame
+Live.RWorld.inv_pass
+Live.RWorld.settle
+
+# engine.renderer.Screen
+Screen.hull_near
+Screen.keep_scrolled_off
+Screen.past_hull_le
+Screen.screen_index
+Screen.screen_subs
+
+# engine.renderer.TranslateLaws
+Translate.fill_index
+Translate.source_iff
+Translate.tile_phase
+
+# engine.renderer.WriteQueueLaws
+Data.WriterQueue.local_share
+Data.WriterQueue.push_background
+Data.WriterQueue.push_local
+
+# engine.renderer.bidi.Laws
+Text.Bidi.run_contiguous
+
+# engine.renderer.pic.Laws
+Pic.add_stored
+Pic.fit_le
+Pic.fit_long
+Pic.fit_pos
+Pic.fit_round
+Pic.fit_small
+Pic.layout_apart
+Pic.layout_inside
+Pic.layout_sizes
+Pic.render_opaque
+Pic.render_wellFormed
+Pic.scale_wellFormed
+
+# engine.sync.BoundsLaws
+Engine.Sync.inserts_size
+
+# engine.sync.ClosureDelivery
+Engine.Sync.filter_idxOf_le
+Engine.Sync.finite_eventually_held
+
+# engine.sync.ClosureStore
+Engine.Sync.ReceiverRun.keeps
+Engine.Sync.ReceiverRun.retains
+Engine.Sync.ReceiverRun.settled
+Engine.Sync.absentFold_covers
+Engine.Sync.absentFold_keeps
+Engine.Sync.absentFold_source
+Engine.Sync.absentStep_keeps
+Engine.Sync.absentStep_source
+Engine.Sync.budget_same_ops
+Engine.Sync.dedup_nodup
+Engine.Sync.write_store
+
+# engine.sync.RetryLaws
+Engine.Sync.work_retry_bounded
+
+# engine.sync.RoundLaws
+Engine.Sync.exchange_complete
+
+# engine.sync.RoundRun
+Engine.Sync.RoundRun.advance_empty
+Engine.Sync.RoundRun.answer_rank
+Engine.Sync.RoundRun.collisionCheck_sound
+Engine.Sync.RoundRun.discovers
+Engine.Sync.RoundRun.discovers_wire
+Engine.Sync.RoundRun.execute_runs
+Engine.Sync.RoundRun.filter_in_subsets
+Engine.Sync.RoundRun.holds_announced
+Engine.Sync.RoundRun.initial_asks
+Engine.Sync.RoundRun.initial_claim
+Engine.Sync.RoundRun.initial_ready
+Engine.Sync.RoundRun.mem_inserts
+Engine.Sync.RoundRun.next_mem
+Engine.Sync.RoundRun.pending_source
+Engine.Sync.RoundRun.ready_next
+Engine.Sync.RoundRun.run_bounded
+Engine.Sync.RoundRun.run_empty
+Engine.Sync.RoundRun.sound_of_check
+Engine.Sync.RoundRun.successor
+Engine.Sync.RoundRun.terminates
+Engine.Sync.RoundRun.wants_seen
+Engine.Sync.conn_answers_claims
+Engine.Sync.conn_returns_claims
+Engine.Sync.conn_round_continues
+Engine.Sync.conn_runs_exchange
+
+# engine.sync.Session
+Engine.Sync.Session.closed_terminal
+
+# engine.sync.SharedLog
+Engine.Sync.empty_log_agrees
+Engine.Sync.shared_log_purge
+Engine.Sync.shared_log_turn
+
+# engine.sync.SweepLaws
+Engine.Sync.Sweep.fair_loss_delivered
+Engine.Sync.Sweep.step_nonincrease
+Engine.Sync.Sweep.step_progress
+
+# engine.sync.SweepRun
+Engine.Sync.Sweep.held_run_observed
+Engine.Sync.Sweep.run_observed
+
+# engine.sync.TreeLaws
+Engine.Sync.Tree.exchange_ids_stable
+Engine.Sync.Tree.exchange_log
+Engine.Sync.Tree.exchange_stable
+Engine.Sync.Tree.fold_congr
+
+# engine.sync.Witnesses
+Engine.Sync.secrecy_runs
+
+# engine.wire.ExpiryGraceLaws
+Engine.Sync.ExpiryGrace.budget_exhausted
+Engine.Sync.ExpiryGrace.consumed_left
+Engine.Sync.ExpiryGrace.source_before_exhaustion
+
+# engine.wire.Frame
+Engine.Sync.buffer_bounded
+
+# engine.wire.IngressChurnLaws
+Engine.Sync.Ingress.Prioritized.Waiting.same_inputs
+Engine.Sync.Ingress.Prioritized.changes_preserve
+Engine.Sync.Ingress.Prioritized.churnFlood_exact
+Engine.Sync.Ingress.Prioritized.churnFlood_source
+Engine.Sync.Ingress.Prioritized.churnFlood_write
+Engine.Sync.Ingress.Prioritized.served_or_cancelled
+Engine.Sync.Ingress.Prioritized.source_or_cancelled_within
+Engine.Sync.Ingress.Prioritized.write_served_churn
+Engine.Sync.Ingress.Prioritized.write_within_churn
+Engine.Sync.Ingress.cancelAll_preserves
+
+# engine.wire.IngressLaws
+Engine.Sync.Ingress.advance_distance
+Engine.Sync.Ingress.arrivals_preserve
+Engine.Sync.Ingress.distance_lt
+Engine.Sync.Ingress.distance_zero
+Engine.Sync.Ingress.flooded_prefix
+Engine.Sync.Ingress.poll_progress
+Engine.Sync.Ingress.scan_ready
+Engine.Sync.Ingress.served
+Engine.Sync.Ingress.source_within
+
+# engine.wire.IngressPriorityLaws
+Engine.Sync.Ingress.Prioritized.served
+Engine.Sync.Ingress.Prioritized.source_within
+Engine.Sync.Ingress.Prioritized.step_empty_event
+Engine.Sync.Ingress.Prioritized.step_event
+Engine.Sync.Ingress.Prioritized.step_only_event
+Engine.Sync.Ingress.Prioritized.step_progress
+Engine.Sync.Ingress.Prioritized.step_write
+Engine.Sync.Ingress.Prioritized.write_progress
+Engine.Sync.Ingress.Prioritized.write_served
+Engine.Sync.Ingress.Prioritized.write_within
+
+# engine.wire.LaneLaws
+Engine.Sync.ahead_bytes
+Engine.Sync.lanes_bounded
+Engine.Sync.take_append
+Engine.Sync.take_bytes
+Engine.Sync.urgent_ahead
+
+# engine.wire.NoiseSymbolic
+Connection.Noise.Symbolic.exposed_parts
+Connection.Noise.Symbolic.good
+
+# engine.wire.PriorityLaws
+Engine.Sync.Inbox.Priority.event_within
+Engine.Sync.Inbox.Priority.local_share
+Engine.Sync.Inbox.Priority.phase_cycle
+Engine.Sync.Inbox.Priority.served
+Engine.Sync.Inbox.Priority.waiting_step
+Engine.Sync.Inbox.Priority.write_within
+
+# engine.wire.Reserved
+Engine.Sync.Reserved.offer_bounded
+
+# engine.wire.RetryOrderLaws
+Engine.Sync.RetryOrder.Run.nodup
+Engine.Sync.RetryOrder.eligible_spec
+Engine.Sync.RetryOrder.filter_rank
+
+# engine.wire.mdns.Laws
+Mdns.decode_encode
+Mdns.decode_roundtrip
+Mdns.decode_valid

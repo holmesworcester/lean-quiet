@@ -352,7 +352,11 @@ behavior; they do not prove all of these assumptions:
 ### Security proofs
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
-over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
+over a separate model, a debt being paid down: no new law may be over a
+model unless a proven bridge ties the model to running code
+([AGENTS.md](AGENTS.md)), and CI fails on any model law that
+`tests/wiring-models.txt`, a list that only shrinks, does not name.
+🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
 hypotheses. All 1360 rest on Lean's standard axioms only, and about two thirds of its theorems (993 of 1338, not counting 22 negative controls) are about the code that runs; another 22 run the
 phone's node code over a modelled network and plain transport (the
@@ -474,7 +478,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**993 of 1338 laws are about running code;** another 22 run its node code in a World, and 323 are not yet. Stated only: none. 22 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**993 of 1338 laws are about running code;** another 22 run its node code in a World, and 323 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 22 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|

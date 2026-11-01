@@ -29,6 +29,9 @@ the phone's node code"). It may
 say "nearly every" only while the share is 90% or more.
 
   ci/proof-links.py           rewrite the block and the section
+  ci/proof-links.py --prune   delete tests/wiring-models.txt's lines that
+                              name no model law (ported, bridged, gone);
+                              it never adds one
   ci/proof-links.py --check   fail if either is stale, a reference
                               names no audited theorem, the README's
                               "All N rest on" count is not the audit's,
@@ -39,6 +42,15 @@ say "nearly every" only while the share is 90% or more.
                               only it, and a 🟡 row saying nothing missing
                               must each fail.
 
+The ratchet (AGENTS.md: no proofs over models): tests/wiring-models.txt
+lists the laws over models there were when the rule was made.
+tests/Wiring.lean fails on a model law it does not list, and on a listed
+name that is no longer a model law; --check fails, too, on a line the
+merge base with origin/main did not have (a renamed law: `NEW  # was
+OLD`, OLD listed there and gone here). Its negative controls: a model
+law left out of the list, a wired law kept in it, and a line added since
+the merge base must each be caught.
+
 Needs the tree built (tests/check.sh builds it).
 """
 import os, re, subprocess, sys
@@ -47,6 +59,7 @@ TOP = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 AUDIT = os.path.join(TOP, "tests", "Axioms.lean")
 README = os.path.join(TOP, "README.md")
 NOTES = os.path.join(TOP, "tests", "wiring.txt")
+MODELS = os.path.join(TOP, "tests", "wiring-models.txt")
 BEGIN = "<!-- proof-links: written by ci/proof-links.py; do not edit -->"
 END = "<!-- /proof-links -->"
 WBEGIN = "<!-- wiring:begin -->"
@@ -165,9 +178,13 @@ def span(path, start, sel, end, whole):
     return a, max(b, sel)
 
 
-def classify(notes_path=None):
+def classify(notes_path=None, models_path=None):
     """tests/Wiring.lean's output: its lines, split, and its problems."""
-    env = dict(os.environ, WIRING_NOTES=notes_path) if notes_path else None
+    env = dict(os.environ)
+    if notes_path:
+        env["WIRING_NOTES"] = notes_path
+    if models_path:
+        env["WIRING_MODELS"] = models_path
     r = subprocess.run(["lake", "env", "lean", "--run", "tests/Wiring.lean"], cwd=TOP,
                        capture_output=True, text=True, env=env)
     rows = [l.split("\t") for l in r.stdout.splitlines()
@@ -265,13 +282,29 @@ def controls(rows, resolve):
     if model is None or not wired:
         return []
     problems = []
+    a_wired = sorted(wired)[0]
     os.makedirs(os.path.join(TOP, "out", "proof-links"), exist_ok=True)
     path = os.path.join(TOP, "out", "proof-links", "wiring-control.txt")
     with open(path, "w") as f:
         f.write(open(NOTES).read() + f"\nwired {model}\n")
-    _, caught = classify(path)
+    # the ratchet's: the model law left out of the list (a new law over a
+    # model), and a wired law kept in it
+    mpath = os.path.join(TOP, "out", "proof-links", "wiring-models-control.txt")
+    with open(mpath, "w") as f:
+        f.write("".join(l for l in open(MODELS) if l.split("#")[0].strip() != model) + f"{a_wired}\n")
+    _, caught = classify(path, mpath)
     if not any(f"marks {model} wired, but it is not" in p for p in caught):
         problems.append(f"negative control: {model}, marked wired, was not caught")
+    if not any(f"model: {model} is a new law over a model" in p for p in caught):
+        problems.append(f"negative control: {model}, a model law the list leaves out, was not caught")
+    if not any(f"{a_wired} is no longer a model law" in p for p in caught):
+        problems.append(f"negative control: {a_wired}, a wired law the list keeps, was not caught")
+    base = open(MODELS).read()
+    if (grown(base.replace(f"\n{model}\n", "\n"), base) != [model]
+            or grown(base, base.replace(f"\n{model}\n", f"\n{model}_renamed  # was {model}\n"))
+            or not grown(base, base + f"{a_wired}_renamed  # was {model}\n")):
+        problems.append(f"negative control: a line added since the merge base ({model}), or a rename, "
+                        "was misjudged")
     world = next((f[1] for f in rows if f[0] == "law" and f[2] == "world"), None)
     if world:
         with open(path, "w") as f:
@@ -279,7 +312,6 @@ def controls(rows, resolve):
         _, caught = classify(path)
         if not any(f"marks {world} wired, but it is not" in p for p in caught):
             problems.append(f"negative control: {world}, a World law marked wired, was not caught")
-    a_wired = sorted(wired)[0]
     rows_ = (f"| ✅ | 🥊 | **Control.** | [`{model}`] |\n"
              f"| 🟡 | 🥊 | **Control.** Proven. | [`{a_wired}`] |\n")
     if len(disagree(rows_, wired, lambda l: l)) != 2:
@@ -298,10 +330,68 @@ def controls(rows, resolve):
     if twice([a_wired, model, a_wired]) != [a_wired]:
         problems.append(f"negative control: {a_wired}, audited twice, was not caught")
     if not problems:
-        print(f"proof-links: negative controls: {model} and {world} marked wired, a ✅ row citing only "
-              f'a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, another '
-              f"{k + 1} for {k} World laws, and {a_wired} audited twice, all caught")
+        print(f"proof-links: negative controls: {model} and {world} marked wired, {model} left out of "
+              f"the model list, {a_wired} kept in it, {model} added since the merge base, a ✅ row "
+              f'citing only a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, '
+              f"another {k + 1} for {k} World laws, and {a_wired} audited twice, all caught")
     return problems
+
+
+def listed(text):
+    """tests/wiring-models.txt's laws, and the names their renames were."""
+    names, was = [], {}
+    for line in text.split("\n"):
+        code, _, note = line.partition("#")
+        if code.strip():
+            names.append(code.split()[0])
+            m = re.match(r"\s*was\s+(\S+)", note)
+            if m:
+                was[code.split()[0]] = m.group(1)
+    return names, was
+
+
+def grown(base, now):
+    """The laws tests/wiring-models.txt lists now that the merge base did
+    not: the list only shrinks. A rename (`NEW  # was OLD`) is not growth
+    while OLD was listed there and is gone now."""
+    old, _ = listed(base)
+    new, was = listed(now)
+    return [n for n in new if n not in old and not (was.get(n) in old and was.get(n) not in new)]
+
+
+def merge_base_models():
+    """tests/wiring-models.txt at the merge base with origin/main, or None
+    (no origin/main, or no list there yet)."""
+    def git(*a):
+        r = subprocess.run(["git", *a], cwd=TOP, capture_output=True, text=True)
+        return r.stdout if r.returncode == 0 else None
+    base = git("merge-base", "HEAD", "origin/main")
+    return git("show", f"{base.strip()}:tests/wiring-models.txt") if base else None
+
+
+def prune(rows):
+    """Delete tests/wiring-models.txt's lines that name no model law, and
+    module headers left with none; never add one."""
+    model = {f[1] for f in rows if f[0] == "law" and f[2] == "model"}
+    lines = open(MODELS).read().split("\n")
+    keep, gone = [], []
+    for line in lines:
+        code = line.split("#")[0].strip()
+        if code and code.split()[0] not in model:
+            gone.append(code.split()[0])
+            continue
+        keep.append(line)
+    out = []
+    for i, line in enumerate(keep):  # a module header with no law under it
+        if line.startswith("# ") and "." in line and " " not in line[2:].strip():
+            rest = next((l for l in keep[i + 1:] if l.strip()), "")
+            if not rest or rest.startswith("# "):
+                if out and not out[-1].strip():
+                    out.pop()
+                continue
+        out.append(line)
+    open(MODELS, "w").write("\n".join(out))
+    return gone
 
 
 def section(rows, decls, cited):
@@ -359,7 +449,8 @@ def section(rows, decls, cited):
         if st == "stated":
             stated[n.rsplit(".", 1)[0]] = stated.get(n.rsplit(".", 1)[0], 0) + 1
     out = [f"**{count['wired']} of {len(laws)} laws are about running code;** another {count['world']} "
-           f"run its node code in a World, and {count['model']} are not yet. Stated only: "
+           f"run its node code in a World, and {count['model']} are not yet: `tests/wiring-models.txt` lists "
+           "them, CI fails on any other law over a model, and the list only shrinks. Stated only: "
            + (", ".join(f"{k} in `{m}`" for m, k in stated.items()) if stated else "none") + ". "
            f"{len(controls)} laws are negative controls: each proves a mutant breaks its law "
            "(they are not counted here, nor in the lead).", "",
@@ -426,8 +517,17 @@ def main():
         for p in problems or ["tests/Wiring.lean classified no law"]:
             print(f"proof-links: wiring: {p}")
         sys.exit(1)
+    if "--prune" in sys.argv[1:]:
+        gone = prune(rows)
+        print(f"proof-links: pruned {len(gone)} from tests/wiring-models.txt: {', '.join(gone) or 'none'}")
+        sys.exit(0)
     if check:
         problems = controls(rows, resolve) + problems
+        base = merge_base_models()
+        if base is not None:
+            for n in grown(base, open(MODELS).read()):
+                problems.append(f"tests/wiring-models.txt lists {n}, which the merge base with origin/main "
+                                "did not: the list only shrinks (AGENTS.md); a renamed law is `NEW  # was OLD`")
     text = open(README).read()
     if WBEGIN not in text or WEND not in text:
         sys.exit(f"proof-links: no wiring markers ({WBEGIN}, {WEND}) in the README")
