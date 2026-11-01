@@ -51,11 +51,14 @@ def rank (name : String) : Nat :=
   else if name.startsWith "eth" then 1
   else if name.startsWith "tailscale" then 2 else 3
 
-/-- The dial hints for these addresses (interface, octets, loopback or
-not) and port: the private IPv4 ones, Wi-Fi first, at most 8. -/
+/-- Keep a LAN address first and reserve the next slot for a tailnet address,
+then fill the remaining slots in interface order. Many LAN aliases must not
+crowd the tailnet address out of invites or the publisher's first four hints. -/
 def hints (addrs : List (String × List Nat × Bool)) (port : Nat := port) : List ByteArray :=
   let ok := (addrs.filter fun (name, o, lo) => !lo && !isBridge name && (isPrivate o || isTailnet o)).mergeSort fun a b => rank a.1 ≤ rank b.1
-  ((ok.map fun (_, o, _) => (hintOf o port).toUTF8).eraseDups.filter (·.size ≤ 255)).take 8
+  let preferred := (ok.filter fun (_, o, _) => isPrivate o).take 1 ++
+    (ok.filter fun (_, o, _) => isTailnet o).take 1 ++ ok
+  ((preferred.map fun (_, o, _) => (hintOf o port).toUTF8).eraseDups.filter (·.size ≤ 255)).take 8
 
 /-- **Every hint fits the link** (`Invite.Valid`'s hint clause). -/
 theorem hints_fit (a : List (String × List Nat × Bool)) (port : Nat) :

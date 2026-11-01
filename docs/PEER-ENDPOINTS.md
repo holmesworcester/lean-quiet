@@ -15,7 +15,8 @@ both parties already possess that exact ID after the existing two-message Noise
 exchange. Reversing local arrival order or clock values does not change it.
 
 The app bundles up to eight LAN/tailnet IPv4 addresses in invites, excluding
-Docker/bridge interfaces. Shared, signed `addresses` ops bind the publisher to
+Docker/bridge interfaces. A tailnet slot is reserved immediately after the
+first LAN address so LAN aliases cannot crowd it out. Shared, signed `addresses` ops bind the publisher to
 its admission's node key and carry up to eight detected plus observed endpoints
 in total. The latest publication supersedes older ones, even after expiry.
 Lifetime is at most five minutes. A peer signs a `sighting` of the authenticated
@@ -93,7 +94,7 @@ silently accepted skip.
 
 | Mise task | Observed result |
 |---|---|
-| `test:endpoints` | Pass: 33 native checks, explicit theorem applications, axiom audit, eight proof mutations and the native socket-retirement mutation. |
+| `test:endpoints` | Pass: 34 native checks, explicit theorem applications, axiom audit, eight proof mutations and the native socket-retirement mutation. |
 | `test:endpoints-invite` | Pass: a dead first invite address is skipped; the reachable second address bootstraps membership and encrypted signed-marker exchange. |
 | `test:endpoints-ops` | Pass: two OS processes establish a session from a signed endpoint publication. |
 | `test:endpoints-simultaneous` | Pass: each process independently answers one attempt; both keep the smaller of the two connection IDs, exchange markers, and retain one stable session. |
@@ -107,8 +108,8 @@ After merging b44a7af, the simultaneous run is retained in
 `acd01d7e` and `614f3ff1`, and both peers keep `614f3ff1` with one native socket.
 The deterministic late-loser run is
 `out/endpoints/simultaneous-1793503437930410076` (both keep `13e036cb`).
-The LAN run is `out/endpoints/lan-1793503448570286815` (both keep `631d46b7`),
-and Pixel 7 is `out/endpoints/phone-1793503457` (both keep `55be1bc7`).
+The LAN run is `out/endpoints/lan-1793503938510880860` (both keep `72183e86`),
+and Pixel 7 is `out/endpoints/phone-1793503948` (both keep `60e49c82`).
 
 Failure artifacts are retained too. A delayed higher-ID attempt exposed an
 unselected-route retirement bug. The hook now gives the node every authenticated
@@ -132,7 +133,15 @@ applications of all 23 endpoint laws. A metadata entry alone does not count:
 the audit checks each witness's dependency on its named theorem, its axioms,
 and that its native executable actually calls it.
 
-Existing `test:join-fair` and the fairness certificate suite pass, including the
-expected failing mutations. The full project check and generated proof-link
-audit are run again after integration. Main is not promoted while the remote
-network test and the remaining universal proof obligations are open.
+Existing `test:join-fair` passes its 37 baseline and 24 ordered-hint checks;
+its intentionally broken schedulers/hint handling fail their required progress
+assertions. The fairness certificates also pass (including 26 storage checks).
+The catalog retry test passes 14 checks, rejects a compiled disabled-retry
+mutation, and passes again after restoration (`out/endpoints/final-catalog.log`).
+The last address-selection build, 34 native checks, LAN/Pixel 7 reruns and
+proof-link inventory checks are in `out/endpoints/final-address-mix.log`.
+
+The final remote preflight is retained in `out/endpoints/tailnet-1793503639`;
+`clean-quiet-test` remained offline. No remote test process started. Main is not
+promoted while that real-network test and the remaining universal progress and
+resource-bound obligations are open.

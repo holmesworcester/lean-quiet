@@ -149,6 +149,10 @@ def main : IO Unit := do
   let hints := Link.hints [("docker0", [172,17,0,1], false), ("br-test", [192,168,80,1], false),
     ("wlan0", [192,168,4,35], false), ("tailscale0", [100,67,2,56], false)]
   require "invites carry LAN and tailnet, excluding Docker bridges" (hints == [lan, tail])
+  let many := Link.hints ((List.range 10 |>.map fun i => ("wlan0", [192,168,4,i+1], false)) ++
+    [("tailscale0", [100,67,2,56], false)])
+  require "LAN aliases cannot crowd tailnet out of invite or publication caps"
+    (many.length == 8 && many.head? == some "192.168.4.1:47100".toUTF8 && (many.take 4).contains tail)
   require "repeated interface addresses coalesce" ((Link.hints [("wlan0", [192,168,4,35], false),
     ("wlan1", [192,168,4,35], false)]).length == 1)
   let req := Community.issue c c (dev "A") (key "A") (seed "invite") hints
