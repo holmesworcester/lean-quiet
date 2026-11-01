@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """The app's data (assets/) as one pinned tarball, for `make install`.
 
-  assets.py pack [--assets DIR] [--out DIR] [--against-pin]
+  assets.py pack [--assets DIR] [--out DIR] [--against-pin] [--manifest F] [--pin F]
       Pack DIR (default assets/) into out/make/lean-quiet-assets-<id>.tar.gz
       with fixed order, times, owners and modes, so the same files always
       give the same bytes. Write the per-file list (tools/make/assets.sha256)
@@ -62,7 +62,7 @@ def read_pin(path: Path) -> dict:
     return out
 
 
-def pack(src: Path, out_dir: Path, against_pin: bool) -> int:
+def pack(src: Path, out_dir: Path, against_pin: bool, manifest: Path = MANIFEST, pin: Path = PIN) -> int:
     files = sorted(p for p in src.rglob('*') if p.is_file())
     if not files:
         sys.exit(f'assets.py: no files in {src}')
@@ -87,13 +87,13 @@ def pack(src: Path, out_dir: Path, against_pin: bool) -> int:
     print(f'{final} {final.stat().st_size} bytes, {len(files)} files')
     print(f'sha256 {digest}')
     if against_pin:
-        pinned = read_pin(PIN).get('LQ_ASSETS_SHA256')
+        pinned = read_pin(pin).get('LQ_ASSETS_SHA256')
         if digest != pinned:
             print(f'assets.py: {src} packs to {digest}, not the pinned {pinned}', file=sys.stderr)
             return 1
         return 0
-    MANIFEST.write_text(''.join(f'{sha(p.read_bytes())}  {p.relative_to(src).as_posix()}\n' for p in files))
-    PIN.write_text(
+    manifest.write_text(''.join(f'{sha(p.read_bytes())}  {p.relative_to(src).as_posix()}\n' for p in files))
+    pin.write_text(
         '# The app\'s data (assets/: fonts, emoji, glyphs, photos) as one tarball,\n'
         '# a GitHub release asset. Written by tools/make/assets.py pack; read by\n'
         '# tools/make/assets.sh (make install), which checks the download against\n'
@@ -103,7 +103,7 @@ def pack(src: Path, out_dir: Path, against_pin: bool) -> int:
         f'LQ_ASSETS_NAME={name}\n'
         f'LQ_ASSETS_SHA256={digest}\n'
         f'LQ_ASSETS_MAKERS={makers_digest()}\n')
-    print(f'wrote {MANIFEST.relative_to(ROOT)} and {PIN.relative_to(ROOT)}')
+    print(f'wrote {manifest} and {pin}')
     return 0
 
 
@@ -157,12 +157,14 @@ def main() -> int:
     p.add_argument('--assets', type=Path, default=ROOT / 'assets')
     p.add_argument('--out', type=Path, default=ROOT / 'out/make')
     p.add_argument('--against-pin', action='store_true')
+    p.add_argument('--manifest', type=Path, default=MANIFEST)
+    p.add_argument('--pin', type=Path, default=PIN)
     c = sub.add_parser('check')
     c.add_argument('--manifest', type=Path, default=MANIFEST)
     c.add_argument('--pin', type=Path, default=PIN)
     a = ap.parse_args()
     if a.cmd == 'pack':
-        return pack(a.assets, a.out, a.against_pin)
+        return pack(a.assets, a.out, a.against_pin, a.manifest, a.pin)
     return check(a.manifest, a.pin)
 
 
