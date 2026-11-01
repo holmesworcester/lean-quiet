@@ -31,11 +31,17 @@ not asserted.
   *Behind the backlog:* an urgent op arriving then is decided in its
   own turn. *Spike:* n urgent ops wait on a missing root; the root's
   turn decides all n (the urgent closure), within `turn_pot`'s bound.
+  *Controls* (when the backlog exceeds `drainCap`): a turn that skips the
+  urgent closure leaves woken urgent ops undecided though judgeable
+  (`turn_waiting` fails); a tick without its idle turn (`onTickDirect`)
+  judges nothing queued, where the running `Node.onTick` carries the
+  backlog.
 -/
 import engine.sync.Treap
 import engine.sync.Conn
 import engine.core.TurnCost
 import engine.core.Held
+import engine.wire.Node
 import tests.engine.Checks
 
 open Engine Engine.Sync Tests
@@ -150,16 +156,30 @@ def turnSql (db : Db) (ops : List Op) : IO (Nat × Nat) := do
   let a ← (transact (turnCapped (m := SqlM Unit) toy drainCap ops)).run db
   return (a, (← IO.monoNanosNow) - t0)
 
-/-- The uncapped turn (the control): judges until the queue is empty. -/
+/-- The uncapped turn (the control, the write turn before drain-cap):
+judges until the queue is empty, with the budget read off the tables. -/
 def receiveSql (db : Db) (ops : List Op) : IO Nat := do
   let t0 ← IO.monoNanosNow
-  (receive (F := Unit) toy ops).run db
+  (transact (do
+    for o in ops do ingest (F := Unit) (m := SqlM Unit) o
+    drain (m := SqlM Unit) toy (← budgetSql (F := Unit)) : SqlM Unit Unit)).run db
   return (← IO.monoNanosNow) - t0
 
 def tally (db : Db) : IO (Nat × Nat × Nat) := (tallyRows (F := Unit)).run db
 
 def decided (db : Db) (x : Id) : IO Bool := do
   return (← (Store.getStatus (F := Unit) x : SqlM Unit _).run db).isSome
+
+/-- The negative control: a turn without the urgent closure. -/
+def turnNoClose (db : Db) (ops : List Op) : IO Unit :=
+  (transact (do
+    for o in ops do ingest (F := Unit) (m := SqlM Unit) o
+    let _ ← judgeJob (m := SqlM Unit) toy (ops.map (·.id))
+    drain (m := SqlM Unit) toy drainCap : SqlM Unit Unit)).run db
+
+/-- A node over this store, ticking: no rooms, no sessions. -/
+def tickSync : Engine.Sync.Sync Unit (SqlM Unit) :=
+  { fam := toy, hooks := { rooms := fun _ => pure [], sealFor := fun _ _ => pure none, openFrame := fun _ => pure none } }
 
 /-- The capped-turn scenarios at n; their rows. -/
 def turnsAt (t : Checks) (dir : String) (n : Nat) : IO (Array String) := do
@@ -224,6 +244,29 @@ def turnsAt (t : Checks) (dir : String) (n : Nat) : IO (Array String) := do
   t.ok s!"n={n}: the urgent closure decides every waiting urgent op in the root's turn" (u3 == 0)
   t.ok s!"n={n}: the spike's attempts ({a3}) are within the potential {q3 + 2 * n + 1} (turn_pot)" (a3 ≤ q3 + 2 * n + 1)
   rows := rows.push s!"urgent spike\t{n}\tattempts\t{a3}\t{ms tSpike}"
+  if n > cap then
+    -- control: without the urgent closure, woken urgent ops stay undecided
+    let db4 ← freshDb dir s!"turns-{n}-noclose.db"
+    let _ ← turnSql db4 urgent
+    turnNoClose db4 [rootOp]
+    let (_, u4, _) ← tally db4
+    IO.println s!"turns n={n}: control: a turn without the urgent closure leaves {u4} judgeable urgent ops undecided"
+    t.ok s!"n={n}: negative control: skipping the urgent closure breaks turn_waiting ({u4} urgent ops undecided)" (u4 > 0)
+    rows := rows.push s!"control no closure\t{n}\tleft undecided\t{u4}\t"
+    -- control: a tick without its idle turn carries nothing; the running tick does
+    let db5 ← freshDb dir s!"turns-{n}-tick.db"
+    let _ ← turnSql db5 content
+    let _ ← turnSql db5 [rootOp]
+    let (_, u5, _) ← tally db5
+    let node := Engine.Sync.Node.boot toy [] 0
+    let _ ← (node.onTickDirect tickSync 1 : SqlM Unit _).run db5
+    let (_, u6, _) ← tally db5
+    let _ ← (node.onTick tickSync 2 : SqlM Unit _).run db5
+    let (_, u7, _) ← tally db5
+    IO.println s!"turns n={n}: a tick without its idle turn: {u5} → {u6} undecided; the running tick: {u6} → {u7}"
+    t.ok s!"n={n}: negative control: a tick without its idle turn judges nothing queued" (u6 == u5)
+    t.ok s!"n={n}: the running tick's idle turn carries the backlog" (u7 < u6)
+    rows := rows.push s!"control tick without idle turn\t{n}\tundecided after\t{u6}\t"
   return rows
 
 def main (args : List String) : IO UInt32 := do
