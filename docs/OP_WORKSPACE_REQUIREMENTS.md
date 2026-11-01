@@ -329,7 +329,7 @@ The initial dashboard MUST distinguish these source-present candidates from the 
 
 ## Source extraction and compatibility requirements
 
-The cutover's baseline was Lean Quiet `main` at `e727b5e`, with main merged in up to `62f88c5`; [`ci/optree-map.tsv`](../ci/optree-map.tsv) records, for every file it removed, the files its declarations are in now.
+The cutover's baseline was Lean Quiet `main` at `e727b5e`, with main merged in up to `456c4ff`; [`ci/optree-map.tsv`](../ci/optree-map.tsv) records, for every file it removed, the files its declarations are in now.
 
 **MIGRATE01 — Preserve existing behavior during extraction.** Reorganization MUST first retain current op bytes, IDs, validator decisions, query ordering, local/shared scope, and app behavior. New navigation, draft, seed, and custom emoji semantics MUST be explicit additions. Canonical naming MUST not accidentally renumber codecs.
 

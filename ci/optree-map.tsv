@@ -1,4 +1,4 @@
-# The op-tree cutover (from main 62f88c5): each Lean file it removed, and where its
+# The op-tree cutover (from main 456c4ff): each Lean file it removed, and where its
 # declarations are now, most first. Module names are paths: app/x/Y.lean is app.x.Y.
 old_path	new_paths
 App.lean	app/Screen.lean
