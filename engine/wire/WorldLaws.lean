@@ -1402,7 +1402,8 @@ theorem write_offers_all (n : Node) (ops : List Op) (t : Nat) (h : Held F) (hm :
     cases hx : ((n.write (S.sync s) (ops.filter (S.sync s).fam.durable)).run h).1.2 with
     | nil => rw [hx] at hid; cases hid
     | cons _ _ => rfl
-  have hf : ops.filter Op.capped = ops := List.filter_eq_self.2 hcp
+  have hf : (ops.filter (S.sync s).fam.durable).filter Op.capped = ops.filter (S.sync s).fam.durable :=
+    List.filter_eq_self.2 fun y hy => hcp y (List.mem_filter.1 hy).1
   simp only [Node.onWrite, HeldM.run_bind, store_run, Node.put, intake, ite_true, hf, hne, Bool.false_eq_true,
     ite_false]
   rw [finish_run _ _ _ _ _ _ (by rw [heat_managed, hmn', hmn, hm]), seal_heat]
