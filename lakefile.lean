@@ -487,6 +487,9 @@ lean_exe people_reader where
 lean_exe claim_tree where
   root := `tests.engine.ClaimTree
 
+lean_exe live_rounds where
+  root := `tests.engine.LiveRounds
+
 lean_exe clump_lists where
   root := `tests.app.ClumpLists
 

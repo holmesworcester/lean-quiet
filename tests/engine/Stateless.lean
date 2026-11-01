@@ -28,7 +28,7 @@ def side (ops : List Op) (floor : Nat) (addr : String) : IO Side := do
 
 def windowChecks (t : Checks) (count cap : Nat) (cut : Bool) : IO Unit := do
   let (ops, room) := history count
-  let cfg : Config := { closureCap := cap, walk := 3, maxKnown := 128, maxIds := 16, every := 30000 }
+  let cfg : Config := { closureCap := cap, walk := 3, maxKnown := 128, maxIds := 16 }
   let x : Sync Fact (SqlM Fact) := { fam, cfg, hooks := { rooms := fun _ => pure [.sync room], sealFor := plainSeal, openFrame := plainOpen } }
   let p : Pair := { a := ← side ops 0 "a", b := ← side [] 86400000 "b", cid := sha256 "stateless-window".toUTF8 }
   let mut p ← p.connect x x
@@ -43,7 +43,7 @@ def windowChecks (t : Checks) (count cap : Nat) (cut : Bool) : IO Unit := do
   let ids := stored.map (·.id)
   let window := ops.filter fun o => fam.order o == 0 || fam.order o ≥ 86400000
   t.ok s!"window {cap}: whole window delivered" (window.all fun o => ids.contains o.id)
-  t.ok s!"window {cap}: closure stays capped" (peaks.closure ≤ cap && peaks.offered ≤ cfg.maxKnown && peaks.snaps ≤ 1)
+  t.ok s!"window {cap}: closure stays capped" (peaks.closure ≤ cap && peaks.offered ≤ cfg.maxKnown && peaks.active ≤ 1)
   t.ok s!"window {cap}: cut reported exactly when required" (peaks.cut == cut)
   let mut missing := 0
   let mut decided := 0

@@ -42,7 +42,7 @@ def closePeer (peer : Peer) : IO Unit := do
   else SocketAbort.closeIdle peer.client
 
 def setup (established : IO.Ref (List (Id × ByteArray × Bool))) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { every := 1000000000, live := 1000000000 }, hooks := {
+  { fam, cfg := { safety := 1000000000, live := 1000000000 }, hooks := {
     rooms := fun _ => pure [.sync rootOp.id]
     established := do return ← established.get
     sealFor := plainSeal, openFrame := plainOpen } }

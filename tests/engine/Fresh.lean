@@ -260,7 +260,7 @@ def side (x : Sync Fact (SqlM Fact)) (ops : List Op) (addr : String) : IO Side :
   return { db, node := Node.boot x.fam (← (dumpOps (F := Fact)).run db) 0, addr := addr.toUTF8 }
 
 def sync (rooms : List Id) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { every := 30000, askTime := 20000 },
+  { fam, cfg := { askTime := 20000 },
     hooks := { rooms := fun _ => pure (rooms.map .sync), sealFor := plainSeal, openFrame := plainOpen } }
 
 /-- Which node writes the post: the one sending the backlog (a), or the

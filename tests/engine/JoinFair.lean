@@ -81,7 +81,7 @@ def start (dir name : String) (port advertise : Nat)
   -- The relay address is advertised by the invite. The actual A port is
   -- written for the harness, and every native hook remains the production one.
   let addr := s!"127.0.0.1:{advertise}".toUTF8
-  let cfg : Config := { every := 500, askTime := 2000 }
+  let cfg : Config := { askTime := 2000 }
   let h := hooks fam sodium addr
   let h := onlyHint.map (firstHintOnly · h) |>.getD h
   let sync : Sync F (SqlM F) := { fam, cfg, hooks := h }

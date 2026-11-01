@@ -15,9 +15,7 @@ theorem work_no_drop (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     ((c.work fam cfg ix now : HeldM F Step) h).1.drop = false := by
   unfold Conn.work
   simp only [HeldM.bind_apply, HeldM.pure_apply]
-  split
-  · unfold Conn.start; split <;> rfl
-  · rfl
+  split <;> simp
 
 /-- Both roles drop exactly at the strict silence deadline. -/
 theorem drop_iff_silent (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
@@ -123,8 +121,8 @@ theorem keepalive_runs (dialer : Bool) :
       apply List.eq_nil_of_length_eq_zero
       have hs := Std.HashSet.size_filter_le_size (m := ({} : Std.HashSet Id)) (f := p)
       simpa using hs
-    cases hw : cfg.walk <;> simp [Conn.work, Conn.open, Conn.walk, Conn.walkN, hw, Conn.expireAsks,
-      Conn.retryIds, Conn.start, holdsOf, chunks, pieceIds, Std.HashSet.toList_empty, empty_filter] <;>
+    cases hw : cfg.walk <;> cases dialer <;> simp [Conn.work, Conn.open, Conn.walk, Conn.walkN, hw, Conn.expireAsks,
+      Conn.retryIds, Conn.start, Conn.ask, holdsOf, chunks, pieceIds, empty_filter] <;>
       split <;> simp [pieceIds]
 
 /-- An unshown room gets an empty end and leaves connection state alone. -/
@@ -133,25 +131,27 @@ theorem unshown_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs
     c.onRbsr cfg ix r k cs now = { conn := c, send := [(Msg.rbsr r k []).op] } := by
   simp [Conn.onRbsr, hr]
 
-/-- Any shown idle room starts, regardless of other rooms' snapshots. -/
+/-- Any shown room that is due starts, whatever other rooms' rounds are
+doing: the premise names room r only. -/
 theorem room_independent (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
-    (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms)
-    (idle : c.snaps.any (fun p => p.1.1 == r) = false) :
+    (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms) (due : (c.due cfg r now || c.retake cfg r) = true) :
     (Msg.rbsr r (c.round + 1)
       ((window (max c.floor pf)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
       (c.start cfg ix now).send := by
-  simp only [Conn.start, hp, List.mem_map]
-  refine ⟨((r, c.round + 1), ix.items r), ?_, rfl⟩
-  exact ⟨r, List.mem_filter.mpr ⟨hr, by simp [idle]⟩, rfl⟩
+  have hm : r ∈ c.rooms.filter fun r => c.due cfg r now || c.retake cfg r := List.mem_filter.mpr ⟨hr, due⟩
+  have hne : (c.rooms.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
+    List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
+  simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map, Index.opening_fun]
+  exact ⟨r, hm, rfl⟩
 
-/-- A shown room answers independently of whether another room has a snapshot. -/
+/-- A shown room answers from the live index, whatever other rooms' rounds
+are doing. -/
 theorem uncarried_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim)
     (hr : has c.rooms r = true) (hc : cs.isEmpty = false)
-    (fresh : c.oldRound r k = false)
-    (hn : c.snaps.find? (fun p => Decidable.decide (p.1 = (r, k))) = none) :
+    (fresh : c.oldRound r k = false) :
     (c.onRbsr cfg ix r k cs now).send.head? = some (Msg.rbsr r k
       ((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).filterMap
         fun | .claim x => some x | _ => none)).op := by
-  simp [Conn.onRbsr, hr, hc, fresh, Conn.snap, hn]; rfl
+  simp [Conn.onRbsr, hr, hc, fresh]; rfl
 
 end Engine.Sync

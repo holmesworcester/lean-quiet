@@ -18,7 +18,8 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   seed da
   seed db
   (Turn.turn fam ops : SqlM Nat Unit).run da
-  let cfg : Config := { maxKnown := cap, maxIds := 64, every := 10, askTime := 100, live := 300, retry := 1 }
+  let cfg : Config := { maxKnown := cap, maxIds := 64, askTime := 100, live := 300, retry := 1 }
+  let step := 10
   let xa := setup b true cfg
   let xb := setup a false cfg
   let (na, ea) ← ((Node.boot fam ops 0).onTick xa 0).run da
@@ -36,7 +37,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   let mut steps := 0
   for round in [0:200] do
     rounds := round + 1
-    let now := round * cfg.every
+    let now := round * step
     let mut cursor := 0
     while cursor < frames.size && cursor < 100000 do
       let (dst, bytes) := frames[cursor]!
@@ -57,7 +58,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
     received := ((← (dumpOps (F := Nat)).run db).filter (fun o => o.kind == 1)).length
     if received == count then break
     for side in [true, false] do
-      let (n, e) ← if side then (na.onTick xa (now + cfg.every)).run da else (nb.onTick xb (now + cfg.every)).run db
+      let (n, e) ← if side then (na.onTick xa (now + step)).run da else (nb.onTick xb (now + step)).run db
       if side then na := n else nb := n
       frames := frames ++ e.send.toArray
       drops := drops + e.drop.length

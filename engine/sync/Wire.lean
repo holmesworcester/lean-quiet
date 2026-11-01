@@ -7,7 +7,11 @@ codec, one strict decode, `Op.id_decode`), and never stored:
   says the sender's window floor.
 - `sync.have`: ids the sender holds (`reqs`) in one room (body): a peer
   wants those it lacks in that room. This is also the stream: a newly
-  stored op is offered so.
+  stored op is offered so. A have with no ids asks for a round: naming
+  a room the sender has started showing mid-session, the responder asks
+  the dialer (which alone opens rounds) to open one there
+  (`Conn.ask`, `Conn.onAsk`); naming no room (`Id.empty`), it is a
+  keepalive.
 - `sync.want`: ids the sender asks for (`reqs`), answered with the ops'
   bytes.
 
@@ -91,6 +95,9 @@ instance : Codec Claim where
 inductive Msg where
   | hello (floor : Nat)
   | rbsr (room : Id) (round : Nat) (claims : List Claim)
+  /-- The sender holds these ids in the room. With no ids: a request
+  for a round in the room (from the responder, `Conn.ask`), or, naming
+  no room, a keepalive. -/
   | hold (room : Id) (ids : List Id)
   | want (ids : List Id)
   deriving Inhabited

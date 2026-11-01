@@ -92,7 +92,7 @@ def main : IO UInt32 := do
   let (da2, ca2) ← store "a2"
   let (db2, cb2) ← store "b2"
   seed da2; seed2 da2; seed db2; seed2 db2
-  let fast : Config := { every := 200 }
+  let fast : Config := {}
   let retire ← IO.mkRef false
   let remote2 ← IO.mkRef (none : Option ByteArray)
   let seen2 ← IO.mkRef (0 : Nat)
