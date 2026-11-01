@@ -38,6 +38,7 @@ import engine.sync.SweepLaws
 import engine.sync.SweepRun
 import engine.sync.SharedLog
 import engine.world.Link
+import engine.world.InvIx
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -359,6 +360,8 @@ open Engine Community
 #print axioms Engine.World.Plain.deliver_takes
 #print axioms Engine.World.Plain.deliver_wants
 #print axioms Engine.World.Plain.deliver_queues
+#print axioms Engine.World.Plain.owes_queued_start
+#print axioms Engine.World.Plain.ix_covers_start
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
@@ -876,6 +879,7 @@ section cost
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
+#print axioms Community.approveReq_wrap_admits
 #print axioms Community.wrapAll_over
 end cost
 

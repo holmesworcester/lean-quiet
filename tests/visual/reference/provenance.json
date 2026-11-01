@@ -7,6 +7,6 @@
   "safe_area": "excluded; native platform inset tests run separately",
   "locale": "en-GB",
   "timezone": "UTC",
-  "fixture_sha256": "5e8f26e1a4652cf346afd1be3629a0f7a1c0a37781f75619d123003055af999b",
+  "fixture_sha256": "42aceedc62c9468172526534ea244ef40b62cc8d474731efec0f8293c5c2abda",
   "browser_version": "156.0.8078.73"
 }
