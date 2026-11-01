@@ -2,6 +2,7 @@
 The pool executes the same queue, ticket and publication code as App. -/
 import app.community.channel.message.attachment.Screen
 import app.Screen
+import platforms.headless.Sim
 import tests.engine.Checks
 
 open Engine Community Data Tests
@@ -153,11 +154,384 @@ def reader (ck : Checks) : IO Unit := do
   ck.ok "unmount and remount between passes refills the revoked board answer"
     (((← sh.board.get).get? newest).map (·.1) == some (.people 40 true))
 
+/-- Diagnostic counterexample, not a fix: actual worker completes every
+paint, yet presentation's version reconciliation rejects each older result.
+Only reaction tallies change; the committed message text stays unchanged. -/
+def paintChurn (ck : Checks) : IO Unit := do
+  let font ← Font.load (density := 160)
+  let dm : Row.Dim := ⟨160, font.cell, .dark, none⟩
+  let width := 420
+  let background := Paint.solid (Palette.color .dark .bg) width
+  let pool ← Work.Pool.new (K := Raster.Key) (V := Paint.Bitmap)
+  let owner := Raster.messageOwner "community".toUTF8 "own-post".toUTF8
+  let entered ← IO.mkRef (0 : Nat)
+  let releases ← IO.mkRef (0 : Nat)
+  let painted ← IO.mkRef (0 : Nat)
+  let data (version : Nat) : Row.RowData :=
+    { name := "Alice", avatar := none, text := "My committed message", time := 1,
+      pics := [], tallies := [⟨"+1", version, false⟩], pending := false,
+      selected := false, own := true }
+  let request (version : Nat) := do
+    let key := Raster.Key.row 1 "own-post".toUTF8 version [false] .dark
+    let need : Demand.Need Raster.Key := ⟨owner, key, true⟩
+    let d := data version
+    let lay := Row.layout font dm width d
+    let handle ← pool.request need fun _ => do
+      let bitmap := Row.paint font dm width background d lay none #[]
+      -- Force the actual paint before the barrier; publication stays in
+      -- Work.run, with its real current-ticket check after action return.
+      unless bitmap.rows.size > 0 do throw (IO.userError "empty row paint")
+      painted.modify (· + 1)
+      entered.set version
+      await "release completed row paint" do return (← releases.get) ≥ version
+      return some bitmap
+    return (need, handle)
+  let (firstNeed, first) ← request 1
+  pool.reconcile [firstNeed]
+  let mut current := first
+  let mut cancelled := 0
+  let mut shown : Option Paint.Bitmap := none
+  for version in [1:9] do
+    await "row paint reached publication barrier" do return (← entered.get) == version
+    let (nextNeed, next) ← request (version + 1)
+    -- The exact API App.present calls with this frame's declared key.
+    pool.reconcile [nextNeed]
+    releases.set version
+    await "obsolete paint resolved" (IO.hasFinished current.result)
+    let value ← current.value
+    if value.isNone then cancelled := cancelled + 1
+    shown := value.orElse fun _ => shown
+    current := next
+  ck.ok "eight completed actual paints produce no first shown bitmap under version churn"
+    (cancelled == 8 && shown.isNone && (← painted.get) ≥ 8)
+  ck.ok "only reaction tally changed; own body remains committed and identical"
+    ((List.range 9).all fun v => (data (v+1)).text == (data 1).text && !(data (v+1)).pending)
+  await "final stable paint started" do return (← entered.get) == 9
+  releases.set 9
+  await "stable paint publishes" (IO.hasFinished current.result)
+  let final ← current.value
+  ck.ok "stopping invalidation permits the exact current row bitmap"
+    (final.any fun bitmap => bitmap.rows == (Row.paint font dm width background
+      (data 9) (Row.layout font dm width (data 9)) none #[]).rows)
+  let stats ← pool.stats
+  ck.ok "worker made progress throughout: eight cancellations then one publication"
+    (stats.steps == 9 && stats.cancelled == 8 && stats.completed == 1)
+
+
+/-- The exact request selector called by App.paintRow retains the first
+committed snapshot while newer reaction counts keep arriving. This uses
+actual raster actions and end-frame reconciliation, with barriers rather
+than worker timing. -/
+def paintCoalescing (ck : Checks) : IO Unit := do
+  let font ← Font.load (density := 160)
+  let dm : Row.Dim := ⟨160, font.cell, .dark, none⟩
+  let width := 420
+  let background := Paint.solid (Palette.color .dark .bg) width
+  let pool ← Work.Pool.new (K := Raster.Key) (V := Paint.Bitmap)
+  let owner := Raster.messageOwner "community".toUTF8 "own-post".toUTF8
+  let entered ← IO.mkRef false
+  let release ← IO.mkRef false
+  let calls ← IO.mkRef (0 : Nat)
+  let data (version : Nat) : Row.RowData :=
+    { name := "Alice", avatar := none, text := "My committed message", time := 1,
+      pics := [], tallies := [⟨"+1", version, false⟩], pending := false,
+      selected := false, own := true }
+  let request (first : Bool) (old : Option Raster.RowPaint.Flight) (version : Nat) := do
+    let d := data version
+    let lay := Row.layout font dm width d
+    let stamp := Raster.RowPaint.stamp 1 "own-post".toUTF8 width dm background d [false]
+    let answer ← Raster.RowPaint.request pool owner true first old stamp version d lay #[] fun _ => do
+      let bitmap := Row.paint font dm width background d lay none #[]
+      unless bitmap.rows.size > 0 do throw (IO.userError "empty coalesced row paint")
+      calls.modify (· + 1)
+      if version == 1 then
+        entered.set true
+        await "first committed paint release" release.get
+      return some bitmap
+    pool.reconcile [⟨owner, answer.1.handle.ticket.key, true⟩]
+    return answer
+  let (first, _) ← request true none 1
+  await "first committed paint computed" entered.get
+  let mut flight := first
+  let mut kept := true
+  for version in [2:9] do
+    let (next, value) ← request true (some flight) version
+    kept := kept && next.handle.ticket == first.handle.ticket && value.isNone
+    flight := next
+  ck.ok "reaction churn preserves the original admitted ticket and queue position"
+    (kept && (← calls.get) == 1 && (← pool.stats).started == 1)
+  -- Updates continue across release and collection: no stable-version
+  -- interval is needed for the first committed body's publication.
+  release.set true
+  await "retained committed paint publishes" (IO.hasFinished first.handle.result)
+  let (collected, value) ← request true (some flight) 9
+  let exactFirst := Row.paint font dm width background (data 1)
+    (Row.layout font dm width (data 1)) none #[]
+  ck.ok "first committed body appears during a newer cosmetic version"
+    (collected.version == 1 && value.any (·.rows == exactFirst.rows) && data 9 != data 1)
+  let (latest, _) ← request false (some collected) 10
+  await "latest repaint completes" (IO.hasFinished latest.handle.result)
+  let (latestAgain, latestValue) ← request false (some latest) 10
+  let exactLatest := Row.paint font dm width background (data 10)
+    (Row.layout font dm width (data 10)) none #[]
+  ck.ok "subsequent repaint preserves the exact latest bitmap oracle"
+    (latestAgain.version == 10 && latestAgain.handle.ticket == latest.handle.ticket &&
+      latestValue.any (·.rows == exactLatest.rows))
+  let stats ← pool.stats
+  ck.ok "coalescing computes one initial and one latest paint without cancellation"
+    (stats.started == 2 && stats.steps == 2 && stats.completed == 2 && stats.cancelled == 0)
+
+/-- Each incompatible input revokes a real blocked paint before it can
+publish. Deliberately reuse the version to ensure replacement identity is
+not accidentally inherited from the old bitmap's key. -/
+def paintInvalidation (ck : Checks) : IO Unit := do
+  let font ← Font.load (density := 160)
+  let dm : Row.Dim := ⟨160, font.cell, .dark, none⟩
+  let width := 420
+  let background := Paint.solid (Palette.color .dark .bg) width
+  let d : Row.RowData :=
+    { name := "Alice", avatar := none, text := "A committed message", time := 1,
+      pics := [], tallies := [], pending := false, selected := false, own := true }
+  let lay := Row.layout font dm width d
+  let base := Raster.RowPaint.stamp 1 "own-post".toUTF8 width dm background d [false]
+  let changes : List (String × Raster.RowPaint.Stamp) := [
+    ("generation", { base with generation := 2 }),
+    ("message identity", { base with message := "another-post".toUTF8 }),
+    ("message body", { base with body := { base.body with text := "replacement" } }),
+    ("pending state", { base with body := { base.body with pending := true } }),
+    ("selection", { base with body := { base.body with selected := true } }),
+    ("width", { base with width := width + 1 }),
+    ("density", { base with dim := { dm with dpi := 200 } }),
+    ("theme", { base with dim := { dm with theme := .light } }),
+    ("background", { base with background := "other background".toUTF8 }),
+    ("attachment readiness", { base with ready := [false, true] })]
+  for (name, changed) in changes do
+    let pool ← Work.Pool.new (K := Raster.Key) (V := Paint.Bitmap)
+    let owner := Raster.messageOwner "community".toUTF8 "own-post".toUTF8
+    let entered ← IO.mkRef false
+    let release ← IO.mkRef false
+    let (old, _) ← Raster.RowPaint.request pool owner true true none base 1 d lay #[] fun _ => do
+      let bitmap := Row.paint font dm width background d lay none #[]
+      unless bitmap.rows.size > 0 do throw (IO.userError "empty invalidation paint")
+      entered.set true
+      await "incompatible paint release" release.get
+      return some bitmap
+    await "incompatible paint started" entered.get
+    let (fresh, _) ← Raster.RowPaint.request pool owner true true (some old) changed 1 d lay #[]
+      fun _ => pure (some (Row.paint font dm width background d lay none #[]))
+    pool.reconcile [⟨owner, fresh.handle.ticket.key, true⟩]
+    release.set true
+    await "revoked paint finishes" (IO.hasFinished old.handle.result)
+    await "replacement paint finishes" (IO.hasFinished fresh.handle.result)
+    ck.ok s!"{name} revokes the old in-flight publication"
+      (old.handle.ticket != fresh.handle.ticket && (← old.handle.value).isNone &&
+        (← fresh.handle.value).isSome)
+  -- An unmount revokes even an otherwise compatible first-body snapshot.
+  let pool ← Work.Pool.new (K := Raster.Key) (V := Paint.Bitmap)
+  pool.pause true
+  let owner := Raster.messageOwner "community".toUTF8 "own-post".toUTF8
+  let action : Work.Action Paint.Bitmap := fun _ =>
+    pure (some (Row.paint font dm width background d lay none #[]))
+  let (old, _) ← Raster.RowPaint.request pool owner true true none base 1 d lay #[] action
+  pool.reconcile []
+  let (fresh, _) ← Raster.RowPaint.request pool owner true true (some old) base 1 d lay #[] action
+  pool.pause false
+  await "remounted paint finishes" (IO.hasFinished fresh.handle.result)
+  ck.ok "unmount prevents reusing an otherwise compatible ticket"
+    (old.handle.ticket != fresh.handle.ticket && (← old.handle.value).isNone &&
+      (← fresh.handle.value).isSome)
+
+
+/-- Real App send/SQLite commit/pending presentation, followed by controlled
+child-board refills through actual mountChildren, paintRow and present. The
+refills isolate ancillary churn deterministically; this is a native app-stage
+regression, not a theorem about all TCP/reader scheduling. -/
+def appPaintChurn (ck : Checks) : IO Unit := do
+  let dir := s!"out/component-demand/paint-{← IO.Process.getPID}"
+  IO.FS.createDirAll dir
+  let sm ← Sim.new
+  sm.viewport.set #[420, 900, 20, 20, 160]
+  let initial ← App.start sm.io (← sm.viewport.get) (dir ++ "/quiet.db")
+  let (_, final) ← (show App.M Unit from do
+    App.found "Paint progress" "Alice"
+    App.openPage .chat
+    waitIdle sm
+    let writer := (← get).wr
+    writer.paused.set true
+    discard <| App.sendText "My committed body survives reaction churn"
+    let mut optimistic : Option (Id × App.RowSt) := none
+    for _ in [0:400] do
+      steps 1
+      let s ← get
+      if let some p := s.rows.toList.find? (fun (_, r) => r.data.own && r.data.pending && r.shown.isSome) then
+        optimistic := some p
+        break
+      IO.sleep 2
+    let some (msg, pending) := optimistic | throw (IO.userError "optimistic bitmap missing")
+    ck.ok "real paused writer produces an already shown optimistic bitmap"
+      (pending.data.pending && pending.shown.isSome && !pending.shownCommitted)
+    let entered ← IO.mkRef false
+    let release ← IO.mkRef false
+    let pool := (← get).raster
+    let blockerNeed : Demand.Need Raster.Key :=
+      ⟨["finite-worker-barrier".toUTF8], .row 0 "barrier".toUTF8 0 [] .dark, true⟩
+    let blocker ← pool.request blockerNeed fun _ => do
+      entered.set true
+      await "finite app paint barrier" release.get
+      return pending.shown
+    await "app paint barrier entered" entered.get
+    writer.paused.set false
+    let mut committedFound : Option App.RowSt := none
+    for _ in [0:400] do
+      steps 1
+      if let some row := (← get).rows[msg]? then
+        if !row.data.pending && row.task.isSome then committedFound := some row; break
+      IO.sleep 2
+    let some committed := committedFound | throw (IO.userError "committed raster request missing")
+    let some flight := committed.paintFlight | throw (IO.userError "committed flight missing")
+    let s ← get
+    let stored ← (Store.getOp msg : SqlM SF _).run s.rd
+    ck.ok "actual commit replaces pending data while protecting the first committed paint"
+      (stored.isSome && !committed.data.pending && !committed.shownCommitted &&
+       committed.shown.isSome && !flight.data.pending && !(← IO.hasFinished flight.handle.result))
+    let desired (version : Nat) : List Row.Tally :=
+      if version % 2 == 0 then [] else
+        (List.range 12).map fun i => ⟨s!"reaction-{i}", version + i, false⟩
+    let getRow : App.M App.RowSt := do
+      let some row := (← get).rows[msg]? | throw (IO.userError "mounted row missing")
+      return row
+    let childFrame (version : Nat) : App.M Unit := do
+      let s ← get
+      let tallies := desired version
+      let mut board := (← s.sh.board.get)
+        |>.put (.emojis s.me.c msg) (.emojis (tallies.map (·.emoji)))
+        |>.put (.author s.me.c s.me.user) (.author s!"Alice {version}" false)
+      for tally in tallies do
+        board := board.put (.reaction s.me.c msg s.me.user tally.emoji) (.reaction tally)
+      s.sh.board.set board
+      modify fun s => { s with rasterNeeds := #[], queryNeeds := #[], querySeen := {} }
+      App.mountChildren msg App.bottomPad 0 (App.viewH s)
+      App.paintRow msg App.bottomPad 0 (App.viewH s)
+      let s ← get
+      discard <| App.present (App.listFrame s 0 (App.bottoms s).1) 0 false
+    let mut retained := true
+    let mut changesHeight := false
+    for version in [1:9] do
+      let desiredRow := { committed.data with tallies := desired version }
+      changesHeight := changesHeight || (Row.layout s.font s.dim s.W desiredRow).h != committed.lay.h
+      childFrame version
+      let row ← getRow
+      retained := retained && row.paintFlight.any (·.handle.ticket == flight.handle.ticket) &&
+        row.lay.h == committed.lay.h && row.data == committed.data && !row.shownCommitted
+    ck.ok "alternating reaction-row geometry cannot replace the committed snapshot"
+      (changesHeight && retained && !(← IO.hasFinished flight.handle.result))
+    release.set true
+    await "finite app barrier resolved" (IO.hasFinished blocker.result)
+    await "actual App committed paint completes" (IO.hasFinished flight.handle.result)
+    let framesBefore ← sm.frames.get
+    childFrame 9
+    let first ← getRow
+    let firstBmp := Row.paint s.font s.dim s.W s.bgRow flight.data flight.lay none flight.images
+    ck.ok "committed body first publishes during continuing height-changing reaction churn"
+      (first.shownCommitted && first.task.isNone && first.painted.1 == flight.version &&
+        first.shown.any (·.rows == firstBmp.rows) && !first.data.pending &&
+        (← sm.frames.get) > framesBefore)
+    childFrame 11
+    let adopted ← getRow
+    let some latest := adopted.paintFlight | throw (IO.userError "latest app paint missing")
+    ck.ok "after first publication the newest child data and geometry are adopted"
+      (adopted.data.tallies != committed.data.tallies && adopted.lay.h != committed.lay.h &&
+        latest.version == adopted.ver && latest.handle.ticket != flight.handle.ticket)
+    await "latest App repaint completes" (IO.hasFinished latest.handle.result)
+    modify fun s => { s with rasterNeeds := #[] }
+    App.paintRow msg App.bottomPad 0 (App.viewH (← get))
+    let s ← get
+    discard <| App.present (App.listFrame s 0 (App.bottoms s).1) 0 false
+    let latestRow ← getRow
+    ck.ok "App still publishes the exact latest data-version bitmap after catch-up"
+      (latestRow.task.isNone && latestRow.painted.1 == latestRow.ver &&
+        latestRow.shown.any (fun bitmap => bitmap.rows ==
+          (Row.paint s.font s.dim s.W s.bgRow latestRow.data latestRow.lay none #[]).rows))
+    -- A known inaccessible row must be removed before it can declare any
+    -- retained raster demand or be composed into the next presentation.
+    let board := (← s.sh.board.get).put (.row s.me.c s.me.adm msg) (.row none)
+    App.mount board msg
+    modify fun s => { s with rasterNeeds := #[] }
+    App.paintRow msg
+    let s ← get
+    discard <| App.present (App.listFrame s 0 (App.bottoms s).1) 0 false
+    ck.ok "an explicit unreadable-row answer removes the cached bitmap and its work"
+      (!(← get).rows.contains msg && (← get).rasterNeeds.isEmpty &&
+        !(← pool.state.atomically do return (← get).plan.current latest.handle.ticket))
+    ).run initial
+  final.raster.reconcile []
+
+
+/-- Hold an actual App.step in frame assembly while a previously admitted
+row paint is queued behind a finite worker action. Back-to-back frames must
+not disable the worker's next selection. The barriers make the interleaving
+deterministic; no relative timing of the UI and worker is assumed. -/
+def appWorkerProgress (ck : Checks) : IO Unit := do
+  let dir := s!"out/component-demand/worker-{← IO.Process.getPID}"
+  IO.FS.createDirAll dir
+  let sm ← Sim.new
+  sm.viewport.set #[420, 900, 20, 20, 160]
+  let initial ← App.start sm.io (← sm.viewport.get) (dir ++ "/quiet.db")
+  let entered ← IO.mkRef false
+  let release ← IO.mkRef false
+  let frameEntered ← IO.mkRef false
+  let frameRelease ← IO.mkRef false
+  let pool := initial.raster
+  let blocker ← pool.request ⟨["worker-barrier".toUTF8], .row 0 "barrier".toUTF8 0 [] .dark, true⟩ fun _ => do
+    entered.set true
+    await "worker-selection barrier release" release.get
+    return some default
+  await "worker-selection barrier entered" entered.get
+  let msg := "queued-own-row".toUTF8
+  let d : Row.RowData :=
+    { name := "Alice", avatar := none, text := "A retained body needs worker service", time := 1,
+      pics := [], tallies := [], pending := false, selected := false, own := true }
+  let lay := Row.layout initial.font initial.dim initial.W d
+  let row : App.RowSt := { data := d, lay, painted := (0, []), task := none, shown := none, ver := 1 }
+  let (_, queued) ← (App.paintRow msg).run { initial with page := .chat, rows := ({} : Std.HashMap Id App.RowSt).insert msg row }
+  let some flight := (queued.rows[msg]?).bind (·.paintFlight) | throw (IO.userError "queued App paint missing")
+  let frameIO := { queued.io with nowUs := do
+    if !(← frameEntered.get) then
+      frameEntered.set true
+      await "frame assembly release" frameRelease.get
+    return (← IO.monoNanosNow).toUInt64 / 1000 }
+  let frame ← IO.asTask (prio := .dedicated) ((App.step []).run { queued with io := frameIO })
+  await "actual frame assembly entered" frameEntered.get
+  let enabled ← pool.state.atomically do return !(← get).paused
+  release.set true
+  let mut completedInside := false
+  if enabled then
+    await "retained App row paints during frame assembly" (IO.hasFinished flight.handle.result)
+    completedInside := (← flight.handle.value).isSome && !(← frameRelease.get)
+  frameRelease.set true
+  let (_, final) ← match ← IO.wait frame with
+    | .ok state => pure state
+    | .error e => throw e
+  await "worker-selection barrier finishes" (IO.hasFinished blocker.result)
+  ck.ok "actual App.step permits retained raster progress during frame assembly"
+    (enabled && completedInside)
+  final.raster.reconcile []
+
+
 end DemandTest
 
 def main : IO UInt32 := do
   let ck ← Checks.new
-  DemandTest.queue ck
-  DemandTest.pixels ck
-  DemandTest.reader ck
-  ck.finish "component-demand"
+  let code ← try
+    DemandTest.queue ck
+    DemandTest.pixels ck
+    DemandTest.reader ck
+    DemandTest.paintChurn ck
+    DemandTest.paintCoalescing ck
+    DemandTest.paintInvalidation ck
+    DemandTest.appPaintChurn ck
+    DemandTest.appWorkerProgress ck
+    ck.finish "component-demand"
+  catch e => IO.eprintln s!"component-demand: {e}"; pure 1
+  (← IO.getStdout).flush
+  IO.Process.exit code.toUInt8

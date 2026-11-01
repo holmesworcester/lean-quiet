@@ -62,6 +62,18 @@ regression bounds are 64 app frames and 1,500 ms; the checked 3:1 run completed
 all four reads in one frame and all four paints in three frames, in 27–48 ms.
 These measured stage bounds are not universal theorems.
 
+The subsequent first-paint fix retains the committed own-message snapshot
+through ancillary reaction/name churn, including when an optimistic pending
+bitmap is already visible. It defers data and layout together, then catches up
+after publication; access/content/display incompatibility still cancels it.
+Raster work now remains enabled during frame assembly. The real component
+task passed 52 demand checks and 34 signed-component checks; scrolling had
+zero placeholder frames out of 180, with a 12.95 ms median frame and a
+one-frame settle. Four compiled mutations fail their intended assertions.
+Mounted visibility and finite completed frame work remain boundaries: fresh
+posts can move the own row offscreen, and reaction collection/layout is not
+yet capped against unbounded distinct emojis.
+
 [Sweep](../engine/sync/Sweep.lean) adds one indexed catalog read per session tick,
 with a fixed high-water mark during each pass. Its cursor persists under an
 authenticated peer key, so replacing a session does not restart progress.
@@ -89,7 +101,7 @@ This closes those concrete failures, not the internal reservation obligation.
 | Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
 | Fair-loss progress | Ordinary traffic can refill the socket before every tick, leaving zero retry room forever. A separate output reservation still needs implementation and proof. Seventeen fitting ~1 MB hot responses can also overflow the 16 MiB socket cap and discard a queued retry. |
-| Write-to-display bound | Selection, commit, reader refresh and presentation are separate stages. Worker delays are not bounded by the selector. Even with progressing workers, recurring reaction updates can replace a row's paint ticket before every completed bitmap is published; finishing a still-valid first paint needs protection from this churn. |
+| Write-to-display bound | Ancillary paint-ticket churn and frame-pause starvation are repaired. Selection, commit, reader refresh and presentation still need composition; fresh posts can remove the own row from view before presentation. Reaction collections/layout and native worker delays also lack a uniform bound. |
 | User-action outcomes | Joining can remain pending while approval is withheld. A completion-or-failure theorem needs an explicit cancellation/deadline policy as well as bounded service of the action. |
 
 The current work addresses these in the running code. A successful finite
