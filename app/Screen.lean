@@ -187,8 +187,9 @@ At offset zero the newest message stays pinned. If an anchor is no longer
 readable, the app falls back to the newest message.
 
 `unmounted_quiet` and `old_quiet` prove the running effect gate issues no
-read, paint or write for a revoked lease. `subscriptions_exact` describes
-the query projection used to prune the live cache. `resize_anchor` proves
+read, paint or write for a revoked lease. `live_exact` proves the reader's
+pruning (`Live.keep` by the reads its current wants hold) keeps exactly
+those reads in the live cache. `resize_anchor` proves
 the offset correction. `restore_checkpoint` proves the journal codec's
 round trip; SQLite's atomic commit remains in the tested native seam.
 -/
@@ -205,25 +206,13 @@ structure Lease where
 structure Mount where
   generation : Nat := 0
   mounted : Bool := true
-  /-- Component ids: root = empty bytes; rows use their message ids. -/
-  tree : List (Id × List Q) := []
   deriving Inhabited
 
 def Mount.lease (m : Mount) : Lease := ⟨m.generation⟩
 def Mount.allows (m : Mount) (l : Lease) : Bool :=
   m.mounted && decide (l.generation = m.generation)
-def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false, []⟩
+def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false⟩
 def Mount.mount (m : Mount) : Mount := { m with mounted := true }
-
-def Mount.track (m : Mount) (owner : Id) (q : Q) : Mount :=
-  let old := ((m.tree.find? (·.1 == owner)).map (·.2)).getD []
-  { m with tree := (owner, if old.contains q then old else q :: old) :: m.tree.filter (·.1 != owner) }
-
-def Mount.forget (m : Mount) (owner : Id) : Mount :=
-  { m with tree := m.tree.filter (·.1 != owner) }
-
-def Mount.queries (m : Mount) : List Q := m.tree.flatMap (·.2)
-def Mount.subscriptions (m : Mount) : List ByteArray := m.queries.map fun q => (q.win default).key
 
 /-- All page effects pass this gate, including queued event callbacks. -/
 def owned {m : Type → Type} [Monad m] {α : Type} (s : Mount) (l : Lease) (action : m α) : m (Option α) :=
@@ -237,24 +226,14 @@ theorem old_quiet {m : Type → Type} [Monad m] {α : Type}
     (s : Mount) (action : m α) : owned s.unmount.mount s.lease action = pure none := by
   simp [owned, Mount.allows, Mount.unmount, Mount.mount, Mount.lease]
 
-theorem subscriptions_exact (s : Mount) (k : ByteArray) :
-    k ∈ s.subscriptions ↔ ∃ node ∈ s.tree, ∃ q ∈ node.2, (q.win default).key = k := by
-  simp only [Mount.subscriptions, Mount.queries, List.mem_map, List.mem_flatMap]
-  constructor
-  · rintro ⟨q, ⟨node, hn, hq⟩, hk⟩
-    exact ⟨node, hn, q, hq, hk⟩
-  · rintro ⟨node, hn, q, hq, hk⟩
-    exact ⟨q, ⟨node, hn, hq⟩, hk⟩
-
-/-- The actual live-cache pruning called at the end of an app turn. -/
-def prune (l : Live) (s : Mount) : Live := l.keep fun q => s.queries.contains q
-
-/-- Every mounted query has an answer after a successful read turn.
-Pruning then leaves exactly those queries in the live cache. -/
-theorem live_exact (l : Live) (s : Mount)
-    (complete : ∀ q ∈ s.queries, l.entries[q]?.isSome = true) (q : Q) :
-    (prune l s).entries[q]?.isSome = true ↔ q ∈ s.queries := by
-  simp only [prune, Live.keep, Std.HashMap.getElem?_filter']
+/-- **The live cache keeps exactly the reads the wants hold.** When the
+wants move (an unmount drops its wants), the reader prunes its live cache
+with `Live.keep`, by the reads its current wants hold. An entry it keeps
+is held; and every held read that has an answer stays. -/
+theorem live_exact (l : Live) (want : Q → Bool)
+    (complete : ∀ q, want q = true → l.entries[q]?.isSome = true) (q : Q) :
+    (l.keep want).entries[q]?.isSome = true ↔ want q = true := by
+  simp only [Live.keep, Std.HashMap.getElem?_filter']
   cases h : l.entries[q]? with
   | none =>
     simp only [Option.filter_none, Option.isSome_none, Bool.false_eq_true, false_iff]
@@ -858,44 +837,6 @@ instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
   a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
     a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
 
-/-- The frame's wants: the window, its rows, the pictures, the counts,
-then the frame's lists. -/
-def Want.ofFrame (idsW : Want) (rows pics : Array Want) (countW : Want) (lists : Array Want) : Array Want :=
-  #[idsW] ++ rows ++ pics ++ #[countW] ++ lists
-
-/-- The frame's first wants, before it knows its rows: the window and
-the counts about the anchor, and the rest as last set. When both are
-wanted already, the wants are left as they are, so a steady frame does
-not move the generation (`withView_ofFrame`). -/
-def Want.withView (ws : Array Want) (idsW countW : Want) : Array Want :=
-  if ws.contains idsW && ws.contains countW then ws
-  else #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- **A steady frame keeps its wants**: the first set leaves the wants
-the last frame set as they were, so with the same anchor, rows and
-lists neither set moves the generation and the reader rests. -/
-theorem Want.withView_ofFrame (idsW countW : Want) (rows pics lists : Array Want) :
-    withView (ofFrame idsW rows pics countW lists) idsW countW = ofFrame idsW rows pics countW lists := by
-  simp [withView, ofFrame]
-
-/-- The mutant: the window first and the counts last, every frame. -/
-def Want.withViewLast (ws : Array Want) (idsW countW : Want) : Array Want :=
-  #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- The mutant moves the wants of every frame with a list: the counts
-go last, then back before the lists, so the reader never rests. -/
-theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Want) (hl : lists ≠ #[])
-    (hc : countW ∉ lists) :
-    withViewLast (ofFrame idsW rows pics countW lists) idsW countW ≠ ofFrame idsW rows pics countW lists := by
-  intro h
-  have := congrArg (fun a : Array Want => a.back?) h
-  simp [withViewLast, ofFrame, Array.back?_append] at this
-  cases hb : lists.back? with
-  | none => exact hl (by simpa using hb)
-  | some x =>
-    rw [hb] at this
-    exact hc (this ▸ Array.mem_of_back? hb)
-
 /-- What a want reads as. -/
 inductive Val where
   /-- The window's positions, newest first, and how many of them are
@@ -1275,6 +1216,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       let deps := s.deps.filter fun w _ => want.contains w
       let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
       let rev := deps.fold (fun acc w qs => reindex acc w #[] qs) {}
+      -- the live cache keeps exactly the held reads (Lifecycle.live_exact)
       modify fun s => { s with gen, wantSet := want, dirty, deps, rev, last := wants,
                                live := s.live.keep held.contains }
     -- the reads this pass's filings and notes reach (Live.hit, exact per
@@ -4997,7 +4939,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let idsW := Reader.Want.clumps s.me.c none s.anchor half half
   let countW := Reader.Want.clumpCount s.me.c none s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
-  -- moves no generation, Reader.Want.withView_ofFrame)
+  -- keeps each held want's ticket, so it starts no new read,
+  -- Demand.retained_ticket)
   discard <| query ⟨["community".toUTF8, s.me.c, "messages".toUTF8], true⟩ idsW
   discard <| query ⟨["community".toUTF8, s.me.c, "count".toUTF8], false⟩ countW
   discard <| query ⟨["community".toUTF8, s.me.c, "people".toUTF8], false⟩ (.people s.me.c)

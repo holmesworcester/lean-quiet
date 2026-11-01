@@ -133,12 +133,9 @@ Lifecycle.old_quiet {m : Type → Type} [Monad m] {α : Type}
   (s : Mount) (action : m α) :
   owned s.unmount.mount s.lease action = pure none
 
-Lifecycle.subscriptions_exact (s : Mount) (k : ByteArray) :
-  k ∈ s.subscriptions ↔ ∃ node ∈ s.tree, ∃ q ∈ node.2, (q.win default).key = k
-
-Lifecycle.live_exact (l : Live) (s : Mount)
-  (complete : ∀ q ∈ s.queries, l.entries[q]?.isSome = true) (q : Q) :
-  (prune l s).entries[q]?.isSome = true ↔ q ∈ s.queries
+Lifecycle.live_exact (l : Live) (want : Q → Bool)
+  (complete : ∀ q, want q = true → l.entries[q]?.isSome = true) (q : Q) :
+  (l.keep want).entries[q]?.isSome = true ↔ want q = true
 
 Lifecycle.resize_anchor (top above : Nat) (fits : above ≤ top) :
   (top : Int) - offset top above = above
@@ -208,8 +205,10 @@ worker. Reaping its completed result recovers the connection. It resets the inli
 also clear picWants, retryWants, lastSlices, imgRetry and image tasks. Resume
 starts a fresh reader for the mounted conversation. Every reader pass prunes
 its cache against its current dependency tree, including list queries.
-The root's live tree and the reader's want/dependency tree have separate
-caches; both call Lifecycle.prune.
+The reader prunes with `Live.keep`, by the reads its current wants hold
+(`live_exact` is about that call). The mount tree and `Lifecycle.prune`
+it once described were never filled or called, and are gone (2026-11-01,
+with `subscriptions_exact`, which a `spec` note had counted as running).
 
 Suspend starts a dedicated stopNodes worker that retains netBoot and
 stops its eventual runner. It polls the worker only until its deadline;

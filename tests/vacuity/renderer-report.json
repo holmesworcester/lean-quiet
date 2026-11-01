@@ -200,112 +200,105 @@
     "theorem": "Remove.writes_only_after_two",
     "witness": "Vacuity.RendererFlow.secondYes",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "cancel_writes_nothing": {
     "status": "kernel-witness",
     "theorem": "Remove.cancel_writes_nothing",
     "witness": "Vacuity.RendererFlow.cancellation",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "open_fresh": {
     "status": "kernel-witness",
     "theorem": "Remove.open_fresh",
     "witness": "Vacuity.RendererFlow.freshAttempt",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "no_replace": {
     "status": "kernel-witness",
     "theorem": "Remove.no_replace",
     "witness": "Vacuity.RendererFlow.noReplace",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offered_only": {
     "status": "kernel-witness",
     "theorem": "Remove.offered_only",
     "witness": "Vacuity.RendererFlow.offered",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "back_go": {
     "status": "kernel-witness",
     "theorem": "Nav.back_go",
     "witness": "Vacuity.RendererFlow.back",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "go_inv": {
     "status": "kernel-witness",
     "theorem": "Nav.go_inv",
     "witness": "Vacuity.RendererFlow.noDuplicates",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offer_split": {
     "status": "kernel-witness",
     "theorem": "NodeOffer.offer_split",
     "witness": "Vacuity.RendererFlow.offerSplit",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offer_runs": {
     "status": "kernel-witness",
     "theorem": "NodeOffer.offer_runs",
     "witness": "Vacuity.RendererFlow.offers",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "unmounted_quiet": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.unmounted_quiet",
     "witness": "Vacuity.RendererFlow.unmounted",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "old_quiet": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.old_quiet",
     "witness": "Vacuity.RendererFlow.oldCallback",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "mounted_runs": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.mounted_runs",
     "witness": "Vacuity.RendererFlow.mountedWork",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
-  },
-  "subscriptions_exact": {
-    "status": "kernel-witness",
-    "theorem": "Lifecycle.subscriptions_exact",
-    "witness": "Vacuity.RendererFlow.subscriptions",
-    "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "live_exact": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.live_exact",
     "witness": "Vacuity.RendererFlow.liveExact",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "resize_anchor": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.resize_anchor",
     "witness": "Vacuity.RendererFlow.resize",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "restore_checkpoint": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.restore_checkpoint",
     "witness": "Vacuity.RendererFlow.restore",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "visual_perm": {
     "status": "kernel-witness",
@@ -780,20 +773,6 @@
     "status": "kernel-witness",
     "theorem": "Live.AWorld.type_only",
     "witness": "Vacuity.RendererModels.typing",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "withView_ofFrame": {
-    "status": "kernel-witness",
-    "theorem": "Reader.Want.withView_ofFrame",
-    "witness": "Vacuity.RendererModels.viewSteady",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "withViewLast_moves": {
-    "status": "kernel-witness",
-    "theorem": "Reader.Want.withViewLast_moves",
-    "witness": "Vacuity.RendererModels.viewMutant",
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },

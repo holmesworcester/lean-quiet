@@ -546,8 +546,6 @@ section app
 #print axioms RowLaws.hit_twin
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
-#print axioms Reader.Want.withView_ofFrame
-#print axioms Reader.Want.withViewLast_moves
 #print axioms Live.acts_force
 #print axioms Live.rest_ignores_acts
 #print axioms Live.mem_pickActs
@@ -930,7 +928,6 @@ end cost
 -- Lifecycle: leases, unmount, restore and resize.
 #print axioms Lifecycle.unmounted_quiet
 #print axioms Lifecycle.old_quiet
-#print axioms Lifecycle.subscriptions_exact
 #print axioms Lifecycle.resize_anchor
 #print axioms Lifecycle.follow_away
 #print axioms Lifecycle.restore_checkpoint

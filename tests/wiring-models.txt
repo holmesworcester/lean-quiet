@@ -51,10 +51,7 @@ NavLaws.depth
 
 # app.Screen
 App.pageIn_acc
-Lifecycle.live_exact
 NodeOffer.offer_runs
-Reader.Want.withViewLast_moves
-Reader.Want.withView_ofFrame
 
 # app.community.Op
 Community.openBody_sealBody
@@ -94,13 +91,6 @@ Pics.decoded_started
 Pics.image_settles
 Pics.image_steady
 Pics.image_twice
-
-# app.community.channel.message.attachment.View
-ArrivalLaws.lit_clockwise
-ArrivalLaws.lit_full
-ArrivalLaws.lit_mono
-ArrivalLaws.lit_zero
-ArrivalLaws.ring_counts
 
 # app.community.member.invite.Proofs
 Community.parse_uri

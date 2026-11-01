@@ -81,11 +81,4 @@ def composerIndependent := AWorld.passActs_indep Eager.apply Eager.hits Eager.ev
 def actionsTaken := AWorld.passActs_acts Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs 1 app
 def typing := AWorld.type_only (fun _ => some "Typed") app
 
--- A steady frame includes both its viewport reads and additional lists.
-def ids : Reader.Want := .window (ByteArray.mk #[1]) none 100 100
-def count : Reader.Want := .count (ByteArray.mk #[1]) none
-def other : Reader.Want := .comms
-def viewSteady := Reader.Want.withView_ofFrame ids count #[] #[] #[other]
-def viewMutant := Reader.Want.withViewLast_moves ids count #[] #[] #[other] (by decide) (by simp [count, other])
-
 end Vacuity.RendererModels
