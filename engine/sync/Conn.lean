@@ -175,7 +175,8 @@ theorem untied_cons {a : Item} {l : List Item} (hs : Sorted Prod.fst l) (hn : �
 otherwise inserted into the treap, one hash per level and one more. -/
 def RoomTree.add (rm : RoomTree) (a : Item) : RoomTree :=
   if hk : rm.tree.hasKey Prod.fst a.1 = true then rm
-  else ⟨rm.tree.insert Prod.fst Prod.snd sha256 a, by
+  else ⟨_root_.Id.run (rm.tree.insertM Prod.fst Prod.snd sha256 a), by
+    rw [run_eq_val, val_insertM]
     have e := rm.tree_eq
     have hs := rm.sorted
     have hn : ∀ b ∈ rm.items, b.1 ≠ a.1 := fun b hb e' => hk (by
@@ -199,7 +200,8 @@ theorem RoomTree.items_add (rm : RoomTree) (a : Item) : (rm.add a).items = ins a
   · rename_i hk
     rw [rm.tree_eq] at hk
     exact (ins_held a rm.sorted ((hasKey_canon' Prod.fst Prod.snd sha256 rm.sorted a.1).1 hk)).symm
-  · show (Treap.insert Prod.fst Prod.snd sha256 a rm.tree).toList = _
+  · show (_root_.Id.run (rm.tree.insertM Prod.fst Prod.snd sha256 a)).toList = _
+    rw [run_eq_val, val_insertM]
     rename_i hk
     have e := rm.tree_eq
     have hs := rm.sorted

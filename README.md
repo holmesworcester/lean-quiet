@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1437 rest on Lean's standard axioms only, and about two thirds of its theorems (1058 of 1414, not counting 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1471 rest on Lean's standard axioms only, and about two thirds of its theorems (1077 of 1448, not counting 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -504,12 +504,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1058 of 1414 laws are about running code;** another 35 run its node code in a World, and 321 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1077 of 1448 laws are about running code;** another 35 run its node code in a World, and 336 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 214 | 156 |  | 58 |
-| Sync | 243 | 188 |  | 55 |
+| Sync | 277 | 207 |  | 70 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
@@ -559,6 +559,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Priority.Run.selected` | [`Priority.served`], [`Priority.write_within`]†, [`Priority.event_within`]† | Nothing that runs calls it. |
 | `State.append` | [`waiting_step`], [`push_local`], [`push_background`] | Nothing that runs calls it. |
 | `Priority.phaseAfter` | [`phase_cycle`]†, [`Priority.local_share`]†, [`WriterQueue.local_share`] | Nothing that runs calls it. |
+| `Index.answer` | [`answer_eq`] | Nothing that runs calls it. |
+| `Index.opening` | [`opening_eq`] | Nothing that runs calls it. |
 | `ChurnRun.selected` | [`served_or_cancelled`], [`source_or_cancelled_within`]†, [`write_served_churn`], [`write_within_churn`]†, [`churnFlood_source`], [`churnFlood_write`], [`churnFlood_exact`], [`source_before_exhaustion`] | Nothing that runs calls it. |
 | `Prioritized.Run.selected` | [`Prioritized.served`], [`Prioritized.source_within`], [`write_served`], [`Prioritized.write_within`]† | Nothing that runs calls it. |
 | `Prioritized.State.arrivals` | [`write_progress`] | Nothing that runs calls it. |
@@ -586,11 +588,16 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Sweep.observedCeiling` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it; `Sweep.observedInput` do. |
 | `Sweep.observedInput` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it. |
 | `Sweep.rank` | [`Sweep.step_progress`], [`step_nonincrease`] | Nothing that runs calls it. |
+| `Sync.answerTM` | [`answerT_canon`]*, [`val_answerTM`], [`answerTM_hashes`] | Nothing that runs calls it; `Index.answer` do. |
+| `Sync.cutsT` | [`cutsT_canon`], [`cutsT_pieces`] | Nothing that runs calls it; `Engine.Sync.answerT`, `Sync.answerTM` do. |
 | `Sync.get` | [`fold_congr`] | Nothing that runs calls it. |
 | `Sync.give` | [`fold_congr`] | Nothing that runs calls it. |
+| `Sync.ins` | [`items_add`], [`ins_sorted`] | Nothing that runs calls it. |
 | `Sync.nextClaims` | [`conn_answers_claims`], [`conn_round_continues`]*, [`conn_returns_claims`], [`successor`], [`next_mem`] | Nothing that runs calls it. |
+| `Sync.openingTM` | [`openingT_canon`]*, [`val_openingTM`], [`openingTM_hashes`] | Nothing that runs calls it; `Index.opening` do. |
 | `Sync.plainOpen` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
 | `Sync.plainSeal` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
+| `Sync.rangeTM` | [`rangeT_canon`]*, [`val_rangeTM`], [`rangeTM_hashes`] | Nothing that runs calls it; `Sync.answerTM`, `Sync.openingTM` do. |
 | `Sync.retried` | [`work_retry_bounded`]† | Nothing that runs calls it. |
 | `Sync.returnedClaims` | [`conn_returns_claims`] | Nothing that runs calls it; `State.advance`, `RoundRun.initial` do. |
 | `Sync.roundHolds` | [`conn_answers_claims`] | Nothing that runs calls it. |
@@ -1213,7 +1220,7 @@ opportunities and full native delivery remain open.
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
-[`lbl_inj`]: engine/sync/Fp.lean#L268-L272
+[`lbl_inj`]: engine/sync/Fp.lean#L311-L315
 [`NoCollision`]: engine/core/Merkle.lean#L152-L154
 [`assumptions_hold`]: engine/core/Merkle.lean#L589-L594
 [`Suite.Good`]: engine/wire/Noise.lean#L71-L82
@@ -1284,10 +1291,10 @@ opportunities and full native delivery remain open.
 [`kk_forward_secret`]: engine/wire/NoiseSymbolic.lean#L690-L701
 [`purge_named`]: engine/core/Purge.lean#L570-L574
 [`have_shown`]: engine/sync/OfferLaws.lean#L534-L546
-[`boot_cached`]: engine/wire/NodeLaws.lean#L259-L260
-[`write_cached`]: engine/wire/NodeLaws.lean#L436-L440
-[`purge_cached`]: engine/wire/NodeLaws.lean#L508-L513
-[`cached_items`]: engine/wire/NodeLaws.lean#L271-L274
+[`boot_cached`]: engine/wire/NodeLaws.lean#L262-L263
+[`write_cached`]: engine/wire/NodeLaws.lean#L439-L443
+[`purge_cached`]: engine/wire/NodeLaws.lean#L511-L516
+[`cached_items`]: engine/wire/NodeLaws.lean#L274-L277
 [`write_snaps`]: engine/sync/OfferLaws.lean#L590-L593
 [`have_shown_premises`]: engine/sync/OfferLaws.lean#L681-L685
 [`opened_endpoint`]: app/Proofs.lean#L389-L397
@@ -1434,19 +1441,19 @@ opportunities and full native delivery remain open.
 [`exchange_complete`]: engine/sync/RoundLaws.lean#L232-L241
 [`conn_runs_exchange`]: engine/sync/RoundRun.lean#L536-L556
 [`opening_honest`]: engine/sync/RoundLaws.lean#L323-L325
-[`num_inj`]: engine/sync/Fp.lean#L40-L40
+[`num_inj`]: engine/sync/Fp.lean#L48-L48
 [`spec_local`]: engine/core/Locality.lean#L54-L58
 [`bootstrap`]: app/community/Proofs.lean#L3307-L3311
 [`bootstrap_possible`]: app/community/Proofs.lean#L3114-L3124
 [`reachable_inv`]: app/community/Proofs.lean#L2892-L2893
-[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1513-L1531
+[`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1514-L1532
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L243
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1458-L1470
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1459-L1471
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L844-L861
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1477-L1483
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1478-L1484
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L891-L896
 [`write_offers`]: engine/wire/WorldLaws.lean#L520-L528
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1371-L1383
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1372-L1384
 [`hold_wants`]: engine/wire/WorldLaws.lean#L538-L545
 [`op_taken`]: engine/wire/WorldLaws.lean#L684-L691
 [`onWant_all`]: engine/sync/ServeLaws.lean#L309-L313
@@ -1473,7 +1480,7 @@ opportunities and full native delivery remain open.
 [`hot_ids`]: engine/wire/LaneLaws.lean#L498-L501
 [`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
 [`fresh_served`]: engine/wire/WorldLaws.lean#L631-L638
-[`write_hot`]: engine/wire/WorldLaws.lean#L1444-L1449
+[`write_hot`]: engine/wire/WorldLaws.lean#L1445-L1450
 [`onWrite_receives`]: app/Proofs.lean#L3189-L3198
 [`converge`]: engine/world/Plain.lean#L198-L208
 [`offline`]: engine/world/Plain.lean#L211-L219
@@ -1774,6 +1781,8 @@ opportunities and full native delivery remain open.
 [`push_background`]: engine/renderer/WriteQueueLaws.lean#L13-L14
 [`phase_cycle`]: engine/wire/PriorityLaws.lean#L21-L22
 [`WriterQueue.local_share`]: engine/renderer/WriteQueueLaws.lean#L63-L65
+[`answer_eq`]: engine/sync/Conn.lean#L292-L294
+[`opening_eq`]: engine/sync/Conn.lean#L287-L289
 [`served_or_cancelled`]: engine/wire/IngressChurnLaws.lean#L56-L61
 [`write_served_churn`]: engine/wire/IngressChurnLaws.lean#L100-L102
 [`churnFlood_source`]: engine/wire/IngressChurnLaws.lean#L144-L145
@@ -1826,10 +1835,23 @@ opportunities and full native delivery remain open.
 [`run_observed`]: engine/sync/SweepRun.lean#L24-L32
 [`Sweep.step_progress`]: engine/sync/SweepLaws.lean#L52-L61
 [`step_nonincrease`]: engine/sync/SweepLaws.lean#L124-L131
+[`answerT_canon`]: engine/sync/TreapAnswer.lean#L410-L412
+[`val_answerTM`]: engine/sync/TreapAnswer.lean#L502-L504
+[`answerTM_hashes`]: engine/sync/TreapAnswer.lean#L590-L593
+[`cutsT_canon`]: engine/sync/TreapAnswer.lean#L366-L368
+[`cutsT_pieces`]: engine/sync/TreapAnswer.lean#L565-L566
 [`fold_congr`]: engine/sync/TreeLaws.lean#L148-L151
+[`items_add`]: engine/sync/Conn.lean#L196-L197
+[`ins_sorted`]: engine/sync/Conn.lean#L83-L83
 [`conn_answers_claims`]: engine/sync/RoundRun.lean#L21-L27
 [`conn_round_continues`]: engine/sync/RoundRun.lean#L56-L63
 [`conn_returns_claims`]: engine/sync/RoundRun.lean#L87-L91
+[`openingT_canon`]: engine/sync/TreapAnswer.lean#L432-L434
+[`val_openingTM`]: engine/sync/TreapAnswer.lean#L515-L516
+[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L622-L623
+[`rangeT_canon`]: engine/sync/TreapAnswer.lean#L277-L279
+[`val_rangeTM`]: engine/sync/TreapAnswer.lean#L491-L492
+[`rangeTM_hashes`]: engine/sync/TreapAnswer.lean#L539-L541
 [`deviceLive_lists`]: app/community/Screen.lean#L557-L559
 [`live_lists_ge`]: app/community/Screen.lean#L659-L661
 [`live_lists_le`]: app/community/Screen.lean#L638-L642

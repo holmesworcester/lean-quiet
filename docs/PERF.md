@@ -334,7 +334,9 @@ with the meter above.
 | a list read | ≤ limit + cap rows and 3 + limit seeks, on any store whose answers fit; the model's do, and SQLite's are the model's (querydiff) | `list_costs`, `model_fits` | ✅ for lists with a limit and a count cap |
 | a view | one list door per list it reads | `view_lists` | ✅ |
 | the frame's values | settle in ⌈marked / refill⌉ reader passes and one frame | `settle_passes` | ✅ of the board the reader and frame are to call; 1e is wiring it |
-| a sync round | ≤ 2k + 3 messages, ≤ 1 + fan·(2k + 2)·Δ claims; cold answers O(fan · N log N) until the treap is on the running path | docs/BOUNDS.md | a3's |
+| a sync round | ≤ 2k + 3 messages on any path, ≤ 1 + fan·(2k + 2)·Δ claims, for k with each side's items ≤ leaf·fanᵏ | `ends_log`, `claims_log`, `exchange_log` | ✅ of `exchange`, whose answers are the running `Index.answer`'s |
+| an opening, an answer | from the room's canonical Merkle treap: an opening ≤ 2·height hashes, an answer ≤ 2·(fan + 1)·height, whatever the room holds; each equal to `opening`'s and `answer`'s over the room's items. Height 22, 31, 39 at 1k, 10k, 100k items (tests/scale; 1005 at 100k under the old priority); at 100k an opening 27 hashes and a cut answer 694 (0.1 ms), where the list answer took 493 ms and 2n + 1 hashes | `openingTM_hashes`, `answerTM_hashes`, `Index.opening_eq`, `Index.answer_eq`, `answerT_canon`, `height_canon` | ✅; the height is measured, not proven: O(log n) in expectation for hash ids, a member can grind ids |
+| an op into the room index (boot too) | an insert: ≤ height + 1 hashes, unless the key is there (`RoomTree.add`); boot O(n · height): 341 ms at 100k, where the sorted list took 363 ms at 10k, quadratic | `insert_hashes`, `insert_canon`, `RoomTree.items_add` | ✅ |
 | per-tick node work | the dial hook, then per session: its rooms (`trusts` per established pair), the walk (≤ `walk` steps, 2 reads each), a round; then `react` | the walk's `walk_reads`, `tick_reads` (patch sent for a3/bounds) and a3's round rows | 📏 O(sessions × rooms) given each family hook is bounded; `react` is not, below |
 | key wraps per approval | one wrap, to the new member's device; at most three ops in all, whatever the community holds; wrapping to every member (the mutant) makes four at three members | `approveReq_ops`, `wrapAll_over` | ✅ |
 
@@ -362,7 +364,7 @@ with the meter above.
 | the runner's event channel | at most `RunConfig.queue` events; a socket's reader blocks on a full channel, so TCP pushes back (sync-harden) | `admit_bounded` (sockets); the channel is tested | ✅ tested |
 | the store's journal (`changes`) | the commits since the slower of the frame and the reader took them: the writer prunes rows at or below the minimum of the two cursors (App.takeChanges); a reader that stops stops the pruning, and the journal grows, though nothing is lost | none | ❌ fix: a bound on the reader's lag, or pruning past a stopped reader with a full re-read |
 | a write turn's budget (`budgetSql`), a purge's `countOps` | three rows of `tally`, which triggers on ops, status and queue keep exact, seeded from the tables when a database has none (new, wiped or older): O(1), where it was three `count(*)` over the store (17.7 ms a turn at 100k ops) | none: SQLite's tables are the model's (the `Model.run` assumption); `differential` checks the rows against the tables and the model midway, at rest and after a reopen of a database whose rows were deleted (its control), `purge` after every purge | 📏 tested |
-| the write turn, boot, purge, cold rounds | the store | docs/BOUNDS.md | a3's |
+| the write turn, purge | the store: a turn judges until its queue is empty | `drain_bounded` | ❌ fix: a3/drain-cap's capped turn (lands after the World and live-round ports) |
 
 ## Large communities: open questions
 
