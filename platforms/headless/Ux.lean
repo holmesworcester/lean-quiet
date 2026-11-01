@@ -33,9 +33,9 @@ def incoming (texts : List String) : M (List Op) := do
   let (key, _) ← readView (Community.currentKey s.me.c) #[]
   let (top, _) ← readView (Community.topCount s.me.c) #[]
   let now ← nowMin
-  let key := key.getD .empty
+  let key := key.getD (Bytes.zeros 32)
   (texts.zip (List.range texts.length)).mapM fun (t, i) => do
-    pure (sealedPost s.me.c s.me.adm s.me.dev key (← Engine.Crypto.randomBytes 24) t.toUTF8 (top + 1 + i) now)
+    pure (sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24) t.toUTF8 (top + 1 + i) now)
 
 end Ux
 

@@ -1436,9 +1436,9 @@ is sealed with (24). -/
 structure NewFile where
   info : FileMeta
   bytes : ByteArray
-  key : ByteArray
-  nonce : ByteArray
-  metaNonce : ByteArray
+  key : Key32
+  nonce : Nonce24
+  metaNonce : Nonce24
 
 /-- What the file's own seal is bound to. -/
 def fileAd : ByteArray := "quiet/file/v1".toUTF8

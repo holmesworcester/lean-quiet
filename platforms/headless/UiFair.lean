@@ -42,7 +42,7 @@ def run (source target : St) (targetSim : Sim) (evict := false) : IO (St × Bool
       for j in [0:4] do
         let i := batch * 4 + j
         let body := s!"sync load {i}: ".toUTF8 ++ (⟨Array.replicate 2048 120⟩ : ByteArray)
-        let nonce := (sha256 s!"ui-fair/{i}".toUTF8).extract 0 24
+        let nonce := Bytes.fit 24 (sha256 s!"ui-fair/{i}".toUTF8)
         let n ← counter.modifyGet fun n => (n, n + 1)
         ops := ops ++ [sealedPost source.me.c source.me.adm source.me.dev key nonce body n ((← futureTime.get) + i)]
       repeat

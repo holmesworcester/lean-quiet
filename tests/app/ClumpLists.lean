@@ -24,13 +24,13 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     found "Clump windows" "Alice"
     let s ← get
     let some key ← intentView (Community.currentKey s.me.c) | throw (IO.userError "fixture key missing")
-    let root := sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24) "Root header".toUTF8 1 100
+    let root := sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24) "Root header".toUTF8 1 100
     let mut ops := [root]
     for i in [0:340] do
-      let child := sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24)
+      let child := sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24)
         s!"Child {i}: its own message op and paint.".toUTF8 (i + 2) 101 (some root.id)
       ops := ops ++ [child]
-    let last := sealedPost s.me.c s.me.adm s.me.dev key (← newBytes 24) "A later root".toUTF8 500 110
+    let last := sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24) "A later root".toUTF8 500 110
     ck.ok "signed large-clump fixture is accepted" (← writeAll ⟨ops ++ [last]⟩)
     openPage .chat
     waitIdle sm
@@ -84,7 +84,7 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let beforePosition := position saved
     let mut arriving := []
     for i in [0:220] do
-      arriving := arriving ++ [sealedPost saved.me.c saved.me.adm saved.me.dev key (← newBytes 24)
+      arriving := arriving ++ [sealedPost saved.me.c saved.me.adm saved.me.dev key (← App.newSized 24)
         s!"Arriving child {i}".toUTF8 (600 + i) 101 (some root.id)]
     saved.wr.setPaused true
     ck.ok "a burst of child messages is accepted" (← writeAll ⟨arriving⟩)

@@ -48,7 +48,7 @@ def main (args : List String) : IO UInt32 := do
   -- application action commit through its actual writer.
   let some k ← (intentView (Community.currentKey s.me.c)).run' s |
     throw (IO.userError "fixture has no community key")
-  let w ← (intentView (Community.send s.me.c s.me.adm s.me.dev k (← newBytes 24) "limit boundary".toUTF8 42)).run' s
+  let w ← (intentView (Community.send s.me.c s.me.adm s.me.dev k (← App.newSized 24) "limit boundary".toUTF8 42)).run' s
   let size := WriteAdmission.bytes (w.ops.map Op.bytes)
   t.ok "exact count and byte boundary admits the signed batch"
     ((WriteAdmission.refusal ⟨w.ops.length, size⟩ [] w.ops).isNone)
