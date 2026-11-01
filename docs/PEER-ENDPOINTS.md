@@ -1,6 +1,6 @@
 # Peer endpoints: implementation and verification
 
-Work is isolated on `peer-endpoints`, merged with `origin/main` b44a7af. This is an
+Work is isolated on `peer-endpoints`, merged with `origin/main` 9565d58. This is an
 implementation and component-proof report, not a certificate that all requested
 end-to-end progress obligations are complete. No iroh is used.
 
@@ -132,6 +132,9 @@ proof-link negative controls pass in `out/endpoints/merged-audits2.log`:
 applications of all 23 endpoint laws. A metadata entry alone does not count:
 the audit checks each witness's dependency on its named theorem, its axioms,
 and that its native executable actually calls it.
+The final UI-only merge from main (9565d58) leaves endpoint/transport code
+unchanged. The full build, all 1,236 axiom checks, all 618 vacuity evidence
+checks and proof-link controls pass again in `out/endpoints/final-main-audits.log`.
 
 Existing `test:join-fair` passes its 37 baseline and 24 ordered-hint checks;
 its intentionally broken schedulers/hint handling fail their required progress
