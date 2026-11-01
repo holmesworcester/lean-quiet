@@ -68,3 +68,12 @@ finish. The executor remains per Activity, so bounding retained old worker
 threads needs a separate process-wide admission/lifetime policy. The fixture's
 gate deliberately survives interruption until explicitly released; cancellation
 must clear the app request before that release. Windows and iOS are unchanged.
+
+
+A subsequent CI dispatcher check found an earlier duplicate `android-photo`
+case that stopped after the picker task. Removing it makes the existing route
+run both named suites. `mise run ci:driver-test` executes the actual dispatcher
+with a recording task runner and checks both calls, first-task short circuit,
+and second-task failure propagation. It failed before repair and passes all
+three cases afterward. The default local gate and ready workflow templates
+include this test; templates remain inactive until separately enabled.

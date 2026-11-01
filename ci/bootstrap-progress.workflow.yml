@@ -48,9 +48,9 @@ jobs:
           rustc --version
           cc --version
       - name: Run the same proof, runtime and README gates as local CI
-        run: ci/local.sh check bootstrap-progress vacuity readme
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 ci/local.sh driver check bootstrap-progress vacuity readme
       - name: Exercise the actual invite, approval and message UI over TCP
-        run: mise run host:net-join && mise run host:write-admission
+        run: systemd-run --user --scope -p MemoryMax=48G -p MemorySwapMax=0 bash -c 'mise run host:net-join && mise run host:write-admission'
       - name: Retain failure logs, databases and relay diagnostics
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
