@@ -168,6 +168,10 @@ structure Family (F : Type) where
   keys : F → List ByteArray
   scope : Op → Scope := fun _ => .shared .empty
   order : Op → Nat := fun _ => 0
+  /-- Ops judged ahead of a backlog, as soon as they can be (membership:
+  who is in and who is out); beside them, every op not shared (a
+  connection's and a node's own local ops). engine/core/Urgent.lean. -/
+  urgent : Op → Bool := fun _ => false
 
 /-- The room an op is synced in; none unless it is shared. -/
 def Family.room {F} (fam : Family F) (o : Op) : Option Id :=

@@ -70,6 +70,7 @@ def Family.sum {A B : Type} (a : Family A) (b : Family₂ A B) : Family (A ⊕ B
   keys | .inl x => a.keys x | .inr y => b.keys y
   scope o := if b.owns o.kind then b.scope o else a.scope o
   order o := if b.owns o.kind then b.order o else a.order o
+  urgent o := if b.owns o.kind then false else a.urgent o
 
 theorem lefts_map {A B} (fs : List A) : lefts (fs.map (.inl : A → A ⊕ B)) = some fs := by
   induction fs with

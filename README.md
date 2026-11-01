@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1528 rest on Lean's standard axioms only, and about three quarters of its theorems (1154 of 1501, not counting 27 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1531 rest on Lean's standard axioms only, and about three quarters of its theorems (1154 of 1504, not counting 27 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -509,11 +509,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1154 of 1501 laws are about running code;** another 35 run its node code in a World, and 312 are not yet. Stated only: none. 27 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1154 of 1504 laws are about running code;** another 35 run its node code in a World, and 315 are not yet. Stated only: none. 27 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 214 | 156 |  | 58 |
+| Engine | 217 | 156 |  | 61 |
 | Sync | 323 | 277 |  | 46 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
@@ -604,6 +604,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Engine.sortPos` | [`perm_sortPos`], [`sortPos_eq_fast`], [`sortPos_sorted`], [`sortPos_map`], [`mergeRuns_eq_sortPos`], [`union_rows`] | Nothing that runs calls it; `Engine.matching` do. |
 | `Engine.sortPosFast` | [`sortPos_eq_fast`] | Nothing that runs calls it; `Engine.sortPos` do. |
 | `Engine.specVerdict` | [`specVerdict_eq_some`] | Nothing that runs calls it; `Engine.DB.proj` do. |
+| `Engine.urgentOf` | [`settled_urgent`], [`urgent_spec`]*, [`urgent_valid_iff`]* | Nothing that runs calls it. |
 | `Hold.messagePlane` | [`cachedMessagePlane_exact`]† | Nothing that runs calls it. |
 | `Message.read` | [`row_marked`]*†, [`message_read`]* | Nothing that runs calls it. |
 | `React.tally` | [`tally_nodup`], [`tally_mem`] | Nothing that runs calls it; `Kinds.React.read` do. |
@@ -642,7 +643,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 443 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 446 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1208,7 +1209,7 @@ opportunities and full native delivery remain open.
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
 [`stream_delivers`]: engine/wire/WorldLaws.lean#L813-L846
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`Unforgeable`]: app/community/Family.lean#L1261-L1276
+[`Unforgeable`]: app/community/Family.lean#L1270-L1285
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
 [`Distinct`]: engine/core/Proofs.lean#L538-L540
@@ -1227,7 +1228,7 @@ opportunities and full native delivery remain open.
 [`removal_authorized`]: app/community/member/Proofs.lean#L48-L51
 [`admin_granted`]: app/community/member/admin/Proofs.lean#L44-L45
 [`removed_stays`]: app/community/member/remove/Proofs.lean#L26-L29
-[`valid_stays`]: app/community/Family.lean#L1281-L1285
+[`valid_stays`]: app/community/Family.lean#L1290-L1294
 [`message_authorized`]: app/community/channel/message/Proofs.lean#L71-L77
 [`approval_signed`]: app/community/member/invite/request/approve/Proofs.lean#L29-L39
 [`invitation_issued`]: app/community/member/invite/Proofs.lean#L28-L32
@@ -1338,7 +1339,7 @@ opportunities and full native delivery remain open.
 [`bare_takes_only_join`]: app/Proofs.lean#L604-L616
 [`intake_local`]: engine/core/Sync.lean#L54-L56
 [`stored_local`]: engine/core/Sync.lean#L135-L138
-[`local_fact_mine`]: app/community/Family.lean#L1296-L1300
+[`local_fact_mine`]: app/community/Family.lean#L1305-L1309
 [`intakeConn_conn`]: engine/core/Sync.lean#L49-L50
 [`established_agrees_sodium`]: app/Proofs.lean#L94-L106
 [`established_agrees`]: app/Proofs.lean#L37-L51
@@ -1350,7 +1351,7 @@ opportunities and full native delivery remain open.
 [`Codec.encode_decode`]: engine/core/Codec.lean#L773-L776
 [`Op.id_decode`]: engine/core/Core.lean#L91-L93
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
-[`op_of_valid`]: app/community/Family.lean#L1235-L1240
+[`op_of_valid`]: app/community/Family.lean#L1244-L1249
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
 [`Image.decode_sized`]: engine/renderer/ImageLaws.lean#L11-L14
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
@@ -1417,8 +1418,8 @@ opportunities and full native delivery remain open.
 [`reach_inv`]: engine/core/Proofs.lean#L522-L522
 [`mem_purgeSet`]: engine/core/Proofs.lean#L364-L368
 [`reach_ops`]: engine/core/Proofs.lean#L624-L626
-[`sum_left`]: engine/core/Families.lean#L79-L82
-[`sum_scope_left`]: engine/core/Families.lean#L85-L86
+[`sum_left`]: engine/core/Families.lean#L80-L83
+[`sum_scope_left`]: engine/core/Families.lean#L86-L87
 [`Codec.decode_encode`]: engine/core/Codec.lean#L767-L767
 [`Op.decode_bytes`]: engine/core/Core.lean#L96-L96
 [`sum_project`]: engine/core/Project.lean#L421-L432
@@ -1871,6 +1872,9 @@ opportunities and full native delivery remain open.
 [`mergeRuns_eq_sortPos`]: engine/core/Union.lean#L120-L123
 [`union_rows`]: engine/core/Union.lean#L164-L170
 [`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
+[`settled_urgent`]: engine/core/Urgent.lean#L47-L48
+[`urgent_spec`]: engine/core/Urgent.lean#L54-L58
+[`urgent_valid_iff`]: engine/core/Urgent.lean#L86-L89
 [`cachedMessagePlane_exact`]: engine/renderer/HoldCacheLaws.lean#L26-L29
 [`message_read`]: app/community/Screen.lean#L110-L119
 [`tally_nodup`]: app/community/channel/message/reaction/View.lean#L91-L95

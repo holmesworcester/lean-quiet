@@ -20,6 +20,7 @@ import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
 import engine.sync.ClaimsLaws
+import engine.core.Urgent
 import engine.sync.NewestLaws
 import engine.sync.StateLaws
 import engine.sync.ClosureComplete
@@ -1173,6 +1174,9 @@ end cost
 #print axioms Engine.Sync.Conn.onAsk_eq
 #print axioms Engine.Sync.Index.opening_eq
 #print axioms Engine.Sync.Index.answer_eq
+#print axioms Engine.settled_urgent
+#print axioms Engine.urgent_spec
+#print axioms Engine.urgent_valid_iff
 #print axioms Engine.Sync.handlers_transition
 #print axioms Engine.Sync.closed_terminal
 #print axioms Engine.Sync.open_session

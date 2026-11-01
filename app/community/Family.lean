@@ -1171,8 +1171,17 @@ def orderOf (o : Op) : Nat :=
   | some (.ofChunk b) => b.time
   | _ => 0
 
+/-- Membership ops, judged ahead of a backlog in the turn they can be
+decided: who is in and who is out counts at once (engine/core/Urgent.lean).
+Each cites only membership ops (`urgent_cites`). -/
+def urgentKind (o : Op) : Bool :=
+  match (decode o.body : Option Body) with
+  | some (.ofRoot _) | some (.ofInvite _) | some (.ofRequest _) | some (.ofGrant _)
+  | some (.ofRemove _) | some (.ofApprove _) | some (.ofAdmit _) => true
+  | _ => false
+
 def family (C : Crypto) : Family Fact :=
-  { validate := validate C, keys, scope := scopeOf, order := orderOf }
+  { validate := validate C, keys, scope := scopeOf, order := orderOf, urgent := urgentKind }
 
 end Community
 
