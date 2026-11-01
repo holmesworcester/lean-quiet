@@ -90,7 +90,7 @@ inductive Call (x : Sync F M) : {α : Type} → M α → Prop
   | recv (addr : ByteArray) (o : Op) (now : Nat) : Call x (x.hooks.recv none addr o now)
   | dial (now : Nat) : Call x (x.hooks.dial now)
   | retired : Call x x.hooks.retired
-  | seal (n : Node) (out : Acts) : Call x (n.seal x out)
+  | sealed (n : Node) (out : Acts) : Call x (n.seal x out)
   | endSession (cid : Id) : Call x (Node.endSession x cid)
 
 /-- **What a node invariant must survive, piece by piece, at node i**,
@@ -168,7 +168,7 @@ theorem sealRetries_ok (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (rs : 
   unfold Node.sealRetries
   refine keep_bind L ?_ fun _ s' h => by rw [L.pure]; exact h
   exact L.forIn_inv _ _ _ _ (fun _ s => Φ n (P.held s)) hn fun r _ b s hs =>
-    keep_bind L (Pc.calls _ (.seal n _) n s hs) fun _ s' h => by rw [L.pure]; exact h
+    keep_bind L (Pc.calls _ (.sealed n _) n s hs) fun _ s' h => by rw [L.pure]; exact h
 
 /-- The end of `finish`: every ended session's purge, then the node with
 its write report cleared. -/
@@ -190,8 +190,8 @@ theorem finish_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (out : A
   refine Ok.bind L (Pc.flush n1 out s1 h1) fun ⟨n2, out2⟩ s2 h2 => ?_
   refine Ok.call L (Pc.calls _ .retired n2 s2 h2) fun ret s3 h3 => ?_
   have h4 := foldl_drop Pc ret n2 _ h3
-  refine Ok.call L (Pc.calls _ (.seal _ _) _ s3 h4) fun _ s5 h5 => ?_
-  refine Ok.call L (Pc.calls _ (.seal _ _) _ s5 h5) fun _ s6 h6 => ?_
+  refine Ok.call L (Pc.calls _ (.sealed _ _) _ s3 h4) fun _ s5 h5 => ?_
+  refine Ok.call L (Pc.calls _ (.sealed _ _) _ s5 h5) fun _ s6 h6 => ?_
   refine Ok.call L (sealRetries_ok L Pc _ _ s6 h6) fun ⟨_, _⟩ s7 h7 => ?_
   refine finish_tail L Pc ?_ ?_
   · exact Pc.sent _ _ now _ h7
