@@ -146,16 +146,21 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let (_, revoked) ← (Reader.read (Q.op first.id)).run { rd := before.rd, enabled := pure false }
     ck.ok "revoked reader issues no query" (revoked.live.reads == 0 && revoked.live.entries.isEmpty)
     let sh ← Reader.Shared.new (← IO.mkRef 0)
-    -- Three distinct, committed ops make the exact query boundary explicit:
-    -- allow the pass and its first two reads, then revoke before the third.
+    -- Revoke after the actual second query, independent of how often the
+    -- pass checks its lease before querying. A new early guard must not
+    -- silently move this fixture's cancellation point.
     let want := Reader.Want.slices [first.id, second.id, third.id]
     sh.setWants #[want]
-    let checks ← IO.mkRef (0 : Nat)
-    let enabled : IO Bool := checks.modifyGet fun n => (decide (n < 3), n + 1)
-    let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled }
+    let enabled ← IO.mkRef true
+    let queries ← IO.mkRef (#[] : Array Q)
+    let afterQuery (q : Q) : IO Unit := do
+      queries.modify (·.push q)
+      if q == .op second.id then enabled.modify (fun _ => false)
+    let (_, cancelled) ← (Reader.pass sh).run { rd := before.rd, enabled := enabled.get, afterQuery }
     ck.ok "revocation during a real pass prevents later queries" (cancelled.live.reads == 2 &&
       cancelled.live.entries.contains (.op first.id) && cancelled.live.entries.contains (.op second.id) &&
-      !cancelled.live.entries.contains (.op third.id) && (← checks.get) > 3)
+      !cancelled.live.entries.contains (.op third.id) &&
+      (← queries.get) == #[.op first.id, .op second.id] && !(← enabled.get))
     ck.ok "revoked pass cannot publish its answer" (((← sh.board.get).get? want).isNone)
     ck.ok "old runner rejects offers after teardown" (!(← old.writes.trySend []))
     discard <| step [.background]
