@@ -28,6 +28,7 @@ import engine.renderer.Geometry
 import engine.renderer.Nav
 import engine.renderer.Cover
 import engine.renderer.Session
+import engine.renderer.HoldCache
 import engine.renderer.Toast
 import engine.renderer.ThemeStore
 import app.community.channel.message.draft.View
@@ -2993,6 +2994,7 @@ structure St where
   insetBot : Nat
   font : Font
   bgRow : ByteArray
+  holdCache : Hold.MessageCache := none
   rd : Db
   wr : Writer
   dbPath : String := ""
@@ -5832,9 +5834,11 @@ def present (fr : Array ByteArray) (b : Nat) (pin : Bool) : M (List Event) := do
     let top := shade top 0
     s.io.frame (SafeFrame.extend s.window list) b over (SafeFrame.extend s.window top)
       (SafeFrame.extend s.window bot) pin words (SafeFrame.extend s.window hold)
+  let (hold, holdCache) := Hold.cachedMessagePlane s.holdCache ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow
+  modify fun s => { s with holdCache }
   let result ← Session.present display s.io.motion (geom s) s.dim.dpi
     (scrollHeight s - (geom s).viewNow) s.input fr b over s.topBmp.rows s.botBmp.rows pin
-    (Hold.messagePlane ⟨s.bgRow, s.dim, s.W⟩ (geom s).viewNow) (Hold.period s.dim)
+    hold (Hold.period s.dim)
     s.editor.owner.toUInt64 (fun ticket => discard <| s.io.editorIo.action ticket 1)
   let lastDisplay ← saved.get
   modify fun s => { s with input := result.state, lastDisplay }
