@@ -282,11 +282,12 @@ theorem exchange_complete : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim
         · -- Many items here: cut the range; each piece is a round of its own.
           have hl' : P.leaf < (within key r' X).length := by omega
           rw [exchange, (mem_fold _ _ i).1, (mem_fold _ _ i).2]
-          have ha : answer key ident h P X (.fp r' cn cl) =
-              (pieces r' (cutsOf key P (within key r' X))).reverse.map fun q =>
-                .claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2) := by
-            simp [answer, hf, hl]
-          rw [ha]
+          -- The answer claims each piece once, in whatever order (`answer_newest_first`).
+          have ha : ∀ o, o ∈ answer key ident h P X (.fp r' cn cl) ↔
+              ∃ q ∈ pieces r' (cutsOf key P (within key r' X)),
+                Out.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2) = o := by
+            intro o
+            simp only [answer, hf, hl, ite_false, List.mem_map, List.mem_reverse]
           have hcut : ∀ c ∈ cutsOf key P (within key r' X), r'.has c = true := by
             intro c hc
             simp only [cutsOf, List.mem_map] at hc
@@ -299,17 +300,16 @@ theorem exchange_complete : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim
             (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)
             sY sX (named_symm nm) so.symm ⟨rfl, rfl⟩
             (by have := (pieces_shrink (P := P) sX hl' q hq).1; have := hsub q hq; omega) i
-          have hmap : ∀ (f : Out → List ByteArray), (∃ o ∈ (pieces r' (cutsOf key P (within key r' X))).reverse.map
-              (fun q => Out.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)),
+          have hmap : ∀ (f : Out → List ByteArray), (∃ o ∈ answer key ident h P X (.fp r' cn cl),
               i ∈ f o) ↔ ∃ q ∈ pieces r' (cutsOf key P (within key r' X)),
               i ∈ f (.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)) := by
             intro f
             constructor
             · rintro ⟨o, ho, hi⟩
-              obtain ⟨q, hq, rfl⟩ := List.mem_map.mp ho
-              exact ⟨q, List.mem_reverse.mp hq, hi⟩
+              obtain ⟨q, hq, rfl⟩ := (ha o).1 ho
+              exact ⟨q, hq, hi⟩
             · rintro ⟨q, hq, hi⟩
-              exact ⟨_, List.mem_map.mpr ⟨q, List.mem_reverse.mpr hq, rfl⟩, hi⟩
+              exact ⟨_, (ha _).2 ⟨q, hq, rfl⟩, hi⟩
           rw [hmap, hmap]
           simp only [give, get]
           constructor

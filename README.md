@@ -368,7 +368,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1411 rest on Lean's standard axioms only, and about two thirds of its theorems (1034 of 1388, not counting 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1415 rest on Lean's standard axioms only, and about two thirds of its theorems (1035 of 1392, not counting 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -505,12 +505,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1034 of 1388 laws are about running code;** another 35 run its node code in a World, and 319 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1035 of 1392 laws are about running code;** another 35 run its node code in a World, and 322 are not yet. Stated only: none. 23 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 201 | 145 |  | 56 |
-| Sync | 243 | 188 |  | 55 |
+| Sync | 247 | 189 |  | 58 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 205 | 139 | 16 | 50 |
@@ -556,6 +556,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Stmt.walks` | [`walks_le`] | Nothing that runs calls it; `Stmt.cost` do. |
 | `Catalog.held` | [`held_run_observed`], [`catalog_read`], [`ceiling_mono`] | Nothing that runs calls it; `Execution.Setup.sync` do. |
 | `Catalog.shared` | [`shared_log_turn`], [`shared_log_purge`], [`catalog_read`], [`ceiling_mono`], [`production_step_history`], [`world_step_history`], [`world_trace_history`], [`history`] | Nothing that runs calls it; `Catalog.held` do. |
+| `Claim.range` | [`answer_newest_first`]†, [`newest_first`]† | Nothing that runs calls it; `Sync.claimRanges` do. |
 | `ExpiryGrace.consumed` | [`consumed_left`], [`budget_exhausted`], [`source_before_exhaustion`] | Nothing that runs calls it. |
 | `Priority.Run.selected` | [`Priority.served`], [`Priority.write_within`]†, [`Priority.event_within`]† | Nothing that runs calls it. |
 | `State.append` | [`waiting_step`], [`push_local`], [`push_background`] | Nothing that runs calls it. |
@@ -578,17 +579,20 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `State.result` | [`holds_announced`], [`wants_seen`], [`discovers`], [`pending_source`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it; `State.advance` do. |
 | `RoundRun.collisionCheck` | [`collisionCheck_sound`]*, [`sound_of_check`]* | Nothing that runs calls it. |
 | `RoundRun.execute` | [`execute_runs`] | Nothing that runs calls it. |
-| `RoundRun.fullRange` | [`initial_claim`] | Nothing that runs calls it. |
 | `RoundRun.hashInputs` | [`sound_of_check`]* | Nothing that runs calls it. |
 | `RoundRun.initial` | [`initial_ready`], [`initial_claim`], [`initial_asks`] | Nothing that runs calls it. |
 | `RoundRun.outputs` | [`successor`], [`next_mem`], [`wants_seen`], [`discovers`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it. |
 | `RoundRun.rank` | [`answer_rank`], [`terminates`]*, [`discovers`], [`discovers_wire`], [`conn_runs_exchange`]† | Nothing that runs calls it. |
+| `RoundRun.structureRange` | [`initial_claim`] | Nothing that runs calls it. |
 | `RoundRun.subsets` | [`filter_in_subsets`] | Nothing that runs calls it; `RoundRun.hashInputs` do. |
+| `RoundRun.timedRange` | [`initial_claim`] | Nothing that runs calls it. |
 | `Sweep.observedCeiling` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it; `Sweep.observedInput` do. |
 | `Sweep.observedInput` | [`run_observed`], [`held_run_observed`] | Nothing that runs calls it. |
 | `Sweep.rank` | [`Sweep.step_progress`], [`step_nonincrease`] | Nothing that runs calls it. |
+| `Sync.claimRanges` | [`answer_newest_first`]† | Nothing that runs calls it. |
 | `Sync.get` | [`fold_congr`] | Nothing that runs calls it. |
 | `Sync.give` | [`fold_congr`] | Nothing that runs calls it. |
+| `Sync.holdIds` | [`newest_first`]†, [`opening_newest_first`]† | Nothing that runs calls it. |
 | `Sync.nextClaims` | [`conn_answers_claims`], [`conn_round_continues`]*, [`conn_returns_claims`], [`successor`], [`next_mem`] | Nothing that runs calls it. |
 | `Sync.plainOpen` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
 | `Sync.plainSeal` | [`write_store_tape`] | Nothing that runs calls it; `Sync.Setup.sync` do. |
@@ -1158,6 +1162,9 @@ CI runs locally for now:
   the workspace. It runs nightly and before a release. A bug it finds
   that the gate missed becomes a law over the running code (and an entry
   in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+- `ci/land.sh` lands a branch: one landing at a time on this box (a lock
+  in `$TMPDIR`), it merges main in, gates the result and pushes it, so no
+  gate is wasted on a main that moved under it. `LAND_PUSH` sets the push.
 - `ci/local.sh check visual` runs just those parts. Each part has a time
   limit (`PART_TIMEOUT`, 90 minutes). Logs go to `out/ci/`.
 - `ci/workflow.yml` is the same for a hosted runner, and is not in use.
@@ -1382,6 +1389,10 @@ opportunities and full native delivery remain open.
 [`work_retry_bounded`]: engine/sync/RetryLaws.lean#L172-L173
 [`serveOwed_budget`]: engine/sync/ServeLaws.lean#L463-L465
 [`asks_expire`]: engine/sync/RetryLaws.lean#L129-L131
+[`opening_newest_first`]: engine/sync/NewestLaws.lean#L230-L237
+[`answer_newest_first`]: engine/sync/NewestLaws.lean#L99-L106
+[`newest_first`]: engine/sync/NewestLaws.lean#L204-L210
+[`window_first`]: engine/sync/NewestLaws.lean#L142-L145
 [`room_independent`]: engine/sync/TimeLaws.lean#L136-L142
 [`unshown_room_answered`]: engine/sync/TimeLaws.lean#L130-L133
 [`uncarried_room_answered`]: engine/sync/TimeLaws.lean#L147-L154
@@ -1431,7 +1442,7 @@ opportunities and full native delivery remain open.
 [`connect_admitted`]: app/community/Proofs.lean#L842-L851
 [`removeMember_valid`]: app/community/Proofs.lean#L450-L457
 [`exchange_complete`]: engine/sync/RoundLaws.lean#L232-L241
-[`conn_runs_exchange`]: engine/sync/RoundRun.lean#L536-L556
+[`conn_runs_exchange`]: engine/sync/RoundRun.lean#L542-L562
 [`opening_honest`]: engine/sync/RoundLaws.lean#L323-L325
 [`num_inj`]: engine/sync/Fp.lean#L40-L40
 [`spec_local`]: engine/core/Locality.lean#L54-L58
@@ -1637,8 +1648,8 @@ opportunities and full native delivery remain open.
 [`dedupe_nodup`]: app/community/Screen.lean#L779-L780
 [`dedupe_one_per_community`]: app/community/Screen.lean#L783-L785
 [`select_tapped_dedupe`]: app/community/Screen.lean#L809-L811
-[`drawPage_key`]: app/Screen.lean#L4007-L4011
-[`pageIn_acc`]: app/Screen.lean#L4013-L4016
+[`drawPage_key`]: app/Screen.lean#L4019-L4023
+[`pageIn_acc`]: app/Screen.lean#L4025-L4028
 [`msg_cmp`]: app/community/channel/message/Proofs.lean#L117-L124
 [`time_is_display`]: app/community/channel/message/Proofs.lean#L128-L134
 [`order_total`]: app/community/Proofs.lean#L1419-L1429
@@ -1804,24 +1815,24 @@ opportunities and full native delivery remain open.
 [`offer_bounded`]: engine/wire/Reserved.lean#L147-L149
 [`successor`]: engine/sync/RoundRun.lean#L127-L129
 [`ready_next`]: engine/sync/RoundRun.lean#L133-L136
-[`terminates`]: engine/sync/RoundRun.lean#L199-L208
-[`discovers`]: engine/sync/RoundRun.lean#L300-L312
-[`pending_source`]: engine/sync/RoundRun.lean#L385-L392
-[`discovers_wire`]: engine/sync/RoundRun.lean#L408-L418
-[`execute_runs`]: engine/sync/RoundRun.lean#L440-L441
-[`advance_empty`]: engine/sync/RoundRun.lean#L443-L444
-[`run_empty`]: engine/sync/RoundRun.lean#L450-L452
-[`run_bounded`]: engine/sync/RoundRun.lean#L460-L463
-[`holds_announced`]: engine/sync/RoundRun.lean#L270-L274
-[`wants_seen`]: engine/sync/RoundRun.lean#L283-L288
-[`collisionCheck_sound`]: engine/sync/RoundRun.lean#L496-L497
-[`sound_of_check`]: engine/sync/RoundRun.lean#L503-L507
-[`initial_claim`]: engine/sync/RoundRun.lean#L523-L525
-[`initial_ready`]: engine/sync/RoundRun.lean#L519-L520
-[`initial_asks`]: engine/sync/RoundRun.lean#L528-L532
-[`next_mem`]: engine/sync/RoundRun.lean#L180-L182
+[`terminates`]: engine/sync/RoundRun.lean#L200-L209
+[`discovers`]: engine/sync/RoundRun.lean#L301-L313
+[`pending_source`]: engine/sync/RoundRun.lean#L386-L393
+[`discovers_wire`]: engine/sync/RoundRun.lean#L409-L419
+[`execute_runs`]: engine/sync/RoundRun.lean#L441-L442
+[`advance_empty`]: engine/sync/RoundRun.lean#L444-L445
+[`run_empty`]: engine/sync/RoundRun.lean#L451-L453
+[`run_bounded`]: engine/sync/RoundRun.lean#L461-L464
+[`holds_announced`]: engine/sync/RoundRun.lean#L271-L275
+[`wants_seen`]: engine/sync/RoundRun.lean#L284-L289
+[`collisionCheck_sound`]: engine/sync/RoundRun.lean#L497-L498
+[`sound_of_check`]: engine/sync/RoundRun.lean#L504-L508
+[`initial_ready`]: engine/sync/RoundRun.lean#L520-L521
+[`initial_claim`]: engine/sync/RoundRun.lean#L528-L531
+[`initial_asks`]: engine/sync/RoundRun.lean#L534-L538
+[`next_mem`]: engine/sync/RoundRun.lean#L181-L183
 [`answer_rank`]: engine/sync/RoundRun.lean#L154-L159
-[`filter_in_subsets`]: engine/sync/RoundRun.lean#L476-L476
+[`filter_in_subsets`]: engine/sync/RoundRun.lean#L477-L477
 [`run_observed`]: engine/sync/SweepRun.lean#L24-L32
 [`Sweep.step_progress`]: engine/sync/SweepLaws.lean#L52-L61
 [`step_nonincrease`]: engine/sync/SweepLaws.lean#L124-L131
@@ -1954,8 +1965,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 507 kernel witnesses, 194 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 16 of 740 linked declarations still pending.**
+**Coverage: 511 kernel witnesses, 194 runtime witnesses,
+23 conditional checks, 0 recorded runtime counterexamples; 16 of 744 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2191,6 +2202,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`work_retry_bounded`](engine/sync/RetryLaws.lean#L172-L173) | **kernel-witness**: [Vacuity.SyncCache.retryBound](tests/vacuity/SyncCache.lean). Connection has a real outstanding message id and retry due at 1500 ms; instantiate bound over the actual work handler. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`serveOwed_budget`](engine/sync/ServeLaws.lean#L463-L465) | **kernel-witness**: [Vacuity.SyncMore.serviceBytes](tests/vacuity/SyncMore.lean). Nonempty stored shown message served from wanted queue under 1024-byte budget; Network.servesHead establishes actual output. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`asks_expire`](engine/sync/RetryLaws.lean#L129-L131) | **kernel-witness**: [Vacuity.SyncMore.askExpired](tests/vacuity/SyncMore.lean). An actual outstanding message ask expires at 20001 ms. Separate example proves the id was in asked before expiration. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
+| [`opening_newest_first`](engine/sync/NewestLaws.lean#L230-L237) | **kernel-witness**: [Vacuity.RoundExchange.openingNewest](tests/vacuity/RoundExchange.lean). Applied to Bob answering Alice's opening over the full window (floor 0); its only premise, Bob's items in key order, is the fixture's sortedY. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`answer_newest_first`](engine/sync/NewestLaws.lean#L99-L106) | **kernel-witness**: [Vacuity.RoundExchange.newestAnswer](tests/vacuity/RoundExchange.lean). Applied to Bob's sorted items answering Alice's actual ids claim over the timed range; a native check confirms the haves are [bob2, bob1], newest first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`newest_first`](engine/sync/NewestLaws.lean#L204-L210) | **kernel-witness**: [Vacuity.RoundExchange.newestHaves](tests/vacuity/RoundExchange.lean). Both premises (claims in sync's order, each of one class) are discharged for Alice's actual opening claims over the full window, via window_first and opening_range; Bob answers. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
+| [`window_first`](engine/sync/NewestLaws.lean#L142-L145) | **kernel-witness**: [Vacuity.RoundExchange.windowFirst](tests/vacuity/RoundExchange.lean). Applied at floor 100; the theorem has no premise beyond the floor. The fixture's opening is checked natively to claim the structure range first. Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times; the structure range is empty on both sides. |
 | [`room_independent`](engine/sync/TimeLaws.lean#L136-L142) | **kernel-witness**: [Vacuity.SyncCache.startsRoom](tests/vacuity/SyncCache.lean). Known peer floor, a shown nonempty room index, and no existing snapshot; prove all premises and get actual round message in send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`unshown_room_answered`](engine/sync/TimeLaws.lean#L130-L133) | **kernel-witness**: [Vacuity.SyncCache.refusesRound](tests/vacuity/SyncCache.lean). A nonempty id claim for an unshown room returns an empty round-end message and unchanged connection. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
 | [`uncarried_room_answered`](engine/sync/TimeLaws.lean#L147-L154) | **kernel-witness**: [Vacuity.SyncCache.acceptsNewRound](tests/vacuity/SyncCache.lean). Shown room receives a nonempty id claim with no existing snapshot; prove shown-room, nonempty-claim, missing-snapshot, and accepted-epoch premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof. |
@@ -2241,7 +2256,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`connect_admitted`](app/community/Proofs.lean#L842-L851) | **runtime-witness**: [Vacuity.IdentityTrust.connectAdmitted](tests/vacuity/IdentityTrust.lean). Actual root/request/approval premises, a singleton distinct-approver proof, and deviceLive-derived unremoved premise accept Bob. Synthetic signed fixture, real crypto; successful runtime branches construct premises, Lean checks theorem application. |
 | [`removeMember_valid`](app/community/Proofs.lean#L450-L457) | **conditional**: [Vacuity.CoreRuntime.intentRemoval](tests/vacuity/CoreRuntime.lean). Actual removeMember intent emits one valid Alice-removes-Bob operation; nonempty membership, settled DB, extension and stored-op premises checked at runtime. Self-removal and already-removed controls emit nothing. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it. |
 | [`exchange_complete`](engine/sync/RoundLaws.lean#L232-L241) | **kernel-witness**: [Vacuity.SyncMore.roundComplete](tests/vacuity/SyncMore.lean). Two nonempty overlapping snapshots [1,2] and [2,3]; prove sortedness, naming, honest opening, fuel and collision-freedom. sendsMissing demonstrates actual item 1 transfer. Uses identity hash to inhabit Sound, not a SHA-256 claim. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
-| [`conn_runs_exchange`](engine/sync/RoundRun.lean#L536-L556) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs/snapshots, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. This isolates an unreset delivered round with fixed indices; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed. |
+| [`conn_runs_exchange`](engine/sync/RoundRun.lean#L542-L562) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Three distinct synthetic message index entries: Alice has one, Bob has two, leaf size is 1 and wire chunks hold one ID. Kernel proofs construct the actual Conn.start and alternating onRbsr execution, a fingerprint-to-IDs hop forced by unequal counts, terminal batch, initial active epochs/snapshots, sorted and uniquely named items, empty initial asks, and sufficient ask capacity at every step. A native production-SHA check enumerates all filtered subsets and their actual Merkle inputs; sound_of_check lifts this finite collision check to every possible range, with no universal SHA axiom or substituted hash. The certificate applies conn_runs_exchange, which proves finite claim termination and actual wire have/want coverage of exchange's set difference. The consequence is instantiated separately for all three missing IDs; a nonempty later pending ask is traced to its earlier actual want. Negative controls reject a constant hash and show zero ask capacity suppresses the want. This isolates an unreset delivered round with fixed indices; whole Node/TCP scheduling, data transport, request queue admission, and validation remain separate composition obligations. No collected real-user messages are claimed. |
 | [`lbl_inj`](engine/sync/Fp.lean#L268-L272) | **kernel-witness**: [Vacuity.WireMore.labelsInject](tests/vacuity/WireMore.lean). Two-item tree [1,2] and its reverse satisfy every premise (key/id uniqueness, collision freedom, equal labels); and any list whose label is [1,2]'s, named and collision-free, is proved to hold exactly 1 and 2. The hash is the identity digest, so collision freedom is free here: this exercises the treap labelling's injectivity, not a hash's. No fixed-length SHA injectivity claim. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`opening_honest`](engine/sync/RoundLaws.lean#L323-L325) | **kernel-witness**: [Vacuity.SyncMore.openingHonest](tests/vacuity/SyncMore.lean). Two nonempty snapshots [1,2] and [2,3], all-range query, injectively encoded identifiers and identity hash; generated claim is honest. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`num_inj`](engine/sync/Fp.lean#L40-L40) | **kernel-witness**: [Vacuity.WireMore.numberDecode](tests/vacuity/WireMore.lean). Decoding: any byte list numbered like the nonempty identifier [65,0,255] is that list; separate control proves [1] and [1,0] number differently. Synthetic generic family/held-store fixture; not collected real-user traffic. |
@@ -2449,8 +2464,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](app/community/Screen.lean#L779-L780) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](app/community/Screen.lean#L783-L785) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](app/community/Screen.lean#L809-L811) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](app/Screen.lean#L4007-L4011) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](app/Screen.lean#L4013-L4016) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](app/Screen.lean#L4019-L4023) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](app/Screen.lean#L4025-L4028) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](app/community/channel/message/Proofs.lean#L117-L124) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](app/community/channel/message/Proofs.lean#L128-L134) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](app/community/Proofs.lean#L1419-L1429) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
@@ -2624,24 +2639,24 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`offer_bounded`](engine/wire/Reserved.lean#L147-L149) | **kernel-witness**: [Vacuity.RetryReservation.offerBound](tests/vacuity/RetryReservation.lean). Nonempty local-write and ordinary-sync queues construct the byte/frame capacity premises; the lane bound also constructs actual admission reachability from empty. The certificate applies the named theorem. Lanes.take and Reserved.offer are supporting component operations; the production Outbox uses Reserved.take and RetrySlot.offer. This is a finite kernel fixture, not native delivery or whole-app convergence. |
 | [`successor`](engine/sync/RoundRun.lean#L127-L129) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual emitted fingerprint response is decoded into the next claim batch in the three-item fixture. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`ready_next`](engine/sync/RoundRun.lean#L133-L136) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The nonempty fingerprint-to-ID reply preserves active epochs and the original snapshots on both sides. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`terminates`](engine/sync/RoundRun.lean#L199-L208) | **kernel-witness**: [Vacuity.RoundExchange.terminates](tests/vacuity/RoundExchange.lean). Three distinct synthetic entries, leaf size 1, and an actual Conn.start execution force a nonempty fingerprint-to-ID path. Sorted snapshots, Ready, exact handler transitions and rank bound are proved; termination has no hash-soundness or assumed-progress premise. |
-| [`discovers`](engine/sync/RoundRun.lean#L300-L312) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The certificate applies bounded discovery to each of three missing IDs, including have and want outcomes. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`pending_source`](engine/sync/RoundRun.lean#L385-L392) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). A checked nonempty Alice ask at step 2 yields an actual earlier want emitted by the handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`discovers_wire`](engine/sync/RoundRun.lean#L408-L418) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Every concrete missing ID obtains a finite-step actual wire witness; previously pending asks have source witnesses. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`execute_runs`](engine/sync/RoundRun.lean#L440-L441) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The executable fixture starts with actual Conn.start and recursively calls the actual onRbsr handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`advance_empty`](engine/sync/RoundRun.lean#L443-L444) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The terminal batch remains empty through later actual-handler steps; the native suite checks step 10. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`run_empty`](engine/sync/RoundRun.lean#L450-L452) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Kernel induction proves all batches after step 2 are empty, supporting the all-times capacity premise. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`run_bounded`](engine/sync/RoundRun.lean#L460-L463) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Both actual connection states retain known/asked bounds, including the nonempty pending Alice ask. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`holds_announced`](engine/sync/RoundRun.lean#L270-L274) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Bob1 and Bob2 each obtain an actual emitted have witness, with one ID per wire chunk. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`wants_seen`](engine/sync/RoundRun.lean#L283-L288) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Alice obtains an actual emitted want witness under the proved free-slot bound. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`collisionCheck_sound`](engine/sync/RoundRun.lean#L496-L497) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Production SHA256 is checked on the finite set of all subset-tree inputs; a constant-hash control fails. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`sound_of_check`](engine/sync/RoundRun.lean#L503-L507) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Exhaustive filtered-subset enumeration lifts the finite native SHA check to all possible range restrictions. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`initial_claim`](engine/sync/RoundRun.lean#L523-L525) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual Conn.start emits a fingerprint for Bob's two entries under leaf size 1. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`initial_ready`](engine/sync/RoundRun.lean#L519-L520) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual Conn.start and the fresh responder prove shown rooms, active epochs, and exact initial snapshots. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`initial_asks`](engine/sync/RoundRun.lean#L528-L532) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Both fresh connection states have empty asks; later nonempty asks must have actual wire origins. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`next_mem`](engine/sync/RoundRun.lean#L180-L182) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The actual fingerprint-to-ID successor batch contains the child claim used by finite-rank discovery. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`terminates`](engine/sync/RoundRun.lean#L200-L209) | **kernel-witness**: [Vacuity.RoundExchange.terminates](tests/vacuity/RoundExchange.lean). Three distinct synthetic entries, leaf size 1, and an actual Conn.start execution force a nonempty fingerprint-to-ID path. Sorted snapshots, Ready, exact handler transitions and rank bound are proved; termination has no hash-soundness or assumed-progress premise. |
+| [`discovers`](engine/sync/RoundRun.lean#L301-L313) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The certificate applies bounded discovery to each of three missing IDs, including have and want outcomes. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`pending_source`](engine/sync/RoundRun.lean#L386-L393) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). A checked nonempty Alice ask at step 2 yields an actual earlier want emitted by the handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`discovers_wire`](engine/sync/RoundRun.lean#L409-L419) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Every concrete missing ID obtains a finite-step actual wire witness; previously pending asks have source witnesses. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`execute_runs`](engine/sync/RoundRun.lean#L441-L442) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The executable fixture starts with actual Conn.start and recursively calls the actual onRbsr handler. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`advance_empty`](engine/sync/RoundRun.lean#L444-L445) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The terminal batch remains empty through later actual-handler steps; the native suite checks step 10. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`run_empty`](engine/sync/RoundRun.lean#L451-L453) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Kernel induction proves all batches after step 2 are empty, supporting the all-times capacity premise. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`run_bounded`](engine/sync/RoundRun.lean#L461-L464) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Both actual connection states retain known/asked bounds, including the nonempty pending Alice ask. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`holds_announced`](engine/sync/RoundRun.lean#L271-L275) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Bob1 and Bob2 each obtain an actual emitted have witness, with one ID per wire chunk. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`wants_seen`](engine/sync/RoundRun.lean#L284-L289) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Alice obtains an actual emitted want witness under the proved free-slot bound. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`collisionCheck_sound`](engine/sync/RoundRun.lean#L497-L498) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Production SHA256 is checked on the finite set of all subset-tree inputs; a constant-hash control fails. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`sound_of_check`](engine/sync/RoundRun.lean#L504-L508) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Exhaustive filtered-subset enumeration lifts the finite native SHA check to all possible range restrictions. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`initial_ready`](engine/sync/RoundRun.lean#L520-L521) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual Conn.start and the fresh responder prove shown rooms, active epochs, and exact initial snapshots. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`initial_claim`](engine/sync/RoundRun.lean#L528-L531) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Actual Conn.start emits a fingerprint for Bob's two entries under leaf size 1. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`initial_asks`](engine/sync/RoundRun.lean#L534-L538) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Both fresh connection states have empty asks; later nonempty asks must have actual wire origins. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`next_mem`](engine/sync/RoundRun.lean#L181-L183) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The actual fingerprint-to-ID successor batch contains the child claim used by finite-rank discovery. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`answer_rank`](engine/sync/RoundRun.lean#L154-L159) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). The unequal 1-versus-2 fingerprint counts force an ID child with strictly smaller rank. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
-| [`filter_in_subsets`](engine/sync/RoundRun.lean#L476-L476) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Every possible range filter of the three concrete entries is among the enumerated subsets. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
+| [`filter_in_subsets`](engine/sync/RoundRun.lean#L477-L477) | **runtime-witness**: [Vacuity.RoundExchange.exchangeCertificate](tests/vacuity/RoundExchange.lean). Every possible range filter of the three concrete entries is among the enumerated subsets. Synthetic isolated-round fixture; full Node/TCP composition is separate. |
 | [`run_observed`](engine/sync/SweepRun.lean#L24-L32) | **kernel-witness**: [Vacuity.Sweep.readOnlyRun](tests/vacuity/Sweep.lean). A populated Held store and real Catalog.held reader discharge both read-only premises. The actual Sweep.run equals the proved cursor transition; exactInput and exactOutput independently check it returns the stored nonempty message and leaves the store unchanged. Synthetic generic family, not native SQLite or signed-community security. |
 | [`Sweep.step_progress`](engine/sync/SweepLaws.lean#L52-L61) | **kernel-witness**: [Vacuity.Sweep.progress](tests/vacuity/Sweep.lean). A retained nonempty synthetic Alice message at catalog position1 is authorized and fits the reserved frame. All premises are kernel discharged; the exact output is independently checked. A later ceiling of500 does not extend the captured ceiling1. This is cursor progress, not proof that the native writer supplies reservation. |
 | [`step_nonincrease`](engine/sync/SweepLaws.lean#L124-L131) | **kernel-witness**: [Vacuity.Sweep.stalled](tests/vacuity/Sweep.lean). The same eligible nonempty message encounters zero output room. The unsent premise is kernel checked, the theorem preserves its rank and an independent exact check proves the cursor does not advance. A revoked-authorization control suppresses output. |

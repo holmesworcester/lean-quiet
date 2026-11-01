@@ -308,8 +308,8 @@ theorem answer_step (X Y : List α) (q : Range) (c : Claim) (sX : Engine.Sync.So
         have hY : (within key q' Y).length ≤ (within key r Y).length :=
           filter_len_le (fun a ha => hsub _ ha)
         refine ⟨q', ?_, hsub, hdq, by omega, pieces_le P sX q' hq', hY, hl'⟩
-        simp only [answer, hf, hl, ite_false]
-        exact List.mem_map.2 ⟨q', List.mem_reverse.2 hq', rfl⟩
+        simp only [answer, hf, hl, ite_false, List.mem_map, List.mem_reverse]
+        exact ⟨q', hq', rfl⟩
 
 end
 

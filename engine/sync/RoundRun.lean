@@ -170,7 +170,7 @@ theorem answer_rank (cfg : Config) (X Y : List Item) (sx : Sorted Prod.fst X)
       · rename_i hf hl
         obtain ⟨piece, hp, he⟩ := List.mem_map.mp hc
         cases he
-        have hp := List.mem_reverse.mp hp
+        have hp : piece ∈ pieces q (cutsOf Prod.fst cfg.params (within Prod.fst q X)) := by simpa using hp
         have shrunk := pieces_shrink (P := cfg.params) sx (Nat.lt_of_not_ge hl) piece hp
         have peer := filter_len_le (l := Y) (fun a ha => shrunk.2 (Prod.fst a) ha)
         refine ⟨⟨piece, rfl, rfl⟩, ?_⟩
