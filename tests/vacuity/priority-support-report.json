@@ -20,7 +20,7 @@
     "module": "tests.vacuity.Priority",
     "detail": "Bob's frame waits behind Alice's frame while two local writes are already queued. Its rank8 premise is constructed, and the actual chooser either serves it or lowers that rank despite a new local write and frame appended immediately afterward."
   },
-  "served": {
+  "Priority.served": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.Inbox.Priority.served",
     "witness": "Vacuity.Priority.servedFromRank",

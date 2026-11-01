@@ -112,7 +112,7 @@ all reader lifetimes, or Windows cancellation.
 
 | Obligation | Concrete remaining issue |
 |---|---|
-| Per-peer service | Readers compete to enqueue into one shared event channel. A bound for an already admitted event does not bound admission by each peer. |
+| Per-peer service | Fixed peer mailboxes remove competition for the shared network queue, and the admitted-source deadline survives peer churn. Competing local/control producers still lack a fair admission bound; completion of a loop turn remains separate. |
 | Wait cancellation | Supported POSIX sends now abort and retain ownership through callback completion. Reader-task ownership, cross-thread stop-token semantics, connect deadlines, native callback progress and Windows cancellation remain to be closed. |
 | Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
 | Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
@@ -174,3 +174,14 @@ The same scope must surround other build/test tasks, including mutation
 scripts that launch Lean themselves. Logs and scratch builds stay on
 `/mnt/storage`. Hosted CI activation still needs the previously reported
 GitHub workflow credential; the reviewed workflow remains inactive.
+
+## Peer ingress milestone
+
+The real TCP readers now use a fixed mailbox per retained socket. The consumer
+rotates within the network share, leaving the outer UI-first 3:1 policy intact.
+The executable core proves service-or-retirement within `4 * (maxSocks + 1)`
+completed turns and local selection within `2 * (p + 1)`. These bounds survive
+other-peer churn. They cover admitted values; fairness among competing
+producers, completion of each turn and end-to-end display remain separate.
+See [INGRESS-FAIRNESS.md](INGRESS-FAIRNESS.md) for the 65 native checks, eight
+controls and nonempty infinite selector witnesses.

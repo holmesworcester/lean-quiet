@@ -1,11 +1,4 @@
 {
-  "step_progress": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.Sweep.step_progress",
-    "witness": "Vacuity.Sweep.progress",
-    "module": "tests.vacuity.Sweep",
-    "detail": "A retained nonempty synthetic Alice message at catalog position1 is authorized and fits the reserved frame. All premises are kernel discharged; the exact output is independently checked. A later ceiling of500 does not extend the captured ceiling1. This is cursor progress, not proof that the native writer supplies reservation."
-  },
   "step_nonincrease": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.Sweep.step_nonincrease",
@@ -26,5 +19,12 @@
     "witness": "Vacuity.Sweep.heldRun",
     "module": "tests.vacuity.Sweep",
     "detail": "The concrete one-row Held catalog has an independently checked existing row and returns the actual nonempty synthetic message. The named theorem identifies the running Sweep.run call with its pure input observation. Native SQL refinement and socket admission remain separate."
+  },
+  "Sweep.step_progress": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Sweep.step_progress",
+    "witness": "Vacuity.Sweep.progress",
+    "module": "tests.vacuity.Sweep",
+    "detail": "A retained nonempty synthetic Alice message at catalog position1 is authorized and fits the reserved frame. All premises are kernel discharged; the exact output is independently checked. A later ceiling of500 does not extend the captured ceiling1. This is cursor progress, not proof that the native writer supplies reservation."
   }
 }

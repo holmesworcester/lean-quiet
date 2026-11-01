@@ -18,14 +18,15 @@ def node (path : String) (consume : IO.Ref Bool) : IO Runner := do
   let node := Node.boot fam (← (dumpOps (F := SF)).run db) 0
   let cfg : RunConfig := { queue := 1 }
   let ch ← eventChannel cfg
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
   let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
     while !(← consume.get) do IO.sleep 1
-    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots } turnCounters
+    runLoop x ch (fun _ => pure ()) cfg writes { db, node, slots, ingress } turnCounters
   return {
-    events := ch, writes, port := 0, done, slots, turnCounters
+    events := ch, writes, port := 0, done, slots, turnCounters, ingress
     stopped := ← IO.mkRef false, listening := Task.pure (.ok ()),
     listener := ← listener, closing := ← Std.Mutex.new false }
 

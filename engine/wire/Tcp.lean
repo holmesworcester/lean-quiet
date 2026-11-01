@@ -51,6 +51,7 @@ import Std.Sync.Channel
 import engine.wire.Listener
 import engine.wire.SocketAbort
 import engine.wire.Reserved
+import engine.wire.IngressIO
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -146,6 +147,7 @@ structure Sock where
   failed. -/
   done : Task (Except IO.Error Unit)
   aborter : Option SocketAbort := none
+  input : Option Ingress.Source := none
 
 /-- Push frames and wake the writer. Ordinary overflow is repairable loss;
 only protected-control refusal returns false and requests transport close.
@@ -206,11 +208,16 @@ structure RunState where
   /-- Pending destinations not yet given a native socket reservation. -/
   waiting : List ByteArray := []
   slots : Slots
+  ingress : Ingress.Hub Event
 
-/-- Block on a full event queue. The SDK does not release waiting producers
-on close; producer cancellation is a separate outstanding obligation. -/
-def enqueue (ch : Std.CloseableChannel.Sync Event) (ev : Event) : IO Bool := do
-  return (← (ch.send ev).toBaseIO).isOk
+/-- Backpressure retains one value on this producer's stack. Closing the
+queue or requesting cancellation releases it without an SDK send waiter. -/
+def enqueue (ch : Std.CloseableChannel.Sync Event) (ev : Event)
+    (cancel : IO Bool := pure false) : IO Bool := do
+  repeat
+    if (← cancel) || (← ch.isClosed) then return false
+    if ← ch.trySend ev then return true
+    IO.sleep 1
 
 /-- Cancel the read as well as shutting down writes, so its dedicated
 reader releases its socket reference even if the peer never sends FIN. -/
@@ -236,7 +243,8 @@ def readSocket (c : TCP.Socket.Client) (stopped : IO.Ref Bool) (need : Nat) : IO
 /-- Read frames from a socket into the channel until it closes. Each
 read goes through `frames`, so what is kept between reads is less than
 one maximal frame and its length (`buffer_bounded`). -/
-def reader (ch : Std.CloseableChannel.Sync Event) (sid : Nat) (c : TCP.Socket.Client) (stopped : IO.Ref Bool) : IO Unit := do
+def reader (hub : Ingress.Hub Event) (input : Ingress.Source) (sid : Nat)
+    (c : TCP.Socket.Client) (stopped : IO.Ref Bool) : IO Unit := do
   let mut buf := ByteArray.empty
   repeat
     let need := if buf.size < 4 then 4 - buf.size
@@ -245,14 +253,14 @@ def reader (ch : Std.CloseableChannel.Sync Event) (sid : Nat) (c : TCP.Socket.Cl
     | some chunk =>
       let (ps, kept) := frames (buf ++ chunk)
       for p in ps do
-        unless ← enqueue ch (.frame sid p) do return
+        unless ← hub.send input (.frame sid p) do return
       match kept with
       | some rest => buf := rest
       | none =>
-        discard <| enqueue ch (.closed sid)
+        discard <| hub.send input (.closed sid)
         return
     | _ =>
-      discard <| enqueue ch (.closed sid)
+      discard <| hub.send input (.closed sid)
       return
 
 /-- Accept connections into the channel until stopped; then return, so
@@ -266,7 +274,7 @@ def acceptor (ch : Std.CloseableChannel.Sync Event) (srv : TCP.Socket.Server) (s
         | .ok a => addrText a
         | .error _ => "?"
       if ← slots.take cfg peer.toUTF8 then
-        unless ← enqueue ch (.accepted c peer.toUTF8) do
+        unless ← enqueue ch (.accepted c peer.toUTF8) stopped.get do
           SocketAbort.closeIdle c
           slots.release peer.toUTF8
       else SocketAbort.closeIdle c
@@ -355,16 +363,20 @@ def RunState.startPending (cfg : RunConfig) (st : RunState) : IO RunState := do
   return { st with waiting := st.waiting.filter (!chosen.contains ·) }
 
 def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
-    IO (RunState × Nat) := do
+    IO (RunState × Option Nat) := do
+  let some input ← st.ingress.reserve | do
+    SocketAbort.closeIdle c
+    st.slots.release addr
+    return (st, none)
   let sid := st.next
   let stopped ← IO.mkRef false
   let out ← Std.Mutex.new {}
   let wake ← Std.Condvar.new
   let aborter ← SocketAbort.capture c
-  let _ ← IO.asTask (prio := .dedicated) (reader ch sid c stopped)
+  let _ ← IO.asTask (prio := .dedicated) (reader st.ingress input sid c stopped)
   let done ← IO.asTask (prio := .dedicated) (writer ch st.slots sid c addr out wake cfg.burst aborter cfg.stallMs)
-  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake, done, aborter }
-  return ({ st with socks := s :: st.socks, next := sid + 1 }, sid)
+  let s : Sock := { id := sid, client := c, addr, heard := now, stopped, out := out, wake := wake, done, aborter, input := some input }
+  return ({ st with socks := s :: st.socks, next := sid + 1 }, some sid)
 
 /-- Every socket end notifies the node, then stops the socket's reader
 and writer; the writer releases its slot when it ends. -/
@@ -374,6 +386,7 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO 
   | some s =>
     let (node, e) ← (st.node.step x (.close s.addr) now).run st.db
     s.stopped.set true
+    if let some input := s.input then st.ingress.retire input
     if drain then s.drain else s.stop
     return ({ st.drop sid with node }, e)
 
@@ -479,6 +492,12 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     some <$> ({ st with node, pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }).apply x ch notify cfg e now
   | .dialed addr (some c) =>
     let (st, sid) ← st.addSock ch cfg c addr now
+    let some sid := sid | do
+      let (node, e) ← (st.node.step x (.close addr) now).run st.db
+      return some (← ({ st with
+        node
+        pending := st.pending.filter (·.1 != addr)
+        waiting := st.waiting.filter (· != addr) }).apply x ch notify cfg e now)
     let frames := (st.pending.find? (·.1 == addr)).map (·.2) |>.getD []
     let st := { st with pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }
     -- A new address's first frames are the session's opening: urgent.
@@ -492,6 +511,7 @@ wait at most `stopMs` for writes already under way. -/
 def RunState.shutdown (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op))
     (st : RunState) (now : Nat) : IO RunState := do
   let mut st := st
+  st.ingress.stop
   discard <| ch.close.toBaseIO
   discard <| writes.close.toBaseIO
   let socks := st.socks
@@ -519,11 +539,14 @@ def RunState.ackRetries (st : RunState) : IO Unit := do
 /-- Native adapters for the shared turn. Every node invocation uses
 `Node.step`; frames, effects, socket expiry and shutdown retain their actual
 SQLite and TCP implementations. -/
-def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) :
+def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op))
+    (ingress : Ingress.Hub Event) :
     Loop.Backend IO RunState (List Op) Event where
   clock := IO.monoMsNow
   writes := writes.tryRecv
-  events := ch.tryRecv
+  events := do
+    if ← ingress.stopped then return some .stop
+    ingress.poll ch.tryRecv
   write := fun st ops now => do
     let (st, e) ← st.node? fun n => n.step x (.write ops) now
     st.apply x ch notify cfg e now
@@ -565,7 +588,7 @@ def TurnCounters.record {W E : Type} (c : TurnCounters) (selected : Option (W �
 phase and recording completed work without an observer callback. -/
 def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState)
     (turns : IO.Ref TurnCounters) : IO Unit := do
-  let backend := RunState.loopBackend x ch notify cfg writes
+  let backend := RunState.loopBackend x ch notify cfg writes st.ingress
   let mut state : Loop.State RunState := { value := st }
   repeat
     turns.modify fun c => { c with started := c.started + 1 }
@@ -590,6 +613,7 @@ structure Runner where
   listener : Std.Internal.UV.TCP.Socket
   closing : Std.Mutex Bool
   turnCounters : IO.Ref TurnCounters
+  ingress : Ingress.Hub Event
 
 /-- A nonblocking snapshot of fixed-size runner telemetry. `started` advances
 before polling, so a notification emitted inside that turn can identify it. -/
@@ -603,6 +627,7 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
   let x := { x with catalog := some (Catalog.sql (F := F)), retryStore := some (RetryStore.sql (F := F)), deferredRetries := true }
   let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
   let ch ← eventChannel cfg
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)
   let slots ← Std.Mutex.new []
   let srv ← TCP.Socket.Server.mk
@@ -615,25 +640,36 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
   let listening ← IO.asTask (prio := .dedicated) (acceptor ch srv stopped slots cfg)
   let turnCounters ← IO.mkRef ({} : TurnCounters)
   let done ← IO.asTask (prio := .dedicated) do
-    try runLoop x ch notify cfg writes { db, node, slots } turnCounters
+    try runLoop x ch notify cfg writes { db, node, slots, ingress } turnCounters
     catch e =>
       -- The native shells retain stderr (iOS lean.log / Android logcat).
       -- A background IO failure must not disappear into an unread Task.
       IO.eprintln s!"network runner stopped: {e}"
       throw e
   let closing ← Std.Mutex.new false
-  return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing, turnCounters }
+  return { events := ch, writes, port := bound, done, stopped, listening, slots, listener := srv.native, closing, turnCounters, ingress }
 
-/-- Each socket's address and the bytes its lanes hold now, in the
-loop's turn; empty once it has stopped. -/
+/-- Each socket's address and the bytes its lanes hold in the loop's turn.
+An unanswered request returns empty after shutdown or runner failure. -/
 def Runner.lanes (r : Runner) : IO (List (ByteArray × Nat)) := do
   let p ← IO.Promise.new
-  unless ← enqueue r.events (.lanes p) do return []
-  return (← IO.wait p.result?).getD []
+  let canceled := do
+    return (← r.stopped.get) || (← IO.hasFinished r.done)
+  unless ← enqueue r.events (.lanes p) canceled do return []
+  repeat
+    if ← p.isResolved then return (← IO.wait p.result?).getD []
+    if (← canceled) || (← r.events.isClosed) then return []
+    IO.sleep 1
 
 /-- Queue local writes for bounded-fair service. Background callers may wait
-for space; the app uses `writes.trySend` and keeps unaccepted writes. -/
-def Runner.write (r : Runner) (ops : List Op) : IO Unit := discard <| (r.writes.send ops).toBaseIO
+for space, observing shutdown and runner failure without a channel producer
+promise. Unit completion is not an admission receipt: shutdown may cancel the
+write. The app uses `writes.trySend` and keeps unaccepted writes. -/
+def Runner.write (r : Runner) (ops : List Op) : IO Unit := do
+  repeat
+    if (← r.stopped.get) || (← r.writes.isClosed) || (← IO.hasFinished r.done) then return
+    if ← r.writes.trySend ops then return
+    IO.sleep 1
 
 /-- Stop: the loop ends and shuts every socket down, the listener is
 released (its port free for the next start), and both are waited for. -/
@@ -641,7 +677,7 @@ def Runner.stop (r : Runner) : IO Unit := r.closing.atomically do
   if ← getThe Bool then return
   set true
   r.stopped.set true
-  discard <| enqueue r.events .stop
+  r.ingress.stop
   discard <| IO.wait r.done
   discard <| IO.wait r.listening
   closeListener r.listener

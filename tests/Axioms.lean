@@ -1,3 +1,6 @@
+import engine.wire.IngressLaws
+import engine.wire.IngressPriorityLaws
+import engine.wire.IngressChurnLaws
 import engine.renderer.SafeLaws
 import engine.renderer.Demand
 
@@ -1377,3 +1380,37 @@ end cost
 #print axioms Engine.Sync.Outbox.urgent_then_retry
 #print axioms Engine.Sync.Outbox.retry_next_batch
 #print axioms Engine.Sync.serveOwed_hot_count
+
+#print axioms Engine.Sync.Ingress.distance_lt
+#print axioms Engine.Sync.Ingress.distance_zero
+#print axioms Engine.Sync.Ingress.advance_distance
+#print axioms Engine.Sync.Ingress.scan_ready
+#print axioms Engine.Sync.Ingress.scan_selected
+#print axioms Engine.Sync.Ingress.offer_preserves
+#print axioms Engine.Sync.Ingress.poll_progress
+#print axioms Engine.Sync.Ingress.arrivals_preserve
+#print axioms Engine.Sync.Ingress.served
+#print axioms Engine.Sync.Ingress.source_within
+#print axioms Engine.Sync.Ingress.flooded_prefix
+#print axioms Engine.Sync.Ingress.Prioritized.step_write
+#print axioms Engine.Sync.Ingress.Prioritized.step_event
+#print axioms Engine.Sync.Ingress.Prioritized.step_only_event
+#print axioms Engine.Sync.Ingress.Prioritized.poll_exists
+#print axioms Engine.Sync.Ingress.Prioritized.step_progress
+#print axioms Engine.Sync.Ingress.Prioritized.served
+#print axioms Engine.Sync.Ingress.Prioritized.source_within
+#print axioms Engine.Sync.Ingress.Prioritized.step_empty_event
+#print axioms Engine.Sync.Ingress.Prioritized.write_progress
+#print axioms Engine.Sync.Ingress.Prioritized.write_served
+#print axioms Engine.Sync.Ingress.Prioritized.write_within
+#print axioms Engine.Sync.Ingress.cancel_other
+#print axioms Engine.Sync.Ingress.cancelAll_preserves
+#print axioms Engine.Sync.Ingress.Prioritized.changes_preserve
+#print axioms Engine.Sync.Ingress.Prioritized.served_or_cancelled
+#print axioms Engine.Sync.Ingress.Prioritized.source_or_cancelled_within
+#print axioms Engine.Sync.Ingress.Prioritized.Waiting.same_inputs
+#print axioms Engine.Sync.Ingress.Prioritized.write_served_churn
+#print axioms Engine.Sync.Ingress.Prioritized.write_within_churn
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_source
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_write
+#print axioms Engine.Sync.Ingress.Prioritized.churnFlood_exact

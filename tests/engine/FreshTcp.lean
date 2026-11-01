@@ -75,14 +75,16 @@ def retiredDrain (t : Checks) (full : Bool := false) : IO Unit := do
   let ch ← eventChannel { queue := 4 }
   let slots : Slots ← Std.Mutex.new []
   let cfg : RunConfig := { sockCap := 4096 }
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
+  let some input ← ingress.reserve | throw (IO.userError "retired source admission")
   discard <| slots.take cfg addr
   let backlog : List ByteArray := if full then [⟨Array.replicate cfg.sockCap 98⟩] else []
   let out ← Std.Mutex.new ({ lanes := { serve := backlog } } : Outbox)
   let wake ← Std.Condvar.new
   let stopped ← IO.mkRef false
   let aborter ← SocketAbort.capture client
-  let sock : Sock := { id := 0, client, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()), aborter }
-  let st : RunState := { db, slots, node := { ix := {}, floor := 0, addrs := [(cid, addr)] }, socks := [sock] }
+  let sock : Sock := { id := 0, client, addr, heard := 0, stopped, out, wake, done := Task.pure (.ok ()), aborter, input := some input }
+  let st : RunState := { db, slots, ingress, node := { ix := {}, floor := 0, addrs := [(cid, addr)] }, socks := [sock] }
   let payload := "final removal notice".toUTF8
   let st ← RunState.apply x ch (fun _ => pure ()) cfg st { send := [(addr, payload)], drop := [cid] } 1
   t.ok "retirement removes the socket without waiting for its gated writer" st.socks.isEmpty
@@ -145,6 +147,8 @@ def neverReader (t : Checks) (closed retired : Bool) : IO Unit := do
   let some peerAborter ← SocketAbort.capture peer |
     t.ok s!"POSIX peer abort capability exists ({tag})" false; return
   let cfg : RunConfig := { queue := 1, maxSocks := 1, perAddr := 1, stallMs := 150 }
+  let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
+  let some input ← ingress.reserve | throw (IO.userError "never-reader source admission")
   let addr := "never-reader".toUTF8
   let session := sess "never-reader/session"
   let cid := session.id
@@ -171,13 +175,14 @@ def neverReader (t : Checks) (closed retired : Bool) : IO Unit := do
     out := out
     wake := wake
     done := Task.pure (.ok ())
-    aborter := some aborter }
+    aborter := some aborter
+    input := some input }
   let node : Node := {
     ix := Index.ofOps Harden.fam [session]
     floor := 0
     conns := [(cid, { dialer := false, rooms := [], floor := 0 })]
     addrs := [(cid, addr)] }
-  let st : RunState := { db, node, socks := [sock], slots }
+  let st : RunState := { db, node, socks := [sock], slots, ingress }
   if retired then
     let (gone, _) ← RunState.close x st 0 1 true
     t.ok s!"retired socket has left the main stall scan ({tag})" gone.socks.isEmpty

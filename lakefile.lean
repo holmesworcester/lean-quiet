@@ -300,6 +300,9 @@ lean_exe catalog_retry where
 lean_exe reserved_retry where
   root := `tests.engine.ReservedRetry
 
+lean_exe ingress_tcp where
+  root := `tests.engine.IngressTcp
+
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where
   root := `platforms.headless.Cross
