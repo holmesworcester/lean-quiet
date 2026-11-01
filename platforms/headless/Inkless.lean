@@ -7,7 +7,7 @@ painter does the lookup, rasterization and blit. Nothing parses fonts here.
 
     lake build inkless && .lake/build/bin/inkless
 -/
-import ops.community.Facts
+import ops.community.Family
 import engine.renderer.Paint
 
 namespace Inkless

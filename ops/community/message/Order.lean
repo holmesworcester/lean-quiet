@@ -200,7 +200,8 @@ theorem asMsg_sorted (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteArr
     obtain ⟨he, _, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq (mem_orient.1 hr)
     obtain ⟨⟨sk, z⟩, f⟩ := r
     cases f with
-    | received c' kid' m k clump =>
+    | ofReceived x =>
+      obtain ⟨c', kid', m, k, clump⟩ := x
       simp only [received.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
       obtain ⟨rfl, rfl⟩ := hargs
       exact ⟨k, m, z, clump, by simpa [SortKey.sortOf, sortOf] using he⟩
@@ -291,8 +292,9 @@ theorem topCount_ge (h : Inv (family C) s) (hq : s.queue = []) {c y : Id} {u d k
   obtain ⟨y', f', ht, _, ha', hle⟩ :=
     first_after (r := message.all) (as := [c]) (by simp [rels]) h hq hv (by simp [message.all])
   cases f' with
-  | message c' u' d' kid' sealed' n' tm' clump' => ?_
+  | ofMessage x => ?_
   | _ => simp [message.all] at ha'
+  obtain ⟨c', u', d', kid', sealed', n', tm', clump'⟩ := x
   have hc : (topCount c).eval s = min n' countCap := by
     simp only [topCount, Rel.read, View.eval_bind, View.eval_read, View.eval_pure, ht]
   rw [hc]
@@ -308,8 +310,9 @@ theorem topReceived_ge (h : Inv (family C) s) (hq : s.queue = []) {c z : Id} {ki
   obtain ⟨y', f', ht, hv', ha', hle⟩ :=
     first_after (r := received.all) (as := [c]) (by simp [rels]) h hq hv (by simp [received.all])
   cases f' with
-  | received c' kid' m' j' clump' => ?_
+  | ofReceived x => ?_
   | _ => simp [received.all] at ha'
+  obtain ⟨c', kid', m', j', clump'⟩ := x
   simp [received.all] at ha'
   subst ha'
   have hc : (topReceived c').eval s = j' := by
@@ -340,7 +343,8 @@ theorem receipt_past (h : Inv (family C) s) (hq : s.queue = []) {c : Id}
       obtain ⟨⟨sk, z⟩, f⟩ := t
       obtain ⟨_, hv, ha⟩ := row_at (C := C) (r := received.all) (by simp [rels]) h hq (List.mem_of_mem_head? ht)
       cases f with
-      | received c' kid m j clump =>
+      | ofReceived x =>
+        obtain ⟨c', kid, m, j, clump⟩ := x
         simp [received.all] at ha; subst ha
         exact hk _ _ _ _ _ hv
       | _ => simp [received.all] at ha
@@ -383,7 +387,7 @@ theorem receipt_post (h : Inv (family C) s) (hq : s.queue = []) {o : Op} {kid se
     rw [matching_also_nil _ rfl, mem_matching] at hp
     obtain ⟨z, f, rfl, hz, hf⟩ := hp
     obtain ⟨hv, ha⟩ := (filed (C := C) (r := received.byMsg) (by simp [rels]) h hq [o.id] z f).1 ⟨hz, hf⟩
-    cases f <;> simp [received.byMsg] at ha
+    cases f <;> (try (rename_i x; cases x)) <;> simp [received.byMsg] at ha
     subst ha
     obtain ⟨_, _, _, _, _, _, _, _, _, hm⟩ := received_of_message hv
     obtain ⟨o', _, _, hx, _⟩ := valid_inv hm
@@ -655,7 +659,8 @@ theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : 
     obtain ⟨he, _, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq hr
     obtain ⟨⟨sk, z⟩, f⟩ := r
     cases f with
-    | received c' kid' m k clump =>
+    | ofReceived x =>
+      obtain ⟨c', kid', m, k, clump⟩ := x
       simp only [received.byKey, Option.some.injEq, List.cons.injEq, and_true] at hargs
       obtain ⟨rfl, rfl⟩ := hargs
       have hsk : sk = recKey k m := by simpa [SortKey.sortOf, sortOf] using congrArg (·.1.1) he

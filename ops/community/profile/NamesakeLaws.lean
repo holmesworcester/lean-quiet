@@ -27,7 +27,8 @@ theorem others_iff (db : DB Fact) (c u k : Id) : ∀ (rows : List (Pos × Fact))
   | (p, f) :: t, deps => by
     have ih := others_iff db c u k t
     cases f
-    case profile c' u' n tm =>
+    case ofProfile x =>
+      obtain ⟨c', u', n, tm⟩ := x
       by_cases hu : u' = u
       · simp only [Profile.others, hu, ite_true]
         rw [ih]
@@ -77,14 +78,15 @@ theorem eval_one (r : Rel Fact) (as : List ByteArray) :
 
 theorem byUser_args {c u : Id} {f : Fact} :
     profile.byUser.args f = some [c, u] ↔ ∃ n tm, f = .profile c u n tm := by
-  cases f <;> simp [profile.byUser, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [profile.byUser, eq_comm]
 
 theorem byLook_args {c k : Id} {f : Fact} :
     profile.byLook.args f = some [c, k] ↔
       ∃ u n tm, f = .profile c u n tm ∧ nameLook ((String.fromUTF8? n).getD "?") = k := by
   cases f
-  case profile c' u n tm =>
-    simp only [profile.byLook, Option.some.injEq, List.cons.injEq, and_true, Fact.profile.injEq]
+  case ofProfile x =>
+    obtain ⟨c', u, n, tm⟩ := x
+    simp only [profile.byLook, Rel.comap_args, Fact.profile?, Option.bind_some, Profile.byLook_args, Option.some.injEq, List.cons.injEq, and_true, Fact.profile.injEq]
     constructor
     · rintro ⟨rfl, rfl⟩; exact ⟨u, n, tm, ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
     · rintro ⟨_, _, _, ⟨rfl, rfl, rfl, rfl⟩, rfl⟩; exact ⟨rfl, rfl⟩

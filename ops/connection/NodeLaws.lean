@@ -40,7 +40,8 @@ theorem reads_unremoved (c : Id) (rows : List (Pos × Fact)) : (unremoved c rows
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
-    | admission c' u d e =>
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       show View.Reads _ (if c' = c then _ else _)
       split
       · exact .list ⟨removal.byUser, by simp [rels], [c, u], rfl⟩ fun a => by
@@ -64,7 +65,8 @@ theorem reads_live (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads (R
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
-    | admission c' u d e =>
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       show View.Reads _ (if c' = c then _ else _)
       split
       · exact (reads_deviceLive c d).bind fun _ => ih.bind fun _ => .pure _

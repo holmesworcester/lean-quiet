@@ -133,7 +133,7 @@ theorem v_root (h : x.r ∈ L) : V C (table L) x.c (.admission x.c x.c x.A.pk x.
   show validate C x.r [] = _
   unfold validate
   rw [show x.r = root x.A x.kA from rfl, root, body_mk]
-  simp only [Body.tag, Op.make_kind, ↓reduceIte, check]
+  simp only [Body.tag, Op.make_kind, ↓reduceIte, check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check]
   rw [if_pos]
   · rfl
   · exact g.rootSig
@@ -146,8 +146,9 @@ theorem v_inv (h1 : x.r ∈ L) (h2 : x.inv ∈ L) :
   · show validate C x.inv _ = _
     unfold validate
     rw [show x.inv = invite x.c x.c x.A x.K.pk false 1 from rfl, invite, body_mk]
-    simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check]
+    simp only [mkOp, Body.tag, Op.make_kind, ↓reduceIte, check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check]
     rw [if_pos]
+    · rfl
     refine ⟨?_, ?_, ?_, ?_, ?_, ?_⟩ <;> first | trivial | rfl | exact g.invitationSig | simp
 
 theorem v_req (h1 : x.r ∈ L) (h2 : x.inv ∈ L) (h3 : x.req ∈ L) :

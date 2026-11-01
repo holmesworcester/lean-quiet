@@ -82,11 +82,16 @@ theorem cut_consented {ops : Id → Option Op} {c : Id} {d : Key} (h : Cut C ops
 theorem check_endpoint {o : Op} {b : Body} {fs : List Fact} {pk sk : ByteArray}
     (h : check C o b fs = some (.endpoint pk sk)) : pk = cryptoSeal.pub sk ∧ sk.size = 32 := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.endpoint.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
-  rename_i hc
-  exact ⟨rfl, hc⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b
+  rcases b with ⟨sk'⟩
+  simp only [Endpoint.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofEndpoint.injEq, Endpoint.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨rfl, hc⟩
+  · simp at h
 
 /-- **A node's key is its secret's (`endpoint_derives`).** -/
 theorem endpoint_derives {ops : Id → Option Op} {x : Id} {pk sk : ByteArray}
@@ -135,7 +140,8 @@ theorem mem_removalsOf (h : Inv (family C) s) (hq : s.queue = []) (c x : Id) (ro
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
-    | admission c' u d e =>
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       show x ∈ View.eval s ((removalsOf c t).bind _) ↔ _
       rw [View.eval_bind']
       simp only [View.eval, List.mem_append, ih, byUser_ids h hq, List.mem_cons, Prod.mk.injEq]
@@ -181,7 +187,8 @@ theorem mem_deviceRemovals (h : Inv (family C) s) (hq : s.queue = []) (c x : Id)
   | cons pf t ih =>
     obtain ⟨p, f⟩ := pf
     cases f with
-    | admission c' u0 d e =>
+    | ofAdmission x =>
+      obtain ⟨c', u0, d, e⟩ := x
       show x ∈ View.eval s ((removalsOf c _).bind _) ↔ _
       rw [View.eval_bind', View.eval_bind']
       simp only [View.eval, List.mem_append, ih, hdev, List.mem_cons, Prod.mk.injEq]
@@ -321,7 +328,8 @@ theorem pick_some {c : Id} {joins : List (Pos × Fact)} :
   | [], _, _, _, hp => by cases hp
   | ((k, aid), f) :: t, d, a, adm, hp => by
     cases f with
-    | accepted c' d' =>
+    | ofAccepted x =>
+      obtain ⟨c', d'⟩ := x
       by_cases hc : c' = c
       · subst hc
         have hp' : (match (standing c' d' joins).eval s, (pick c' joins t).eval s with
@@ -373,7 +381,8 @@ theorem pick_none {c : Id} {joins : List (Pos × Fact)} :
   | ((k, aid), f) :: t, hall => by
     have ht := pick_none (rows := t) fun k a d hm => hall k a d (List.mem_cons_of_mem _ hm)
     cases f with
-    | accepted c' d' =>
+    | ofAccepted x =>
+      obtain ⟨c', d'⟩ := x
       by_cases hc : c' = c
       · subst hc
         simp only [pick, ite_true]
@@ -411,7 +420,8 @@ theorem dormant_none {c : Id} :
     have ht := dormant_none (rows := t) fun p k hs r nm d n hm =>
       hall p k hs r nm d n (List.mem_cons_of_mem _ hm)
     cases f with
-    | joining c' k hs r nm d n =>
+    | ofJoining x =>
+      obtain ⟨c', k, hs, r, nm, d, n⟩ := x
       by_cases hc : c' = c
       · subst hc
         show View.eval s (if c' = c' then _ else _) = none

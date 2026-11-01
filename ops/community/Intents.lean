@@ -488,7 +488,7 @@ theorem heldKids_held (h : Inv (family C) s) (hq : s.queue = []) {c kid : ByteAr
   rw [View.eval_bind] at hkid
   simp only [View.eval_pure, List.mem_filterMap] at hkid
   obtain ⟨⟨p, g⟩, hg, hk⟩ := hkid
-  cases g <;> simp at hk
+  cases g <;> (try (rename_i x; cases x)) <;> simp at hk
   subst hk
   obtain ⟨_, hv, hargs⟩ := row_at (C := C) (r := key.byCommunity) (by simp [rels]) h hq hg
   simp [key.byCommunity] at hargs
@@ -535,7 +535,7 @@ theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim :
     obtain ⟨he, hv, hargs⟩ := row_at (C := C) (r := message.byKey) (by simp [rels]) h hq hpa
     obtain ⟨⟨sk, y⟩, f⟩ := pf
     simp only at he hv hargs ⊢
-    cases f <;> simp [message.byKey] at hargs
+    cases f <;> (try (rename_i x; cases x)) <;> simp [message.byKey] at hargs
     rename_i c' u d kid' sealed n tm clump
     obtain ⟨hn, hc, hk⟩ := hargs
     subst c'; subst kid'
@@ -546,7 +546,7 @@ theorem readable_held (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (lim :
     obtain ⟨he, hv, hargs⟩ := row_at (C := C) (r := received.byKey) (by simp [rels]) h hq hr
     obtain ⟨⟨sk, z⟩, f⟩ := r
     simp only at he hv hargs
-    cases f <;> simp [received.byKey] at hargs
+    cases f <;> (try (rename_i x; cases x)) <;> simp [received.byKey] at hargs
     rename_i c' kid' m k clump
     obtain ⟨hc, hk⟩ := hargs
     subst c'; subst kid'
@@ -579,7 +579,7 @@ theorem readable_complete (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (d
 
 theorem admission_byUser_args {c u : Id} {f : Fact} :
     admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by
-  cases f <;> simp [admission.byUser, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byUser, eq_comm]
 
 /-- A row of a list read at rest is a Valid fact filed under it. -/
 theorem row_filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.queue = [])
@@ -744,7 +744,7 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     intro p hp
     obtain ⟨y, f, rfl, hy, hf⟩ := (mem_matching _ _).1 hp
     obtain ⟨hv, hargs⟩ := (filed (C := C) (r := chunk.byAttachment) (by simp [rels]) h hq _ y f).1 ⟨hy, hf⟩
-    cases f <;> simp [chunk.byAttachment] at hargs
+    cases f <;> (try (rename_i x; cases x)) <;> simp [chunk.byAttachment] at hargs
     obtain ⟨rfl, rfl⟩ := hargs
     obtain ⟨_, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
     have := spec_det hav ha

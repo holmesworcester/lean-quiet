@@ -26,6 +26,14 @@ structure Rel (F : Type) where
 namespace Rel
 variable {F : Type}
 
+/-- r read in a family: a family's fact is in it when the part it holds,
+of the op type r is about, is. Same names, so the same keys. -/
+def comap {A : Type} (r : Rel A) (part : F → Option A) : Rel F :=
+  ⟨r.kind, r.name, fun f => (part f).bind r.args⟩
+
+@[simp] theorem comap_args {A : Type} (r : Rel A) (part : F → Option A) (f : F) :
+    (r.comap part).args f = (part f).bind r.args := rfl
+
 /-- `kind.name`, as screens, notices and logs show it. -/
 def path (r : Rel F) : String := r.kind ++ "." ++ r.name
 

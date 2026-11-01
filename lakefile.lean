@@ -236,6 +236,10 @@ lean_exe costcheck where
 lean_exe codecdiff where
   root := `tests.engine.CodecDiff
 
+-- the community family's bytes, ids and verdicts against main's before the op split
+lean_exe wiregolden where
+  root := `tests.engine.WireGolden
+
 lean_exe bench where
   root := `tests.engine.Bench
 

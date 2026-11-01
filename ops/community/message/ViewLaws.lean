@@ -75,14 +75,14 @@ theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Ar
   generalize hf : Option.map (fun x => x.snd) (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
   rcases fo with _ | f
   · exact absurd h (pure_none_ne _ _)
-  cases f
+  cases f <;> (try (rename_i x; cases x))
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i c' u dev kid sealed n tm clump
   simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
   generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
   rcases kr with _ | ⟨p, kf⟩
   · exact absurd h (pure_none_ne _ _)
-  cases kf
+  cases kf <;> (try (rename_i x; cases x))
   all_goals dsimp only at h
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i x y k
@@ -110,14 +110,14 @@ theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
     (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
   rcases fo with _ | f
   · exact absurd h (pure_none_ne _ _)
-  cases f
+  cases f <;> (try (rename_i x; cases x))
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i c u dev kid sealed n tm clump
   simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
   generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
   rcases kr with _ | ⟨p, kf⟩
   · exact absurd h (pure_none_ne _ _)
-  cases kf
+  cases kf <;> (try (rename_i x; cases x))
   all_goals dsimp only at h
   all_goals try (exact absurd h (pure_none_ne _ _))
   rename_i x y k

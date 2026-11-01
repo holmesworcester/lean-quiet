@@ -12,7 +12,7 @@ wherever else it is admitted (docs/REMOVAL.md, "One device, two
 users"). A node key is let in while a device admitted under it is live
 (`allowPeer`: `admission.byKey`, then each device's liveness).
 -/
-import ops.community.Facts
+import ops.community.Family
 
 namespace Community
 open Engine

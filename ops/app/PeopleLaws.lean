@@ -17,8 +17,8 @@ namespace PeopleLaws
 open Engine Community Kinds
 
 theorem byUser_mem (ls : List (Id × Key × Key)) (u : Id) :
-    u ∈ (Profile.byUser ls).map (·.1) ↔ ∃ d e, (u, d, e) ∈ ls := by
-  simp only [Profile.byUser, List.map_map, Function.comp_def, List.map_id']
+    u ∈ (Kinds.Profile.byUser ls).map (·.1) ↔ ∃ d e, (u, d, e) ∈ ls := by
+  simp only [Kinds.Profile.byUser, List.map_map, Function.comp_def, List.map_id']
   rw [RowLaws.uniq_mem]
   simp only [List.mem_map]
   constructor
@@ -44,7 +44,7 @@ theorem present_not_removed {C : Community.Crypto} {s : DB Fact} (h : Inv (famil
 
 /-- **Each person is listed once.** -/
 theorem present_nodup (s : DB Fact) (c : Id) : (((Profile.present c).eval s).map (·.1)).Nodup := by
-  simp only [Profile.present, View.eval_bind, View.eval_read, View.eval_pure, Profile.byUser,
+  simp only [Profile.present, View.eval_bind, View.eval_read, View.eval_pure, Kinds.Profile.byUser,
     List.map_map, Function.comp_def, List.map_id']
   exact RowLaws.uniq_nodup _
 
@@ -72,7 +72,8 @@ theorem live_append (s : DB Fact) (c : Id) : ∀ (l1 l2 : List (Pos × Fact)),
   | (p, f) :: t, l2 => by
     have ih := live_append s c t l2
     cases f
-    case admission c' u d e =>
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       simp only [List.cons_append, live]
       split
       · rw [View.eval_bind', View.eval_bind', View.eval_bind', View.eval_bind', ih]
@@ -85,8 +86,8 @@ theorem live_append (s : DB Fact) (c : Id) : ∀ (l1 l2 : List (Pos × Fact)),
 theorem all_take (s : DB Fact) (c : Id) (m : Nat) :
     ((admission.all.read [c] (limit := some m)).eval s).rows = ((admission.all.read [c]).eval s).rows.take m := rfl
 
-theorem byUser_users (ls : List (Id × Key × Key)) : (Profile.byUser ls).map (·.1) = React.uniq (ls.map (·.1)) := by
-  simp only [Profile.byUser, List.map_map, Function.comp_def, List.map_id']
+theorem byUser_users (ls : List (Id × Key × Key)) : (Kinds.Profile.byUser ls).map (·.1) = React.uniq (ls.map (·.1)) := by
+  simp only [Kinds.Profile.byUser, List.map_map, Function.comp_def, List.map_id']
 
 /-- **The window lists `present`'s first members, in its order**: its
 users are a prefix of the people list's. -/
@@ -132,7 +133,8 @@ theorem unremoved_lists (s : DB Fact) (c : Id) : ∀ (l : List (Pos × Fact)),
   | (p, f) :: t => by
     have ih := unremoved_lists s c t
     cases f
-    case admission c' u d e =>
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       simp only [unremoved]
       split
       · simp only [View.listsAt, List.length_cons]
@@ -166,7 +168,8 @@ theorem live_lists_le (s : DB Fact) (c : Id) (D : Nat)
   | (p, f) :: t => by
     have ih := live_lists_le s c D hD t
     cases f
-    case admission c' u d e =>
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       simp only [live]
       split
       · rw [View.listsAt_bind, View.listsAt_bind]
@@ -184,7 +187,8 @@ theorem live_lists_ge (s : DB Fact) (c : Id) :
   | (p, f) :: t => by
     have ih := live_lists_ge s c t
     cases f
-    case admission c' u d e =>
+    case ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
       by_cases hc : c' = c
       · have hf : List.filter (admIn c) ((p, Fact.admission c' u d e) :: t) =
             (p, Fact.admission c' u d e) :: List.filter (admIn c) t := by

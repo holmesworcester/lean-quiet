@@ -1083,7 +1083,8 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
 theorem dialOne_state (hfr : FreshPure) (K : Keys) (listen pk sk : B) (f : Community.Fact) (s : DB F) :
     ((dialOne K listen pk sk f : Model F (List Op)).run s).2 = s := by
   cases f with
-  | joining c inviter hints req nm d n =>
+  | ofJoining x =>
+    obtain ⟨c, inviter, hints, req, nm, d, n⟩ := x
     cases hints with
     | nil => rfl
     | cons hint hs =>

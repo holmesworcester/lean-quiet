@@ -36,5 +36,5 @@ PY
   echo "refused by inkless: $cp removed from $file"
 }
 mutant engine/renderer/Chars.lean 'inRange c 0x2066 0x2069' 'inRange c 0x2067 0x2069' U+2066
-mutant ops/community/Facts.lean 'c == 0x3164 || ' '' U+3164
+mutant ops/community/profile/Op.lean 'c == 0x3164 || ' '' U+3164
 echo "inkless negative controls: both refused; working sources untouched"

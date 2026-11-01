@@ -4,7 +4,7 @@ a node holds at rest: Engine.status_iff_spec). Signatures are read
 through `Crypto.verify`; where a law needs unforgeability it takes it
 as the hypothesis `Unforgeable`.
 -/
-import ops.community.Facts
+import ops.community.Family
 
 namespace Community
 open Engine Codec
@@ -17,27 +17,43 @@ theorem check_admission {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u :
     (∃ d0 e0 l t aps, b = .admit ∧ fs = .admission c c d0 e0 :: .request c u d e l t :: aps ∧
       o.reqs.head? = some c ∧ tally c (o.reqs.getD 1 .empty) t aps = true) := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  · simp only [Option.some.injEq, Fact.admission.injEq] at h
-    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-    exact Or.inl ⟨_, rfl, rfl, rfl, rfl, by assumption⟩
-  · simp only [Option.some.injEq, Fact.admission.injEq] at h
-    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-    rename_i hc
-    obtain ⟨h1, rfl, rfl, h4⟩ := hc
-    exact Or.inr ⟨_, _, _, _, _, rfl, rfl, h1, h4⟩
+  split at h <;> (try (simp at h; done))
+  · rename_i b
+    rcases b with ⟨d', e', s⟩
+    simp only [Root.check] at h
+    split at h
+    · rename_i hs
+      simp only [Option.map_some, Option.some.injEq, Fact.ofAdmission.injEq, Root.Fact.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+      exact Or.inl ⟨_, rfl, rfl, rfl, rfl, hs⟩
+    · simp at h
+  · rename_i b r q aps
+    rcases r with ⟨c0, u0, d0, e0⟩; rcases q with ⟨c1, u', d', e', l, t⟩
+    simp only [Admit.check] at h
+    split at h
+    · rename_i hc
+      simp only [Option.map_some, Option.some.injEq, Fact.ofAdmission.injEq, Root.Fact.mk.injEq] at h
+      obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+      obtain ⟨h1, rfl, rfl, h4⟩ := hc
+      exact Or.inr ⟨_, _, _, _, _, rfl, rfl, h1, h4⟩
+    · simp at h
 
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
     {k : Key} {l : Bool} {t : Nat} (h : check C o b fs = some (.invitation c issuer k l t)) :
     ∃ s d0 e0 d e, b = .invite k l t s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
       o.reqs.head? = some c ∧ 1 ≤ t ∧ (l = true → t = 1) ∧ C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.invitation.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
-  exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a
+  rcases b with ⟨k', l', t', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c', u, d, e⟩
+  simp only [Invitation.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofInvitation.injEq, Invitation.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, h3, h4, h5⟩ := hc
+    exact ⟨_, _, _, _, _, rfl, rfl, h1, h3, h4, h5⟩
+  · simp at h
 
 theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id} {d e : Key}
     {l : Bool} {t : Nat} (h : check C o b fs = some (.request c u d e l t)) :
@@ -46,12 +62,17 @@ theorem check_request {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
       u = (if l then issuer else o.id) ∧
       C.verify d (signed o b) cs = true ∧ C.verify k (signed o b) bs = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.request.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
-  exact ⟨_, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r i
+  rcases b with ⟨d', e', cs, bs⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases i with ⟨c', issuer, k, l', t'⟩
+  simp only [Request.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofRequest.injEq, Request.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+    exact ⟨_, _, _, _, _, _, rfl, rfl, h1, rfl, h4, h5⟩
+  · simp at h
 
 theorem check_approval {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c r a : Id}
     (h : check C o b fs = some (.approval c r a)) :
@@ -60,12 +81,17 @@ theorem check_approval {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c r a 
       o.reqs.head? = some c ∧ r = o.reqs.getD 1 .empty ∧ (l = true → a = u) ∧ da ≠ d ∧
       C.verify da (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.approval.injEq] at h
-  obtain ⟨rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, h5, h6, h7⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h5, h6, h7⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r q a
+  rcases b with ⟨s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases q with ⟨c1, u, d, e, l, t⟩; rcases a with ⟨c2, a', da, ea⟩
+  simp only [Approve.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofApproval.injEq, Approve.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, h5, h6, h7⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h5, h6, h7⟩
+  · simp at h
 
 /-- `approvers` reads off exactly the approvals of r it is given. -/
 theorem approvers_iff {c r : Id} {fs : List Fact} {us : List Id} :
@@ -79,7 +105,8 @@ theorem approvers_iff {c r : Id} {fs : List Fact} {us : List Id} :
     constructor
     · intro h
       cases f with
-      | approval c' r' v =>
+      | ofApproval a =>
+        obtain ⟨c', r', v⟩ := a
         simp only [approvers] at h
         split at h
         · rename_i hc; obtain ⟨h1, h2⟩ := hc; subst c'; subst r'
@@ -114,12 +141,17 @@ theorem check_admin {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t : Id}
       fs = [.admission c c d0 e0, .admission c u d e, auth, .admission c t d' e'] ∧
       o.reqs.head? = some c ∧ isAdmin c u auth = true ∧ C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.admin.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a auth tg
+  rcases b with ⟨s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u, d, e⟩; rcases tg with ⟨c2, t', d', e'⟩
+  simp only [Grant.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofAdmin.injEq, Grant.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
+  · simp at h
 
 theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u : Id}
     (h : check C o b fs = some (.removal c t u)) :
@@ -128,12 +160,18 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
       o.reqs.head? = some c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth = true) ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.removal.injEq] at h
-  obtain ⟨rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, rfl, rfl, h1, h5, h6⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a auth tg
+  rcases b with ⟨s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩; rcases tg with ⟨c2, t', d', e'⟩
+  simp only [Remove.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofRemoval.injEq, Remove.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, h5, h6⟩ := hc
+    refine ⟨_, _, _, _, _, _, _, _, rfl, rfl, h1, ?_, h6⟩
+    simpa using h5
+  · simp at h
 
 theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
     {d k t : ByteArray} {n tm : Nat}
@@ -141,12 +179,22 @@ theorem check_message {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
     ∃ s d0 e0 e, b = .post k t n tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
       o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.message.injEq, and_true] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, h4⟩ := hc
-  exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
+  split at h <;> (try (simp at h; done))
+  · rename_i b r a
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    simp only [Post.check] at h
+    split at h
+    · rename_i hc
+      simp only [Option.map_some, Option.some.injEq, Fact.ofMessage.injEq, Post.Fact.mk.injEq, and_true] at h
+      obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+      obtain ⟨h1, rfl, rfl, h4⟩ := hc
+      exact ⟨_, _, _, _, rfl, rfl, h1, h4⟩
+    · simp at h
+  · rename_i b r a p
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases p with ⟨c2, u2, d2, k2, t2, n2, tm2, _ | root⟩
+    · simp only [Post.check] at h; split at h <;> simp at h
+    · simp [Post.check] at h
 
 /-- A child is signed by an admitted device of its root's user. Only a
 root can be cited: the final fact's clump is explicitly `none`. -/
@@ -157,13 +205,24 @@ theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root 
       fs = [.admission c c d0 e0, .admission c u d e, .message c u d2 k2 t2 n2 tm2 none] ∧
       o.reqs.head? = some c ∧ root = o.reqs.getD 2 .empty ∧ C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.message.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, hr⟩ := h
-  subst root
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, rfl, hs⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, hs⟩
+  split at h <;> (try (simp at h; done))
+  · rename_i b r a
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    simp only [Post.check] at h; split at h <;> simp at h
+  · rename_i b r a p
+    rcases b with ⟨k', t', n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d', e⟩
+    rcases p with ⟨c2, u2, d2, k2, t2, n2, tm2, _ | root'⟩
+    · simp only [Post.check] at h
+      split at h
+      · rename_i hc
+        simp only [Option.map_some, Option.some.injEq, Fact.ofMessage.injEq, Post.Fact.mk.injEq] at h
+        obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, hr⟩ := h
+        try simp only [Option.some.injEq] at hr
+        subst root
+        obtain ⟨h1, rfl, rfl, rfl, rfl, hs⟩ := hc
+        exact ⟨_, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, hs⟩
+      · simp at h
+    · simp [Post.check] at h
 
 theorem check_profile {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
     {n : ByteArray} {tm : Nat}
@@ -171,12 +230,17 @@ theorem check_profile {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : I
     ∃ s d0 e0 d e, b = .profile n tm s ∧ fs = [.admission c c d0 e0, .admission c u d e] ∧
       o.reqs.head? = some c ∧ n.size ≤ 64 ∧ C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.profile.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
-  exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a
+  rcases b with ⟨n', tm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩
+  simp only [Profile.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofProfile.injEq, Profile.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, h4, h5⟩ := hc
+    exact ⟨_, _, _, _, _, rfl, rfl, h1, h4, h5⟩
+  · simp at h
 
 theorem all2_two {α β} {R : α → β → Prop} {l : List α} {a b : β} (h : All2 R l [a, b]) :
     ∃ x y, l = [x, y] ∧ R x a ∧ R y b := by
@@ -270,10 +334,11 @@ theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
 theorem isAdmin_sound {c u y : Id} {g : Fact} (hg : V C ops y g) (h : isAdmin c u g = true) :
     IsAdmin C ops c u := by
   cases g with
-  | admission c' u' d e =>
+  | ofAdmission a =>
+    obtain ⟨c', u', d, e⟩ := a
     simp [isAdmin] at h; obtain ⟨rfl, rfl, rfl⟩ := h
     exact Or.inl ⟨rfl, y, d, e, hg⟩
-  | admin c' u' => simp [isAdmin] at h; obtain ⟨rfl, rfl⟩ := h; exact Or.inr ⟨y, hg⟩
+  | ofAdmin a => obtain ⟨c', u'⟩ := a; simp [isAdmin] at h; obtain ⟨rfl, rfl⟩ := h; exact Or.inr ⟨y, hg⟩
   | _ => simp [isAdmin] at h
 
 /-! ## Authorization: every message is by an admitted device -/
@@ -469,7 +534,7 @@ theorem request_valid (hk : Keyed ops) {r c i : Id} {o : Op} {d e cs bs : ByteAr
   · rw [hreq]; exact .cons hc (.cons hi .nil)
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
-    simp [check, hreq, hcs, hbs, hid]
+    simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, hcs, hbs, hid]
 
 /-- **An eligible member's signed approval is Valid**, whoever else has
 approved or been removed since. -/
@@ -485,7 +550,7 @@ theorem approve_valid {x c r ra : Id} {o : Op} {s : ByteArray} {d0 e0 : Key} {u 
   · rw [hreq]; exact .cons hc (.cons hr (.cons ha .nil))
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
-    simp [check, hreq, hd, hs]; exact hl
+    simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, hd, hs]; exact hl
 
 /-- **Enough approvals admit.** An admit op citing a Valid request and
 exactly its threshold of Valid approvals by distinct users admits the
@@ -513,7 +578,7 @@ theorem admit_admits {y c r : Id} {o : Op} {aps us : List Id} {d0 e0 : Key} {u :
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
     have := tally_iff.2 ⟨us, hf, hn, ht⟩
-    simp [check, hreq, this]
+    simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, this]
 
 /-- **Nobody is admitted without a member's approval.** Every admission
 is the founder's (the root itself), or its admit cites a Valid approval,
@@ -593,7 +658,7 @@ theorem admin_removal_stands {x c ra au ta : Id} {o : Op} {s : ByteArray}
   · rw [hreq]; exact .cons hc (.cons hra (.cons hau (.cons hta .nil)))
   · show validate C o _ = _
     unfold validate; rw [hb]; simp only [hkd, ↓reduceIte]
-    simp [check, hreq, hadm, hs]
+    simp [check, Root.check, Invitation.check, Request.check, Approve.check, Admit.check, Grant.check, Remove.check, Post.check, Profile.check, Attach.check, Chunk.check, React.check, Wrap.check, Rename.check, hreq, hadm, hs]
 
 /-- **Mutual removal.** Two admins who remove each other, concurrently
 or not, are both removed: neither removal invalidates the other. -/
@@ -627,11 +692,16 @@ theorem valid_stays {ops' : Id → Option Op} (he : Extends ops ops') {x : Id} {
 theorem check_secret {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {pk seed : ByteArray}
     (h : check C o b fs = some (.secret pk seed)) : b = .secret pk seed ∧ fs = [] ∧ C.pub seed = pk := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.secret.injEq] at h
-  obtain ⟨rfl, rfl⟩ := h
-  rename_i hc
-  exact ⟨rfl, rfl, hc⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b
+  rcases b with ⟨pk', seed'⟩
+  simp only [Secret.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofSecret.injEq, Secret.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, hc⟩
+  · simp at h
 
 /-- **A secret's seed is its key's**: `secret.byKey [pk]` rows hold a
 seed whose key pair has public key pk. -/
@@ -647,12 +717,17 @@ theorem check_named {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u : Id}
       isAdmin c u auth = true ∧ nm.size ≤ 64 ∧ counterOk c n prev = true ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.named.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, h4, h5, h6, h7⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h4, h5, h6, h7⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a auth prev
+  rcases b with ⟨n', nm', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩
+  simp only [Rename.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofNamed.injEq, Rename.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, h4, h5, h6, h7⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h4, h5, h6, h7⟩
+  · simp at h
 
 /-- **Only admins name a community.** -/
 theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.named c u nm n)) :
@@ -668,10 +743,9 @@ theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.
 theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     (h : check C o b fs = some f) (hl : f.isLocal = true) : b.isLocal = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done) <;>
-    first
+  split at h <;> (try (simp at h; done)) <;> first
     | rfl
-    | (simp only [Option.some.injEq] at h; subst h; simp [Fact.isLocal] at hl)
+    | (obtain ⟨f', -, rfl⟩ := Option.map_eq_some_iff.1 h; simp [Fact.isLocal] at hl)
 
 /-- **A device's own state is its own.** In a node fed by its own writes
 and by peers' jobs through `intake`, every op behind a Valid secret,
@@ -696,12 +770,17 @@ theorem check_attach {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c m u ro
       o.reqs.head? = some c ∧ m = o.reqs.getD 2 .empty ∧ root.size = 32 ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.attachment.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, rfl, h6, _, _, _, h10⟩ := hc
-  exact ⟨_, _, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r a m
+  rcases b with ⟨r', l, k, x, s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩; rcases m with ⟨c2, u2, d2, k2, t2, n2, tm2, clump⟩
+  simp only [Attach.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofAttachment.injEq, Attach.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, rfl, h6, _, _, _, h10⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
+  · simp at h
 
 /-- **A chunk is Valid only if its Merkle path verifies** against the
 root and length it names (`Merkle.verify_sound` then makes it that
@@ -712,12 +791,17 @@ theorem check_chunk {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c att roo
       Merkle.verify sha256 root len i slice sibs = true ∧
       ∃ d e m u k x, fs = [.admission c c d e, .attachment c m u root len k x] := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.chunk.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  obtain ⟨h1, rfl, rfl, rfl, rfl, h6⟩ := hc
-  exact ⟨_, _, rfl, h1, rfl, h6, _, _, _, _, _, _, rfl⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b r t
+  rcases b with ⟨r', l, i', x, p⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases t with ⟨c2, m, u, r2, l2, k, x2⟩
+  simp only [Chunk.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofChunk.injEq, Chunk.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, rfl, h6⟩ := hc
+    exact ⟨_, _, rfl, h1, rfl, h6, _, _, _, _, _, _, rfl⟩
+  · simp at h
 
 /-- **A Valid chunk is its file's slice.** If its root is a file's root
 (SHA-256 32 bytes wide, and nothing the root hashes having a second
@@ -740,11 +824,16 @@ theorem check_received {clump : Option Id} {C : Crypto} {o : Op} {b : Body} {fs 
     b = .receive k ∧ m = o.reqs.headD .empty ∧
       ∃ u d sealed n tm, fs = [.message c u d kid sealed n tm clump] ∧ countCap ≤ n := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done)
-  simp only [Option.some.injEq, Fact.received.injEq] at h
-  obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
-  rename_i hc
-  exact ⟨rfl, rfl, _, _, _, _, _, rfl, hc⟩
+  split at h <;> (try (simp at h; done))
+  rename_i b m
+  rcases b with ⟨k'⟩; rcases m with ⟨c', u, d, kid', sealed, n, tm, clump'⟩
+  simp only [Receive.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofReceived.injEq, Receive.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl, rfl⟩ := h
+    exact ⟨rfl, rfl, _, _, _, _, _, rfl, hc⟩
+  · simp at h
 
 /-- **A receipt is of a saturated message.** A Valid receipt of m in c
 under kid cites only m, a Valid message of c sealed under kid that
@@ -889,78 +978,60 @@ theorem counterOk_shared {c : Id} {n : Nat} {fs : List Fact} (h : counterOk c n 
 theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     (h : check C o b fs = some f) (hb : b.isLocal = false) : ∀ g ∈ fs, g.isLocal = false := by
   unfold check at h
-  split at h <;> (try split at h) <;> (try simp at h; done) <;> (try (simp [Body.isLocal] at hb); done)
-  all_goals
-    rename_i hc
-    try simp only [List.forall_mem_cons]
-    repeat' constructor
+  split at h <;> (try (simp at h; done)) <;> (try (simp [Body.isLocal] at hb; done))
+  all_goals (obtain ⟨f', hf', -⟩ := Option.map_eq_some_iff.1 h)
+  all_goals (intro g hg; simp only [List.mem_cons, List.mem_nil_iff, or_false] at hg)
   all_goals first
-    | rfl
-    | (intro x hx; exact absurd hx List.not_mem_nil)
-    | exact isAdmin_shared hc.1
-    | exact isAdmin_shared hc.2
-    | exact isAdmin_shared hc.2.1
-    | exact isAdmin_shared hc.2.2.1
-    | exact isAdmin_shared hc.2.2.2.1
-    | exact isAdmin_shared hc.2.2.2.2.1
-    | exact isAdmin_shared hc.2.2.2.2.2.1
-    | exact isAdmin_shared hc.2.2.2.2.2.2.1
-    | exact isAdmin_shared hc.2.2.2.2.2.2.2.1
-    | exact isAdmin_shared hc.2.2
-    | exact isAdmin_shared hc.2.2.2
-    | exact isAdmin_shared hc.2.2.2.2
-    | exact isAdmin_shared hc.2.2.2.2.2
-    | exact isAdmin_shared hc.2.2.2.2.2.2
-    | exact isAdmin_shared hc.2.2.2.2.2.2.2
-    | exact isAdmin_shared hc.2.2.2.2.2.2.2.2
-    | exact counterOk_shared hc.1
-    | exact counterOk_shared hc.2
-    | exact counterOk_shared hc.2.1
-    | exact counterOk_shared hc.2.2.1
-    | exact counterOk_shared hc.2.2.2.1
-    | exact counterOk_shared hc.2.2.2.2.1
-    | exact counterOk_shared hc.2.2.2.2.2.1
-    | exact counterOk_shared hc.2.2.2.2.2.2.1
-    | exact counterOk_shared hc.2.2.2.2.2.2.2.1
-    | exact counterOk_shared hc.2.2
-    | exact counterOk_shared hc.2.2.2
-    | exact counterOk_shared hc.2.2.2.2
-    | exact counterOk_shared hc.2.2.2.2.2
-    | exact counterOk_shared hc.2.2.2.2.2.2
-    | exact counterOk_shared hc.2.2.2.2.2.2.2
-    | exact counterOk_shared hc.2.2.2.2.2.2.2.2
-    | exact tally_shared hc.1
-    | exact tally_shared hc.2
-    | exact tally_shared hc.2.1
-    | exact tally_shared hc.2.2.1
-    | exact tally_shared hc.2.2.2.1
-    | exact tally_shared hc.2.2.2.2.1
-    | exact tally_shared hc.2.2.2.2.2.1
-    | exact tally_shared hc.2.2.2.2.2.2.1
-    | exact tally_shared hc.2.2.2.2.2.2.2.1
-    | exact tally_shared hc.2.2
-    | exact tally_shared hc.2.2.2
-    | exact tally_shared hc.2.2.2.2
-    | exact tally_shared hc.2.2.2.2.2
-    | exact tally_shared hc.2.2.2.2.2.2
-    | exact tally_shared hc.2.2.2.2.2.2.2
-    | exact tally_shared hc.2.2.2.2.2.2.2.2
-    | (rcases hc.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.2.2.1 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
-    | (rcases hc.2.2.2.2.2.2.2.2 with ⟨_, hh⟩ | hh <;> first | exact hh | exact isAdmin_shared hh)
+    | (rcases hg with rfl | rfl | rfl <;> rfl)
+    | (rcases hg with rfl | rfl <;> rfl)
+    | (subst hg; rfl)
+    | skip
+  -- admit: the approvals it tallies; grant, remove and name: their authority; name: the names before it
+  · rename_i b r q aps
+    rcases r; rcases q
+    simp only [Admit.check] at hf'
+    split at hf'
+    · rename_i hc
+      rcases hg with rfl | rfl | hg
+      · rfl
+      · rfl
+      · exact tally_shared hc.2.2.2 g hg
+    · cases hf'
+  · rename_i b r a auth tg
+    rcases b; rcases r; rcases a; rcases tg
+    simp only [Grant.check] at hf'
+    split at hf'
+    · rename_i hc
+      rcases hg with rfl | rfl | rfl | rfl
+      · rfl
+      · rfl
+      · exact isAdmin_shared hc.2.2.2.2.1
+      · rfl
+    · cases hf'
+  · rename_i b r a auth tg
+    rcases b; rcases r; rcases a; rcases tg
+    simp only [Remove.check] at hf'
+    split at hf'
+    · rename_i hc
+      rcases hg with rfl | rfl | rfl | rfl
+      · rfl
+      · rfl
+      · rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh
+        · simpa using hh
+        · exact isAdmin_shared hh
+      · rfl
+    · cases hf'
+  · rename_i b r a auth prev
+    rcases b; rcases r; rcases a
+    simp only [Rename.check] at hf'
+    split at hf'
+    · rename_i hc
+      rcases hg with rfl | rfl | rfl | hg
+      · rfl
+      · rfl
+      · exact isAdmin_shared hc.2.2.2.1
+      · exact counterOk_shared hc.2.2.2.2.2.1 g hg
+    · cases hf'
 
 /-! ## Sealed bodies -/
 

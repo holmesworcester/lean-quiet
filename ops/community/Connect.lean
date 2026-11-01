@@ -34,15 +34,15 @@ theorem filed {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.qu
 
 theorem byDevice_args {c d : Id} {f : Fact} :
     admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
-  cases f <;> simp [admission.byDevice, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byDevice, Root.byDevice, Rel.comap, Fact.admission?, eq_comm]
 
 theorem all_args {c : Id} {f : Fact} :
     admission.all.args f = some [c] ↔ ∃ u d e, f = .admission c u d e := by
-  cases f <;> simp [admission.all, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.all, Root.all, Rel.comap, Fact.admission?, eq_comm]
 
 theorem byUser_args {c u : Id} {f : Fact} :
     removal.byUser.args f = some [c, u] ↔ ∃ r, f = .removal c u r := by
-  cases f <;> simp [removal.byUser, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [removal.byUser, Remove.byUser, Rel.comap, Fact.removal?, eq_comm]
 
 /-! ## The views, evaluated -/
 
@@ -62,7 +62,7 @@ theorem removals_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
 
 theorem byKey_args {c e : Id} {f : Fact} :
     admission.byKey.args f = some [c, e] ↔ ∃ u d, f = .admission c u d e := by
-  cases f <;> simp [admission.byKey, eq_comm]
+  cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byKey, Root.byKey, Rel.comap, Fact.admission?, eq_comm]
 
 /-- At rest, a fact is a row of a community relation's list exactly when
 it is Valid and filed in it. -/
@@ -102,7 +102,8 @@ theorem unremoved_iff (c : Id) (rows : List (Pos × Fact)) :
     obtain ⟨p, f⟩ := pf
     simp only [mem_cons_row]
     cases f with
-    | admission c' u' d' e' =>
+    | ofAdmission a =>
+      obtain ⟨c', u', d', e'⟩ := a
       by_cases hc : c' = c
       · subst hc
         show View.eval s (if c' = c' then _ else _) = true ↔ _
@@ -196,7 +197,8 @@ theorem mem_live (c : Id) (rows : List (Pos × Fact)) (u : Id) (d e : Key) :
     obtain ⟨p, f⟩ := pf
     rw [mem_cons_row]
     cases f with
-    | admission c' u' d' e' =>
+    | ofAdmission a =>
+      obtain ⟨c', u', d', e'⟩ := a
       by_cases hc : c' = c
       · rw [eval_live_adm hc]
         subst hc

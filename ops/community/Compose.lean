@@ -4,7 +4,7 @@ libsodium through native/glue.c; an op's id is the SHA-256 of its
 bytes (`Engine.Op.make`). The laws hold for any `Crypto`, this one
 included.
 -/
-import ops.community.Facts
+import ops.community.Family
 
 namespace Community
 open Engine Codec
