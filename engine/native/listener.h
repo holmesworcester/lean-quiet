@@ -1,4 +1,4 @@
-/* Explicit close for a stopped Lean 4.34 UV listener. The runtime exposes
+/* Explicit close for a stopped Lean 4.35 UV listener. The runtime exposes
    cancelAccept but no close operation. Its external finalizer calls
    uv_close under the loop lock, releasing the descriptor synchronously.
    Invoke it once, replacing this object's destructor so retained Runner
@@ -54,7 +54,10 @@ lean_obj_res lq_listener_close(b_lean_obj_arg socket) {
 
 /* Socket abort capability: captures before client tasks begin. */
 /* Isolated POSIX prototype. Not installed in the application's runtime.
- * ABI seam: Lean4.34.0's TCP native state begins with uv_tcp_t *m_uv_tcp.
+ * ABI seam: Lean 4.35.0's TCP native state begins with uv_tcp_t *m_uv_tcp.
+ * Reviewed against 4.34.0 (src/runtime/uv/tcp.{h,cpp}): 4.35 only appends
+ * m_shutdown_requested to the struct, the finalizer still uv_closes under
+ * the loop lock, and getsockname still takes that lock.
  * Capture happens on an idle client after an SDK UV-mutex barrier, before
  * reader/writer tasks start. Failed connects may still own a descriptor.
  * uv_fileno is not called concurrently with operations on this handle.
@@ -67,7 +70,7 @@ lean_obj_res lq_listener_close(b_lean_obj_arg socket) {
 #include <stdlib.h>
 #include <string.h>
 
-#if LEAN_VERSION_MAJOR != 4 || LEAN_VERSION_MINOR != 34 || LEAN_VERSION_PATCH != 0
+#if LEAN_VERSION_MAJOR != 4 || LEAN_VERSION_MINOR != 35 || LEAN_VERSION_PATCH != 0
 #error "Review the TCP native-state ABI before using another Lean version"
 #endif
 
