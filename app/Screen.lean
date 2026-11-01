@@ -1235,7 +1235,9 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     let marked := (_root_.Live.Index.notice ⟨s.deps, s.dirty, s.rev⟩ s.wantSet hit).dirty
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
     let ready := _root_.Live.pickActs wants.toList touched marked wants.size
-    sh.queue.modify (Demand.reconcile ready)
+    -- the user's acts first: their wants ahead of any backlog
+    -- (Demand.take_first; as shipped, reconcile alone: shipped_late)
+    sh.queue.modify (Demand.reconcileFirst touched.contains ready)
     modify fun s => { s with dirty := marked }
     let start ← IO.monoMsNow
     let mut published := 0

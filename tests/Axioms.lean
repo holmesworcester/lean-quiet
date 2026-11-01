@@ -599,7 +599,6 @@ section app
 #print axioms Live.fresh_notice
 #print axioms Live.fresh_keep
 #print axioms Live.settle_fresh
-#print axioms Live.RWorld.acts_shown
 #print axioms Live.Eager.acts_fresh
 #print axioms Live.Eager.late_stale
 #print axioms Remove.writes_only_after_two
@@ -845,7 +844,6 @@ section cost
 #print axioms Live.Eager.marked_fresh
 #print axioms Live.Gated.gated_stale
 #print axioms Live.Gated.ungated_fresh
-#print axioms Live.World.acts_shown
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
@@ -1212,6 +1210,12 @@ end cost
 #print axioms Raster.key_eq
 #print axioms Demand.remount_rejects
 #print axioms Work.request_again
+#print axioms Demand.reconcileFirst_sorted
+#print axioms Demand.mem_reconcileFirst
+#print axioms Demand.take_first
+#print axioms Demand.take_sorted
+#print axioms Demand.shipped_late
+#print axioms Demand.first_on_time
 
 #print axioms Data.projectSet_mem
 #print axioms Data.projectSet_nodup

@@ -510,13 +510,6 @@
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },
-  "RWorld.acts_shown": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.acts_shown",
-    "witness": "Vacuity.RendererModels.actsShown",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
   "projectSet_mem": {
     "status": "kernel-witness",
     "theorem": "Data.projectSet_mem",

@@ -17,6 +17,27 @@ catches it next time. The aim is no escapes.
 
 ## Caught by a law
 
+### A user's own write could wait behind the reader's backlog (2026-11-01)
+
+- **Bug.** The reader's pass promised (ActsLaws' `acts_shown`, over the
+  RWorld model) that the wants a user's act touched are read in the same
+  pass, however long the backlog. When the reader moved to a persistent
+  Demand queue, `Reader.pass` queued its marked wants with
+  `Demand.reconcile` alone: work queued in earlier passes kept its place
+  ahead of the act's wants, and `take` treats "touched" and "visible"
+  alike. With a backlog of `cap` (64) or more visible wants queued, the
+  user's own message, reaction or name could wait passes to show.
+- **How the law noticed.** Porting `acts_shown` from the model to the
+  running pass (no proofs over models): stated over `Reader.pass`'s queue,
+  it was false (`Demand.shipped_late`: a want queued earlier is taken
+  before the act's).
+- **Fix.** `Demand.reconcileFirst`: the act's wants ahead of the rest.
+  `take_first`: while one is queued, every take returns one;
+  `take_sorted`: the queue stays act-first.
+- **Kept caught by.** The shipped order is `Demand.reconcileShipped`, a
+  `control` in tests/wiring.txt, and `shipped_late` proves it reads the
+  backlog first.
+
 ### Back to the switcher lost its backdrop (566e566, 2026-10-31)
 
 - **Bug.** 566e566 ("Match the shared mobile community switcher to

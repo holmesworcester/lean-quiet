@@ -100,12 +100,8 @@ Engine.insertBy_merge
 Engine.Subs.has_ofList
 Engine.Subs.ofList_wf
 
-# engine.renderer.ActsLaws
-Live.RWorld.acts_shown
-
 # engine.renderer.BoardLaws
 Live.Board.seen_take
-Live.World.acts_shown
 
 # engine.renderer.Screen
 Screen.hull_near

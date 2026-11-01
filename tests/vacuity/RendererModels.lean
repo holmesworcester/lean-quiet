@@ -38,11 +38,4 @@ private def loadedInv := World.inv_frame Gated.touch Gated.eval
 
 def boardSeen := Board.seen_take loadedInv.2
 
--- The source's nonempty indexed model; a user's own act wins over backlog.
-private def actsStable : RWorld.ActsStable Eager.apply Eager.hits Eager.eval Eager.reads Eager.w0.store [1] :=
-  ⟨Eager.stable 1 0, trivial⟩
-def actsShown := RWorld.acts_shown Eager.apply Eager.hits Eager.eval Eager.reads Eager.hitQs
-  Eager.exact Eager.w0_inv Eager.w0_idx actsStable 0
-  (x := true) (by simp [Eager.w0]) (q := ()) (by simp [Eager.hitQs]) (qs := [()]) rfl (by simp)
-
 end Vacuity.RendererModels
