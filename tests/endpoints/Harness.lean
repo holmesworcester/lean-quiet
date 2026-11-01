@@ -8,18 +8,20 @@ open Engine Engine.Sync Community Connection
 
 def fam : Family F := node ed25519 sodium
 def seed (name : String) := sha256 s!"endpoint-test/device/{name}".toUTF8
-def nk (name : String) := sha256 s!"endpoint-test/node/{name}".toUTF8
+/-- A node's 32-byte X25519 secret (`Key32`), and its bytes. -/
+def nk32 (name : String) := Bytes.digest s!"endpoint-test/node/{name}".toUTF8
+def nk (name : String) : ByteArray := (nk32 name).1
 def dev (name : String) := Device.ofSeed (seed name)
-def key (name : String) := cryptoSeal.pub (nk name)
+def key (name : String) := cryptoSeal.pub (nk32 name)
 def rootOp := root (dev "A") (key "A")
 def c := rootOp.id
 
 def shared : List Op :=
   let bearer := Device.named "endpoint-test/invite"
-  let inv := invite c c (dev "A") bearer.pk false 1
+  let inv := invite c c (dev "A") bearer.pk false
   let req := Community.request c inv.id (dev "B") (key "B") bearer.sk
   let approval := approve c req.id c (dev "A")
-  [rootOp, inv, req, approval, admit c req.id [approval.id]]
+  [rootOp, inv, req, approval, admit c req.id approval.id]
 
 def adm (name : String) : Id := if name == "A" then c else shared.getLast!.id
 

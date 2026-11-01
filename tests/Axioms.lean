@@ -206,10 +206,19 @@ open Engine Community
 #print axioms Engine.sum_scope_left
 #print axioms Connection.open_seal
 #print axioms Connection.cid_seal
+#print axioms Connection.ad_fits
+#print axioms Connection.open_seal_sodium
+#print axioms Connection.cid_seal_sodium
+#print axioms Connection.sealFor_opens
+#print axioms Connection.Noise.suite_pub_size
+#print axioms Connection.Noise.suite_dh_comm
+#print axioms Connection.Noise.hkdf_size
+#print axioms Connection.Noise.suite_good
 #print axioms Connection.view_held
 #print axioms Connection.rooms_held
 #print axioms Connection.hooks_reads
 #print axioms Connection.established_agrees
+#print axioms Connection.established_agrees_sodium
 #print axioms Connection.Noise.sent1_read1
 #print axioms Connection.Noise.read2_write2'
 #print axioms Engine.purge_gone
@@ -229,6 +238,15 @@ open Engine Community
 #print axioms Community.check_reads_shared
 #print axioms Community.openSealed_seal
 #print axioms Community.member_opens
+#print axioms Community.boxKey_of
+#print axioms Community.cryptoSeal_good
+#print axioms Community.bodyAd_size
+#print axioms Community.sealedPost_opens
+#print axioms Community.wrapKey_opens
+#print axioms Community.member_reads
+#print axioms Engine.Bytes.of?_val
+#print axioms Engine.Bytes.of?_eq_some
+#print axioms Engine.Bytes.of?_none
 #print axioms Community.check_attach
 #print axioms Community.check_chunk
 #print axioms Community.chunk_is_slice
@@ -861,6 +879,7 @@ section cost
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
+#print axioms Community.approveReq_wrap_admits
 #print axioms Community.wrapAll_over
 end cost
 

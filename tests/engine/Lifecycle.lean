@@ -34,7 +34,7 @@ breaking ties, then the id; past the counter cap, each device's own
 receipts. A node writes a receipt for every op it takes
 (`Connection.onArrival`, each job's receipts reading the store as it was
 before them); `arrive` does the same here. -/
-def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) : IO Unit := do
+def channelOrder (t : Checks) (a b : Db) (c : Id) (kA : Key32) (seedA seedB : ByteArray) : IO Unit := do
   let dA := Device.ofSeed seedA
   let dB := Device.ofSeed seedB
   let kid := kidOf cryptoSeal kA
@@ -55,7 +55,7 @@ def channelOrder (t : Checks) (a b : Db) (c : Id) (kA seedA seedB : ByteArray) :
   let order (db : Db) : IO (List Id) := return (← rd db).rows.map (·.1.2)
   let counterOf (o : Op) : Nat := match (Codec.decode o.body : Option Body) with
     | some (.post _ _ n _ _) => n | _ => 0
-  let nonceOf (tag : String) : ByteArray := (sha256 tag.toUTF8).extract 0 24
+  let nonceOf (tag : String) : Nonce24 := (Bytes.fit 24 (sha256 tag.toUTF8))
   let admOf (db : Db) (d : Device) : IO Id := do
     return ((← rows db (admission.byDevice.query [c, d.pk] (limit := some 1))).headD default).1.2
   let admA ← admOf a dA
@@ -143,9 +143,9 @@ def main (args : List String) : IO UInt32 := do
   let dA := Device.ofSeed seedA
   let dB := Device.ofSeed seedB
   -- each node's own key: the first found or join writes it
-  let nkA := sha256 "node A".toUTF8
-  let nkB := sha256 "node B".toUTF8
-  let nkC := sha256 "node C".toUTF8
+  let nkA := Bytes.digest "node A".toUTF8
+  let nkB := Bytes.digest "node B".toUTF8
+  let nkC := Bytes.digest "node C".toUTF8
   let keyA := cryptoSeal.pub nkA
   let keyB := cryptoSeal.pub nkB
   let keyC := cryptoSeal.pub nkC
@@ -155,8 +155,8 @@ def main (args : List String) : IO UInt32 := do
 
   -- A founds Acme as Ann: the secret, the root, the acceptance, the
   -- name, A's profile, and the community's content key, wrapped to A.
-  let kA := sha256 "Acme's content key".toUTF8
-  let w ← ((found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8) nkA).run :
+  let kA := Bytes.digest "Acme's content key".toUTF8
+  let w ← ((found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (Bytes.digest "esk 1".toUTF8) nkA).run :
     SqlM Fact Write).run a
   t.ok "founding on a node with no key writes its key first" (w.ops.head? == some (endpoint nkA))
   -- nodeKey reads endpoint.all with Rel.read's default order, greatest
@@ -179,7 +179,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "the root names A's device and A's node key"
     ((← rows a (admission.byKey.query [c, keyA])).any fun (_, f) => f == .admission c c dA.pk keyA)
   -- A posts: the text is sealed; the op and its fact hold only ciphertext.
-  let nonce := (sha256 "nonce 1".toUTF8).extract 0 24
+  let nonce := (Bytes.fit 24 (sha256 "nonce 1".toUTF8))
   let wpost ← sendOn a (send c c dA kA nonce "hello from Ann".toUTF8 3 [])
   mine a wpost
   let msgs ← rows a (message.all.query [c])
@@ -193,7 +193,7 @@ def main (args : List String) : IO UInt32 := do
     (ct.size == 24 + plain.size + 16 && ct.extract 24 (24 + plain.size) != plain)
   t.ok "A opens it with the key" (openSealed cryptoSeal c kid ct kA == some "hello from Ann".toUTF8)
   t.ok "another key does not open it"
-    ((openSealed cryptoSeal c kid ct (sha256 "other".toUTF8)).isNone)
+    ((openSealed cryptoSeal c kid ct (Bytes.digest "other".toUTF8)).isNone)
   let annOn (db : Db) : IO Bool := do
     return (← rows db (profile.byUser.query [c, c])).any fun (_, f) => match f with
       | .profile _ _ nm _ => nm == "Ann".toUTF8 | _ => false
@@ -238,10 +238,12 @@ def main (args : List String) : IO UInt32 := do
   t.ok "none of B's local ops land on A" (!held.any fun o => wj.ops.any fun l => l.id == o.id && l.id != req.id)
   t.ok "A sees the request pending" ((← rows a (request.all.query [c])).length == 1)
 
-  -- A approves: its approval completes the tally, so it admits B.
+  -- A approves: one approval admits, so its write admits B.
   let wa ← ((approveReq c req.id c dA (sha256 "esk 2".toUTF8)).run : SqlM Fact Write).run a
   t.ok "approving composes the approval, the admission and the key's wrap to B"
     (wa.ops.length == 3)
+  t.ok "the admission cites the request and exactly that approval"
+    ((wa.ops[1]?.map (·.reqs)) == some [c, req.id, (wa.ops[0]?.map (·.id)).getD .empty])
   mine a wa
   t.ok "A now lets B's node in" (← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
 
@@ -270,20 +272,20 @@ def main (args : List String) : IO UInt32 := do
   mine b wu
   let kB := (← rows b (key.byId.query [kid])).findSome? fun (_, f) => match f with
     | .key _ _ k => some k | _ => none
-  t.ok "B now holds Acme's content key" (kB == some kA)
+  t.ok "B now holds Acme's content key" (kB == some kA.1)
   let after ← rd b
   t.ok "now B's readable messages list A's post, and only it"
     (after.rows.length == 1 && after.total == 1 &&
       after.rows.all fun (_, f) => match f with | .message _ _ _ k _ _ _ _ => k == kid | _ => false)
   t.ok "A reads the same one message" ((← rd a).rows.length == 1)
   -- A message under a key nobody here holds stays hidden.
-  let kX := sha256 "a key never wrapped".toUTF8
-  mine a (← sendOn a (send c c dA kX ((sha256 "nonce X".toUTF8).extract 0 24) "unreadable".toUTF8 4))
+  let kX := Bytes.digest "a key never wrapped".toUTF8
+  mine a (← sendOn a (send c c dA kX ((Bytes.fit 24 (sha256 "nonce X".toUTF8))) "unreadable".toUTF8 4))
   t.ok "A stores the message under the unheld key" ((← rows a (message.all.query [c])).length == 2)
   t.ok "but A's readable messages still hold only the one under its key" ((← rd a).rows.length == 1)
   let ctB := (← rows b (message.all.query [c])).findSome? fun (_, f) => match f with
     | .message _ _ _ _ s _ _ _ => some s | _ => none
-  t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openSealed cryptoSeal c kid s k)
+  t.ok "B opens A's post" ((ctB.bind fun s => kB.bind fun k => openStored cryptoSeal c kid s k)
     == some "hello from Ann".toUTF8)
   let wu2 ← ((unwrap c).run : SqlM Fact Write).run b
   t.ok "unwrapping again writes nothing" wu2.ops.isEmpty
@@ -301,9 +303,9 @@ def main (args : List String) : IO UInt32 := do
   -- and the file's chunks, all ops.
   let plainFile := ByteArray.mk ((List.range 200000).map fun i => (i * 7 + i / 300).toUInt8).toArray
   let info : FileMeta := ⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩
-  let nf : NewFile := ⟨info, plainFile, sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
-    (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf ← sendOn a (send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf])
+  let nf : NewFile := ⟨info, plainFile, Bytes.digest "file key".toUTF8, (Bytes.fit 24 (sha256 "file nonce".toUTF8)),
+    (Bytes.fit 24 (sha256 "info nonce".toUTF8))⟩
+  let wf ← sendOn a (send c c dA kA ((Bytes.fit 24 (sha256 "nonce 2".toUTF8))) "a photo".toUTF8 7 [nf])
   let nc := Merkle.nChunks (fileCipher nf).size
   t.ok "the send writes the post, the attachment and the chunks" (wf.ops.length == 2 + nc && nc == 4)
   mine a wf
@@ -330,7 +332,7 @@ def main (args : List String) : IO UInt32 := do
       t.ok "B assembles the chunks and opens the file" (openFile slicesB fk fn == some plainFile)
     | none => t.ok "B opens the attachment's info" false
     t.ok "the info does not open with another key"
-      ((openInfo c akid sealedInfo (sha256 "other".toUTF8)).isNone)
+      ((openInfo c akid sealedInfo (Bytes.digest "other".toUTF8)).isNone)
   | _ => t.ok "the attachment's fact" false
   -- Chunks are their attachment's: on a node without it they wait, and
   -- they are Valid once it arrives; a tampered one is Invalid.
@@ -357,7 +359,7 @@ def main (args : List String) : IO UInt32 := do
   t.ok "with it, every chunk is Valid" ((← countValid solo chunkOps) == nc)
   -- The same file attached to a second post: its own attachment, its
   -- own chunks, none shared with the first.
-  let wf2 ← sendOn a (send c c dA kA ((sha256 "nonce 3".toUTF8).extract 0 24) "the photo again".toUTF8 8 [nf])
+  let wf2 ← sendOn a (send c c dA kA ((Bytes.fit 24 (sha256 "nonce 3".toUTF8))) "the photo again".toUTF8 8 [nf])
   let chunks2 := wf2.ops.drop 2
   t.ok "the same file sent twice shares no chunk op"
     (chunks2.length == nc && chunks2.all fun o => !(chunkOps.any (·.id == o.id)))
@@ -368,8 +370,8 @@ def main (args : List String) : IO UInt32 := do
     let wrongIndex := mkOp [c, att] (.chunk r l (i + 1) sl p)
     let wrongLen := mkOp [c, att] (.chunk r (l + 1) i sl p)
     -- another post's attachment, with another file: this chunk is not its
-    let nf3 : NewFile := { nf with bytes := "other bytes".toUTF8, key := sha256 "file key 3".toUTF8 }
-    let wf3 ← sendOn a (send c c dA kA ((sha256 "nonce 4".toUTF8).extract 0 24) "other".toUTF8 9 [nf3])
+    let nf3 : NewFile := { nf with bytes := "other bytes".toUTF8, key := Bytes.digest "file key 3".toUTF8 }
+    let wf3 ← sendOn a (send c c dA kA ((Bytes.fit 24 (sha256 "nonce 4".toUTF8))) "other".toUTF8 9 [nf3])
     let att3 := (wf3.ops.getD 1 default).id
     let foreign := mkOp [c, att3] (.chunk r l i sl p)
     fromPeer solo ([wf3.ops.headD default, wf3.ops.getD 1 default] ++ [bad, short, wrongIndex, wrongLen, foreign])
@@ -522,7 +524,7 @@ def main (args : List String) : IO UInt32 := do
   mine a wi3
   let seedC3 := sha256 "device C, rejoined".toUTF8
   let dC3 := Device.ofSeed seedC3
-  let wj3 ← ((join link3 seedC3 "Cy".toUTF8 (sha256 "unused".toUTF8)).run : SqlM Fact Write).run cdb
+  let wj3 ← ((join link3 seedC3 "Cy".toUTF8 (Bytes.digest "unused".toUTF8)).run : SqlM Fact Write).run cdb
   t.ok "rejoining writes a fresh join for the new device, from C's node key"
     (wj3.ops.map (·.id) == (joinOps link3 seedC3 "Cy".toUTF8 keyC).ops.map (·.id))
   let req3 := link3.request dC3 keyC

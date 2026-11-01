@@ -141,11 +141,15 @@ section
 variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
 
 /-- These bytes sealed for session cid, with a fresh nonce; none
-without the session's keys. -/
+without the session's keys. The connection id, the send key and the
+nonce are checked for their sizes here (32, 32, 24), so what is sealed
+is always under a well-formed key and nonce (`sealFor_sized`). -/
 def sealFor (K : Keys) (cid : Id) (p : B) : m (Option B) := do
   let some (sk, _) ← sessionKeys cid | return none
-  let n := (← Fresh.fresh).extract 0 24
-  return some (Frame.seal K cid sk n p)
+  let fresh ← Fresh.fresh
+  match Bytes.of? (n := 32) cid, Bytes.of? (n := 32) sk, Bytes.of? (n := 24) (fresh.extract 0 24) with
+  | some cid, some sk, some n => return some (Frame.seal K cid.1 sk.1 n.1 p)
+  | _, _, _ => return none
 end
 open Engine
 

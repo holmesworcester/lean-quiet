@@ -52,7 +52,7 @@ def pointerEvent (d : Driver) (e : Hover.Event) : Driver :=
     hover := Hover.update d.ui.hover e
     grace := false
     moreFor := if e == .blur then none else d.ui.moreFor }
-  let g := Desktop.zoomLayout d.width (ui.context != .closed) d.dpi
+  let g := Desktop.zoomLayout d.width (ui.context != .closed) d.dpi d.app.shell
   let owner := (hoveredRow g d.height ui d.app).map (·.1)
   let carry := owner != d.ui.hoverRow && (Id.run do
     let some id := d.ui.hoverRow | return false
@@ -77,14 +77,48 @@ def hoverTime (d : Driver) (now : Nat) : Driver :=
   let since := if d.ui.grace && d.graceStarted == 0 then now else d.graceStarted
   let expired := d.ui.grace && !Hover.graceLive since now
   let ui := if expired then { d.ui with grace := false, hoverRow := none, hoverFrom := d.ui.hover } else d.ui
-  let owner := (hoveredRow (Desktop.zoomLayout d.width (ui.context != .closed) d.dpi) d.height ui d.app).map (·.1)
+  let owner := (hoveredRow (Desktop.zoomLayout d.width (ui.context != .closed) d.dpi d.app.shell) d.height ui d.app).map (·.1)
   let d := { d with ui := { ui with hoverRow := owner }, graceStarted := if expired then 0 else since }
   let active := d.ui.hover.any fun (x, y) =>
-    (messageAction (Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi) d.height d.ui d.app x y).isSome
+    (messageAction (Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi d.app.shell) d.height d.ui d.app x y).isSome
   let started := if active then (if d.hoverStarted == 0 then now else d.hoverStarted) else 0
   { d with hoverStarted := started, ui := { d.ui with tooltip := active && now ≥ started + 400 } }
 
-def Driver.layout (d : Driver) : Layout := Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi
+/-- The tracks now: the shell's only for a member off the stages
+(App.St.shell), else one full-window pane. -/
+def Driver.layout (d : Driver) : Layout := Desktop.zoomLayout d.width (d.ui.context != .closed) d.dpi d.app.shell
+
+def resize (d : Driver) (w h : Nat) : IO Driver := do
+  let w := max 320 w
+  let h := max 480 h
+  let dpi := max 80 (min (d.requestedZoom * d.baseDpi / 100) (min (w * 160 / 320) (h * 160 / 240)))
+  let moved := w != d.width || h != d.height || dpi != d.dpi
+  let ui := if moved then { d.ui with hoverRow := none, hoverFrom := none, grace := false, tooltip := false } else d.ui
+  let mut d := { d with width := w, height := h, dpi, ui }
+  if w < ((720 * d.dpi + 80) / 160) && d.ui.context != .closed then
+    let (_, s) ← (do
+      for (parent, _) in d.ui.parents.reverse do App.openPage parent
+      App.openPage d.ui.drawer).run { d.app with labelText := d.ui.stubTitle }
+    d := { d with app := s, ui := { d.ui with context := .closed } }
+  if w < ((720 * d.dpi + 80) / 160) && d.ui.switching then
+    let (_, s) ← (App.openPage .switcher).run d.app
+    d := { d with app := s, ui := { d.ui with switching := false, switchOffset := 0 } }
+  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page == .switcher then
+    let (_, s) ← App.back.run d.app
+    d := { d with app := s, ui := { d.ui with switching := true, switchOffset := 0 } }
+  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page.drawer && d.app.member then
+    let viewPage := d.app.page
+    let parents := (d.app.backStack.takeWhile App.PageId.drawer).map fun p =>
+      (p, ((d.ui.parents.find? (·.1 == p)).map (·.2)).getD "")
+    let (_, s) ← (App.openPage .chat).run d.app
+    d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage, parents, stubTitle := d.app.labelText } }
+  d := { d with app := { d.app with wide := w ≥ ((720 * d.dpi + 80) / 160) } }
+  let g := d.layout
+  let aw := max ((275 * d.dpi + 80) / 160) g.main.w
+  let ah := d.height
+  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, d.dpi.toUInt32, (← d.screen.get)[5]?.getD 0]
+  let (_, s) ← (App.resize (← d.screen.get)).run d.app
+  return { d with app := s }
 
 def start (base : App.Io) (w h : Nat) (path : String)
     (net : Option (Nat × Bool) := none) (nativeDpi : Nat := 160) : IO Driver := do
@@ -108,39 +142,10 @@ def start (base : App.Io) (w h : Nat) (path : String)
   let wide := w ≥ ((720 * dpi + 80) / 160)
   let font := s.font.atSize (((if wide then 14 else 15) * dpi + 80) / 160)
   let s := { s with wide, mobile := false, font, dim := { s.dim with cell := font.cell } }
-  return { app := App.themed s s.theme, width := w, height := h, dpi, baseDpi := dpi, layers := ls, screen := sc, hoverCache }
-
-def resize (d : Driver) (w h : Nat) : IO Driver := do
-  let w := max 320 w
-  let h := max 480 h
-  let dpi := max 80 (min (d.requestedZoom * d.baseDpi / 100) (min (w * 160 / 320) (h * 160 / 240)))
-  let moved := w != d.width || h != d.height || dpi != d.dpi
-  let ui := if moved then { d.ui with hoverRow := none, hoverFrom := none, grace := false, tooltip := false } else d.ui
-  let mut d := { d with width := w, height := h, dpi, ui }
-  if w < ((720 * d.dpi + 80) / 160) && d.ui.context != .closed then
-    let (_, s) ← (do
-      for (parent, _) in d.ui.parents.reverse do App.openPage parent
-      App.openPage d.ui.drawer).run { d.app with labelText := d.ui.stubTitle }
-    d := { d with app := s, ui := { d.ui with context := .closed } }
-  if w < ((720 * d.dpi + 80) / 160) && d.ui.switching then
-    let (_, s) ← (App.openPage .switcher).run d.app
-    d := { d with app := s, ui := { d.ui with switching := false, switchOffset := 0 } }
-  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page == .switcher then
-    let (_, s) ← App.back.run d.app
-    d := { d with app := s, ui := { d.ui with switching := true, switchOffset := 0 } }
-  if w ≥ ((720 * d.dpi + 80) / 160) && d.app.page.drawer then
-    let viewPage := d.app.page
-    let parents := (d.app.backStack.takeWhile App.PageId.drawer).map fun p =>
-      (p, ((d.ui.parents.find? (·.1 == p)).map (·.2)).getD "")
-    let (_, s) ← (App.openPage .chat).run d.app
-    d := { d with app := s, ui := { d.ui with context := .settings, drawer := viewPage, parents, stubTitle := d.app.labelText } }
-  d := { d with app := { d.app with wide := w ≥ ((720 * d.dpi + 80) / 160) } }
-  let g := d.layout
-  let aw := max ((275 * d.dpi + 80) / 160) g.main.w
-  let ah := d.height
-  d.screen.set #[aw.toUInt32, ah.toUInt32, 0, 0, d.dpi.toUInt32, (← d.screen.get)[5]?.getD 0]
-  let (_, s) ← (App.resize (← d.screen.get)).run d.app
-  return { d with app := s }
+  let d : Driver := { app := App.themed s s.theme, width := w, height := h, dpi, baseDpi := dpi, layers := ls, screen := sc, hoverCache }
+  -- The first frame is laid out for what the database holds: a node in no
+  -- community starts on the full window, not beside an empty sidebar.
+  if s.shell then return d else resize d w h
 
 /-- Browser zoom changes CSS density, never the native window size. Width-
 dependent content and glyph raster caches are retired by App.resize. -/
@@ -191,7 +196,7 @@ def act (d : Driver) (a : Action) : IO Driver := do
     let (_, s) ← App.attachPhoto.run d.app
     return { d with app := s }
   | .page p =>
-    if p.drawer && d.width ≥ ((720 * d.dpi + 80) / 160) then
+    if p.drawer && d.width ≥ ((720 * d.dpi + 80) / 160) && d.app.member then
       let (_, s) ← (if d.app.page == .home then App.openPage .chat else pure ()).run d.app
       return { d with app := s, ui := { d.ui with context := .settings, drawer := p, parents := [], offset := 0, switching := false } }
     let (_, s) ← (App.openPage (if p == .home && d.width ≥ ((720 * d.dpi + 80) / 160) then .chat else p)).run d.app

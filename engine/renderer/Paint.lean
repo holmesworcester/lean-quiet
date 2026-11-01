@@ -9,6 +9,7 @@ import engine.renderer.Font
 import engine.renderer.Text
 import engine.renderer.Ttf.Blit
 import engine.renderer.Contrast
+import engine.renderer.Vector
 
 namespace Paint
 open Font Text
@@ -118,6 +119,22 @@ def Bitmap.icon (b : Bitmap) (f : Font) (name : String) (x y size : Nat) (c : Co
       for gx in [0:size] do
         let a := alpha[gy * size + gx]!.toNat
         if a > 0 then row := setPx row (x + gx) (blendText c (getPx row (x + gx)) a)
+      return row
+  return b
+
+/-- A coverage mask (Vector.fill) in colour c, clipped to the bitmap. -/
+def Bitmap.mask (b : Bitmap) (m : Vector.Mask) (c : Color) : Bitmap := Id.run do
+  let mut b := b
+  for gy in [0:m.h] do
+    let y := m.y + gy
+    if y < 0 then continue
+    b := b.modify y.toNat fun row => Id.run do
+      let mut row := row
+      for gx in [0:m.w] do
+        let x := m.x + gx
+        if x < 0 then continue
+        let a := (m.pixels[gy * m.w + gx]?.getD 0).toNat
+        if a > 0 then row := setPx row x.toNat (blendText c (getPx row x.toNat) a)
       return row
   return b
 

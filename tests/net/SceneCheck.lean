@@ -19,8 +19,8 @@ def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scene"
   IO.FS.createDirAll dir
   let t ← Checks.new
-  let x : Scene := ⟨Device.named "founder", Device.named "joiner", cryptoSeal.pub (sha256 "founder's node".toUTF8),
-    cryptoSeal.pub (sha256 "joiner's node".toUTF8), sha256 "bearer seed".toUTF8⟩
+  let x : Scene := ⟨Device.named "founder", Device.named "joiner", cryptoSeal.pub (Bytes.digest "founder's node".toUTF8),
+    cryptoSeal.pub (Bytes.digest "joiner's node".toUTF8), sha256 "bearer seed".toUTF8⟩
   t.ok "the scene's link parses back from its text" (Invite.parse x.inviteLink.text == some x.inviteLink)
   let fam := family ed25519
   t.ok "the five ops have distinct ids" ((x.S.map (·.id)).eraseDups.length == 5)

@@ -32,22 +32,22 @@ first profile (the root is the founder's admission), and the
 community's first content key `k` (local), wrapped to the node's key
 with ephemeral secret `esk` (fresh random bytes from the caller, as
 `fresh` and `k` are). -/
-def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : ByteArray) :
+def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : Key32) :
     View Fact Write := do
   let (key, pre) ← nodeKeyOr fresh
   let d := Device.ofSeed seed
   let r := root d key
   pure ⟨pre ++ [secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
-    profile r.id r.id d myName time, contentKey r.id k, wrapKey r.id k esk key]⟩
+    profile r.id r.id d myName time, contentKey r.id k.1, wrapKey r.id k esk key]⟩
 
 /-- Invite to c from device d (admitted as `myAdm`): the invitation,
 and its link, naming this node's key, with the bearer seed and dial
 hints given. None on a node with no key (a node that founded or joined
 nothing). -/
-def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray)
-    (threshold : Nat := 1) : View Fact (Option (Write × Invite)) := do
+def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray) :
+    View Fact (Option (Write × Invite)) := do
   let some (key, _) ← nodeKey | pure none
-  let p := issue c myAdm d key bearerSeed hints threshold
+  let p := issue c myAdm d key bearerSeed hints
   pure (some (⟨[p.1]⟩, p.2))
 
 /-- Join from a link, from the node with key `key`, to be known as
@@ -145,7 +145,7 @@ Otherwise a fresh join (`joinOps`) from this node's key (made from
 `fresh` if it has none), unless the seed's device is already admitted
 in c: a join never asks for an admitted device, so never for a cut one
 (`join_new_device`). -/
-def join (i : Invite) (seed name fresh : ByteArray) : View Fact Write :=
+def join (i : Invite) (seed name : ByteArray) (fresh : Key32) : View Fact Write :=
   (mine i.community).bind fun held => if held.isSome then .pure ⟨[]⟩ else
   .list (joining.all.query []) fun joins =>
   (dormant i.community joins.rows).bind fun
@@ -173,34 +173,27 @@ def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
     | none => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 
-/-- The first approval of each user, in order. -/
-def firstPerUser (l : List (Id × Id)) : List (Id × Id) :=
-  l.foldl (fun acc p => if acc.any (fun q => decide (q.2 = p.2)) then acc else acc ++ [p]) []
-
 /-- Approve request req of c as device d (admitted as `myAdm`): my
-approval, and the admission too when mine completes the tally. Reads the
-request, my admission and the approvals so far. -/
+approval and the admission it gives (one approval admits), with the
+community's key wrapped to the requester's node; only the approval if
+it does not hold the request or my admission. Reads the request, my
+admission and this device's content key. -/
 def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
     View Fact Write := do
   let ok := approve c req myAdm d
   let rq ← View.read { key := opKey req, limit := some 1 }
   let me ← View.read { key := opKey myAdm, limit := some 1 }
-  let aps ← approval.byRequest.read [c, req]
   -- The requester's device gets this device's content key for c,
   -- wrapped to its encryption key: the approval is where key material
   -- hangs (the user's decision, 2026-10-27).
   let ks ← key.byCommunity.read [c] (limit := some 1)
   let wrapTo (e : ByteArray) : List Op := match ks.rows.head? with
-    | some (_, .key _ _ k) => if esk.size = 32 then [wrapKey c k esk e] else []
+    | some (_, .key _ _ k) => match Bytes.of? k, Bytes.of? esk with
+      | some k, some esk => [wrapKey c k esk e]
+      | _, _ => []
     | _ => []
   match rq.rows.head?, me.rows.head? with
-  | some (_, .request _ _ _ e _ t), some (_, .admission _ u _ _) =>
-    let others := firstPerUser (aps.rows.filterMap fun (p, f) => match f with
-      | .approval _ _ v => if v = u then none else some (p.2, v)
-      | _ => none)
-    let chosen := ok.id :: others.map (·.1)
-    pure (if t ≤ chosen.length then ⟨[ok, admit c req (chosen.take t)] ++ wrapTo e⟩
-      else ⟨[ok] ++ wrapTo e⟩)
+  | some (_, .request _ _ _ e _), some (_, .admission ..) => pure ⟨[ok, admit c req ok.id] ++ wrapTo e⟩
   | _, _ => pure ⟨[ok]⟩
 
 /-- The ids of the content keys of c this device holds. -/
@@ -242,9 +235,9 @@ def readableClumps (c : Id) (root : Option Id) (limit : Option Nat := some 50)
   return unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg })
 
 /-- This device's newest content key for c, if it holds one. -/
-def currentKey (c : Id) : View Fact (Option ByteArray) := do
+def currentKey (c : Id) : View Fact (Option Key32) := do
   let ks ← key.byCommunity.read [c] (limit := some 1)
-  pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none)
+  pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => Bytes.of? k | _ => none)
 
 /-- The content keys of c wrapped to this node's key that it does not
 hold yet, opened with the key's secret: each becomes a local `key`. -/
@@ -257,8 +250,8 @@ def unwrap (c : Id) : View Fact Write := do
     let held ← key.byId.read [kid] (limit := some 0)
     if held.total ≠ 0 then continue
     match unbox cryptoSeal sk kid bx with
-    | some k => if k.size = 32 && !out.any (fun o => o.body == (contentKey c k).body) then
-        out := out ++ [contentKey c k]
+    | some k => if !out.any (fun o => o.body == (contentKey c k.1).body) then
+        out := out ++ [contentKey c k.1]
     | none => pure ()
   pure ⟨out⟩
 
@@ -289,13 +282,15 @@ def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 /-- An attachment's info and the file's key and nonce, opened with the
 content key. -/
 def openInfo (c kid sealed k : ByteArray) : Option (FileMeta × ByteArray × ByteArray) :=
-  (openSealed cryptoSeal c kid sealed k).bind fun m =>
+  (openStored cryptoSeal c kid sealed k).bind fun m =>
     (decode m : Option (ByteArray × ByteArray × Nat × Nat × ByteArray × ByteArray × ByteArray)).map
       fun (n, kd, w, h, p, fk, fn) => (⟨n, kd, w, h, p⟩, fk, fn)
 
 /-- A file from its chunks' slices, in order, opened with its key. -/
 def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option ByteArray :=
-  cryptoSeal.dec fileKey fileNonce fileAd (Merkle.assemble slices)
+  match Bytes.of? fileKey, Bytes.of? fileNonce with
+  | some k, some n => cryptoSeal.dec k n fileAd (Merkle.assemble slices)
+  | _, _ => none
 open Engine
 
 /-- The admissions into c among these rows whose device is live: each

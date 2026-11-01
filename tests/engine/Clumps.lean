@@ -9,7 +9,7 @@ namespace ClumpsTest
 def additions : Fact → List ByteArray := keysOf
   [message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey]
 
-def nonce (i : Nat) : ByteArray := (sha256 s!"clump-{i}".toUTF8).extract 0 24
+def nonce (i : Nat) : Nonce24 := (Bytes.fit 24 (sha256 s!"clump-{i}".toUTF8))
 
 def fact (db : Db) (id : Id) : IO (Option Fact) := (Clump.fact id).run (m := SqlM Fact) |>.run db
 
@@ -31,16 +31,16 @@ def run (dir : String) (ck : Checks) : IO Unit := do
   let bearer := Device.named "clump-invite"
   let r := root alice (keyOf alice)
   let c := r.id
-  let key := sha256 "clump-content-key".toUTF8
+  let key := Bytes.digest "clump-content-key".toUTF8
   let kid := kidOf cryptoSeal key
   let inv := invite c c alice bearer.pk false
   let req := request c inv.id bob (keyOf bob) bearer.sk
   let ap := approve c req.id c alice
-  let adm := admit c req.id [ap.id]
+  let adm := admit c req.id ap.id
   let link := invite c c alice bearer.pk true
   let lr := request c link.id linked (keyOf linked) bearer.sk
   let la := approve c lr.id c alice
-  let ladm := admit c lr.id [la.id]
+  let ladm := admit c lr.id la.id
   let setup := [r, contentKey c key, inv, req, ap, adm, link, lr, la, ladm]
   (receive fam setup).run db
   (receive fam setup.reverse).run other
