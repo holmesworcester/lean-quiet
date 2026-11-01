@@ -49,12 +49,13 @@ Not yet here: the world as a pure step relation to prove laws over
 import tests.engine.Lib
 import app.connection.Proofs
 import app.Commands
+import engine.core.Exit
 
 open Engine Engine.Sync Community Tests Connection
 
 def K := sodium
 def fam : Family F := node ed25519 K
-def cfg : Config := { every := 30000, askTime := 20000 }
+def cfg : Config := { askTime := 20000 }
 
 structure Peer where
   addr : ByteArray
@@ -213,7 +214,7 @@ def cacheOk (p : Peer) : IO Bool := do
 def snapshot (p : Peer) : IO (List ByteArray × List (Id × List Item) × List Id × List Id × List Id × Nat) := do
   let ops ← (dumpOps (F := F)).run p.db
   let st ← (dumpStatus (F := F)).run p.db
-  return (ops.map (·.bytes), p.n.ix.rooms, p.n.conns.map (·.1), p.n.addrs.map (·.1) ++ p.n.addrs.map (·.2),
+  return (ops.map (·.bytes), p.n.ix.rooms.map (fun q => (q.1, q.2.items)), p.n.conns.map (·.1), p.n.addrs.map (·.1) ++ p.n.addrs.map (·.2),
     p.n.managed ++ p.n.dropped ++ p.n.fresh, st.length)
 
 def dump (name : String) (p : Peer) : IO Unit := do
@@ -276,7 +277,7 @@ def crashedDial (shipped : Bool) : IO (Bool × Bool) := do
     (← cnt w.b eph.byOf [r]) > 0
   return (unplaced, !keyed)
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let t ← Checks.new
   let (w, c, req) ← setup 0
   let dA := Device.ofSeed w.a.seed
@@ -477,3 +478,7 @@ def main : IO UInt32 := do
   let (_, goneShipped) ← crashedDial true
   t.ok "negative control: with retired as shipped, its transport keys and ephemeral stay" (!goneShipped)
   t.finish "connection_check"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody

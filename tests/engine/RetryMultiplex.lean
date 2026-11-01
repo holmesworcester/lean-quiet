@@ -4,6 +4,7 @@ production Noise/established-hook reachability is a separate audit. -/
 import tests.engine.Lib
 import tests.engine.RetryReachability
 import engine.wire.Tcp
+import engine.core.Exit
 
 namespace RetryMultiplex
 open Engine Engine.Sync Community Tests Std.Async Std.Net
@@ -15,7 +16,7 @@ def cid (i : Nat) := sha256 s!"multiplex-session-{i}".toUTF8
 def peer (i : Nat) := cryptoSeal.pub (Bytes.digest s!"multiplex-node-key-{i}".toUTF8)
 
 def setup (address : ByteArray) (established : Bool := true) (order : List Nat := [2,1,0]) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { live := 1000000000, every := 1000000000 },
+  { fam, cfg := { live := 1000000000, safety := 1000000000 },
     hooks := {
       rooms := fun c => pure (if (List.range 3).any (fun i => c == cid i) then [.sync rootOp.id] else [])
       sealFor := plainSeal, openFrame := plainOpen
@@ -183,7 +184,7 @@ def runner (t : Checks) (preferLate : Bool := false) : IO Unit := do
 
 end RetryMultiplex
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let t ← Tests.Checks.new
   RetryReachability.run t
   RetryMultiplex.pureOrder t
@@ -192,3 +193,7 @@ def main : IO UInt32 := do
   RetryMultiplex.runner t
   RetryMultiplex.runner t true
   t.finish "retry-multiplex"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody

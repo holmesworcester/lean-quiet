@@ -35,11 +35,15 @@ variable {F : Type} (fam : Family F)
 /-- Whether ops of o's kind travel. -/
 def Family.shared (o : Op) : Bool := (fam.room o).isSome
 
+/-- Whether an op is stored: every op but an ephemeral one, which lives
+only in the app's in-memory log. -/
+def Family.durable (o : Op) : Bool := fam.scope o != .ephemeral
+
 /-- What the writer receives from a job: all of it if the job is this
-node's own; only shared ops if it came from a peer; in either case only
-ops within the requirement cap. -/
+node's own; only shared ops if it came from a peer; never an ephemeral
+op; in either case only ops within the requirement cap. -/
 def intake (mine : Bool) (ops : List Op) : List Op :=
-  (if mine then ops else ops.filter fam.shared).filter Op.capped
+  (if mine then ops.filter fam.durable else ops.filter fam.shared).filter Op.capped
 
 /-- What the bare wire takes: conn ops only (a handshake's), never a
 shared or a local op, within the cap. -/
@@ -57,7 +61,7 @@ theorem intake_local {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fa
   unfold intake at h
   rw [List.mem_filter] at h
   cases mine with
-  | true => exact ⟨rfl, h.1⟩
+  | true => exact ⟨rfl, (List.mem_filter.1 h.1).1⟩
   | false =>
     have h := h.1
     simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared] at h
@@ -76,7 +80,7 @@ theorem intake_sub {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam 
   rw [List.mem_filter] at h
   cases mine
   · exact (List.mem_filter.1 h.1).1
-  · exact h.1
+  · exact (List.mem_filter.1 h.1).1
 
 /-- **Intake takes a peer's shared op within the cap.** -/
 theorem mem_intake_shared {ops : List Op} {o : Op} (ho : o ∈ ops) (hs : fam.shared o = true)
@@ -84,15 +88,41 @@ theorem mem_intake_shared {ops : List Op} {o : Op} (ho : o ∈ ops) (hs : fam.sh
   simp only [intake, Bool.false_eq_true, ite_false, List.mem_filter]
   exact ⟨⟨ho, hs⟩, hc⟩
 
-/-- **Intake takes all of this node's own ops within the cap.** -/
-theorem intake_mine {ops : List Op} (hc : ∀ o ∈ ops, o.capped = true) : intake fam true ops = ops := by
+/-- **Intake takes all of this node's own ops within the cap** that are
+not ephemeral. -/
+theorem intake_mine {ops : List Op} (hd : ∀ o ∈ ops, fam.durable o = true) (hc : ∀ o ∈ ops, o.capped = true) :
+    intake fam true ops = ops := by
   simp only [intake, ite_true]
+  rw [List.filter_eq_self.2 hd]
   exact List.filter_eq_self.2 hc
 
 theorem intakeConn_reqs {ops : List Op} {o : Op} (h : o ∈ intakeConn fam ops) :
     o.reqs.length ≤ maxReqs := by
   simp only [intakeConn, List.mem_filter, Bool.and_eq_true] at h
   simpa [Op.capped] using h.2.2
+
+/-- A shared op is stored: only the app's working state is ephemeral. -/
+theorem durable_of_room {o : Op} {r : Id} (h : fam.room o = some r) : fam.durable o = true := by
+  unfold Family.room at h
+  unfold Family.durable
+  split at h
+  · rename_i hs; rw [hs]; rfl
+  · cases h
+
+/-- **Nothing ephemeral is taken into the store,** a job of this node's
+own included. -/
+theorem intake_durable {mine : Bool} {ops : List Op} {o : Op} (h : o ∈ intake fam mine ops) :
+    fam.scope o ≠ .ephemeral := by
+  unfold intake at h
+  rw [List.mem_filter] at h
+  have h := h.1
+  cases mine with
+  | true => simpa [Family.durable] using (List.mem_filter.1 h).2
+  | false =>
+    simp only [Bool.false_eq_true, ite_false, List.mem_filter, Family.shared, Family.room] at h
+    intro he
+    rw [he] at h
+    simp at h
 
 end
 
@@ -162,6 +192,23 @@ theorem stored_capped {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : O
     rcases foldl_ingest_ops hx with hx | ho
     · exact ih hx
     · exact intake_reqs fam ho
+  | step _ ih => rw [stepS_ops'] at hx; exact ih hx
+  | @purge M s ids _ ih =>
+    by_cases hp : x ∈ purgeSet fam s ids
+    · rw [purgeS_ops_mem s ids hp] at hx; cases hx
+    · rw [purgeS_ops_not s ids hp] at hx; exact ih hx
+
+/-- **No ephemeral op is ever stored**: whatever jobs a node takes, its
+own or its peers', and whatever it judges and purges, its store holds
+no op whose scope is ephemeral (`intake_durable`). -/
+theorem stored_durable {M : List Op} {s : DB F} (h : Fed fam M s) {x : Id} {o : Op}
+    (hx : s.ops x = some o) : fam.scope o ≠ .ephemeral := by
+  induction h with
+  | empty => cases hx
+  | job mine ops _ ih =>
+    rcases foldl_ingest_ops hx with hx | ho
+    · exact ih hx
+    · exact intake_durable fam ho
   | step _ ih => rw [stepS_ops'] at hx; exact ih hx
   | @purge M s ids _ ih =>
     by_cases hp : x ∈ purgeSet fam s ids

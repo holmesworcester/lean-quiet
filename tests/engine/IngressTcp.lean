@@ -6,6 +6,7 @@ import tests.engine.SocketAbort
 import engine.wire.Tcp
 import tests.engine.RunnerWaits
 import tests.engine.IngressHub
+import engine.core.Exit
 
 namespace IngressTcp
 open Engine Engine.Sync Community Tests Std.Async Std.Net
@@ -42,7 +43,7 @@ def closePeer (peer : Peer) : IO Unit := do
   else SocketAbort.closeIdle peer.client
 
 def setup (established : IO.Ref (List (Id × ByteArray × Bool))) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { every := 1000000000, live := 1000000000 }, hooks := {
+  { fam, cfg := { safety := 1000000000, live := 1000000000 }, hooks := {
     rooms := fun _ => pure [.sync rootOp.id]
     established := do return ← established.get
     sealFor := plainSeal, openFrame := plainOpen } }
@@ -327,7 +328,7 @@ def readerCancellation (t : Checks) (global : Bool) : IO Unit := do
 
 end IngressTcp
 
-def main (args : List String) : IO UInt32 := do
+def mainBody (args : List String) : IO UInt32 := do
   let t ← Tests.Checks.new
   if args.isEmpty || args.contains "--hub-only" then IngressHub.run t
   if args.isEmpty || args.contains "--fair-only" then IngressTcp.fairnessChecked t
@@ -337,3 +338,7 @@ def main (args : List String) : IO UInt32 := do
     IngressTcp.readerCancellation t true
   if args.isEmpty || args.contains "--waits-only" then RunnerWaits.run t
   t.finish "ingress-tcp"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main (args : List String) : IO UInt32 := Engine.exitAfter (mainBody args)

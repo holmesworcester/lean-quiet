@@ -290,7 +290,10 @@ theorem walkN_q (fam : Family F) (cfg : Config) (h : Held F) : ∀ (k : Nat) (c 
           · exact ih _ _
 
 theorem start_q (cfg : Config) (ix : Index) (c : Conn) (now : Nat) : SameQ c (c.start cfg ix now).conn := by
-  unfold Conn.start; split <;> exact ⟨rfl, rfl⟩
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e] <;> exact ⟨rfl, rfl⟩
+
+theorem ask_q (cfg : Config) (c : Conn) (now : Nat) : SameQ c (c.ask cfg now).conn := by
+  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now; rw [e]; exact ⟨rfl, rfl⟩
 
 theorem tick_q (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     SameQ c ((c.tick fam cfg ix now : HeldM F Step) h).1.conn := by
@@ -302,7 +305,8 @@ theorem tick_q (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Na
     split
     · obtain ⟨s1, s2⟩ := start_q cfg ix (((c.walkN fam cfg [] cfg.walk : HeldM F _) h).1.1.expireAsks cfg now) now
       exact ⟨s1.trans w1, s2.trans w2⟩
-    · exact ⟨w1, w2⟩
+    · obtain ⟨s1, s2⟩ := ask_q cfg (((c.walkN fam cfg [] cfg.walk : HeldM F _) h).1.1.expireAsks cfg now) now
+      exact ⟨s1.trans w1, s2.trans w2⟩
 
 theorem give_q (fam : Family F) (cfg : Config) : ∀ (l : List (Id × Id)) (c : Conn) (h : Held F),
     SameQ c ((c.give fam cfg l : HeldM F Step) h).1.conn
@@ -582,7 +586,7 @@ theorem write_ixinv (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held 
 stored op under its id. -/
 theorem boot_ixinv (fam : Family F) (h : Held F) (floor : Nat) (hl : LogInv h) :
     IxInv fam (Node.boot fam h.log floor) h := by
-  have h0 : IxKeyed fam ({} : Index) := fun r a ha => by simp [Index.items] at ha
+  have h0 : IxKeyed fam ({} : Index) := fun r a ha => by simp [Index.items, Index.room?] at ha
   refine ⟨fun r x o hx hr => ?_, keyed_foldl fam h0 h.log, hl⟩
   obtain ⟨e, hlog⟩ := hl x o hx
   subst e
@@ -717,7 +721,7 @@ theorem ix_covers {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Worl
 theorem ix_covers_start {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) :
     ∀ k i, IxCovers Q.fam ((E.world k).node i) ((E.world k).box i) :=
   ix_covers E (fun _ _ _ _ hx => by cases hx)
-    (fun _ _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items] at ha)
+    (fun _ _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items, Index.room?] at ha)
     (fun _ _ _ hx => by cases hx)
 
 /-- `owes_queued` from empty stores: no premise. -/

@@ -54,7 +54,7 @@ Papers and the poc survey behind these: `/mnt/storage/holmes-research/rbsr/`.
 `Hooks.rooms` still returns typed `List Room`: `Room.sync r` permits sync;
 `Room.notice r x` permits only the removal notice and its requirement
 closure. `Conn.carry` refreshes these separately on every node step.
-The per-room snapshots and gates operate only on `Room.syncs`.
+Rounds and their gates operate only on `Room.syncs`.
 
 The delivery result has one field, `Step.given : List Id`, beside send and
 take. `Conn.given` suppresses repeats on this connection. `Step.then`
@@ -87,8 +87,13 @@ id as a number and is injective (`num_inj`), so keys name items.
 floor `f` is every op with no claimed time (roots, invitations,
 admissions, removals: structure, including every removal a node needs
 to refuse a removed peer) and every op claimed at `f` or later:
-`[0, 1) ∪ [f, ∞)`, one range when `f ≤ 1`. A round runs over the
-overlap of the two sides' windows.
+`[0, 1)` then `[max f 1, ∞)`, the structure range first (see "Windows
+and order"). A round runs over the overlap of the two sides' windows. A message's attachment and its
+chunks claim the message's time, checked by their validators
+(`chunks_in_window`; user, 2026-11-01): a window holds a message with
+its photos, and no older message's photos. Before, they sorted at time
+0, in the structure range every window includes, so every window
+carried every photo.
 
 **Fingerprints.** `fp l = (|l|, lbl l)`. `lbl` is the Merkle label of
 the canonical treap of `l`: the item with the largest id number at the
@@ -107,8 +112,41 @@ all of the claimant's ids in it. `answer` (engine/sync/Round.lean):
 - a claim of ids is answered with what this side holds there that the
   claimant lacks (`hold`) and what it lacks (`want`).
 
-Each side answers a round's claims from a snapshot of the room taken
-when it first saw the round. A message with no claims ends the round.
+Each side answers each claim from the room as its live index holds it
+at that instant (`Index.answer`); no connection keeps a copy of a room,
+only which rounds are in flight (`Conn.active`: room and epoch). A
+matching fingerprint means equal sets at that instant (`lbl_inj`), and
+ops stored meanwhile reach the peer by the stream, so a round needs no
+calm: a run of the actual handler ends within its claims' rank over
+everything both sides held during it (`RoundRun.terminates`, linear in
+the room), and every op either side held at the start and kept reaches
+the other side or the wire (`RoundRun.discovers`,
+`live_round_complete`). With both indices fixed during the round it is
+`exchange` (`conn_runs_exchange`), so 2k + 2 answers for a room of at
+most leaf·fanᵏ items (`exchange_log`); under concurrent writes only the
+linear bound is proven. A message with no claims ends the round.
+
+**When rounds open.** Only on events. Only the dialer opens rounds,
+each over the overlap of the two windows, in every shown room that is
+due (`Conn.due`, `round_due`):
+- a room with no round yet on this session: every room once the
+  peer's hello gives its floor, and each room the session starts showing
+  mid-session (a join just approved, a new room: `shown_due`);
+- a room the responder asks for: when the responder starts showing a
+  room mid-session it sends an empty have naming it (`Conn.ask`,
+  `responder_asks`), and the dialer, if no round of it is in flight,
+  makes it due (`Conn.onAsk`, `ask_due`);
+- a room whose last round (or have) found more ids missing than `asked`
+  had room for (`short`), once no round of it is in flight and the asks
+  are at most half full (`Conn.retake`);
+- every `safety` ms (10 minutes) per room, a safety round, which also
+  supersedes a round stuck in flight.
+With no event no round opens (`no_round_before_safety`), and the
+responder opens none (`responder_opens_none`). So a round opens within
+two ticks and one delivery of either end starting to show a room
+(`join_round`). Until this, the dialer opened rounds every 30 s on one
+timer per connection, and a room shown mid-session waited for it
+(docs/CAUGHT.md; the shipped code is the control `Conn.workShipped`).
 
 **Have and want.** `hold` goes out as `sync.have`, naming its room (the
 round's, or each offered op's). The peer wants what it lacks in that
@@ -126,8 +164,10 @@ reply. Closure reads are deferred to ticks. The receiver retains admitted unsati
 (1000 by default) a tick re-wants at most `maxIds` of them. Each ask expires
 strictly after its original ask time plus `askTime`; repeat offers and
 retries do not renew that time. Expiry frees capacity even if other peer
-traffic keeps the session alive. Later rounds or offers rediscover deferred
-or expired ids, so a byte-limited response does not abandon the rest forever. A have for a room the peer may not see
+traffic keeps the session alive. Expired ids are offered again by the
+stream or the catalog retry; ids a round could not ask for mark their room
+short, and its next round rediscovers them, so a byte-limited response does
+not abandon the rest forever. A have for a room the peer may not see
 is ignored, and a have is answered from that room's ops only, so a
 peer's haves learn nothing of other rooms or of local ops.
 
@@ -140,8 +180,8 @@ from rounds.
 sender per-op bookkeeping: neither its holds nor served wants add to
 `offered`, `closed`, or `frontier`. RBSR reconciles the entire room,
 requirements included (`exchange_complete`, `ends_log`). Each round
-captures its overlap floor in `roundFloor` alongside its room snapshots;
-all rooms in that round share that window. The captured floor survives
+captures its overlap floor in `roundFloor`; all rooms in that round
+share that window. The captured floor survives
 the empty end, so delayed wants do not consult a later hello. Wants have
 no round id on the wire; they use the connection's latest captured round.
 Honest peers keep their negotiated floors fixed during a session.
@@ -208,10 +248,11 @@ Opening a round does not refresh peer liveness. An unserved ask expires
 after `askTime` (20000 ms), even while keepalives arrive, freeing `asked`
 without closing the session. Logical time has no pause accounting.
 
-**Independent rooms.** A cadence starts only rooms without their own
-snapshot; another room in flight cannot gate them. An unshown room gets
-an empty end without changing the connection. Snapshot and closure caps
-still apply across the connection; this is not a fairness or CPU bound.
+**Independent rooms.** Whether a room is due reads only that room's
+record; another room in flight cannot gate it (`room_independent`). An
+unshown room gets an empty end without changing the connection. Round
+and closure caps still apply across the connection; this is not a
+fairness or CPU bound.
 
 **Session phases.** A fresh connection goes from Dialing to Hello; the
 peer's hello advances it to Live. Timeout enters Closed. Every handler
@@ -247,17 +288,60 @@ overflow closes the session.
 ask (a parallel map whose entries leave with their asks). Inserting a new
 `known` hint that would exceed the cap clears old hints, then remembers the
 new id. Redundant offers are harmless. A full `asked` admits no more missing
-ids, sends no wants for them and does not add them to `known`; later rounds
-or offers bring them again. Neither case is a protocol violation or ends
+ids, sends no wants for them and does not add them to `known`; it marks the
+room short, and the room's next round (once the asks are half free) brings
+them again. Neither case is a protocol violation or ends
 the session. A zero cap retains no hints or asks. `hold` checks `maxIds`
 before reads and silently ignores oversized offers. `conn_state_bounded`
-covers all connection transitions and includes the closure and snapshot-count bounds; `honest_no_drop` proves that within Conn only
+covers all connection transitions and includes the closure bound and the
+round state's (one in-flight round, opening time, epoch and short mark per
+shown room, whatever the room's size); `honest_no_drop` proves that within Conn only
 silence expiry can drop, independently of set sizes. Transport
 loss and retirement still use the common close-and-purge path.
 These are bounds on inbound buffering and persistent per-connection id
-state, not a total RSS bound: the shared room index, snapshot contents,
-and transient handler allocations are separate. Round/CPU bounds remain
+state, not a total RSS bound: the shared room index (one per node, not
+per connection) and transient handler allocations are separate. Round/CPU bounds remain
 separate work.
+
+## Windows and order
+
+**Newest first** (user, 2026-11-01). A fresh or catching-up node gets the
+structure range first, then the newest ops, then older ones, and a
+message's photo with its message.
+
+- **Chunks sort with their message.** An attachment and its chunks
+  claim their message's time, checked by their validators
+  (`chunks_in_window`). Before, they sorted at time 0, in the structure
+  range every window includes.
+- **A window is two ranges, structure first** (`window_first`):
+  `[0, 1)` (roots, invitations, admissions, removals: what everything
+  else needs), then `[max f 1, ∞)`. A full round (`f ≤ 1`) is the same
+  two ranges.
+- **Answers are newest first** (`answer_newest_first`): pieces are
+  claimed newest first, and every list of ids (a have, an ids claim) is
+  newest first. Only the holder can order them: the side that lacks ops
+  does not know their keys. The peer's `onHold` wants them in the have's
+  order, and the serve queue is FIFO, so ops go out in that order.
+- **A message's haves follow its claims** (`newest_first`): answering
+  claims that come structure first and then newest first (an opening
+  over a window, or an answer's pieces), a message's haves come
+  structure first, then newest first.
+
+Order changes no fingerprint and no wire format: old and new nodes sync
+completely, the old ones oldest first.
+
+Tested end to end by `newest` (tests/engine/Newest.lean, `mise run
+test:window`): a fresh node syncs a 200-message chaos room (real signed
+ops, photos with 64 KiB chunks) from a full node; the structure arrives
+before any timed op, messages arrive newest first, and a newer message's
+photo arrives whole before any chunk of an older one's. Its control
+syncs the same room with chunks claimed at time 0: they arrive before
+every message, in no order of their messages.
+
+What this does not order: within one round, a piece found deeper in the
+claim tree (where both sides differ in a small range) is offered in a
+later message than a shallower, older piece; and ops the stream offers
+as they are stored go in store order.
 
 ## Code
 
@@ -386,8 +470,9 @@ Proven:
   as a notice gets no reply (`notice_no_holds`).
 - `intakeConn_conn`: the bare wire takes conn ops only.
 - `have_shown`: every id a connection offers, in a have or an id claim,
-  is a stored op of one of its rooms; each step reads only and keeps its
-  round snapshots of the index. It rests on the cache law: the room
+  is a stored op of one of its rooms; each step reads only. Rounds answer
+  from the index as it is, so no premise on the connection's past is
+  needed. It rests on the cache law: the room
   index is the index of the ops stored (`Cached`, `cached_items`), and
   every write turn and purge keeps it so (`write_cached`,
   `purge_cached`). Proven of `Conn`'s code on held data; the walk is a
@@ -407,7 +492,8 @@ Proven:
   bundle's payloads are together smaller than it.
 - `conn_state_bounded`: every reachable connection has known, asked and
   stream-offered at most `maxKnown`, visited plus pending closure ids at
-  most `closureCap`, and at most as many snapshots as shown rooms.
+  most `closureCap`, and at most one in-flight round, opening time, epoch
+  and short mark per shown room: nothing that grows with a room's size.
   `conn_bounded` retains its original known/asked statement.
 - `full_round_stateless`: serving wants with a captured full-range floor
   leaves offered, closed and frontier unchanged.
@@ -450,9 +536,9 @@ Proven:
 - `conn_answers_ids`, the base case of `conn_runs_exchange` below: a
   connection answering a round's claim that lists ids (honestly, the
   claimant's items in the range) sends exactly `exchange`'s offers and
-  wants from the round's snapshot, and no claim back. By
-  `exchange_ids`, those are the ids the snapshot holds there that the
-  claimant lacks, and the reverse.
+  wants from the live index, and no claim back. By `exchange_ids`, those
+  are the ids the index holds there that the claimant lacks, and the
+  reverse.
 - `offer_shared`, `offer_stored`: the real filed stream and closure walk
   advertise only stored shared ops; the unused `Engine.offer` is deleted.
 - `purges_notified`: the single purge primitive reports every purge root
@@ -491,29 +577,20 @@ Earlier negative controls, each failing the suite: windows that ignore the
 floor; no closure offers; rooms not checked.
 
 Still to prove:
-1. **`conn_runs_exchange`.** Conn's message handling, over any delivery
-   order, performs `exchange`. Each round is answered from its
-   snapshot, so the claim tree is the same in any order. Stated over
-   the world: in any run (`World.Steps`) in which round k of room r,
-   opened by the dialer from snapshot Y and first seen by the peer with
-   snapshot X, has ended on both sides with none of its frames in
-   flight: for each window range w, the ids the peer offered or the
-   dialer asked for in it are exactly `(exchange … X Y (opening Y w)).1`,
-   and the ids the dialer offered or the peer asked for are exactly its
-   `.2`. The base
-   case is proven with bounded ask admission (`conn_answers_ids`, a claim
-   of ids): offers remain exact, wants take only the admitted subset.
-   Completing a large difference now spans rounds. Still to come:
-   fingerprint claims, whose answers are claims of their own, and
-   delivery in any order. Each side keeps the round's snapshot until
-   the round ends, so the claim tree does not depend on the order.
+1. **The round over the network.** `live_round_complete` proves a run
+   of the actual handler, with the indices free to change at every
+   step, ends and finds every difference; `conn_runs_exchange` is its
+   fixed-index case. Still to come: that the World's delivery of a
+   session's frames is such a run (holmes-a8's n-node World), and a
+   logarithmic bound under concurrent writes (proven linear today, and
+   logarithmic when the indices stay fixed).
 2. **The node chains the steps.** Every connection step an entry point
    runs reads its rooms afresh (`entry_fresh`, engine/wire/EgressLaws.lean):
    each payload sealed for a session is a step's send at a store on the
    way, on the connection as `Node.refresh` gave it. `have_shown` and the
    cache law are proven for each connection step, write turn and purge;
-   that every entry point keeps the cache law and the snapshots between
-   them is read from the code.
+   that every entry point keeps the cache law between them is read from
+   the code.
 3. **`closure_delivered`.** After a send and its offers are answered,
    the peer holds the op's closure when it fits the cap, given the invariant that `known` is
    a subset of the peer's store. With `spec_local` this gives "every op a
@@ -527,7 +604,7 @@ Still to prove:
    contain an item of the difference).
 5. **Buffering beyond the inbound queue.** The event channel now has
    `queue` slots and blocks producers; socket admission has per-IP and
-   total caps. Total RSS, snapshot contents and round CPU work still
+   total caps. Total RSS, the index's contents and round CPU work still
    need separate bounds; see the peer-controlled-storage section above.
 
 ## Costs
@@ -797,7 +874,8 @@ doing it safely needs the op's own time (within `hotMs` of now) and the
   claims, have and want become ephemeral ops with responders, answered
   from the live store (stores only grow, so `exchange_complete` is
   restated for growing sets). Conn's memory goes away:
-  - snapshots: answered from the live store instead;
+  - snapshots: answered from the live store instead (done: rounds answer
+    from the live index, `live_round_complete`);
   - known, offered, asked and closed: content addressing makes repeats
     idempotent ("dedup may only delay a resend, never veto it");
   - peer floor, round counters and liveness: become ops and list reads.
@@ -869,7 +947,10 @@ assumption, `answer_step` preserves each differing id or settles it.
 same `answer`; `exchange` is the composition used to state a round's
 result, not a replacement network implementation.
 
-These are snapshot/one-round claims. They do not prove eventual
+These are fixed-set, one-round claims: the running round answers from
+the live index, and with both sides' sets fixed during it the round is
+`exchange` (`conn_runs_exchange`); under concurrent writes the proven
+bound is the linear `RoundRun.terminates`. They do not prove eventual
 many-node delivery under churn, fair scheduling, transport loss, or
 expired requests. The integration preserves the stateless session and
 ask-expiry/retry semantics rather than restoring older session APIs.

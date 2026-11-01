@@ -53,7 +53,7 @@
     "theorem": "Engine.Sync.conn_state_bounded",
     "witness": "Vacuity.SyncMore.stateBounds",
     "module": "tests.vacuity.SyncMore",
-    "detail": "Same actual open/want history yields all five collection/snapshot bounds. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
+    "detail": "Same actual open/want history yields the five id-collection bounds and the round-state bounds (in-flight rounds, opening times, epochs, short rooms, each at most the shown rooms). Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
   },
   "hold_bounded": {
     "status": "kernel-witness",

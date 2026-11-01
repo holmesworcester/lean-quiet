@@ -10,6 +10,8 @@ import app.community.channel.message.attachment.chunk.Validate
 import app.community.channel.message.reaction.Op
 import app.community.channel.message.reaction.Validate
 import app.community.channel.message.receipt.Op
+import app.community.channel.message.draft.Op
+import app.community.channel.message.draft.Validate
 import app.community.channel.message.receipt.Validate
 import app.community.device.endpoint.Op
 import app.community.device.endpoint.Validate
@@ -167,6 +169,7 @@ inductive Fact where
   | ofChunk (f : Chunk.Fact)
   | ofEndpoint (f : Endpoint.Fact)
   | ofReceived (f : Receive.Fact)
+  | ofDraft (f : Draft.Fact)
   deriving DecidableEq, Inhabited
 
 /-- An op of the community family: one op type's body. -/
@@ -192,6 +195,7 @@ inductive Body where
   | ofChunk (b : Chunk.Body)
   | ofEndpoint (b : Endpoint.Body)
   | ofReceive (b : Receive.Body)
+  | ofDraft (b : Draft.Body)
   deriving DecidableEq, Inhabited
 
 /-! ## Each op type's fact and body by its fields, as laws and views match them -/
@@ -203,7 +207,7 @@ inductive Body where
 @[match_pattern] abbrev Fact.message (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id := none) : Fact := .ofMessage ⟨c, u, device, ckey, text, n, time, clump⟩
 @[match_pattern] abbrev Fact.wrap (c : Id) (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Fact := .ofWrap ⟨c, ckey, recipient, box⟩
 @[match_pattern] abbrev Fact.profile (c : Id) (u : Id) (name : ByteArray) (time : Nat) : Fact := .ofProfile ⟨c, u, name, time⟩
-@[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, kid, sealed⟩
+@[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, time, kid, sealed⟩
 @[match_pattern] abbrev Fact.react (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) : Fact := .ofReact ⟨c, u, target, emoji, time⟩
 @[match_pattern] abbrev Fact.request (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) : Fact := .ofRequest ⟨c, u, device, enc, link⟩
 @[match_pattern] abbrev Fact.approval (c : Id) (req : Id) (u : Id) : Fact := .ofApproval ⟨c, req, u⟩
@@ -225,7 +229,7 @@ inductive Body where
 @[match_pattern] abbrev Body.post (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (sig : ByteArray) : Body := .ofPost ⟨ckey, text, n, time, sig⟩
 @[match_pattern] abbrev Body.wrap (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Body := .ofWrap ⟨ckey, recipient, box⟩
 @[match_pattern] abbrev Body.profile (name : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofProfile ⟨name, time, sig⟩
-@[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, kid, sealed, sig⟩
+@[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, time, kid, sealed, sig⟩
 @[match_pattern] abbrev Body.react (emoji : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofReact ⟨emoji, time, sig⟩
 @[match_pattern] abbrev Body.approve (sig : ByteArray) : Body := .ofApprove ⟨sig⟩
 @[match_pattern] abbrev Body.admit : Body := .ofAdmit {}
@@ -235,7 +239,7 @@ inductive Body where
 @[match_pattern] abbrev Body.name (n : Nat) (name : ByteArray) (sig : ByteArray) : Body := .ofName ⟨n, name, sig⟩
 @[match_pattern] abbrev Body.abandon : Body := .ofAbandon {}
 @[match_pattern] abbrev Body.key (c : ByteArray) (k : ByteArray) : Body := .ofKey ⟨c, k⟩
-@[match_pattern] abbrev Body.chunk (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) : Body := .ofChunk ⟨root, len, index, slice, sibs⟩
+@[match_pattern] abbrev Body.chunk (root : ByteArray) (len : Nat) (time : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) : Body := .ofChunk ⟨root, len, time, index, slice, sibs⟩
 @[match_pattern] abbrev Body.endpoint (sk : ByteArray) : Body := .ofEndpoint ⟨sk⟩
 @[match_pattern] abbrev Body.receive (k : Nat) : Body := .ofReceive ⟨k⟩
 
@@ -281,11 +285,11 @@ theorem Fact.profile.injEq (c : Id) (u : Id) (name : ByteArray) (time : Nat) (c'
 theorem Fact.profile.inj {c : Id} {u : Id} {name : ByteArray} {time : Nat} {c' : Id} {u' : Id} {name' : ByteArray} {time' : Nat}
     (hinj : Fact.profile c u name time = Fact.profile c' u' name' time') : c = c' ∧ u = u' ∧ name = name' ∧ time = time' := by
   rw [Fact.profile.injEq] at hinj; exact hinj
-theorem Fact.attachment.injEq (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (c' : Id) (msg' : Id) (u' : Id) (root' : Id) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) :
-    (Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') = (c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed') := by
+theorem Fact.attachment.injEq (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (c' : Id) (msg' : Id) (u' : Id) (root' : Id) (len' : Nat) (time' : Nat) (kid' : ByteArray) (sealed' : ByteArray) :
+    (Fact.attachment c msg u root len time kid sealed = Fact.attachment c' msg' u' root' len' time' kid' sealed') = (c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed') := by
   simp [Fact.attachment]
-theorem Fact.attachment.inj {c : Id} {msg : Id} {u : Id} {root : Id} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {c' : Id} {msg' : Id} {u' : Id} {root' : Id} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray}
-    (hinj : Fact.attachment c msg u root len kid sealed = Fact.attachment c' msg' u' root' len' kid' sealed') : c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' := by
+theorem Fact.attachment.inj {c : Id} {msg : Id} {u : Id} {root : Id} {len : Nat} {time : Nat} {kid : ByteArray} {sealed : ByteArray} {c' : Id} {msg' : Id} {u' : Id} {root' : Id} {len' : Nat} {time' : Nat} {kid' : ByteArray} {sealed' : ByteArray}
+    (hinj : Fact.attachment c msg u root len time kid sealed = Fact.attachment c' msg' u' root' len' time' kid' sealed') : c = c' ∧ msg = msg' ∧ u = u' ∧ root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' := by
   rw [Fact.attachment.injEq] at hinj; exact hinj
 theorem Fact.react.injEq (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) (c' : Id) (u' : Id) (target' : Id) (emoji' : ByteArray) (time' : Nat) :
     (Fact.react c u target emoji time = Fact.react c' u' target' emoji' time') = (c = c' ∧ u = u' ∧ target = target' ∧ emoji = emoji' ∧ time = time') := by
@@ -407,11 +411,11 @@ theorem Body.profile.injEq (name : ByteArray) (time : Nat) (sig : ByteArray) (na
 theorem Body.profile.inj {name : ByteArray} {time : Nat} {sig : ByteArray} {name' : ByteArray} {time' : Nat} {sig' : ByteArray}
     (h : Body.profile name time sig = Body.profile name' time' sig') : name = name' ∧ time = time' ∧ sig = sig' := by
   rw [Body.profile.injEq] at h; exact h
-theorem Body.attach.injEq (root : ByteArray) (len : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) (root' : ByteArray) (len' : Nat) (kid' : ByteArray) (sealed' : ByteArray) (sig' : ByteArray) :
-    (Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') = (root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig') := by
+theorem Body.attach.injEq (root : ByteArray) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) (root' : ByteArray) (len' : Nat) (time' : Nat) (kid' : ByteArray) (sealed' : ByteArray) (sig' : ByteArray) :
+    (Body.attach root len time kid sealed sig = Body.attach root' len' time' kid' sealed' sig') = (root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig') := by
   simp [Body.attach]
-theorem Body.attach.inj {root : ByteArray} {len : Nat} {kid : ByteArray} {sealed : ByteArray} {sig : ByteArray} {root' : ByteArray} {len' : Nat} {kid' : ByteArray} {sealed' : ByteArray} {sig' : ByteArray}
-    (h : Body.attach root len kid sealed sig = Body.attach root' len' kid' sealed' sig') : root = root' ∧ len = len' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig' := by
+theorem Body.attach.inj {root : ByteArray} {len : Nat} {time : Nat} {kid : ByteArray} {sealed : ByteArray} {sig : ByteArray} {root' : ByteArray} {len' : Nat} {time' : Nat} {kid' : ByteArray} {sealed' : ByteArray} {sig' : ByteArray}
+    (h : Body.attach root len time kid sealed sig = Body.attach root' len' time' kid' sealed' sig') : root = root' ∧ len = len' ∧ time = time' ∧ kid = kid' ∧ sealed = sealed' ∧ sig = sig' := by
   rw [Body.attach.injEq] at h; exact h
 theorem Body.react.injEq (emoji : ByteArray) (time : Nat) (sig : ByteArray) (emoji' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.react emoji time sig = Body.react emoji' time' sig') = (emoji = emoji' ∧ time = time' ∧ sig = sig') := by
@@ -455,11 +459,11 @@ theorem Body.key.injEq (c : ByteArray) (k : ByteArray) (c' : ByteArray) (k' : By
 theorem Body.key.inj {c : ByteArray} {k : ByteArray} {c' : ByteArray} {k' : ByteArray}
     (h : Body.key c k = Body.key c' k') : c = c' ∧ k = k' := by
   rw [Body.key.injEq] at h; exact h
-theorem Body.chunk.injEq (root : ByteArray) (len : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) (root' : ByteArray) (len' : Nat) (index' : Nat) (slice' : ByteArray) (sibs' : List ByteArray) :
-    (Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') = (root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs') := by
+theorem Body.chunk.injEq (root : ByteArray) (len : Nat) (time : Nat) (index : Nat) (slice : ByteArray) (sibs : List ByteArray) (root' : ByteArray) (len' : Nat) (time' : Nat) (index' : Nat) (slice' : ByteArray) (sibs' : List ByteArray) :
+    (Body.chunk root len time index slice sibs = Body.chunk root' len' time' index' slice' sibs') = (root = root' ∧ len = len' ∧ time = time' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs') := by
   simp [Body.chunk]
-theorem Body.chunk.inj {root : ByteArray} {len : Nat} {index : Nat} {slice : ByteArray} {sibs : List ByteArray} {root' : ByteArray} {len' : Nat} {index' : Nat} {slice' : ByteArray} {sibs' : List ByteArray}
-    (h : Body.chunk root len index slice sibs = Body.chunk root' len' index' slice' sibs') : root = root' ∧ len = len' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs' := by
+theorem Body.chunk.inj {root : ByteArray} {len : Nat} {time : Nat} {index : Nat} {slice : ByteArray} {sibs : List ByteArray} {root' : ByteArray} {len' : Nat} {time' : Nat} {index' : Nat} {slice' : ByteArray} {sibs' : List ByteArray}
+    (h : Body.chunk root len time index slice sibs = Body.chunk root' len' time' index' slice' sibs') : root = root' ∧ len = len' ∧ time = time' ∧ index = index' ∧ slice = slice' ∧ sibs = sibs' := by
   rw [Body.chunk.injEq] at h; exact h
 theorem Body.endpoint.injEq (sk : ByteArray) (sk' : ByteArray) :
     (Body.endpoint sk = Body.endpoint sk') = (sk = sk') := by
@@ -535,6 +539,9 @@ theorem Body.receive.inj {k : Nat} {k' : Nat}
 @[simp] def Fact.received? : Fact → Option Receive.Fact
   | .ofReceived x => some x
   | _ => none
+@[simp] def Fact.draft? : Fact → Option Draft.Fact
+  | .ofDraft x => some x
+  | _ => none
 
 /-! ## Bytes: each op type writes its own, tag first -/
 
@@ -564,6 +571,7 @@ def Body.enc : Body → List UInt8
   | .ofChunk a => Codec.enc a
   | .ofEndpoint a => Codec.enc a
   | .ofReceive a => Codec.enc a
+  | .ofDraft a => Codec.enc a
 
 def Body.dec (bs : List UInt8) : Option (Body × List UInt8) :=
   match bs.head? with
@@ -588,6 +596,7 @@ def Body.dec (bs : List UInt8) : Option (Body × List UInt8) :=
   | some 19 => decWith Body.ofChunk bs
   | some 22 => decWith Body.ofEndpoint bs
   | some 24 => decWith Body.ofReceive bs
+  | some 25 => decWith Body.ofDraft bs
   | _ => none
 
 def Body.encInto (buf : ByteArray) : Body → ByteArray
@@ -612,6 +621,7 @@ def Body.encInto (buf : ByteArray) : Body → ByteArray
   | .ofChunk a => Codec.encInto buf a
   | .ofEndpoint a => Codec.encInto buf a
   | .ofReceive a => Codec.encInto buf a
+  | .ofDraft a => Codec.encInto buf a
 
 def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   match b[i]? with
@@ -636,6 +646,7 @@ def Body.decFrom (b : ByteArray) (i : Nat) : Option (Body × Nat) :=
   | some 19 => decFromAs Body.ofChunk b i
   | some 22 => decFromAs Body.ofEndpoint b i
   | some 24 => decFromAs Body.ofReceive b i
+  | some 25 => decFromAs Body.ofDraft b i
   | _ => none
 
 theorem Body.dec_of {α} [Codec α] {t : UInt8} (f : α → Body) (a : α) (rest : List UInt8)
@@ -683,6 +694,7 @@ instance : Codec Body where
     | ofChunk a => exact Body.dec_of (t := 19) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
     | ofEndpoint a => exact Body.dec_of (t := 22) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
     | ofReceive a => exact Body.dec_of (t := 24) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
+    | ofDraft a => exact Body.dec_of (t := 25) _ _ _ rfl (fun bs h => by simp only [Body.dec, h])
   encInto := Body.encInto
   encInto_eq buf x := by cases x <;> exact Codec.encInto_eq _ _
   decFrom := Body.decFrom
@@ -709,6 +721,7 @@ instance : Codec Body where
     | ofChunk a => exact Body.decFrom_of (t := 19) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
     | ofEndpoint a => exact Body.decFrom_of (t := 22) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
     | ofReceive a => exact Body.decFrom_of (t := 24) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
+    | ofDraft a => exact Body.decFrom_of (t := 25) _ _ rfl (fun b i h => by simp only [Body.decFrom, h]) h
 
 def Fact.enc : Fact → List UInt8
   | .ofAdmission a => Codec.enc a
@@ -731,6 +744,7 @@ def Fact.enc : Fact → List UInt8
   | .ofChunk a => Codec.enc a
   | .ofEndpoint a => Codec.enc a
   | .ofReceived a => Codec.enc a
+  | .ofDraft a => Codec.enc a
 
 def Fact.dec (bs : List UInt8) : Option (Fact × List UInt8) :=
   match bs.head? with
@@ -756,6 +770,7 @@ def Fact.dec (bs : List UInt8) : Option (Fact × List UInt8) :=
   | some 20 => decWith Fact.ofEndpoint bs
   | some 22 => decWith Fact.ofReceived bs
   | some 24 => decWith Fact.ofReceived bs
+  | some 25 => decWith Fact.ofDraft bs
   | _ => none
 
 def Fact.encInto (buf : ByteArray) : Fact → ByteArray
@@ -779,6 +794,7 @@ def Fact.encInto (buf : ByteArray) : Fact → ByteArray
   | .ofChunk a => Codec.encInto buf a
   | .ofEndpoint a => Codec.encInto buf a
   | .ofReceived a => Codec.encInto buf a
+  | .ofDraft a => Codec.encInto buf a
 
 def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   match b[i]? with
@@ -804,6 +820,7 @@ def Fact.decFrom (b : ByteArray) (i : Nat) : Option (Fact × Nat) :=
   | some 20 => decFromAs Fact.ofEndpoint b i
   | some 22 => decFromAs Fact.ofReceived b i
   | some 24 => decFromAs Fact.ofReceived b i
+  | some 25 => decFromAs Fact.ofDraft b i
   | _ => none
 
 theorem Fact.dec_of {α} [Codec α] {t : UInt8} (f : α → Fact) (a : α) (rest : List UInt8)
@@ -856,6 +873,7 @@ instance : Codec Fact where
       rcases a with ⟨c, kid, msg, k, _ | root⟩
       · exact Fact.dec_of (t := 22) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
       · exact Fact.dec_of (t := 24) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
+    | ofDraft a => exact Fact.dec_of (t := 25) _ _ _ rfl (fun bs h => by simp only [Fact.dec, h])
   encInto := Fact.encInto
   encInto_eq buf x := by cases x <;> exact Codec.encInto_eq _ _
   decFrom := Fact.decFrom
@@ -887,6 +905,7 @@ instance : Codec Fact where
       rcases a with ⟨c, kid, msg, k, _ | root⟩
       · exact Fact.decFrom_of (t := 22) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
       · exact Fact.decFrom_of (t := 24) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
+    | ofDraft a => exact Fact.decFrom_of (t := 25) _ _ rfl (fun b i h => by simp only [Fact.decFrom, h]) h
 
 /-! ## Signing -/
 
@@ -913,6 +932,7 @@ def Body.unsigned : Body → Body
   | .ofChunk b => .ofChunk b.unsigned
   | .ofEndpoint b => .ofEndpoint b.unsigned
   | .ofReceive b => .ofReceive b.unsigned
+  | .ofDraft b => .ofDraft b.unsigned
 
 /-- The bytes a signature on an op covers: its op type's (`signedBy`). -/
 def signed (o : Op) (b : Body) : ByteArray :=
@@ -937,7 +957,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 /-- Whether a fact is this device's own: local ops' facts, never
 shared, never read by a shared op's validator (`check_reads_shared`). -/
 def Fact.isLocal : Fact → Bool
-  | .ofSecret _ | .ofAccepted _ | .ofJoining _ | .ofAbandoned _ | .ofKey _ | .ofEndpoint _ | .ofReceived _ => true
+  | .ofSecret _ | .ofAccepted _ | .ofJoining _ | .ofAbandoned _ | .ofKey _ | .ofEndpoint _ | .ofReceived _ | .ofDraft _ => true
   | _ => false
 
 /-- Whether a fact shows that user u of community c is admin: the
@@ -988,6 +1008,7 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofJoining b, [] => (Joining.check b).map .ofJoining
   | .ofAbandon b, [.ofJoining j] => (Abandon.check o b j).map .ofAbandoned
   | .ofReceive b, [.ofMessage m] => (Receive.check o b m).map .ofReceived
+  | .ofDraft b, [] => (Draft.check o b).map .ofDraft
   | .ofName b, .ofAdmission r :: .ofAdmission a :: auth :: prev =>
     (Rename.check C o b r a (isAdmin r.c a.u auth) (counterOk r.c b.n prev)).map .ofNamed
   | _, _ => none
@@ -1000,6 +1021,7 @@ def Body.tag : Body → UInt8
   | .ofApprove _ => 10 | .ofAdmit _ => 11
   | .ofAccept _ => 13 | .ofJoining _ => 14 | .ofSecret _ => 15 | .ofName _ => 16 | .ofAbandon _ => 17
   | .ofKey _ => 18 | .ofChunk _ => 19 | .ofEndpoint _ => 22 | .ofPost _ => 23 | .ofReceive _ => 24
+  | .ofDraft _ => 25
 
 /-- An op's verdict: its body's, if its type is its body's. The type is
 in the bytes its id hashes, so an op re-sent under another type would be
@@ -1041,6 +1063,10 @@ def byMsg : Rel Fact := Receive.byMsg.comap Fact.received?
 def rootsByKey : Rel Fact := Receive.rootsByKey.comap Fact.received?
 def childrenByKey : Rel Fact := Receive.childrenByKey.comap Fact.received?
 end received
+
+namespace draft
+def byAcc : Rel Fact := Draft.byAcc.comap Fact.draft?
+end draft
 
 namespace wrap
 def byContentKey : Rel Fact := Wrap.byContentKey.comap Fact.wrap?
@@ -1114,7 +1140,7 @@ def rels : List (Rel Fact) :=
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
    request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
-   chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey]
+   chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey, draft.byAcc]
 
 /-- The keys a fact is filed under: its relations'. -/
 def keys : Fact → List ByteArray := keysOf rels
@@ -1125,6 +1151,7 @@ by id), or nowhere in particular. -/
 def sortOf : Fact → ByteArray
   | .ofMessage f => Post.sortKey f
   | .ofReceived f => Receive.sortKey f
+  | .ofDraft f => Draft.sortKey f
   | .ofProfile f => Profile.sortKey f
   | .ofChunk f => Chunk.sortKey f
   | .ofReact f => React.sortKey f
@@ -1137,7 +1164,7 @@ instance : SortKey Fact := ⟨sortOf⟩
 acceptances and its joins are, never sent or taken; everything else is
 shared in its community. -/
 def Body.isLocal : Body → Bool
-  | .ofSecret _ | .ofAccept _ | .ofJoining _ | .ofAbandon _ | .ofKey _ | .ofEndpoint _ | .ofReceive _ => true
+  | .ofSecret _ | .ofAccept _ | .ofJoining _ | .ofAbandon _ | .ofKey _ | .ofEndpoint _ | .ofReceive _ | .ofDraft _ => true
   | _ => false
 
 /-- The community an op is about: a root founds its own; every other op
@@ -1147,15 +1174,27 @@ def Body.community (b : Body) (o : Op) : Id :=
   | .ofRoot _ => o.id
   | _ => o.reqs.headD o.id
 
-/-- Where an op travels: local, or shared in its community. -/
+/-- Whether an op is the app's working state, never stored: a draft. -/
+def Body.isEphemeral : Body → Bool
+  | .ofDraft _ => true
+  | _ => false
+
+/-- The app's working state is this device's own too. -/
+theorem Body.local_of_ephemeral {b : Body} (h : b.isEphemeral = true) : b.isLocal = true := by
+  cases b <;> simp_all [Body.isEphemeral, Body.isLocal]
+
+/-- Where an op travels: in memory only (a draft), local, or shared in
+its community. -/
 def scopeOf (o : Op) : Scope :=
   match (decode o.body : Option Body) with
-  | some b => if b.isLocal then .local else .shared (b.community o)
+  | some b => if b.isEphemeral then .ephemeral else if b.isLocal then .local else .shared (b.community o)
   | none => .shared (o.reqs.headD o.id)
 
 /-- An op's claimed time, which sync ranges are over: a post's, a
-profile's or a reaction's; 0 for the rest (roots, invitations,
-admissions, removals, ...), which every window includes. A post's
+profile's or a reaction's, and an attachment's or a chunk's (its
+message's, so a photo syncs with its message: `chunks_in_window`); 0 for
+the rest (roots, invitations, admissions, removals, ...), which every
+window includes. A post's
 counter does not feed it: sync's windows are over every timed kind in a
 room, and only time is common to them, in minutes that mean the same on
 every device; a counter orders one channel's messages only, and one
@@ -1165,6 +1204,8 @@ def orderOf (o : Op) : Nat :=
   | some (.ofPost b) => b.time
   | some (.ofProfile b) => b.time
   | some (.ofReact b) => b.time
+  | some (.ofAttach b) => b.time
+  | some (.ofChunk b) => b.time
   | _ => 0
 
 def family (C : Crypto) : Family Fact :=
@@ -1250,7 +1291,7 @@ request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
   | .root _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s
-  | .profile _ _ s | .attach _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
+  | .profile _ _ s | .attach _ _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []
 
@@ -1297,7 +1338,9 @@ theorem local_fact_mine {M : List Op} {s : DB Fact} (hf : Fed (family C) M s) {x
   obtain ⟨o, b, fs, hx, hb, _, hc⟩ := valid_inv hv
   refine ⟨o, stored_local hf hx ?_, hx⟩
   show (family C).room o = none
-  simp [Family.room, family, scopeOf, hb, check_local hc hl]
+  have hl' := check_local hc hl
+  simp only [Family.room, family, scopeOf, hb]
+  cases b.isEphemeral <;> simp [hl']
 open Engine
 
 /-- What an intent writes: ops. Everything is ops, file bytes included
@@ -1397,7 +1440,9 @@ theorem body_mkOp (reqs : List Id) (b : Body) : (Codec.decode (mkOp reqs b).body
 
 theorem shared_mkOp (C : Crypto) (reqs : List Id) (b : Body) :
     (family C).shared (mkOp reqs b) = !b.isLocal := by
-  cases hs : b.isLocal <;> simp [Family.shared, Family.room, family, scopeOf, body_mkOp, hs]
+  cases he : b.isEphemeral
+  · cases hs : b.isLocal <;> simp [Family.shared, Family.room, family, scopeOf, body_mkOp, hs, he]
+  · simp [Family.shared, Family.room, family, scopeOf, body_mkOp, he, Body.local_of_ephemeral he]
 open Engine
 section
 variable {s : DB Fact} {C : Crypto}

@@ -1,0 +1,37 @@
+{
+  "stash_use": {
+    "status": "conditional",
+    "theorem": "App.stash_use",
+    "witness": "Vacuity.Draft.back",
+    "module": "tests.vacuity.Draft",
+    "detail": "Its premise, distinct ids among the ops the log is rebuilt from, follows from SHA-256 having no collision on them (Vacuity.Draft.back, via distinct_of_collisionFree). App.St holds IO handles, so no concrete St is built in the kernel; the headless host program checks the conclusion on the running app: a draft survives the switcher and back."
+  },
+  "draftIn_newest": {
+    "status": "kernel-witness",
+    "theorem": "Data.draftIn_newest",
+    "witness": "Vacuity.Draft.first",
+    "module": "tests.vacuity.Draft",
+    "detail": "The app's ephemeral log as it starts (empty), one entry, the text \"half a thought\", no photos, generation 1, through the running node family: the log is rebuilt from that one draft op, and the entry's draft read from it is exactly that op's."
+  },
+  "draftIn_empty": {
+    "status": "kernel-witness",
+    "theorem": "Data.draftIn_empty",
+    "witness": "Vacuity.Draft.none_left",
+    "module": "tests.vacuity.Draft",
+    "detail": "An empty composer on the empty log: the log is rebuilt from no op, and no draft is read for the entry."
+  },
+  "write_ephemeral": {
+    "status": "kernel-witness",
+    "theorem": "Community.Draft.write_ephemeral",
+    "witness": "Vacuity.Draft.ephemeral",
+    "module": "tests.vacuity.Draft",
+    "detail": "A concrete draft op, \"half a thought\" for one entry, in Community's family with the running crypto (Data.C). No hypotheses."
+  },
+  "write_valid": {
+    "status": "kernel-witness",
+    "theorem": "Community.Draft.write_valid",
+    "witness": "Vacuity.Draft.valid",
+    "module": "tests.vacuity.Draft",
+    "detail": "The same draft op is Valid with its fields. No hypotheses."
+  }
+}

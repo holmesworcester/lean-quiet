@@ -18,11 +18,12 @@ structure Font where
   emoji : Emoji.Set
   noto : Noto.Set := {}
   sourceCell : Nat := 48
-  sizes : Std.HashMap Nat Noto.Set := {}
+  /-- Noto at every size, each made on first use and kept, with its glyph
+  memos, until `fresh`. -/
+  sizes : Noto.Sizes := {}
   icons : Glyphs.Set := {}
   /-- Layout-only high precision metrics; never used to paint a glyph. -/
   fineMetrics : Bool := false
-  mediumSizes : Std.HashMap Nat Noto.Set := {}
 
 def tableEnd : Nat := 8 + 4 * 0x20000
 
@@ -47,25 +48,27 @@ def load (path : String := "assets/font.bin") (density : Nat := 420) : IO Font :
   let sourceCell := cell
   let cell := pixelCell sourceCell density
   let noto ← Noto.load cell
-  let sizes := [11, 12, 13, 14, 15, 16, 18, 20, 21, 24, 28, 32, 48, 56].foldl (fun out dp =>
-    let px := max 1 (min 256 ((dp * density + 80) / 160))
-    out.insert px (noto.sized px)) ({} : Std.HashMap Nat Noto.Set)
   let medium ← Noto.medium
-  let mediumSizes := [14, 16, 18, 28].foldl (fun out dp =>
-    let px := max 1 (min 256 ((dp * density + 80) / 160))
-    out.insert px ((sizes.getD px noto).overlay (medium.sized px))) ({} : Std.HashMap Nat Noto.Set)
-  return ⟨b, cell, emoji, noto, sourceCell, sizes, ← Glyphs.load, false, mediumSizes⟩
+  let mediumPx := [14, 16, 18, 28].map fun dp => max 1 (min 256 ((dp * density + 80) / 160))
+  return ⟨b, cell, emoji, noto, sourceCell, Noto.Sizes.make noto medium mediumPx, ← Glyphs.load, false⟩
 
-/-- Select a prepared size without IO, font parsing or raster scaling. -/
+/-- Select a size without IO, font parsing or raster scaling: every size
+1..256 is made once, on first use, and kept with its glyphs. -/
 def Font.atSize (f : Font) (size : Nat) : Font :=
   let size := max 1 (min 256 size)
-  match f.sizes[size]? with
-  | some noto => { f with cell := size, noto }
-  | none => { f with cell := max 1 (min 256 size), noto := f.noto.sized (max 1 (min 256 size)) }
+  match f.sizes.regularAt[size]? with
+  | some noto => { f with cell := size, noto := noto.get }
+  | none => { f with cell := size, noto := f.noto.sized size }
 
 /-- Real 500-weight outlines at the prepared UI sizes, with script fallback. -/
 def Font.medium (f : Font) : Font :=
-  { f with noto := f.mediumSizes.getD f.cell f.noto }
+  { f with noto := (f.sizes.mediumAt[f.cell]?.map (·.get)).getD f.noto }
+
+/-- The font at the same size with every glyph memo empty, letting go of
+the glyphs it kept; parsed faces are kept. For a font `atSize` gave, as
+the app's is: its faces are the regular ones at its cell. -/
+def Font.fresh (f : Font) : Font :=
+  ({ f with sizes := f.sizes.fresh } : Font).atSize f.cell
 
 /-- A glyph: where its 32 rows start in the file, and whether it is wide. -/
 structure Glyph where

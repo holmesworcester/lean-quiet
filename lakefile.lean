@@ -67,6 +67,9 @@ lean_lib Pic where
 @[default_target] lean_lib Settings where
   globs := #[.submodules `app.settings]
 
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
+
 @[default_target] lean_lib Node where
   roots := #[`app.Family, `app.Commands]
 
@@ -88,7 +91,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr, .submodules `tests.app]
+    .submodules `tests.qr, .submodules `tests.app, .submodules `tests.scale]
 
 lean_exe component_demand where
   root := `tests.app.Demand
@@ -202,6 +205,10 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+-- a round's work at 1k, 10k, 100k items (tests/scale/run.sh)
+lean_exe scale where
+  root := `tests.scale.Scale
+
 lean_exe syncworld where
   root := `tests.engine.SyncWorld
 
@@ -231,8 +238,6 @@ lean_exe join_fair where
 lean_exe vacuity_production_bootstrap where
   root := `tests.vacuity.ProductionBootstrapMain
 
-lean_exe vacuity_bootstrap where
-  root := `tests.vacuity.BootstrapMain
 
 lean_exe vacuity_connection_progress where
   root := `tests.vacuity.ConnectionProgressMain
@@ -467,6 +472,11 @@ lean_exe fullsync where
 lean_exe simplify where
   root := `tests.engine.Simplify
 
+-- Newest first: a fresh node gets structure, then the newest messages
+-- and their photos first (docs/SYNC.md, "Windows and order")
+lean_exe newest where
+  root := `tests.engine.Newest
+
 -- T-fresh: a fresh post's latency while a backlog syncs, simulated time
 lean_exe fresh where
   root := `tests.engine.Fresh
@@ -482,6 +492,9 @@ lean_exe people_reader where
 -- Actual RBSR exchange at its proved non-leaf logarithmic depth.
 lean_exe claim_tree where
   root := `tests.engine.ClaimTree
+
+lean_exe live_rounds where
+  root := `tests.engine.LiveRounds
 
 lean_exe clump_lists where
   root := `tests.app.ClumpLists

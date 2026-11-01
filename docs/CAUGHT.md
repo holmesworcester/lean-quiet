@@ -106,6 +106,43 @@ catches it next time. The aim is no escapes.
 
 ## Found otherwise, pinned by a law afterwards
 
+- **A room shown mid-session waited for the dialer's 30 s timer**
+  (seen by the user as slow syncing "in some cases. maybe because the
+  connecting peer", 2026-11-01). Until event rounds, only the dialer
+  opened rounds, on one timer per connection (`Conn.work`,
+  `c.dialer && c.lastRound + cfg.every ≤ now`), and `Conn.setRooms`
+  added a newly visible room without opening a round in it. So a room
+  that became visible mid-session (a join just approved, a new room)
+  waited up to 30 s, and the responder could not ask; a have for a room
+  the peer did not list yet was ignored too. Now a room a session
+  starts showing is due (`shown_due`): the dialer's next tick opens its
+  round (`round_due`), and the responder asks with an empty have naming
+  it (`responder_asks`), which makes the dialer open it (`ask_due`,
+  `join_round`). The shipped `Conn.work` is kept as the control
+  `Conn.workShipped` in tests/wiring.txt: `shipped_responder_silent`
+  and `shipped_dialer_waits` prove it breaks `responder_asks` and
+  `round_due` (`shipped_controls_apply` on a concrete session).
+  tests/engine/LiveRounds.lean runs it on two SQLite nodes: the joiner's
+  history arrives within one tick of its admission, either way round;
+  its `main-cadence` mutant (tests/engine/simplify_negative.py) leaves
+  the joining responder waiting.
+
+- **A removed member could miss its removal notice** (found as a gate
+  "flake", 2026-11-01: expiry-grace's "actual retirement writer drains
+  the signed removal notice to its peer" failed about one run in six
+  under load, on main too). The retiring side wrote the notice, then
+  shut its socket in both directions (`SocketAbort.abort`). The removed
+  peer, still replying to earlier frames, wrote again; Linux answers a
+  segment to a read-shut socket with a reset, the peer's writer failed,
+  and a failed writer stops its reader: the notice it had not yet read
+  was dropped (a socket trace showed the reader cut off mid-frame).
+  Now a retirement ends with a FIN and reads until the peer's own end,
+  within `stallMs` (`Tcp.linger`). Pinned by a test, not yet a law:
+  tests/engine/EpochIngress.lean keeps the peer writing after the
+  retirement and checks its writer survives; the shipped close, its
+  control in tests/engine/expiry_grace_negative.py, fails it and the
+  notice check every run.
+
 - **Every checkpoint the app ever saved stayed on disk** (found by an
   audit hunting promises narrower than they read, 2026-10-31).
   `Lifecycle.save` only inserted into `app_ops`. Each row holds invite
