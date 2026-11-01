@@ -150,9 +150,9 @@ variable (S : Engine.Sync.Setup F) (s : Who)
 theorem conn_isSome (n : Node) (cid : Id) : (n.conn? cid).isSome = true ↔ cid ∈ n.conns.map Prod.fst := by
   simp only [Node.conn?, Option.isSome_map, List.find?_isSome, List.mem_map, decide_eq_true_eq]
 
-/-- A write turn keeps a node's sessions. -/
-theorem write_conns (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
-    ((n.write x ops).run h).1.1.conns = n.conns := by
+/-- A write turn changes a node's index and fresh ids only. -/
+theorem write_shape (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
+    ∃ ix fr, ((n.write x ops).run h).1.1 = { n with ix := ix, fresh := fr } := by
   simp only [Node.write, HeldM.run_bind]
   rw [forIn_yield ops _ (fun o acc => writeAbsent h.db acc o) h (fun y _ acc => by
     simp only [writeAbsent]; split
@@ -160,14 +160,24 @@ theorem write_conns (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held 
       by_cases hc : (h.db.ops y.id).isNone = true <;> simp [hc]
     · rfl)]
   split
-  · rfl
+  · exact ⟨n.ix, n.fresh, rfl⟩
   · simp only [HeldM.run_bind, HeldM.run_turn]
     generalize (List.foldl (fun b a => writeAbsent h.db b a) [] ops).reverse = news
     rw [forIn_yield news _ (fun a b => if ((turnH x.fam news h).db.ops a.id).isSome then
       (b.1.add x.fam a, a.id :: b.2) else b) _ (fun y _ b => by
         simp only [HeldM.run_bind, HeldM.run_getOp]
         by_cases hc : ((turnH x.fam news h).db.ops y.id).isSome = true <;> simp [hc])]
-    rfl
+    exact ⟨_, _, rfl⟩
+
+/-- A write turn keeps a node's sessions. -/
+theorem write_conns (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
+    ((n.write x ops).run h).1.1.conns = n.conns := by
+  obtain ⟨ix, fr, e⟩ := write_shape x n ops h; rw [e]
+
+/-- A write turn keeps a node's addresses. -/
+theorem write_addrs (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F) :
+    ((n.write x ops).run h).1.1.addrs = n.addrs := by
+  obtain ⟨ix, fr, e⟩ := write_shape x n ops h; rw [e]
 
 /-- A write of ops all stored already changes nothing. -/
 theorem write_held (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held F)
