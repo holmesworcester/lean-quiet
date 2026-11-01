@@ -240,7 +240,7 @@ inductive Body where
 @[match_pattern] abbrev Fact.sighting (c : Id) (reporter : ByteArray) (target : ByteArray) (addr : ByteArray) (time : Nat) : Fact := .ofSighting ⟨c, reporter, target, addr, time⟩
 @[match_pattern] abbrev Fact.discovered (peer : ByteArray) (hints : List ByteArray) (time : Nat) (ttl : Nat) : Fact := .ofDiscovered ⟨peer, hints, time, ttl⟩
 @[match_pattern] abbrev Fact.retry (peer : ByteArray) (time : Nat) (attempts : Nat) : Fact := .ofRetry ⟨peer, time, attempts⟩
-@[match_pattern] abbrev Fact.scan (cursor : ByteArray) (time : Nat) : Fact := .ofScan ⟨cursor, time⟩
+@[match_pattern] abbrev Fact.scan (cursor : ByteArray) (visited : List ByteArray) (time : Nat) : Fact := .ofScan ⟨cursor, visited, time⟩
 
 @[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, sig⟩
 @[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (threshold : Nat) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, threshold, sig⟩
@@ -267,7 +267,7 @@ inductive Body where
 @[match_pattern] abbrev Body.sighting (target : ByteArray) (addr : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofSighting ⟨target, addr, time, sig⟩
 @[match_pattern] abbrev Body.discovered (peer : ByteArray) (hints : List ByteArray) (time : Nat) (ttl : Nat) : Body := .ofDiscovered ⟨peer, hints, time, ttl⟩
 @[match_pattern] abbrev Body.retry (peer : ByteArray) (time : Nat) (attempts : Nat) : Body := .ofRetry ⟨peer, time, attempts⟩
-@[match_pattern] abbrev Body.scan (cursor : ByteArray) (time : Nat) : Body := .ofScan ⟨cursor, time⟩
+@[match_pattern] abbrev Body.scan (cursor : ByteArray) (visited : List ByteArray) (time : Nat) : Body := .ofScan ⟨cursor, visited, time⟩
 
 theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) :
     (Fact.admission c u device enc = Fact.admission c' u' device' enc') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc') := by
@@ -413,11 +413,11 @@ theorem Fact.retry.injEq (peer : ByteArray) (time : Nat) (attempts : Nat) (peer'
 theorem Fact.retry.inj {peer : ByteArray} {time : Nat} {attempts : Nat} {peer' : ByteArray} {time' : Nat} {attempts' : Nat}
     (hinj : Fact.retry peer time attempts = Fact.retry peer' time' attempts') : peer = peer' ∧ time = time' ∧ attempts = attempts' := by
   rw [Fact.retry.injEq] at hinj; exact hinj
-theorem Fact.scan.injEq (cursor : ByteArray) (time : Nat) (cursor' : ByteArray) (time' : Nat) :
-    (Fact.scan cursor time = Fact.scan cursor' time') = (cursor = cursor' ∧ time = time') := by
+theorem Fact.scan.injEq (cursor : ByteArray) (visited : List ByteArray) (time : Nat) (cursor' : ByteArray) (visited' : List ByteArray) (time' : Nat) :
+    (Fact.scan cursor visited time = Fact.scan cursor' visited' time') = (cursor = cursor' ∧ visited = visited' ∧ time = time') := by
   simp [Fact.scan]
-theorem Fact.scan.inj {cursor : ByteArray} {time : Nat} {cursor' : ByteArray} {time' : Nat}
-    (hinj : Fact.scan cursor time = Fact.scan cursor' time') : cursor = cursor' ∧ time = time' := by
+theorem Fact.scan.inj {cursor : ByteArray} {visited : List ByteArray} {time : Nat} {cursor' : ByteArray} {visited' : List ByteArray} {time' : Nat}
+    (hinj : Fact.scan cursor visited time = Fact.scan cursor' visited' time') : cursor = cursor' ∧ visited = visited' ∧ time = time' := by
   rw [Fact.scan.injEq] at hinj; exact hinj
 theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (sig' : ByteArray) :
     (Body.root device enc sig = Body.root device' enc' sig') = (device = device' ∧ enc = enc' ∧ sig = sig') := by
@@ -557,11 +557,11 @@ theorem Body.retry.injEq (peer : ByteArray) (time : Nat) (attempts : Nat) (peer'
 theorem Body.retry.inj {peer : ByteArray} {time : Nat} {attempts : Nat} {peer' : ByteArray} {time' : Nat} {attempts' : Nat}
     (h : Body.retry peer time attempts = Body.retry peer' time' attempts') : peer = peer' ∧ time = time' ∧ attempts = attempts' := by
   rw [Body.retry.injEq] at h; exact h
-theorem Body.scan.injEq (cursor : ByteArray) (time : Nat) (cursor' : ByteArray) (time' : Nat) :
-    (Body.scan cursor time = Body.scan cursor' time') = (cursor = cursor' ∧ time = time') := by
+theorem Body.scan.injEq (cursor : ByteArray) (visited : List ByteArray) (time : Nat) (cursor' : ByteArray) (visited' : List ByteArray) (time' : Nat) :
+    (Body.scan cursor visited time = Body.scan cursor' visited' time') = (cursor = cursor' ∧ visited = visited' ∧ time = time') := by
   simp [Body.scan]
-theorem Body.scan.inj {cursor : ByteArray} {time : Nat} {cursor' : ByteArray} {time' : Nat}
-    (h : Body.scan cursor time = Body.scan cursor' time') : cursor = cursor' ∧ time = time' := by
+theorem Body.scan.inj {cursor : ByteArray} {visited : List ByteArray} {time : Nat} {cursor' : ByteArray} {visited' : List ByteArray} {time' : Nat}
+    (h : Body.scan cursor visited time = Body.scan cursor' visited' time') : cursor = cursor' ∧ visited = visited' ∧ time = time' := by
   rw [Body.scan.injEq] at h; exact h
 
 /-- Each op type's fact, if a fact is one. -/
@@ -1394,6 +1394,8 @@ def orderOf (o : Op) : Nat :=
   | some (.ofPost b) => b.time
   | some (.ofProfile b) => b.time
   | some (.ofReact b) => b.time
+  | some (.ofAddresses b) => b.issued / 60000
+  | some (.ofSighting b) => b.time / 60000
   | _ => 0
 
 def family (C : Crypto) : Family Fact :=

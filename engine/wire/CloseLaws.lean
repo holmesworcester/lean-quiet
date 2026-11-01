@@ -68,17 +68,21 @@ theorem purges_notified {m : Type → Type} [Monad m] [LawfulMonad m] [Store F m
   unfold Effects.purge
   split <;> simp only [bind_assoc, pure_bind]
 
-/-- Shipped couriers preserve their purge notices until finish returns them. -/
+/-- Shipped couriers, and the superseded local ops purged with them,
+preserve their purge notices until finish returns them. -/
 theorem flush_notifies (x : Sync F (HeldM F)) (n : Node) (out : Acts) (h : Held F)
-    (box : List (Id × ByteArray × ByteArray)) (hb : x.hooks.outbox h = (box, h)) :
-    ((n.flush x out : HeldM F _) h).1.1.purged = n.purged ++ box.map (·.1) := by
+    (box : List (Id × ByteArray × ByteArray)) (hb : x.hooks.outbox h = (box, h))
+    (old : List Id) (hs : x.hooks.stale h = (old, h)) :
+    ((n.flush x out : HeldM F _) h).1.1.purged = n.purged ++ (box.map (·.1) ++ old) := by
   unfold Node.flush
   rw [HeldM.bind_apply, hb]
   simp only
+  rw [HeldM.bind_apply, hs]
+  simp only
   split
   · rename_i he
-    have hn := List.isEmpty_iff.mp he
-    simp [hn]
+    simp only [Bool.and_eq_true, List.isEmpty_iff] at he
+    simp [he.1, he.2]
   · simp only [HeldM.bind_apply, HeldM.pure_apply]
     unfold Effects.purge
     split <;> rfl

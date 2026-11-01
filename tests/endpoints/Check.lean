@@ -136,7 +136,8 @@ def main : IO Unit := do
   require "bounded waiting proves the next address is planned" (laterWitness retryMemory [lan, tail] tail).isSome
   require "another member cannot author A's endpoint op" (!accepted (ad [lan] [] 1000 2000 (dev "B")))
   require "nine addresses are rejected at validation" (!accepted (ad (List.replicate 9 lan) [] 1000 2000))
-  require "lifetime beyond five minutes is rejected" (!accepted (ad [lan] [] 1000 301001))
+  require "lifetime beyond a day is rejected" (!accepted (ad [lan] [] 1000 (1000 + Hints.maxAge + 1)))
+  require "a lifetime of a day is accepted" (accepted (ad [lan] [] 1000 (1000 + Hints.maxAge)))
   require "zero lifetime is rejected" (!accepted (ad [lan] [] 1000 1000))
   require "multicast destinations are rejected" (!accepted (ad ["224.0.0.251:5353".toUTF8] [] 1000 2000))
   require "zero TCP port is rejected" (!accepted (ad ["100.67.2.56:0".toUTF8] [] 1000 2000))

@@ -126,6 +126,7 @@ structure ReadOnly (x : Sync F (HeldM F)) : Prop where
   retryKey : ∀ cid, Reads (x.hooks.retryKey cid)
   retryStore : ∀ store, x.retryStore = some store →
     (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor))
+  stale : Reads x.hooks.stale
 
 /-! ## Connection steps, run where the node runs them -/
 
@@ -159,7 +160,7 @@ variable {x : Sync F (HeldM F)}
 theorem ReadOnly.afterActs {x : Sync F (HeldM F)} (hr : ReadOnly x) (n : Node) (out : Acts) :
     ReadOnly (n.afterActs x out) :=
   ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
-    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
+    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore, hr.stale⟩
 
 theorem sent_afterActs (x : Sync F (HeldM F)) (n : Node) (out : Acts) (h : Held F) (cid : Id) (o : Op) :
     Sent (n.afterActs x out) h cid o ↔ Sent x h cid o := Iff.rfl
@@ -647,7 +648,7 @@ theorem flush_ok (hr : ReadOnly x) (n : Node) (out : Acts) (h : Held F) :
         (Route.conn cid, b) ∈ ((n.flush x out).run h).1.2.serve) →
       ((Route.conn cid, b) ∈ out.send ∨ (Route.conn cid, b) ∈ out.serve) := by
   unfold Node.flush
-  simp only [HeldM.run_bind, hr.outbox h]
+  simp only [HeldM.run_bind, hr.outbox h, hr.stale h]
   split
   · exact ⟨.refl _, fun _ _ hb => hb⟩
   · simp only [HeldM.run_bind, HeldM.run_pure]

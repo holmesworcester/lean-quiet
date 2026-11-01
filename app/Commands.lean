@@ -414,13 +414,28 @@ def signer (device : B) : m (Option Community.Device) := do
   | some (.secret _ seed) => return some (Community.Device.ofSeed seed)
   | _ => return none
 
+/-- The least time between two publications of one node, or two
+sightings of one node by one reporter: a changed address waits this long. -/
+def gap : Nat := 60000
+
+/-- When an unchanged publication is reissued: at half its life, so a live
+member's hints never lapse. -/
+def refresh : Nat := Hints.maxAge / 2
+
+/-- Whether to issue hints (ds, os) after the node's newest publication:
+none yet; or they changed and `gap` has passed; or `refresh` has. So an
+honest node's publications are `gap` apart, and unchanged ones `refresh`
+apart (`publish_gap`, `publish_refresh`): its shared history grows by its
+address changes and two a day, not by the minute. -/
+def due (now : Nat) (ds os : List B) : Option Community.Fact → Bool
+  | some (.addresses _ _ ds' os' issued _) =>
+    (decide (issued + gap ≤ now) && (ds != ds' || os != os')) || decide (issued + refresh ≤ now)
+  | _ => true
+
 def publish (c adm device pk : B) (now : Nat) : m (List Op) := do
   let some d ← signer device | return []
   if !(← ((Community.deviceLive c device).liftL : View F Bool).run) then return []
   let previous ← (latest Community.addresses.byPeer [c, pk]).run
-  match previous with
-  | some (.addresses _ _ _ _ time _) => if now < time + 60000 then return []
-  | _ => pure ()
   let ds ← (discovered pk now).run
   let sightings ← (readCommunity Community.sighting.byTarget [c, pk] 8).run
   let mut os := []
@@ -432,6 +447,7 @@ def publish (c adm device pk : B) (now : Nat) : m (List Op) := do
   let ds := Hints.bounded ds |>.take 4
   os := Hints.bounded os |>.take 4
   if ds.isEmpty && os.isEmpty && previous.isNone then return []
+  if !due now ds os previous then return []
   let reqs := [c, adm]
   let b : Community.Body := .addresses ds os now (now + Hints.maxAge) .empty
   return [Community.mkOp reqs (.addresses ds os now (now + Hints.maxAge)
@@ -450,8 +466,9 @@ The remote TCP source port on an accepted socket is ephemeral and never
 advertised as a listening port. Reports are signed hints, not reachability
 certificates; the owner republishes them under the same eight-address cap. -/
 def observe (c pk peer : B) (now : Nat) : m (List Op) := do
-  match ← (latest Community.sighting.byReporter [c, pk, peer]).run with
-  | some (.sighting _ _ _ _ time) => if now < time + 60000 then return []
+  let previous ← (latest Community.sighting.byReporter [c, pk, peer]).run
+  match previous with
+  | some (.sighting _ _ _ _ time) => if now < time + gap then return []
   | _ => pure ()
   let some (device, _) ← ((Community.mine c).liftL : View F _).run | return []
   let some d ← signer device | return []
@@ -464,6 +481,12 @@ def observe (c pk peer : B) (now : Nat) : m (List Op) := do
   let listening ← if dialer then pure (some port) else remotePort cid
   let some port := listening | return []
   let addr := (toString host ++ ":" ++ toString port).toUTF8
+  -- Only news: an address the node already publishes, or one this reporter
+  -- reported within `refresh`, is not reported again.
+  if (← (advertised c peer now).run).contains addr then return []
+  match previous with
+  | some (.sighting _ _ _ addr' time) => if addr' == addr && now < time + refresh then return []
+  | _ => pure ()
   let reqs := [c, adm]
   let b : Community.Body := .sighting peer addr now .empty
   return [Community.mkOp reqs (.sighting peer addr now (Community.sig d.sk reqs b))]
@@ -490,37 +513,105 @@ def memberOne (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id) (f : Communit
   let some ro := Request.op K sk peer e (hello c listen []) | return []
   return [retry, ro, Eph.op e ro.id, Send.op addr ro]
 
-/-- Cursor pages are capped at the query, not after fetching the history. -/
-def page (r : Rel Community.Fact) (cursor : Option Pos) : m (List (Pos × Community.Fact)) := do
-  let xs ← (readCommunity r [] pageSize cursor false).run
-  if xs.isEmpty && cursor.isSome then
-    (readCommunity r [] pageSize none false).run
-  else return xs
+/-- One step of the dialer's scan of list r (`Cursor.page`, `Cursor.next`):
+at most `pageSize` rows past the cursor, or from the start once none is
+past it, each one capped list read; the community rows visited, and the
+cursor after them. A row filed throughout is visited within |U| + 2 steps,
+U every position filed meanwhile (`scan_visits`). -/
+def page (r : Rel Community.Fact) (cursor : Option Pos) :
+    m (List (Pos × Community.Fact) × Option Pos) := do
+  let past : Answer F ← Lists.list (m := m) (r.query [] (some pageSize) false cursor (cap := pageSize))
+  let a : Answer F ← if past.rows.isEmpty && cursor.isSome then
+      Lists.list (m := m) (r.query [] (some pageSize) false none (cap := pageSize))
+    else pure past
+  return (a.lefts, match a.rows.getLast? with | some (p, _) => some p | none => cursor)
+
+/-- The node keys a page visits: a pending join's inviter, a member's node. -/
+def peersOf (rows : List (Pos × Community.Fact)) : List B :=
+  rows.filterMap fun (_, f) => match f with
+    | .joining _ peer .. => some peer
+    | .admission _ _ _ peer => some peer
+    | _ => none
 
 def dial (K : Keys) (listen : B) (wallBase monoBase now : Nat) : m (List Op) := do
   let some (pk, sk, _) := (← endpoints).head? | return []
   let wall := wallBase + (now - monoBase)
   let cursor ← (latest Community.scan.all []).run
   let (jc, mc) := match cursor with
-    | some (.scan b _) => (decode b : Option (Option Pos × Option Pos)).getD (none, none)
+    | some (.scan b _ _) => (decode b : Option (Option Pos × Option Pos)).getD (none, none)
     | _ => (none, none)
-  let joins ← page Community.joining.all jc
-  let members ← page Community.discoveryMembers mc
+  let (joins, jc') ← page Community.joining.all jc
+  let (members, mc') ← page Community.discoveryMembers mc
   let mut ops := []
   for (_, f) in joins do ops := ops ++ (← joinOne K listen pk sk wall f)
   for ((_, adm), f) in members do ops := ops ++ (← memberOne K listen pk sk wall adm f)
-  let pos := encode (joins.getLast?.map (·.1), members.getLast?.map (·.1))
   if joins.isEmpty && members.isEmpty then return ops
-  if cursor.any (fun f => match f with | .scan b _ => b == pos | _ => false) then return ops
-  return Community.mkOp [] (.scan pos wall) :: ops
+  let pos := encode (jc', mc')
+  let visited := (peersOf (joins ++ members)).eraseDups.take 8
+  if cursor.any (fun f => match f with | .scan b v _ => b == pos && v == visited | _ => false) then
+    return ops
+  return Community.mkOp [] (.scan pos visited wall) :: ops
 
 end
+
+/-! ### Superseded local ops -/
+
+/-- A node's retry clocks and DNS-SD observations past its newest (each
+list newest first, at most `staleCap` read). -/
+def staleCap : Nat := 8
+
+def olderOf (peer : B) : View F (List Id) := do
+  let rs ← readCommunity Community.retry.byPeer [peer] staleCap
+  let ds ← readCommunity Community.discovered.byPeer [peer] staleCap
+  return (rs.drop 1 ++ ds.drop 1).map (·.1.2)
+
+def olderAll : List B → View F (List Id)
+  | [] => pure []
+  | p :: ps => do
+    let a ← olderOf p
+    let b ← olderAll ps
+    return a ++ b
+
+/-- What newer local ops supersede: every scan position but the newest, and
+for this node and each node the newest scan visited, every retry clock and
+observation but the newest. The node purges them with its shipped couriers
+(`Node.flush`); never the newest of a list (`stale_sound`), and every older
+one read (`stale_complete`). So each list of these keys holds one op after
+the step (`stale_bound`), and every member's within one scan cycle. -/
+def staleV (me : List B) : View F (List Id) := do
+  let scans ← readCommunity Community.scan.all [] 4
+  let visited := match scans.head? with
+    | some (_, .scan _ v _) => v
+    | _ => []
+  let rest ← olderAll (me ++ visited).eraseDups
+  return (scans.drop 1).map (·.1.2) ++ rest
+
+section
+variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
+
+def stale : m (List Id) := do
+  let me := ((← endpoints).head?.map (·.1)).toList
+  (staleV me).run
+
+end
+
+/-- The newest time of this node's local discovery ops, plus one: a
+runner's clock starts no earlier, so their times rise across restarts and
+"newest" is the last written. -/
+def floor : View F Nat := do
+  let s ← readCommunity Community.scan.all [] 1
+  let r ← readCommunity Community.retry.all [] 1
+  let d ← readCommunity Community.discovered.all [] 1
+  let t : Community.Fact → Nat := fun
+    | .scan _ _ t | .retry _ t _ | .discovered _ _ t _ => t + 1
+    | _ => 0
+  return ((s ++ r ++ d).map (t ·.2)).foldl max 0
 
 /-- The application and real-network harness use this hook, retaining all
 other authenticated handshake, retirement and synchronization handlers. -/
 def hooks {m : Type → Type} [Monad m] [Lists F m] [Store F m] [Fresh m]
     (fam : Family F) (K : Keys) (listen : B) (wallBase monoBase : Nat) : Hooks F m :=
-  { Connection.hooks fam K listen with dial := dial K listen wallBase monoBase }
+  { Connection.hooks fam K listen with dial := dial K listen wallBase monoBase, stale := stale }
 
 end Connection.Discovery
 
@@ -1209,6 +1300,12 @@ def serviceType : String := "_leanquiet._tcp"
 def wallNow : IO Nat := do
   return (← Std.Time.Timestamp.now).toMillisecondsSinceUnixEpoch.val.toNat
 
+/-- A runner's clock base: the wall clock, but never before this node's
+newest local discovery op (`Discovery.floor`). -/
+def clockBase (db : Db) : IO Nat := do
+  let floor ← ((Discovery.floor.run : SqlM F Nat)).run db
+  return max (← wallNow) floor
+
 def hex (b : ByteArray) : String :=
   String.join (b.toList.map fun x =>
     let s := String.ofList (Nat.toDigits 16 x.toNat)
@@ -1267,7 +1364,7 @@ def send (s : UDP.Socket) (m : Mdns.Msg) (target : SocketAddress) : IO Unit := d
 
 /-- The remote seeds are explicit known tailnet IPv4 addresses, never a scan
 of the /10. The app also learns tailnet seeds through invite/endpoint ops. -/
-def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
+def run (r : Runner) (db : Db) (wallBase monoBase : Nat) (tailnet : List IPv4Addr := []) : IO Unit := do
   let sock ← UDP.Socket.mk
   sock.bind (.v4 ⟨IPv4Addr.ofParts 0 0 0 0, 5353⟩)
   -- Join only the explicit LAN interfaces below. Android may reject a
@@ -1280,7 +1377,8 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
   let mut me := ByteArray.empty
   let mut joined : List IPv4Addr := []
   while !(← r.stopped.get) do
-    let now ← wallNow
+    -- the dialer's clock (`floor`): observation times rise across restarts
+    let now := wallBase + ((← IO.monoMsNow) - monoBase)
     if now ≥ last + 15000 then
       last := now
       if let some (pk, _, _) := (← (endpoints : SqlM F _).run db).head? then
@@ -1340,7 +1438,7 @@ def run (r : Runner) (db : Db) (tailnet : List IPv4Addr := []) : IO Unit := do
     IO.sleep 100
 
 /-- The app starts this beside the TCP runner; both share its stop flag. -/
-def start (r : Runner) (path : String) (tailnet : List IPv4Addr := []) : IO Unit := do
+def start (r : Runner) (path : String) (wallBase monoBase : Nat) (tailnet : List IPv4Addr := []) : IO Unit := do
   discard <| IO.asTask (prio := .dedicated) do
     while !(← r.stopped.get) do
       try
@@ -1348,7 +1446,7 @@ def start (r : Runner) (path : String) (tailnet : List IPv4Addr := []) : IO Unit
         -- only reads here; observations enter through its bounded write queue.
         let db ← Db.open path
         db.exec "PRAGMA query_only = ON"
-        run r db tailnet
+        run r db wallBase monoBase tailnet
       catch e => IO.eprintln s!"discovery: {e}"
       IO.sleep 1000
 

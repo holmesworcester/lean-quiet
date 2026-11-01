@@ -4825,11 +4825,6 @@ def netStep : M Unit := do
       if !pending.isEmpty then for ops in pending do s.wr.submit ⟨ops, true⟩
     return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
-  let wallBase ← Connection.DiscoveryNet.wallNow
-  let monoBase ← IO.monoMsNow
-  let x : Engine.Sync.Sync SF (SqlM SF) :=
-    Connection.Discovery.sync fam Connection.sodium listen wallBase monoBase
-      { every := 30000, askTime := 20000 }
   let path := s.dbPath
   let sh := s.sh
   let writer := s.wr
@@ -4839,10 +4834,15 @@ def netStep : M Unit := do
     while (← writer.busy.get) > 0 do IO.sleep 2
     let db ← Db.openAt path
     -- the lists discovery reads (`established.byPeer`, ...) file existing rows too
-    discard <| (Engine.reindexOnce "peer-endpoints-v1" fam.keys (some fam) : SqlM SF Bool).run db
+    discard <| (Engine.reindexOnce "peer-endpoints-v2" fam.keys (some fam) : SqlM SF Bool).run db
+    let wallBase ← Connection.DiscoveryNet.clockBase db
+    let monoBase ← IO.monoMsNow
+    let x : Engine.Sync.Sync SF (SqlM SF) :=
+      Connection.Discovery.sync fam Connection.sodium listen wallBase monoBase
+        { every := 30000, askTime := 20000 }
     -- the node's commits move the reader's counter (Reader.Shared.commits)
     let r ← Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
-    Connection.DiscoveryNet.start r path
+    Connection.DiscoveryNet.start r path wallBase monoBase
     return r
   s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
   modify fun s => { s with netBoot := some t }

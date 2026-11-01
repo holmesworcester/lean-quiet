@@ -6,7 +6,9 @@ namespace Hints
 
 def cap : Nat := 8
 def dialCap : Nat := 3 * cap
-def maxAge : Nat := 300000
+/-- A publication's longest life: a day. The newest supersedes, so a changed
+address never waits for it; an unchanged one is reissued at half of it. -/
+def maxAge : Nat := 86400000
 
 def parse (b : ByteArray) : Option (Std.Net.IPv4Addr × UInt16) := do
   if b.size > 64 then none else do

@@ -85,7 +85,7 @@ def main (args : List String) : IO UInt32 := do
   try
     if mode == "lan" || mode == "tailnet" then
       let seeds := (remote.splitOn ",").filterMap Std.Net.IPv4Addr.ofString
-      DiscoveryNet.start r path seeds
+      DiscoveryNet.start r path wall mono seeds
     if mode == "op" then
       let hs := [remote.toUTF8]
       let reqs := [c, adm other]
@@ -114,12 +114,17 @@ def main (args : List String) : IO UInt32 := do
       let valid := match received with | some (.valid _) => true | _ => false
       let mut endpointsReady := true
       if mode == "lan" then
-        let now ← DiscoveryNet.wallNow
+        let now := wall + ((← IO.monoMsNow) - mono)
         let published ← look path ((Discovery.advertised c (key other) now).run : SqlM F _)
+        let mine ← look path ((Discovery.advertised c (key name) now).run : SqlM F _)
         let sighting ← look path ((Discovery.latest Community.sighting.byReporter [c, key other, key name]).run : SqlM F _)
-        endpointsReady := !published.isEmpty && (match sighting with
-          | some (.sighting _ _ _ addr _) => (Hints.parse addr).any (fun a => a.2.toNat == port)
-          | _ => false)
+        -- Each end holds the other's publication, and its own lists its
+        -- listening port; a sighting is written only for news (an address the
+        -- node does not publish), and then names that port too.
+        let portOk := fun (b : ByteArray) => (Hints.parse b).any (fun a => a.2.toNat == port)
+        endpointsReady := !published.isEmpty && mine.any portOk && (match sighting with
+          | some (.sighting _ _ _ addr _) => portOk addr
+          | _ => true)
       let nativeCount ← r.slots.atomically do return (← getThe (List String)).length
       let socketReady := mode != "simultaneous" || nativeCount == 1
       if ids.length == 1 && valid && endpointsReady && socketReady then

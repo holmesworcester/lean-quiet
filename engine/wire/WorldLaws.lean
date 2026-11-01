@@ -220,6 +220,7 @@ variable (S : Setup F) (s : Who)
     (S.sync s).hooks.recv o a op t = pure [] := rfl
 @[simp] theorem sync_onGiven (cid : Id) (v : Id) : (S.sync s).hooks.onGiven cid v = [] := rfl
 @[simp] theorem sync_outbox : (S.sync s).hooks.outbox = pure [] := rfl
+@[simp] theorem sync_stale : (S.sync s).hooks.stale = pure [] := rfl
 @[simp] theorem sync_closing (cid : Id) : (S.sync s).hooks.closing cid = pure [] := rfl
 @[simp] theorem sync_retired : (S.sync s).hooks.retired = pure [] := rfl
 @[simp] theorem sync_react : (S.sync s).hooks.react = pure [] := rfl
@@ -321,7 +322,7 @@ theorem sealRetries_reads (n : Node) (offers : List RetryOffer) :
     (n.sealRetries (S.sync s) []).run h = (([], []), h) := rfl
 
 theorem finish_reads (n : Node) (out : Acts) (now : Nat) : Reads (n.finish (S.sync s) out now) := by
-  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, sync_established, sync_outbox, sync_retired,
+  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, sync_established, sync_outbox, sync_stale, Bool.and_self, List.map_nil, List.nil_append, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false]
   keeps [seal_reads, sealRetries_reads]
@@ -354,7 +355,7 @@ theorem finish_run (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.mana
           retry := reserved.2, critical := out.critical.filterMap n.addr? }), h) := by
   dsimp only
   have hk := finish_reads S s n out now h
-  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_retired,
+  simp only [Node.finish, Node.sent, Node.endSession, Effects.purge, List.foldl_nil, Node.follow, Node.flush, hm, sync_established, sync_outbox, sync_stale, Bool.and_self, List.map_nil, List.nil_append, sync_retired,
     sync_closing, HeldM.pure_bind, List.isEmpty_nil, ite_true, List.forIn_nil, List.append_nil,
     Bool.not_true, Bool.false_eq_true, ite_false, HeldM.run_bind, HeldM.run_pure,
     Acts.append_empty] at hk ⊢

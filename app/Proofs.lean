@@ -2672,23 +2672,25 @@ structure ReadOnly (x : Sync F M) : Prop where
   retryKey : ∀ cid, ReadsHeld (x.hooks.retryKey cid)
   retryStore : ∀ store, x.retryStore = some store →
     (∀ peer, ReadsHeld (store.load peer)) ∧ (∀ peer cursor, ReadsHeld (store.save peer cursor))
+  stale : ReadsHeld x.hooks.stale
 
 /-- Discharges every hook premise for the actual advancing-tape interpreter. -/
 theorem production_readOnly (S : Setup) (side : Side) : ReadOnly (S.sync side) := by
   obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11⟩ :=
     hooks_reads ReadsHeld.fresh family sodium (S.addr side)
-  refine ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10, ?_, h11, ?_⟩
+  refine ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10, ?_, h11, ?_, ?_⟩
   · intro cat hcat
     cases hcat
     exact ⟨fun _ => rfl, fun _ _ => rfl⟩
   · intro store hstore
     cases hstore
     exact ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
+  · exact ReadsHeld.pure' _
 
 theorem ReadOnly.afterActs {x : Sync F M} (hr : ReadOnly x) (n : Engine.Sync.Node) (out : Acts) :
     ReadOnly (n.afterActs x out) :=
   ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
-    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
+    hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore, hr.stale⟩
 
 theorem sweep_reads (cat : Catalog M) (hc : ReadsHeld cat.ceiling)
     (hr : ∀ i, ReadsHeld (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
@@ -2788,7 +2790,7 @@ omit hr in
 theorem effectsPurge_goes (ids : List Id) (scrub : Bool) : GoesM x.fam (Effects.purge x ids scrub) := by
   unfold Effects.purge; goesTape []
 theorem flush_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.flush x out) := by
-  unfold Node.flush; goesTape [hr.outbox.goes, effectsPurge_goes]
+  unfold Node.flush; goesTape [hr.outbox.goes, hr.stale.goes, effectsPurge_goes]
 theorem seal_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.seal x out) := by
   unfold Node.seal; goesTape [fun cid b => (hr.sealFor cid b).goes]
 theorem sealRetries_goes (n : Engine.Sync.Node) (retries : List RetryOffer) :
@@ -3021,7 +3023,7 @@ theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F Byt
   simp only at hx
   subst hx
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := hooks_reads hfr fam K listen
-  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs⟩
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs, fun _ => rfl⟩
 
 /-- What may go out on session cid at store h, as of community c: if
 this node is live in c and the trust rule refuses cid's peer, only a sync
@@ -3332,7 +3334,7 @@ omit hr in
 theorem effectsPurge_history (ids : List Id) (scrub : Bool) : HistoryM x.fam (Effects.purge x ids scrub) := by
   unfold Effects.purge; historyTape []
 theorem flush_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.flush x out) := by
-  unfold Node.flush; historyTape [hr.outbox.history, effectsPurge_history]
+  unfold Node.flush; historyTape [hr.outbox.history, hr.stale.history, effectsPurge_history]
 theorem seal_history (n : Engine.Sync.Node) (out : Acts) : HistoryM x.fam (n.seal x out) := by
   unfold Node.seal; historyTape [fun cid b => (hr.sealFor cid b).history]
 theorem sealRetries_history (n : Engine.Sync.Node) (retries : List RetryOffer) :
@@ -4131,7 +4133,11 @@ private theorem member_reads (K : Keys) (listen pk sk : B) (now : Nat) (adm : Id
 
 private theorem page_reads (r : Rel Community.Fact) (cursor : Option Pos) :
     ReadsHeld (Discovery.page r cursor : M _) := by
-  unfold Discovery.page; readsHeld [Execution.view_reads]
+  unfold Discovery.page; readsHeld [Execution.list_reads]
+
+/-- Naming superseded ops reads only. -/
+theorem stale_reads : ReadsHeld (Discovery.stale : M _) := by
+  unfold Discovery.stale; readsHeld [Execution.endpoints_reads, Execution.view_reads]
 
 /-- Discovery does not write around the node's write and validation path. -/
 theorem dial_reads (K : Keys) (listen : B) (wall mono now : Nat) :
@@ -4143,7 +4149,7 @@ theorem readOnly (fam : Family F) (K : Keys) (listen : B) (wall mono : Nat) (cfg
     NodeTape.ReadOnly (Discovery.sync fam K listen wall mono cfg : Sync F M) := by
   obtain ⟨h1,h2,h3,h4,h5,h6,_,h8,h9,h10,h11⟩ :=
     Execution.hooks_reads ReadsHeld.fresh fam K listen
-  refine ⟨h1,h2,h3,h4,h5,h6,dial_reads K listen wall mono,h8,h9,h10,?_,h11,?_⟩
+  refine ⟨h1,h2,h3,h4,h5,h6,dial_reads K listen wall mono,h8,h9,h10,?_,h11,?_,stale_reads⟩
   · intro cat h; cases h
   · intro store h; cases h
 
@@ -4159,7 +4165,7 @@ theorem setup_readOnly (listen : B) (wall mono : Nat) (cfg : Config) :
   obtain ⟨h1,h2,h3,h4,h5,h6,_,h8,h9,h10,h11⟩ :=
     Execution.hooks_reads ReadsHeld.fresh Execution.family sodium listen
   exact ⟨h1,h2,h3,h4,h5,h6,dial_reads sodium listen wall mono,h8,h9,h10,
-    base.catalog,h11,base.retryStore⟩
+    base.catalog,h11,base.retryStore,stale_reads⟩
 
 /-- Every actual event with discovery enabled obeys the same primitive store
 transition relation as Astra's existing full-node theorem. -/

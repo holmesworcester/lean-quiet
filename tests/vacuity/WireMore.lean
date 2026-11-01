@@ -29,8 +29,8 @@ def courierBox : List (Id × ByteArray × ByteArray) := [(secret.id, address, se
 def courierSync : Sync Unit (HeldM Unit) :=
   { closeSync with hooks := { closeSync.hooks with outbox := pure courierBox } }
 theorem courierNotified :
-    ((freshNode.flush courierSync {} : HeldM Unit _) secretHeld).1.1.purged = freshNode.purged ++ courierBox.map (·.1) :=
-  flush_notifies courierSync freshNode {} secretHeld courierBox rfl
+    ((freshNode.flush courierSync {} : HeldM Unit _) secretHeld).1.1.purged = freshNode.purged ++ courierBox.map (·.1) := by
+  simpa using flush_notifies courierSync freshNode {} secretHeld courierBox rfl [] rfl
 
 -- The waiting-store queue differs while the requested bytes agree; serving
 -- reads only the owed/priority ids and ignores that pending processing work.

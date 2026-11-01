@@ -97,6 +97,10 @@ structure Hooks (F : Type) (m : Type → Type) [Monad m] where
   /-- Stable authenticated remote identity for retry progress across sessions.
   Standalone fixed-session interpreters use their session id by default. -/
   retryKey : Id → m (Option Id) := fun cid => pure (some cid)
+  /-- Local ops newer ones supersede (an older retry clock, scan position or
+  observation): purged with the shipped couriers (`Node.flush`). A purge
+  deletes no shared op (`purge_shared`). -/
+  stale : m (List Id) := pure []
 
 /-- A node's sync setup: its family, the connection settings, and the
 Connection family's hooks. -/
@@ -341,9 +345,11 @@ def Node.follow (n : Node) (now : Nat) : m (Node × Acts) := do
 /-- Hand out the family's outbox once, and mark it shipped. -/
 def Node.flush (n : Node) (out : Acts) : m (Node × Acts) := do
   let box ← x.hooks.outbox
-  if box.isEmpty then return (n, out)
-  -- Handed out: the couriers are purged (poc-17's shipped courier).
-  let e ← Effects.purge x (box.map (·.1)) false
+  let old ← x.hooks.stale
+  if box.isEmpty && old.isEmpty then return (n, out)
+  -- Handed out: the couriers are purged (poc-17's shipped courier), with
+  -- the local ops newer ones supersede.
+  let e ← Effects.purge x (box.map (·.1) ++ old) false
   return ({ n with purged := n.purged ++ e.purged },
     out ++ { send := box.map fun (_, a, b) => (.bare a, b) })
 
