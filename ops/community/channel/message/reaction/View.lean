@@ -1,20 +1,48 @@
-/-
-What a row shows is what the store holds, over the running code:
-
-- `picBox_aspect`: a picture's box is within its bounds, one side at the
-  bound and the other the first scaled by the picture's aspect (floored):
-  a picture keeps its shape;
-- `tally_nodup` and `tally_mem`: each reaction pill's reactors are
-  distinct, and are exactly the people who reacted with its emoji; so its
-  count is the number of distinct reactors;
-- `time_shown`: the row's clock is `clock` of the message's claimed time
-  (or "pending" while its op is in the outbox).
--/
+import engine.renderer.Data
 import engine.renderer.Row
-import ops.community.reaction.View
+import ops.community.Community
 
+/-!
+`community.channel.message.reaction`: its component, which reads its own facts, and the component's laws.
+-/
+namespace Kinds.React
+open _root_.Engine _root_.Community _root_.Data
+
+/-- A list's distinct elements, each at its first place. -/
+def uniq {α : Type} [DecidableEq α] : List α → List α
+  | [] => []
+  | x :: t => x :: uniq (t.filter fun y => !decide (y = x))
+termination_by l => l.length
+decreasing_by all_goals (simp_wf; exact Nat.lt_succ_of_le (Nat.le_trans (List.length_filter_le _ _) (by simp)))
+
+/-- Reactions (emoji, reactor) into tallies: each emoji once, in the order
+it first arrived, with the distinct people who reacted with it. Laws
+(RowLaws): `tally_nodup`, `tally_mem`. -/
+def tally (xs : List (String × Id)) : List (String × List Id) :=
+  (uniq (xs.map (·.1))).map fun e => (e, uniq ((xs.filter fun p => decide (p.1 = e)).map (·.2)))
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The reaction block discovers distinct emoji identities, not counts. -/
+def emojis (c msg : Id) : m (List String × Array Q) :=
+  readSet (react.byMessage.query [c, msg] (desc := false))
+    (fun | .react _ _ _ e _ => String.fromUTF8? e | _ => none) #[]
+
+def read (c msg me : Id) (deps : Array Q) : m (List Row.Tally × Array Q) := do
+  let (a, _, deps) ← readList (react.byMessage.query [c, msg] (limit := some 500) (desc := false)) deps
+  let xs := a.rows.filterMap fun (_, f) => match f with
+    | .react _ who _ e _ => some ((String.fromUTF8? e).getD "?", who)
+    | _ => none
+  return ((tally xs).map fun (e, us) => ⟨e, us.length, us.any (fun x => decide (x = me))⟩, deps)
+
+/-- One emoji component owns its set of reactors. Duplicate ops by one
+person count once; membership gives the current user's selected state. -/
+def one (c msg me : Id) (emoji : String) : m (Row.Tally × Array Q) := do
+  let (users, deps) ← readSet (react.byMessageEmoji.query [c, msg, emoji.toUTF8] (desc := false))
+    (fun | .react _ who _ _ _ => some who | _ => none) #[]
+  return (⟨emoji, users.length, users.contains me⟩, deps)
+end Kinds.React
 namespace RowLaws
-open Row Engine
+open _root_.Row _root_.Engine
 
 /-- **A picture keeps its shape.** Its box has one side at its bound (240
 dp high, or 280 dp and the text's width wide) and the other that side
@@ -30,8 +58,7 @@ theorem picBox_aspect (dm : Dim) (maxW : Nat) (p : Pic) :
   by_cases hc : max p.w 1 * dm.px 240 ≤ max p.h 1 * min (dm.px 280) maxW
   · left; simp [hc]
   · right; simp only [hc, if_false]; exact ⟨trivial, trivial, by omega⟩
-
-open Kinds.React
+open _root_.Kinds.React
 
 theorem uniq_mem {α : Type} [DecidableEq α] (x : α) : ∀ l : List α, x ∈ uniq l ↔ x ∈ l
   | [] => by simp [uniq]
@@ -161,5 +188,15 @@ theorem twin_before_time (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) {bx 
 theorem hit_twin {l : Layout} {bx : Box} {ln : Text.Line} {x y : Nat}
     (h : l.twin = some (bx, ln)) (hb : bx.has x y = true) : hit l x y = .twin := by
   simp [hit, h, hb]
-
 end RowLaws
+namespace Kinds.Profile
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The users of these live admissions, each once (in admission order),
+with the node keys their devices are admitted under: what a session
+names its peer by. -/
+def byUser (ls : List (Id × Key × Key)) : List (Id × List Key) :=
+  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.2))
+
+end Kinds.Profile

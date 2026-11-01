@@ -1,26 +1,18 @@
-/-
-A person, by their newest profile: its name.
-
-Reads: `profile.byUser [c, u]` (newest first, one row); for whether
-the name has a namesake, `profile.byLook [c, look]`. Drawn by Message's
-view (the name, its duplicate mark, and the avatar's initial).
-
-Every name read starts from a member (an admission, or a message's
-author), never from `profile.all`: a requester's profile is filed before
-anyone admits it, and is not a member's.
--/
 import engine.renderer.Data
-import ops.community.reaction.View
+import engine.renderer.Row
+import ops.community.Community
 
+/-!
+`community.profile`: its component, which reads its own facts, and the component's laws.
+-/
 namespace Kinds.Profile
-open Engine Community Data
+open _root_.Engine _root_.Community _root_.Data
+
+def bytesStr (b : ByteArray) : String := (String.fromUTF8? b).getD "?"
 
 structure Data where
   name : String
   deriving BEq, Inhabited
-
-def bytesStr (b : ByteArray) : String := (String.fromUTF8? b).getD "?"
-
 variable {m : Type → Type} [Monad m] [Reads m]
 
 def read (c u : Id) (deps : Array Q) : m (Data × Array Q) := do
@@ -46,51 +38,55 @@ name. Reads the profiles filed under the look, and each author's newest. -/
 def namesake (c u : Id) (name : String) (deps : Array Q) : m (Bool × Array Q) := do
   let (a, _, deps) ← readList (profile.byLook.query [c, nameLook name]) deps
   others c u (nameLook name) a.rows deps
-
-/-- The users of these live admissions, each once (in admission order),
-with the node keys their devices are admitted under: what a session
-names its peer by. -/
-def byUser (ls : List (Id × Key × Key)) : List (Id × List Key) :=
-  (React.uniq (ls.map (·.1))).map fun u => (u, (ls.filter fun l => decide (l.1 = u)).map (·.2.2))
-
-/-- The community's present members: users with a live device (the
-engine's `live`: admitted, and none of the device's users removed), with
-those devices' node keys. Laws (PeopleLaws): `present_iff`,
-`present_not_removed`. -/
-def present (c : Id) : View Fact (List (Id × List Key)) := do
-  let a ← admission.all.read [c]
-  let ls ← live c a.rows
-  pure (byUser ls)
-
-/-- **The people list by window**: the first n present members of c (in
-`present`'s order), found among c's newest m admissions, each with the
-node keys of their live devices among those; and whether those m were
-all of c's admissions (then the window is `present`'s first n:
-PeopleLaws.presentW_complete). It reads one list of m rows and each
-row's liveness, never every admission (PeopleLaws.presentW_lists). -/
-def presentW (c : Id) (n m : Nat) : View Fact (List (Id × List Key) × Bool) := do
-  let a ← admission.all.read [c] (limit := some m)
-  let ls ← live c a.rows
-  pure ((byUser ls).take n, decide (a.rows.length < m))
-
-/-- **The header's count, capped**: the present members of c among its
-newest m admissions, at most `cap`; and whether those were all of c's
-admissions (then it is the count, capped: PeopleLaws.presentCount_complete). -/
-def presentCount (c : Id) (cap m : Nat) : View Fact (Nat × Bool) := do
-  let (us, all) ← presentW c cap m
-  pure (us.length, all)
-
-/-- The present members of c with their profiles, for the people list
-and its count. A removed member is not among them (their messages keep
-their names: Message reads the profile by author). -/
-def members (c : Id) : m (Array (Id × List Key × Data) × Array Q) := do
-  let (ps, deps) ← readView (present c) #[]
-  let mut deps := deps
-  let mut out : Array (Id × List Key × Data) := #[]
-  for (u, ds) in ps do
-    let (p, d) ← read c u deps
-    deps := d
-    out := out.push (u, ds, p)
-  return (out, deps)
-
 end Kinds.Profile
+namespace ViewLaws
+open _root_.Engine _root_.Community _root_.Data _root_.Kinds
+
+/-- A person's name, as the store holds it. -/
+def nameIn (db : DB Fact) (c u : Id) : String :=
+  match (Engine.eval db (profile.byUser.query [c, u] (limit := some 1))).rows.head? with
+  | some (_, .profile _ _ n _) => Profile.bytesStr n
+  | _ => "…"
+variable {s : DB Fact} {C : Crypto}
+
+theorem eval_one (r : Rel Fact) (as : List ByteArray) :
+    (Engine.eval s (r.query as (some 1))).rows = (Engine.eval s (r.query as none)).rows.take 1 := by
+  simp [Engine.eval, ListQ.cut, ListQ.inside, Rel.query, matching]
+
+theorem byUser_args {c u : Id} {f : Fact} :
+    profile.byUser.args f = some [c, u] ↔ ∃ n tm, f = .profile c u n tm := by
+  cases f <;> (try (rename_i x; cases x)) <;> simp [profile.byUser, eq_comm]
+
+theorem byLook_args {c k : Id} {f : Fact} :
+    profile.byLook.args f = some [c, k] ↔
+      ∃ u n tm, f = .profile c u n tm ∧ nameLook ((String.fromUTF8? n).getD "?") = k := by
+  cases f
+  case ofProfile x =>
+    obtain ⟨c', u, n, tm⟩ := x
+    simp only [profile.byLook, Rel.comap_args, Fact.profile?, Option.bind_some, Profile.byLook_args, Option.some.injEq, List.cons.injEq, and_true, Fact.profile.injEq]
+    constructor
+    · rintro ⟨rfl, rfl⟩; exact ⟨u, n, tm, ⟨rfl, rfl, rfl, rfl⟩, rfl⟩
+    · rintro ⟨_, _, _, ⟨rfl, rfl, rfl, rfl⟩, rfl⟩; exact ⟨rfl, rfl⟩
+  all_goals simp [profile.byLook]
+
+/-- At rest, a user with a Valid profile has a newest one: their name is
+a Valid profile's. -/
+theorem newest (h : Inv (family C) s) (hq : s.queue = []) {c u : Id} {y : Id} {n : ByteArray} {tm : Nat}
+    (hv : V C s.ops y (.profile c u n tm)) :
+    ∃ (p : Pos) (n' : ByteArray) (tm' : Nat), V C s.ops p.2 (.profile c u n' tm') ∧ nameIn s c u = Profile.bytesStr n' := by
+  have hm := at_row (C := C) (r := profile.byUser) (as := [c, u]) (desc := true) (by simp [rels]) h hq hv
+    (by simp [profile.byUser])
+  have hne : (Engine.eval s (profile.byUser.query [c, u] none)).rows ≠ [] := List.ne_nil_of_mem hm
+  obtain ⟨x, t, ht⟩ := List.exists_cons_of_ne_nil hne
+  have hx : x ∈ (Engine.eval s (profile.byUser.query [c, u] none)).rows := ht ▸ List.mem_cons_self ..
+  obtain ⟨hvx, ha⟩ := row_filed (C := C) (by simp [rels]) h hq hx
+  obtain ⟨n', tm', hf⟩ := byUser_args.1 ha
+  refine ⟨x.1, n', tm', hf ▸ hvx, ?_⟩
+  unfold nameIn
+  rw [eval_one, ht]
+  obtain ⟨px, fx⟩ := x
+  dsimp only at hf
+  subst hf
+  rfl
+
+end ViewLaws

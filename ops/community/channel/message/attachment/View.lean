@@ -1,47 +1,29 @@
-/-
-Download progress displays accurately, over the running code (Arrival,
-Row, Kinds.File):
+import engine.renderer.Data
+import engine.renderer.Image
+import engine.renderer.Row
+import ops.community.Community
+import ops.community.channel.message.attachment.chunk.View
 
-- **Words.** `caption_none_iff`, `caption_some`: the caption is shown
-  exactly until the file is here, and says `{⌊100·got/total⌋}% of
-  {humanBytes len}`; `percent_lt`: while a chunk is missing it says less
-  than 100%, and no pill ever does (`layout_percent_lt`).
-- **The ring.** Its lit pixels are `lit R s got total`, a function of the
-  counts alone (`ring_counts`). `lit_zero`: none at 0; `lit_mono`: more
-  chunks light a superset; `lit_full`: all of the file lights the whole
-  ring; `lit_clockwise`: what is lit is an arc from 12 o'clock (a pixel
-  less far round than a lit one is lit). Exact integers, no floats.
-- **Placement.** `layout_inside`, `ring_inside`, `words_inside`: the pill
-  lies inside the picture's box, `inset` from its left and bottom; the
-  ring's pixels and the words' box inside the pill, apart. That holds for
-  every box (the pill is not drawn in one too small for it);
-  `layout_shown` gives the size it needs: the pill's fixed width plus the
-  percent's, and a line's height plus padding. `layout_words`: in a box
-  wide enough for the caption, the pill's words are the caption.
-  `layout_progress`: the row's layout (its height) is the same at any
-  progress, so the pill adds no line that disappears.
-- **The file replaces the preview.** `shown_file`: a picture shows its
-  file only when complete (and decoded), else its preview.
-- **From the store.** In the model (every list read is the engine's
-  `eval`), a picture's counts are `Community.progress`'s
-  (`pic_progress`), and the pill drawn is the one laid out from that
-  answer alone (`arrival_progress`); so with the engine's
-  `progress_full` and `progress_done`: complete exactly when every chunk
-  of the file is held
-  (`complete_iff_held`), and a picture showing its file holds every one
-  of its file's chunk ops, at the file's length (`file_whole`).
-  "100%" is never drawn: complete hides the caption.
+/-!
+`community.channel.message.attachment`: its component, which reads its own facts, and the component's laws.
 -/
-import ops.community.attachment.View
+namespace Kinds.File
+open _root_.Engine _root_.Community _root_.Data
 
+/-- The most attachments a message shows (libquiet's). -/
+def maxShown : Nat := 4
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The collection discovers attachment op identities. Each attachment
+opens its own metadata, including dimensions, through readOne. -/
+def ids (c msg : Id) : m (List Id × Array Q) := do
+  let (a, _, deps) ← readList (attachment.byMessage.query [c, msg]
+    (limit := some maxShown) (desc := false)) #[]
+  return (a.rows.map (·.1.2), deps)
+end Kinds.File
 namespace ArrivalLaws
-
--- These laws treat a placed caption as a value. Avoid normalizing the
--- Unicode bidi table while splitting the pill's fit/visibility branches.
 attribute [local irreducible] Text.oneLine
-open Arrival
-
-/-! ## Words -/
+open _root_.Arrival
 
 /-- **Never 100% early.** While a chunk is missing, the percent is below 100. -/
 theorem percent_lt {got total : Nat} (h : got < total) : percent got total < 100 := by
@@ -66,8 +48,6 @@ theorem caption_some {got total : Nat} (len : Nat) (h : done got total = false) 
 
 /-- The percent is ⌊100·got/total⌋. -/
 theorem percent_eq (got total : Nat) : percent got total = 100 * got / total := rfl
-
-/-! ## The ring -/
 
 theorem off_pos (R i : Nat) : 0 < off R i := by unfold off; split <;> omega
 
@@ -128,9 +108,6 @@ theorem lit_clockwise {R s got total i j i' j' : Nat} (h : lit R s got total i j
 theorem onRing_square {R s i j : Nat} (h : onRing R s i j = true) : i < 2 * R ∧ j < 2 * R := by
   simp only [onRing, Bool.and_eq_true, decide_eq_true_eq] at h
   exact ⟨h.1.1.1, h.1.1.2⟩
-
-/-! ## Placement -/
-
 section
 variable {f : Font.Font} {z : Style} {bx by_ bw bh got total len : Nat} {p : Pill}
 
@@ -282,12 +259,8 @@ theorem ring_counts (h : layout f z bx by_ bw bh got total len = some p) (i j : 
     lit z.ring z.stroke p.got p.total i j = lit z.ring z.stroke got total i j := by
   obtain ⟨_, hg, ht, _⟩ := layout_words h
   rw [hg, ht]
-
 end
-
-/-! ## In the row -/
-
-open Row
+open _root_.Row
 
 /-- **The row's caption pill shows exactly while the picture is arriving**
 (in a box with room for it, `layout_shown`). -/
@@ -327,10 +300,7 @@ theorem shown_pre {α : Type} (p : Pic) (pre full : Option α) (h : (p.shown pre
     (p.shown pre full).1 = pre := by
   unfold Pic.shown at *
   split <;> (try split) <;> simp_all
-
-/-! ## From the store -/
-
-open Engine Community Data
+open _root_.Engine _root_.Community _root_.Data
 
 /-- The model: a list read is the engine's `eval` of a store. -/
 abbrev Model := ReaderT (DB Fact) Id
@@ -339,7 +309,6 @@ abbrev Model := ReaderT (DB Fact) Id
   read q := fun db => match q with
     | .list q => .list (Engine.eval db q) []
     | .op _ => .bytes none
-
 attribute [local instance] modelReads
 
 /-- The lists a view reads, in order, over a store. -/
@@ -403,56 +372,10 @@ theorem arrival_counts {f : Font.Font} {dm : Dim} {bx : Box} {c att root : Id} {
   rw [arrival_progress] at h
   obtain ⟨_, hg, ht, _⟩ := layout_words h
   rw [hg, ht]
-
-section
-variable {C : Crypto} {s : DB Fact} (hsize : ∀ x, (sha256 x).size = 32) {ct : ByteArray}
-  (hspr : Merkle.NoSecondPreimage sha256 (Merkle.treeInputs sha256 ct))
-include hsize hspr
-
-/-- **Complete is every chunk held.** A picture whose counts are its
-attachment's progress (as `pic_progress` reads them) is complete exactly
-when the store holds a Valid chunk of that attachment at every index. -/
-theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
-    {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s) :
-    p.complete = true ↔
-      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
-  have hle := progress_le hsize hspr h hq ha
-  have hfull := progress_full hsize hspr h hq ha
-  have ht : (progress c att len).eval s = (((progress c att len).eval s).1, Merkle.nChunks len) := by
-    unfold progress; simp
-  rw [← hp] at hle hfull ht
-  simp only [Prod.mk.injEq] at ht
-  rw [Pic.complete, done_iff hle (by rw [ht.2]; exact Merkle.one_le_nChunks len)]
-  exact hfull
-
-/-- **A picture showing its file holds all of it.** Shown as the file
-(`shown_file`), its counts being its attachment's progress, the
-attachment's length is the file's and the store holds each of the
-file's chunk ops, whose slices are the file. -/
-theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
-    {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s)
-    {α : Type} (pre full : Option α) (hs : (p.shown pre full).2 = true) :
-    len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
-  have hc := ((shown_file p pre full).1 hs).1
-  have hle := progress_le hsize hspr h hq ha
-  refine progress_done hsize hspr h hq ha ?_
-  rw [← hp] at hle ⊢
-  simp only [Pic.complete, done, Bool.and_eq_true, decide_eq_true_eq] at hc
-  simp only at hle ⊢
-  omega
-
-/-- **The picture the app reads is complete exactly when its file is
-held**: `Kinds.File.pic` over the store, composed with `complete_iff_held`. -/
-theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
-    (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) :
-    ((Kinds.File.pic (m := Model) c att (Merkle.fileRoot sha256 ct) len info fk fn deps).run s).1.complete = true ↔
-      ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) :=
-  complete_iff_held hsize hspr h hq ha (pic_progress c att _ len info fk fn deps s)
-
-end
-
 end ArrivalLaws
+namespace FileImage
+open _root_.Engine
+
+abbrev Key := ByteArray × Nat × Nat
+
+end FileImage

@@ -1,0 +1,381 @@
+import engine.renderer.Data
+import engine.renderer.Row
+import ops.community.Community
+import ops.community.channel.message.View
+import ops.community.channel.message.attachment.View
+import ops.community.channel.message.attachment.chunk.View
+import ops.community.channel.message.reaction.View
+import ops.community.key.View
+import ops.community.member.join.accept.View
+import ops.community.profile.View
+
+/-!
+`community`: components that compose the op types in this folder and below, and their laws.
+-/
+namespace Kinds.Message
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The message op alone. Child collections and op components own all
+profile, attachment and reaction reads; this view never subscribes to them. -/
+def readOwn (msg : Id) : m (Option (Row.RowData × Array Q)) := do
+  let (f, pending, deps) ← readFact msg #[]
+  let some (.message c u _ kid sealed _ tm clump) := f | return none
+  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
+  let some text := (match ks.rows.head? with
+    | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
+    | _ => none) | return none
+  return some ({ name := "…", avatar := none, text, time := tm, pics := [], tallies := [],
+                 pending, selected := false, author := u, clump }, deps)
+end Kinds.Message
+namespace Kinds.File
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+def read (c msg : Id) (deps : Array Q) (withProgress : Bool := true) : m (Array Row.Pic × Array Q) := do
+  let (as, _, deps) ← readList (attachment.byMessage.query [c, msg] (limit := some maxShown) (desc := false)) deps
+  let mut deps := deps
+  let mut out := #[]
+  for ((_, att), f) in as.rows do
+    let .attachment _ _ _ root len kid sealed := f | continue
+    let (ks, _, d1) ← readList (key.byId.query [kid] (limit := some 1)) deps
+    deps := d1
+    let some k := ks.rows.head?.bind fun (_, g) => match g with | .key _ _ k => some k | _ => none
+      | continue
+    let some (info, fk, fn) := openInfo c kid sealed k | continue
+    -- The parent's layout manifest needs immutable dimensions/preview,
+    -- never the offscreen child's changing chunk/progress subscriptions.
+    let (p, d2) ← if withProgress then pic c att root len info fk fn deps else
+      pure ({
+        hash := root, w := info.w, h := info.h, len, preview := info.preview,
+        key := fk, nonce := fn, attachment := att : Row.Pic }, deps)
+    deps := d2
+    out := out.push p
+  return (out, deps)
+end Kinds.File
+namespace Kinds.Message
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.RowData × Array Q)) := do
+  let (f, pending, deps) ← readFact msg #[]
+  let some (.message _ u _ kid sealed _ tm clump) := f | return none
+  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
+  -- no key here yet, or a body it does not open: not shown (the list
+  -- leaves such messages out; this is the row's own check)
+  let some text := (match ks.rows.head? with
+    | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
+    | _ => none) | return none
+  let (who, deps) ← Profile.read c u deps
+  let (twin, deps) ← Profile.namesake c u who.name deps
+  let (pics, deps) ← File.read c msg deps attachmentProgress
+  let (tallies, deps) ← React.read c msg me deps
+  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump, false, false, false⟩, deps)
+end Kinds.Message
+namespace ViewLaws
+open _root_.Engine _root_.Community _root_.Data _root_.Kinds
+
+/-- **A person's name is their newest profile's.** -/
+theorem profile_read (db : DB Fact) (c u : Id) (deps : Array Q) :
+    ((Profile.read (m := Model) c u deps).run db).1.name = nameIn db c u := by
+  simp only [Profile.read, readList, nameIn, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure, Reads.read]
+  generalize (eval db (profile.byUser.query [c, u] (some 1))).rows.head? = r
+  rcases r with _ | ⟨p, f⟩
+  · rfl
+  · cases f <;> rfl
+
+/-- **A shown message is the store's.** If its row has data, the message
+is a fact of the store; the row's name is its author's name, its time
+the time it claims, and its text its body opened with a key the store
+holds under the message's key id. -/
+theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Array Q)
+    (h : (Message.read (m := Model) c me msg).run db = some (d, deps)) :
+    ∃ c' u dev kid sealed n tm clump, factIn db msg = some (.message c' u dev kid sealed n tm clump) ∧
+      d.name = nameIn db c u ∧ d.time = tm ∧
+      (∃ deps', d.namesake = ((Profile.namesake (m := Model) c u d.name deps').run db).1) ∧
+      ∃ x y k, keyIn db kid = some (.key x y k) ∧
+        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
+  simp only [Message.read, readFact, readList, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure,
+    Reads.read] at h
+  generalize hf : Option.map (fun x => x.snd) (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
+  rcases fo with _ | f
+  · exact absurd h (pure_none_ne _ _)
+  cases f <;> (try (rename_i x; cases x))
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i c' u dev kid sealed n tm clump
+  simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
+  generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
+  rcases kr with _ | ⟨p, kf⟩
+  · exact absurd h (pure_none_ne _ _)
+  cases kf <;> (try (rename_i x; cases x))
+  all_goals dsimp only at h
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i x y k
+  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
+  rcases tx with _ | text
+  · dsimp only at h; exact absurd h (pure_none_ne _ _)
+  simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨rfl, -⟩ := h
+  refine ⟨c', u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf, profile_read db c u _, rfl,
+    ⟨_, rfl⟩, x, y, k, by simp [keyIn, hk], ht⟩
+
+/-- The running message component reads only its own fact and content
+key. Its author is an identity for a child, never a profile subscription. -/
+theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
+    (h : (Message.readOwn (m := Model) msg).run db = some (d, deps)) :
+    ∃ c u dev kid sealed n tm clump,
+      factIn db msg = some (.message c u dev kid sealed n tm clump) ∧
+      d.author = u ∧ d.time = tm ∧
+      deps = #[Q.get msg, .list (key.byId.query [kid] (limit := some 1))] ∧
+      ∃ x y k, keyIn db kid = some (.key x y k) ∧
+        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
+  simp only [Message.readOwn, readFact, readList, ReaderT.run, bind, ReaderT.bind,
+    pure, ReaderT.pure, Reads.read] at h
+  generalize hf : Option.map (fun x => x.snd)
+    (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
+  rcases fo with _ | f
+  · exact absurd h (pure_none_ne _ _)
+  cases f <;> (try (rename_i x; cases x))
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i c u dev kid sealed n tm clump
+  simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
+  generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
+  rcases kr with _ | ⟨p, kf⟩
+  · exact absurd h (pure_none_ne _ _)
+  cases kf <;> (try (rename_i x; cases x))
+  all_goals dsimp only at h
+  all_goals try (exact absurd h (pure_none_ne _ _))
+  rename_i x y k
+  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
+  rcases tx with _ | text
+  · dsimp only at h; exact absurd h (pure_none_ne _ _)
+  simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
+  obtain ⟨rfl, rfl⟩ := h
+  exact ⟨c, u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf,
+    rfl, rfl, rfl, x, y, k, by simp [keyIn, hk], ht⟩
+end ViewLaws
+namespace Kinds.Profile
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The community's present members: users with a live device (the
+engine's `live`: admitted, and none of the device's users removed), with
+those devices' node keys. Laws (PeopleLaws): `present_iff`,
+`present_not_removed`. -/
+def present (c : Id) : View Fact (List (Id × List Key)) := do
+  let a ← admission.all.read [c]
+  let ls ← live c a.rows
+  pure (byUser ls)
+
+/-- **The people list by window**: the first n present members of c (in
+`present`'s order), found among c's newest m admissions, each with the
+node keys of their live devices among those; and whether those m were
+all of c's admissions (then the window is `present`'s first n:
+PeopleLaws.presentW_complete). It reads one list of m rows and each
+row's liveness, never every admission (PeopleLaws.presentW_lists). -/
+def presentW (c : Id) (n m : Nat) : View Fact (List (Id × List Key) × Bool) := do
+  let a ← admission.all.read [c] (limit := some m)
+  let ls ← live c a.rows
+  pure ((byUser ls).take n, decide (a.rows.length < m))
+
+/-- **The header's count, capped**: the present members of c among its
+newest m admissions, at most `cap`; and whether those were all of c's
+admissions (then it is the count, capped: PeopleLaws.presentCount_complete). -/
+def presentCount (c : Id) (cap m : Nat) : View Fact (Nat × Bool) := do
+  let (us, all) ← presentW c cap m
+  pure (us.length, all)
+
+/-- The present members of c with their profiles, for the people list
+and its count. A removed member is not among them (their messages keep
+their names: Message reads the profile by author). -/
+def members (c : Id) : m (Array (Id × List Key × Data) × Array Q) := do
+  let (ps, deps) ← readView (present c) #[]
+  let mut deps := deps
+  let mut out : Array (Id × List Key × Data) := #[]
+  for (u, ds) in ps do
+    let (p, d) ← read c u deps
+    deps := d
+    out := out.push (u, ds, p)
+  return (out, deps)
+end Kinds.Profile
+namespace ViewLaws
+open _root_.Engine _root_.Community _root_.Data _root_.Kinds
+
+theorem others_iff (db : DB Fact) (c u k : Id) : ∀ (rows : List (Pos × Fact)) (deps : Array Q),
+    ((Profile.others (m := Model) c u k rows deps).run db).1 = true ↔
+      ∃ p c' u' n tm, (p, Fact.profile c' u' n tm) ∈ rows ∧ u' ≠ u ∧ nameLook (nameIn db c u') = k
+  | [], deps => by simp [Profile.others, ReaderT.run, pure, ReaderT.pure]
+  | (p, f) :: t, deps => by
+    have ih := others_iff db c u k t
+    cases f
+    case ofProfile x =>
+      obtain ⟨c', u', n, tm⟩ := x
+      by_cases hu : u' = u
+      · simp only [Profile.others, hu, ite_true]
+        rw [ih]
+        constructor
+        · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+          exact ⟨p', c'', u'', n', tm', List.mem_cons_of_mem _ hm, hne, hl⟩
+        · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+          rcases List.mem_cons.1 hm with he | hm
+          · simp only [Prod.mk.injEq, Fact.profile.injEq] at he
+            obtain ⟨-, -, rfl, -, -⟩ := he
+            exact absurd rfl hne
+          · exact ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+      · have hr := profile_read db c u' deps
+        simp only [Profile.others, hu, ite_false, ReaderT.run, bind, ReaderT.bind, pure] at hr ⊢
+        by_cases hk : nameLook ((Profile.read (m := Model) c u' deps) db).1.name = k
+        · simp only [hk, ite_true]
+          refine iff_of_true rfl ⟨p, c', u', n, tm, List.mem_cons_self .., hu, hr ▸ hk⟩
+        · simp only [hk, ite_false]
+          have := ih ((Profile.read (m := Model) c u' deps) db).2
+          simp only [ReaderT.run] at this
+          rw [this]
+          constructor
+          · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+            exact ⟨p', c'', u'', n', tm', List.mem_cons_of_mem _ hm, hne, hl⟩
+          · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+            rcases List.mem_cons.1 hm with he | hm
+            · simp only [Prod.mk.injEq, Fact.profile.injEq] at he
+              obtain ⟨-, -, rfl, -, -⟩ := he
+              exact absurd (hr ▸ hl) hk
+            · exact ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+    all_goals
+      simp only [Profile.others]
+      rw [ih]
+      constructor
+      · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+        exact ⟨p', c'', u'', n', tm', List.mem_cons_of_mem _ hm, hne, hl⟩
+      · rintro ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+        rcases List.mem_cons.1 hm with he | hm
+        · simp at he
+        · exact ⟨p', c'', u'', n', tm', hm, hne, hl⟩
+variable {s : DB Fact} {C : Crypto}
+
+/-- **A row is marked exactly when its name has a namesake.** At rest,
+the running read marks user u of c (whose row shows `nameIn s c u`)
+exactly when another user of c has a Valid profile and a newest name
+that looks the same. -/
+theorem namesake_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) (deps : Array Q) :
+    ((Profile.namesake (m := Model) c u (nameIn s c u) deps).run s).1 = true ↔
+      ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
+        nameLook (nameIn s c u') = nameLook (nameIn s c u) := by
+  simp only [Profile.namesake, readList, ReaderT.run, bind, ReaderT.bind, Reads.read, pure, ReaderT.pure]
+  have := others_iff s c u (nameLook (nameIn s c u))
+    (Engine.eval s (profile.byLook.query [c, nameLook (nameIn s c u)])).rows
+  simp only [ReaderT.run] at this
+  rw [this]
+  constructor
+  · rintro ⟨p, c', u', n, tm, hm, hne, hl⟩
+    obtain ⟨hv, ha⟩ := row_filed (C := C) (by simp [rels]) h hq hm
+    obtain ⟨_, _, _, hf, -⟩ := byLook_args.1 ha
+    simp only [Fact.profile.injEq] at hf
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := hf
+    exact ⟨u', hne, ⟨p.2, n, tm, hv⟩, hl⟩
+  · rintro ⟨u', hne, ⟨y, n, tm, hv⟩, hl⟩
+    obtain ⟨p, n', tm', hv', hn⟩ := newest h hq hv
+    have hm := at_row (C := C) (r := profile.byLook) (as := [c, nameLook (nameIn s c u)]) (desc := true)
+      (by simp [rels]) h hq hv' (byLook_args.2 ⟨u', n', tm', rfl, by rw [← hl, hn]; rfl⟩)
+    exact ⟨_, c, u', n', tm', hm, hne, hl⟩
+
+/-- **A message row is marked Duplicate exactly when its author has a
+namesake.** At rest, a shown message's row carries the mark exactly when
+another user of the community has a Valid profile whose newest name
+looks as its author's does. -/
+theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) {c me msg : Id} {d : Row.RowData}
+    {deps : Array Q} (hr : (Message.read (m := Model) c me msg).run s = some (d, deps)) :
+    ∃ c' u dev kid sealed n tm clump, factIn s msg = some (.message c' u dev kid sealed n tm clump) ∧
+      (d.namesake = true ↔ ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
+        nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
+  obtain ⟨c', u, dev, kid, sealed, n, tm, clump, hf, hn, -, ⟨deps', hd⟩, -⟩ := message_read s c me msg d deps hr
+  refine ⟨c', u, dev, kid, sealed, n, tm, clump, hf, ?_⟩
+  rw [hd, hn]
+  exact namesake_iff h hq c u deps'
+end ViewLaws
+namespace Kinds.File
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The attachment component's own view. Its live subscriptions end when
+its last visible/prefetch owner leaves, independently of its message. -/
+def readOne (c att : Id) (withProgress : Bool := true) : m (Option Row.Pic × Array Q) := do
+  let (fact, _, deps) ← readFact att #[]
+  let some (.attachment _ _ _ root len kid sealed) := fact | return (none, deps)
+  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
+  let some key := ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => some k | _ => none
+    | return (none, deps)
+  let some (info, fk, fn) := openInfo c kid sealed key | return (none, deps)
+  if !withProgress then
+    return (some { hash := root, w := info.w, h := info.h, len, preview := info.preview,
+                   key := fk, nonce := fn, attachment := att }, deps)
+  let (p, deps) ← pic c att root len info fk fn deps
+  return (some p, deps)
+end Kinds.File
+namespace Kinds.Accepted
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- The entries, as described above. Each entry's device is taken from
+an entry of `known` with the same seed if there is one (the entries the
+caller read last time), so a step derives no device it already holds. -/
+def read (known : Array Me := #[]) : m (Array Me × Array Q) := do
+  let (acc, _, deps) ← readList (accepted.all.query []) #[]
+  let (jn, _, deps) ← readList (joining.all.query []) deps
+  let mut deps := deps
+  let mut out := #[]
+  let mut seen : List Id := []
+  for (_, f) in acc.rows do
+    let .accepted c _ := f | continue
+    if seen.contains c then continue
+    seen := c :: seen
+    -- this device's entry in c: the engine's choice (Community.mine), the
+    -- one the node answers and dials as, so the two cannot disagree
+    let (pick, d0) ← readView (Community.mine c) deps
+    deps := d0
+    -- not held: the entry a cut device had, read only to hide and tell it
+    let pick ← match pick with
+      | some p => pure (some p)
+      | none => do
+        let (cut, d1) ← readView (Community.cutEntry c) deps
+        deps := d1
+        pure cut
+    let some (pk, accId) := pick | continue
+    let (sec, _, d1) ← readList (secret.byKey.query [pk] (limit := some 1)) deps
+    let (adm, _, d2) ← readList (admission.byDevice.query [c, pk] (limit := some 1)) d1
+    let (nm, _, d3) ← readList (named.current.query [c] (limit := some 1)) d2
+    deps := d3
+    let some (_, .secret _ seed) := sec.rows.head? | continue
+    let name := match nm.rows.head? with
+      | some (_, .named _ _ n _) => (String.fromUTF8? n).getD "?"
+      | _ => "Waiting to join"
+    let admId := (adm.rows.head?.map (·.1.2)).getD .empty
+    let user := match adm.rows.head? with | some (_, .admission _ u _ _) => u | _ => .empty
+    -- waiting: this device's live join of c (the one Stop waiting stops)
+    let mut joiningOp := ByteArray.empty
+    let mut dialing := ""
+    if admId.isEmpty then
+      for ((_, jid), g) in jn.rows do
+        let .joining c' _ hs _ _ d _ := g | continue
+        if c' != c || d != pk then continue
+        let (ab, _, d4) ← readList (abandoned.byJoining.query [jid] (limit := some 0)) deps
+        deps := d4
+        if ab.total == 0 then
+          joiningOp := jid
+          dialing := (hs.head?.bind String.fromUTF8?).getD ""
+    let (live, d6) ← readView (Community.deviceLive c pk) deps
+    deps := d6
+    let removed := !admId.isEmpty && !live
+    let dv := deviceOf known seed
+    out := out.push { acc := accId, dev := dv.1, seed, dev_ok := dv.2, c, adm := admId, user, name, joiningOp,
+                      dialing, removed }
+  let sorted := out.qsort fun a b => a.name < b.name || (a.name == b.name && Engine.bcmp a.acc b.acc == .lt)
+  return (dedupe sorted, deps)
+
+/-- **Reading with the devices already held is reading**: `read known`
+is `read` for every `known`, so its entries are the same; it only
+derives no device it is given. -/
+theorem read_known (known : Array Me) : (read known : m (Array Me × Array Q)) = read := by
+  unfold read
+  simp only [deviceOf_eq known #[]]
+
+end Kinds.Accepted

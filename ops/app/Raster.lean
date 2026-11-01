@@ -1,7 +1,8 @@
 /- Op-type components use the generic Work pool. A picture's QOI decode
 is one native/pure unit; scaling yields every eight output rows. The
 measured largest unit is reported separately from the scheduler's laws. -/
-import ops.community.attachment.Image
+import ops.community.channel.message.attachment.View
+import ops.community.channel.message.attachment.chunk.View
 import engine.renderer.Work
 import engine.core.WindowIndex
 

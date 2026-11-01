@@ -1,5 +1,8 @@
 import tests.vacuity.IdentityTrust
-import ops.community.message.ViewLaws
+import ops.community.Screen
+import ops.community.channel.message.View
+import ops.community.key.View
+import ops.community.profile.View
 import ops.community.Community
 
 namespace Vacuity.IdentityMessages

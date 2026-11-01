@@ -1,23 +1,13 @@
-/-
-What Add members shows: the invite link's dial hints (this device's LAN
-addresses, as "ip:port") and the link as a QR code.
-
-The addresses come from `Std.Net.interfaceAddresses` (libuv, on Android
-and iOS alike); `hints` keeps the private IPv4 ones, which are what a
-phone on the same Wi-Fi can dial. `port` is the one the node listens on
-(the app hands it to the runner).
-
-The QR is drawn whole pixels per module (`qr`): a module that straddles
-pixels aliases into grey and stops scanning. Laws: `hints_fit` (every hint
-fits the link's limits, so the invite stays valid) and `qr_fits` (the
-symbol and its quiet zone fit the side asked for).
--/
-import engine.renderer.qr.Qr
 import Std.Net.Addr
 import engine.renderer.Paint
+import engine.renderer.qr.Qr
+import ops.community.Community
 
+/-!
+`community.member.invite`: its component, which reads its own facts, and the component's laws.
+-/
 namespace Link
-open Paint
+open _root_.Paint
 
 /-- The port the node listens on (the app's default). -/
 def port : Nat := 47100

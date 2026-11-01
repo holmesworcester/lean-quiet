@@ -25,9 +25,9 @@ import engine.renderer.Board
 import engine.renderer.Demand
 import Std.Sync.Mutex
 import ops.app.Lifecycle
-import ops.community.message.View
+import ops.community.Screen
 import ops.community.Community
-import ops.community.membership.AcceptedView
+import ops.community.member.join.accept.View
 import ops.community.membership.RequestView
 import ops.connection.Intents
 

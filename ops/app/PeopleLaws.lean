@@ -10,8 +10,8 @@ code (Kinds.Profile.present, which the people list and its count read):
 - `present_nodup`: each user is listed once, so the count is the number
   of people, not of devices.
 -/
-import ops.community.profile.View
-import ops.community.reaction.RowLaws
+import ops.community.Screen
+import ops.community.channel.message.reaction.View
 
 namespace PeopleLaws
 open Engine Community Kinds

@@ -15,10 +15,10 @@ import engine.renderer.Appearance
 import engine.renderer.ThemeStore
 import ops.app.Pages
 import ops.app.Composer
-import ops.community.link.View
+import ops.community.member.invite.View
 import engine.renderer.Camera
 import ops.app.Remove
-import ops.community.message.View
+import ops.community.Screen
 import ops.community.membership.RequestView
 import ops.app.Raster
 import ops.app.Components

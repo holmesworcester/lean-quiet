@@ -1,7 +1,8 @@
 import tests.engine.Checks
 import tests.vacuity.RendererText
-import ops.community.reaction.RowLaws
-import ops.community.attachment.ArrivalLaws
+import ops.community.channel.message.reaction.View
+import ops.community.channel.message.attachment.Screen
+import ops.community.channel.message.attachment.View
 
 namespace Vacuity.ChatPresentation
 open Engine Row RowLaws Arrival ArrivalLaws

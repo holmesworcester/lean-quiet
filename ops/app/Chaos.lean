@@ -20,7 +20,8 @@ them, so the engine also waits and catches up.
 -/
 import engine.renderer.Data
 import engine.renderer.Image
-import ops.community.membership.AcceptedView
+import ops.community.Screen
+import ops.community.member.join.accept.View
 
 namespace Chaos
 open Engine Community Data
