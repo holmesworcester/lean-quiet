@@ -1,7 +1,7 @@
 import engine.renderer.desktop.ZoomLaws
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
-import ops.app.Composer
+import ops.community.channel.message.draft.View
 #print axioms Desktop.zoom_font_monotone
 #print axioms Desktop.zoom_identity
 #print axioms Desktop.zoom_partition

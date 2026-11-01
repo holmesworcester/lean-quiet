@@ -1,6 +1,6 @@
 import engine.renderer.Screen
 import engine.renderer.ActsLaws
-import ops.app.Reader
+import ops.Screen
 
 /-! Concrete nonempty instances of the README's explicitly labelled models.
 The board/reader worlds use two wants sharing one read. Their premises are

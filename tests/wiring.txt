@@ -209,6 +209,10 @@ bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
+# The bytes a validator checks a signature over (each op type's
+# `signedBy o b.unsigned`, the family's `signed` by `signedBy_ofX`) are the
+# bytes the writer signs (`toSign`, in `sig`).
+bridge Community.signed Community.signed_eq
 
 ## Specifications
 

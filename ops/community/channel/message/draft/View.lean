@@ -1,3 +1,8 @@
+import engine.renderer.Row
+
+/-! From ops/app/Composer.lean -/
+section
+
 /-
 The composer, libquiet's on a phone: the text field (growing to five
 lines), the attached photos as 64 dp chips (each with its X and its size,
@@ -8,7 +13,6 @@ emoji, Mention someone, Record a voice message, and Send on the right
 `layout` places every part once; `paint` draws them there and `hit`
 answers taps from the same boxes.
 -/
-import engine.renderer.Row
 
 namespace Composer
 open Paint Text Font Row
@@ -311,3 +315,5 @@ def hit (l : Layout) (x y : Nat) : Hit := Id.run do
   return .none
 
 end Composer
+
+end

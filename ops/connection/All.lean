@@ -32,7 +32,6 @@ import ops.connection.send.Validate
 import engine.wire.Noise
 import engine.wire.NoiseSymbolic
 import ops.Commands
-import ops.Proofs
 
 /-!
 The connection family, whole, with the node's commands and laws that

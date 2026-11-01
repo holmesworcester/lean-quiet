@@ -17,6 +17,8 @@ import ops.connection.request.Commands
 import ops.connection.send.Commands
 import ops.connection.send.Proofs
 import engine.sync.NoticeLaws
+import ops.Screen
+import engine.renderer.Cue
 
 /-!
 `app`: laws about the op types in this folder and below.
@@ -1050,3 +1052,323 @@ theorem rooms_model (s : DB F) (cid : Id) :
   exact View.run_model _ s
 
 end Connection
+
+/-! From ops/app/LifecycleLaws.lean -/
+section
+
+/-
+Laws at the app's call sites: an unmounted state's reads and writes are
+pure no-ops; a callback from an earlier mount cannot execute even after
+remount; checkpoints restore the page and anchor read by the app. Geometry
+is quantified over every fitting viewport, including a changed keyboard.
+-/
+
+namespace LifecycleLaws
+open App Engine Data
+
+/-- No query is run on behalf of an unmounted page. -/
+theorem unmount_read (s : St) (scope : Component.Scope) (q : Reader.Want) :
+    (App.query scope q).run (unmountState s) = pure (none, unmountState s) := by rfl
+
+/-- No write is submitted on behalf of an unmounted page. -/
+theorem unmount_write (s : St) (w : Community.Write) :
+    (App.writeAll w).run (unmountState s) = pure (false, unmountState s) := by rfl
+
+/-- No old callback can read, paint or write after the page is remounted. -/
+theorem old_callback (s : St) (action : M α) :
+    (App.owned s.life.lease action).run { unmountState s with life := s.life.unmount.mount } =
+      pure (none, { unmountState s with life := s.life.unmount.mount }) := by
+  change (Lifecycle.owned s.life.unmount.mount s.life.lease action).run _ = _
+  rw [Lifecycle.old_quiet]
+  rfl
+
+/-- The serialized op restores the page and anchor that the app saves.
+This states the round trip at the call sites, not just for an arbitrary
+codec; the native SQLite read/commit is tested separately. -/
+theorem restore_page_anchor (s : St) :
+    (Lifecycle.restore (Codec.encode (checkpoint s))).map (fun cp =>
+      (PageId.ofCode cp.2.1, cp.2.2.2.1, cp.2.2.2.2.1)) =
+    some (s.page, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2) := by
+  rw [Lifecycle.restore_checkpoint]
+  by_cases h : s.me.acc.isEmpty <;> simp [checkpoint, stashDraft, h, page_round]
+
+/-- The actual restore function returns the saved page and anchor. Real
+anchors are op ids, which are nonempty; no saved anchor is also allowed. -/
+theorem apply_page_anchor (s target : St)
+    (valid : ∀ x off, checkpointAnchor s = some (x, off) → x.isEmpty = false) :
+    (applyCheckpoint target (checkpoint s)).page = s.page ∧
+    (applyCheckpoint target (checkpoint s)).mark = checkpointAnchor s := by
+  cases ha : checkpointAnchor s with
+  | none =>
+    by_cases h : s.me.acc.isEmpty <;>
+      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, page_round] <;> rfl
+  | some a =>
+    rcases a with ⟨x, off⟩
+    have hx := valid x off ha
+    by_cases h : s.me.acc.isEmpty <;>
+      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, hx, page_round]
+
+/-- Both placement and page hit inversion hold at every fitting size,
+without a portrait, DPI or keyboard-height restriction. -/
+theorem viewport_geometry (g : Geometry.Geom) (fits : g.Fits) (over bf bn r y : Nat) :
+    Geometry.Seam.place g over bf bn r = Geometry.Seam.home g bn (Geometry.Seam.frameRow g over bf r) ∧
+    Geometry.Seam.tapRow g y = (y : Int) - g.top :=
+  ⟨Geometry.placed_row g fits over bf bn r, Geometry.pinned_tap g fits y⟩
+
+/-- A fitting viewport with a visible keyboard exists. -/
+theorem viewport_possible : (Geometry.Geom.mk 1280 24 300 80 100).Fits := by
+  unfold Geometry.Geom.Fits; decide
+
+end LifecycleLaws
+
+end
+
+/-! From ops/app/NavLaws.lean -/
+section
+
+/-
+The app's navigation laws, over the running code: App.openSt, backSt and
+switchSt, which openPage, back and switchToAcc run (and onPageAct's
+channel, join, Stop waiting and removal steps through Nav too).
+
+- `back_open`: **back goes back.** Back after opening a page that is
+  neither shown nor under it gives the state before, but for what back
+  always clears: the page's one-line field, refusal and viewport initialization. The composer's
+  draft is unchanged. The switcher's render-only backdrop cache is retained
+  from the opened page.
+- `back_root`: at a root, back keeps the page and the state.
+- `back_switch`: after a switch, any number of backs stays on the new
+  community's home: back never reaches the community before.
+- `draft_open`, `draft_back`: no navigation step changes the composer's
+  draft, its selection or its photos.
+- `inv_open`, `inv_back`, `inv_switch`: no page is twice in the page and
+  its stack; so (`depth`) after any open, fewer than 18 backs reach a root.
+-/
+
+namespace NavLaws
+open App
+
+theorem nav_open (p : PageId) (s : St) : (openSt p s).nav = Nav.go p s.nav := rfl
+
+theorem nav_back (s : St) : (backSt s).nav = Nav.back s.nav := rfl
+
+theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset PageId.home := rfl
+
+/-- **Back goes back.** -/
+theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
+    backSt (openSt p s) = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false, switcherBackdrop := (openSt p s).switcherBackdrop } := by
+  have h := Nav.back_go p s.nav hp hs
+  unfold backSt
+  rw [nav_open, h]
+  simp only [openSt, St.withNav, St.nav]
+
+/-- **Back at a root keeps the page.** -/
+theorem back_root (s : St) (h : s.backStack = []) :
+    backSt s = { s with field := "", refusal := none, pageKey := none, pageScrollStarted := false } := by
+  have hb := Nav.back_root s.nav h
+  unfold backSt
+  rw [hb]
+  rfl
+
+theorem backs_root (k : Nat) (s : St) (h : s.backStack = []) :
+    (Nat.repeat backSt k s).nav = s.nav := by
+  induction k with
+  | zero => rfl
+  | succ k ih =>
+    show (backSt (Nat.repeat backSt k s)).nav = s.nav
+    rw [nav_back, ih]
+    exact Nav.back_root s.nav h
+
+/-- **A switch is a root.** However many times back is pressed after a
+switch, the page is the new community's home, with nothing under it. -/
+theorem back_switch (k : Nat) (a : Engine.Id) (s : St) :
+    (Nat.repeat backSt k (switchSt a s)).nav = Nav.reset PageId.home :=
+  (backs_root k (switchSt a s) rfl).trans (nav_switch a s)
+
+/-- **Opening a page keeps the draft.** -/
+theorem draft_open (p : PageId) (s : St) :
+    (openSt p s).text = s.text ∧ (openSt p s).sel = s.sel ∧ (openSt p s).chips = s.chips :=
+  ⟨rfl, rfl, rfl⟩
+
+/-- **Back keeps the draft.** -/
+theorem draft_back (s : St) :
+    (backSt s).text = s.text ∧ (backSt s).sel = s.sel ∧ (backSt s).chips = s.chips :=
+  ⟨rfl, rfl, rfl⟩
+
+theorem inv_open (p : PageId) (s : St) (h : Nav.Inv s.nav) : Nav.Inv (openSt p s).nav :=
+  Nav.go_inv p s.nav h
+
+theorem inv_back (s : St) (h : Nav.Inv s.nav) : Nav.Inv (backSt s).nav :=
+  Nav.back_inv s.nav h
+
+theorem inv_switch (a : Engine.Id) (s : St) : Nav.Inv (switchSt a s).nav := by
+  rw [nav_switch]; exact Nav.reset_inv _
+
+theorem all_pages (p : PageId) : p ∈ PageId.all := by
+  cases p <;> simp [PageId.all]
+
+/-- **Back reaches a root** in fewer than 19 steps (there are 19 pages):
+opening a page never stacks more. -/
+theorem depth (p : PageId) (s : St) (h : Nav.Inv s.nav) : (openSt p s).backStack.length < PageId.all.length :=
+  Nav.depth PageId.all all_pages (openSt p s).nav (inv_open p s h)
+
+end NavLaws
+
+end
+
+/-! From ops/community/membership/RemovedLaws.lean -/
+section
+
+/-
+What a removed person's device shows, over the running code
+(Kinds.Accepted.listed, newlyGone, landing; App.forgetEntry), once the
+removal is in its store (the engine's last notice delivers it):
+
+- `listed_iff`: a community is listed exactly when this device's entry in
+  it is not removed (A1); the entry's data stays in the store;
+- `told_once`: a removal is announced once: after its notice, the same
+  removal is never new again (A2); and `not_replayed`: a removal already
+  in the store at launch is not announced;
+- `landing_listed`: the app lands on a listed entry, or on none (Get
+  started) (A5);
+- `forget_clears`: nothing the app holds names the forgotten entry: no
+  invite link of it, no pasted link to its community, and, if it was
+  current, no composer text or photos (A4).
+-/
+
+namespace RemovedLaws
+open Kinds.Accepted
+
+/-- **Listed exactly when not removed.** -/
+theorem listed_iff (ms : Array Me) (m : Me) : m ∈ listed ms ↔ m ∈ ms ∧ m.removed = false := by
+  simp [listed, Array.mem_filter]
+
+theorem any_eq (l : List Engine.Id) (x : Engine.Id) : l.any (fun y => decide (y = x)) = true ↔ x ∈ l := by
+  simp [List.any_eq_true]
+
+/-- **Told once.** Once the newly removed entries are added to what has
+been told, none of them (and nothing else) is new again. -/
+theorem told_once (seen : List Engine.Id) (ms : Array Me) :
+    newlyGone ((newlyGone seen ms).map (·.acc) ++ seen) ms = [] := by
+  apply List.eq_nil_iff_forall_not_mem.2
+  intro m hm
+  simp only [newlyGone, List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', any_eq] at hm
+  obtain ⟨hmem, hrm, hnot⟩ := hm
+  have hin : m ∈ newlyGone seen ms := by
+    simp only [newlyGone, List.mem_filter, Bool.and_eq_true, Bool.not_eq_true']
+    refine ⟨hmem, hrm, ?_⟩
+    cases h : seen.any (fun y => decide (y = m.acc)) with
+    | false => rfl
+    | true => exact absurd (List.mem_append_right _ ((any_eq seen m.acc).1 h)) (by
+        intro h'; rw [Bool.eq_false_iff] at hnot; exact hnot ((any_eq _ _).2 h'))
+  have : m.acc ∈ (newlyGone seen ms).map (·.acc) ++ seen := List.mem_append_left _ (List.mem_map_of_mem hin)
+  rw [Bool.eq_false_iff] at hnot
+  exact hnot ((any_eq _ _).2 this)
+
+/-- **Not replayed.** What was already removed at launch is told. -/
+theorem not_replayed (ms : Array Me) :
+    newlyGone ((ms.toList.filter (·.removed)).map (·.acc)) ms = [] := by
+  apply List.eq_nil_iff_forall_not_mem.2
+  intro m hm
+  simp only [newlyGone, List.mem_filter, Bool.and_eq_true, Bool.not_eq_true', any_eq] at hm
+  obtain ⟨hmem, hrm, hnot⟩ := hm
+  rw [Bool.eq_false_iff] at hnot
+  exact hnot ((any_eq _ _).2 (List.mem_map_of_mem (List.mem_filter.2 ⟨hmem, hrm⟩)))
+
+/-- **The app lands on a listed entry, or on none.** -/
+theorem landing_listed (cs : Array Me) (cur : Engine.Id) (m : Me) (h : landing cs cur = some m) : m ∈ cs := by
+  unfold landing select at h
+  cases hs : cs.find? (fun m => decide (m.acc = cur)) with
+  | some x =>
+    rw [hs] at h; simp at h; subst h; exact Array.mem_of_find?_eq_some hs
+  | none =>
+    rw [hs] at h; simp at h
+    exact Array.mem_of_getElem? h
+
+/-- **Nothing is left of the forgotten entry.** -/
+theorem forget_clears (s : App.St) (a c : Engine.Id) :
+    ((App.forgetEntry s a c).links.all (·.1 != a)) = true ∧
+    ((App.forgetEntry s a c).invite.map (·.community == c)) ≠ some true ∧
+    (s.me.acc == a → (App.forgetEntry s a c).text = "" ∧ (App.forgetEntry s a c).chips = #[]) := by
+  refine ⟨?_, ?_, ?_⟩
+  · simp [App.forgetEntry, List.all_filter]
+  · simp only [App.forgetEntry]
+    split <;> rename_i h
+    · simp
+    · intro h'; exact h (by rw [h']; rfl)
+  · intro h; simp [App.forgetEntry, h]
+
+end RemovedLaws
+
+end
+
+/-! From engine/renderer/SafeLaws.lean -/
+section
+
+/-
+Re-layout laws about the app's report handler, not a parallel state.
+The old five-word protocol uses the most recent IME event; an extended
+report supplies it directly. Row invalidation is tested with App.step.
+-/
+
+namespace App
+
+theorem screenChanged_size (sc : Array UInt32) (now : Nat) (s : St) :
+    (screenChanged sc now s).W =
+      (Safe.content { SafeFrame.report sc s.imeH with ime := {} }).w ∧
+    (screenChanged sc now s).Hs = (SafeFrame.report sc s.imeH).h := by
+  simp [screenChanged]
+
+theorem screenChanged_insets (sc : Array UInt32) (now : Nat) (s : St) :
+    (screenChanged sc now s).window = SafeFrame.report sc s.imeH ∧
+    (screenChanged sc now s).imeH = (SafeFrame.report sc s.imeH).ime.bottom ∧
+    (screenChanged sc now s).insetTop =
+      (Safe.content { SafeFrame.report sc s.imeH with ime := {} }).y := by
+  simp [screenChanged]
+
+end App
+
+end
+
+/-! From engine/renderer/ThemeLaws.lean -/
+section
+
+/-
+Theme laws over the running app's transition and the renderer's colour
+resolver. Layout ownership and later occlusion are separate obligations:
+text must still be visible, and copied layers must keep their pixels.
+-/
+
+namespace ThemeLaws
+open App Paint
+
+/-- No row, image, sheet cell, page or chrome from the old theme remains
+reachable after the transition, including their asynchronous tasks. -/
+theorem cleared (s : St) (t : Theme.State) :
+    (themed s t).rows = {} ∧ (themed s t).imgs = {} ∧
+    (themed s t).gridRows = {} ∧ (themed s t).pageNow = none ∧
+    (themed s t).pageKey = none ∧ (themed s t).chromeKey = "" ∧
+    (themed s t).topBmp.rows = #[] ∧ (themed s t).botBmp.rows = #[] := by
+  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The new background and every painter's palette input agree with the
+new effective theme, regardless of the previous cache contents. -/
+theorem palette (s : St) (t : Theme.State) :
+    (themed s t).dim.theme = Theme.effective t ∧
+    (themed s t).bgRow = solid (Palette.color (Theme.effective t) (if s.wide then .panel else .bg)) s.W := ⟨rfl, rfl⟩
+
+/-- Theme changes preserve the content and layout inputs. -/
+theorem content (s : St) (t : Theme.State) :
+    (themed s t).me = s.me ∧ (themed s t).ids = s.ids ∧
+    (themed s t).text = s.text ∧ (themed s t).W = s.W ∧
+    (themed s t).dim.dpi = s.dim.dpi ∧ (themed s t).dim.cell = s.dim.cell :=
+  ⟨rfl, rfl, rfl, rfl, rfl, rfl⟩
+
+/-- The glyph painter's actual colour selector meets 4.5:1 against the
+composited pixel below, for every possible RGB background. -/
+theorem text (wanted : Color) (row : ByteArray) (x : Nat) :
+    Contrast.meets (textColor wanted row x) (getPx row x) := Contrast.ink_meets _ _
+
+end ThemeLaws
+
+end

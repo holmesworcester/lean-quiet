@@ -11,8 +11,8 @@ own, for a screen W pixels wide at a density. Printed one per line:
 
     lake env lean --run ios/test/Targets.lean W DPI
 -/
-import ops.app.Pages
-import ops.app.Composer
+import ops.Screen
+import ops.community.channel.message.draft.View
 import ops.community.Community
 
 def main (args : List String) : IO Unit := do

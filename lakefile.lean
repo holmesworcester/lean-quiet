@@ -61,19 +61,15 @@ lean_lib Net where
 @[default_target] lean_lib Community where
   globs := #[.submodules `ops.community]
 
--- the op tree's root: commands and laws over the node, which spans both families
+-- the op tree's root: commands over the node, which spans both families
 @[default_target] lean_lib Node where
-  roots := #[`ops.Commands, `ops.Proofs]
-
--- the app's own state: pages, composer, switcher, removal
-@[default_target] lean_lib AppState where
-  globs := #[.submodules `ops.app]
+  roots := #[`ops.Commands]
 
 /-! ## The app -/
 
--- the root component
+-- the root screen, and the laws about the whole app
 @[default_target] lean_lib App where
-  roots := #[`App, `AppTypes, `AppLife]
+  roots := #[`ops.Screen, `ops.Proofs]
 
 -- every module of the app, for its executables
 @[default_target] lean_lib Quiet

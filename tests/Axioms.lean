@@ -1,13 +1,11 @@
-import engine.renderer.SafeLaws
+import ops.Proofs
 import engine.renderer.Demand
 
 
-import engine.renderer.ThemeLaws
 import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
-import ops.app.LifecycleLaws
 import engine.sync.StateLaws
 import engine.sync.ClosureComplete
 import engine.sync.TimeLaws
@@ -33,21 +31,17 @@ import engine.renderer.LiveLaws
 import engine.renderer.SheetGeom
 import ops.community.member.invite.View
 import engine.renderer.Camera
-import ops.app.Switch
+import ops.community.Screen
 import engine.renderer.Nav
-import ops.app.NavLaws
 import engine.renderer.TextLaws
 import engine.renderer.WrapLaws
 import engine.renderer.Label
 import ops.community.channel.message.reaction.View
-import ops.community.Screen
 import ops.community.channel.message.View
 import ops.community.key.View
 import ops.community.profile.View
-import ops.app.PeopleLaws
-import ops.app.Remove
-import ops.community.membership.RemovedLaws
-import App
+import ops.community.member.remove.View
+import ops.Screen
 import engine.renderer.Ttf.Laws
 import engine.renderer.Ttf.Cache
 import ops.community.channel.message.attachment.Screen
@@ -62,7 +56,6 @@ import engine.core.WindowMutants
 import engine.renderer.Screen
 import engine.core.CodecCost
 import ops.community.MerkleCost
-import ops.app.Pics
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
@@ -71,7 +64,6 @@ import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
-import ops.Proofs
 import ops.connection.Family
 import ops.connection.Proofs
 
@@ -625,6 +617,7 @@ end net
 #print axioms Community.endpoint_signed
 #print axioms Community.cut_stays
 #print axioms Community.cut_consented
+#print axioms Community.signed_eq
 #print axioms Community.endpoint_derives
 #print axioms Community.new_device_trusted
 #print axioms Community.removals_at

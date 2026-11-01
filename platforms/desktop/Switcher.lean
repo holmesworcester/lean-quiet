@@ -1,7 +1,7 @@
 /- The desktop community popover. Geometry is shared by paint and hit testing;
 only the visible rows allocate pixels. Community indices keep Pages' proved
 current-first ordering, so equal labels cannot change a tap's identity. -/
-import App
+import ops.Screen
 import engine.renderer.desktop.Layout
 
 namespace Desktop.Switcher

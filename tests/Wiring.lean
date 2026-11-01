@@ -18,7 +18,8 @@ output, and local CI fails when it goes stale.
   state) and the fields of the instances it names: those it projects
   (`Turn.purge` on the held store is `purgeS`), and those the code it
   names can reach (`onFrame` on the held store runs its purge), three
-  deep. Left out: instances, projections,
+  deep, and through the pattern synonyms it names (`Fact.admission` is
+  `Fact.ofAdmission` of an admission). Left out: instances, projections,
   matchers, the assumptions (`assume` in tests/wiring.txt), and the
   specifications the law states running code against (`spec`), which
   are seen through too, keeping only what runs of what they name.
@@ -117,7 +118,7 @@ import Lean
 open Lean
 
 /-- The module roots of this repository. -/
-def roots : List Name := [`engine, `ops, `App, `AppTypes, `AppLife, `Quiet, `Main]
+def roots : List Name := [`engine, `ops, `Quiet, `Main]
 
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
@@ -307,6 +308,13 @@ partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (dept
   for c in named env e do
     if !ours env c || props.contains c then continue
     if stop.contains c then props := props.insert c; continue
+    -- a pattern synonym is notation for what it unfolds to:
+    -- `Fact.admission c u d e` is `Fact.ofAdmission ⟨c, u, d, e⟩`
+    if hasMatchPatternAttribute env c then
+      if let some (.defnInfo d) := env.find? c then
+        props := props.insert c
+        (subj, props) := about env stop spec run d.value depth inSpec (subj, props)
+        continue
     if isData env c && !spec.contains c then
       if !inSpec || run.contains c then subj := subj.insert c
       continue
@@ -506,7 +514,7 @@ unsafe def main : IO UInt32 := do
     if l.startsWith "#print axioms " then some (l.drop 14).trimAscii.toString.toName else none
   let ns ← readNotes ((← IO.getEnv "WIRING_NOTES").getD "tests/wiring.txt")
   -- every module of the libraries, the app and its main
-  let mut mods : Array Name := #[`App, `Quiet, `Main]
+  let mut mods : Array Name := #[`Quiet, `Main]
   for dir in ["engine", "ops"] do
     for f in ← System.FilePath.walkDir dir do
       if f.extension == some "lean" then

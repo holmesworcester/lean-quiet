@@ -1,6 +1,5 @@
 import platforms.headless.Sim
-import ops.app.NavLaws
-import ops.app.LifecycleLaws
+import ops.Proofs
 import engine.renderer.Ttf.Laws
 import tests.vacuity.RendererImages
 import tests.vacuity.RendererLive

@@ -1,3 +1,8 @@
+import engine.core.Engine
+
+/-! From ops/app/Remove.lean -/
+section
+
 /-
 Removing a member, as libquiet's remover flow has it (#1112): asked twice,
 nothing written until the second yes, each attempt starting over, one at
@@ -14,7 +19,6 @@ Laws:
 - `offered_only`: Remove is offered only to an admin, on a present member
   who is not you.
 -/
-import engine.core.Engine
 
 namespace Remove
 open Engine
@@ -87,3 +91,5 @@ theorem offered_only (admin present : Bool) (me target : Id) (h : offered admin 
   simp [offered] at h; exact ⟨h.1.1, h.1.2, h.2⟩
 
 end Remove
+
+end
