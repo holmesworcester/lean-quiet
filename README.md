@@ -442,6 +442,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ✅ | 🥊🥊 | **Purge takes exactly what it must.** It takes the named conn and local ops and their stored dependents. Shared dependents are judged again, and every state the node reaches, purges included, keeps the tables' invariant. | [`purge_named`], [`purge_undecides`], [`purge_inv`], [`reach_inv`], [`mem_purgeSet`], [`reach_ops`] |
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ✅ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). Its store also holds Connection ops, but at rest its Community ops keep Community's invariant and verdicts, and views that read only Community relations, such as the trust rule, answer as in a Community-only store. | [`sum_project`], [`sum_project_node`], [`spec_sum_left`], [`view_proj`], [`connect_iff_node`], [`members_iff_node`], [`recipients_iff_node`], [`node_settles`] |
+| ✅ | 🥊🥊 | **The app's own state is ops, beside the node's.** The store also holds the app's settings, a family on top of Community's and Connection's: their ops keep their verdicts, and the node's hooks read the store as theirs. The appearance the app reads is the newest one stored, and choosing one writes a Valid local op, never offered to a peer. | [`current_newest`], [`choose_valid`], [`choose_local`], [`node_left`], [`left_list`] |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and one approval admits and lets the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
 | 🟡 | 🥊🥊🥊 | **A delivered sync round finishes and announces missing IDs,** under snapshot, fingerprint and capacity premises. Not yet: embedding this uninterrupted round in the full Node/TCP execution. | [`exchange_complete`], [`conn_runs_exchange`] |
@@ -1122,9 +1123,10 @@ of eight names), and platforms by name. A module's name is its path
 | `engine/sync/` | sync's rounds, fingerprints and connection, and their laws |
 | `engine/renderer/` | rows, text, images and paint, the platform seam, QR encoding and decoding (`qr/`) and pictures (`pic/`) |
 | `engine/native/` | the C glue and the Rust crypto (`crypto/`) |
-| `app/` | the op tree's root: the node's hooks and the app's live data (`Commands.lean`), the app (`Screen.lean`), laws over the node and the app (`Proofs.lean`) |
+| `app/` | the op tree's root: the node's registry over every family (`Family.lean`), the node's hooks and the app's live data (`Commands.lean`), the app (`Screen.lean`), laws over the node and the app (`Proofs.lean`) |
 | `app/community/` | the Community family: the root op, its registry (`Family.lean`), and an op folder for each op type (`member/invite/request/approve/admit/`, `channel/message/reaction/`, …), each with its `Op`, `Validate`, and its `View`, `Commands`, `Screen` and `Proofs` where it has them; the bootstrap's model is a section of its `Proofs.lean` |
 | `app/connection/` | the Connection family (the handshake and sessions): `eph/`, `request/`, `opened/`, `connection/`, `established/`, `send/`, `recv/`, `given/` |
+| `app/settings/` | the settings family: this device's preferences, each a local op (`appearance/`) |
 | `Main.lean`, `Quiet.lean` | the app's main over the platform seam; every module of the app |
 | `platforms/` | the Android, iOS, macOS, Windows and Linux shells, and the headless twin with the programs the tests drive (`headless/`) |
 | `tests/` | the axiom audit (`Axioms.lean`) and its gate (`check.sh`), the wiring audit (`Wiring.lean`), and each part's suites (`engine/`, `app/`, `qr/`, `mdns/`, `net/`, `vacuity/`) |

@@ -122,7 +122,7 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
     tapChoice .dark
     steps 2).run s
   saved s
-  demand "Appearance tap stores Dark" (s.theme.setting == .dark && (← Theme.load s.rd) == .dark)
+  demand "Appearance tap stores Dark" (s.theme.setting == .dark && (← Data.appearance s.rd).1 == .dark)
   demand "bar icons follow forced Dark" (← bars.get).1
   os.set 1
   let (_, s) ← (steps 2).run s
@@ -212,7 +212,7 @@ def exercise (dir : String) (screen : Array UInt32) : IO Unit := do
   let elapsed := (← IO.monoMsNow) - t0
   demand "theme remains responsive under SQLite write lock" (elapsed < 500 && switched.theme.setting == .dark)
   saved switched
-  demand "queued theme persists after SQLite lock clears" ((← Theme.load switched.rd) == .dark)
+  demand "queued theme persists after SQLite lock clears" ((← Data.appearance switched.rd).1 == .dark)
   IO.println "appearance raster suite complete"
 
 def run (args : List String) : IO UInt32 := do
@@ -249,7 +249,7 @@ def run (args : List String) : IO UInt32 := do
     if mode == "write" then
       let (_, s) ← (setTheme setting).run s
       saved s
-      demand "persisted device setting" ((← Theme.load s.rd) == setting)
+      demand "persisted device setting" ((← Data.appearance s.rd).1 == setting)
     else
       demand "fresh process restores setting" (s.theme.setting == setting)
       demand "fresh process resolves new OS value" (s.dim.theme == Theme.effective ⟨setting, .dark⟩)
