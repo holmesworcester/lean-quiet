@@ -173,9 +173,23 @@ def main():
     parser.add_argument("--binary", type=pathlib.Path, default=pathlib.Path(".lake/build/bin/join_fair"))
     parser.add_argument("--out", type=pathlib.Path, default=pathlib.Path("out/join-fair/baseline"))
     parser.add_argument("--expect-starvation", action="store_true")
+    parser.add_argument("--dead-hints", type=int, default=4)
+    parser.add_argument("--first-hint-only", action="store_true")
+    parser.add_argument("--expect-hint-starvation", action="store_true")
+    parser.add_argument("--ordered-hints", action="store_true")
+    parser.add_argument("--join-only", action="store_true")
     args = parser.parse_args()
+    if not 0 <= args.dead_hints <= 7:
+        parser.error("a valid invite supports at most seven dead hints plus the live hint")
     args.out.mkdir(parents=True, exist_ok=True)
     (args.out / "relay-mode").write_text("pause")
+    dead = []
+    for _ in range(args.dead_hints):
+        stream = socket.socket()
+        stream.bind(("127.0.0.1", 0))
+        # Bound but not listening: deterministically refused, and no other
+        # process can steal the dead hint while the regression runs.
+        dead.append(stream)
     a_port, b_port = free_ports()
     (args.out / "target-port").write_text(str(a_port))
     (args.out / "target-port-b").write_text(str(b_port))
@@ -184,7 +198,15 @@ def main():
     for relay in relays:
         relay.thread.start()
     command = [str(args.binary.resolve()), str(args.out.resolve()), str(relays[0].port),
-               str(a_port), str(b_port), str(relays[1].port)]
+               str(a_port), str(b_port), str(relays[1].port),
+               ",".join(str(s.getsockname()[1]) for s in dead)]
+    if args.first_hint_only:
+        command.append("--first-hint-only")
+    if args.ordered_hints:
+        command.append("--ordered-hints")
+    if args.join_only:
+        command.append("--join-only")
+    (args.out / "command.json").write_text(json.dumps(command, indent=2) + "\n")
     log_path = args.out / "runner.log"
     try:
         with log_path.open("w") as log:
@@ -197,6 +219,8 @@ def main():
             relay.stopping.set()
         for relay in relays:
             relay.thread.join(timeout=3)
+        for stream in dead:
+            stream.close()
     print(text, end="", flush=True)
     if any(relay.error for relay in relays):
         raise SystemExit(f"relay failed: {[r.error for r in relays]}; see {args.out}")
@@ -204,14 +228,18 @@ def main():
         raise SystemExit(f"relay thread failed to stop; see {args.out}")
     if any(marker in text for marker in ["PANIC", "panic", "network runner stopped:", "join-fair exception:"]):
         raise SystemExit(f"native/runtime failure; see {log_path}")
-    if args.expect_starvation:
-        expected = "FAIL: peer message progresses while write queue stays nonempty"
+    if args.expect_starvation or args.expect_hint_starvation:
+        expected = ("FAIL: released bare join reaches founder" if args.expect_hint_starvation else
+                    "FAIL: peer message progresses while write queue stays nonempty")
         failures = [line for line in text.splitlines() if line.startswith("FAIL:")]
         if result.returncode == 0 or failures != [expected]:
-            raise SystemExit(f"strict-priority control survived or failed for another reason; see {log_path}")
-        print("strict-priority control rejected by actual peer-message starvation assertion")
+            raise SystemExit(f"runtime control survived or failed for another reason; see {log_path}")
+        print("runtime negative control rejected by its specific progress assertion")
     elif result.returncode != 0:
         raise SystemExit(f"join-fair failed ({result.returncode}); see {log_path}")
+    elif args.join_only:
+        if sum(r.stats["connections"] for r in relays) == 0 or sum(r.stats["paused_readable"] for r in relays) == 0:
+            raise SystemExit(f"join-only relay did not carry delayed actual traffic; see {args.out}")
     elif sum(r.stats["connections"] for r in relays) < 2 or sum(r.stats["paused_readable"] for r in relays) == 0:
         raise SystemExit(f"relay did not exercise delay/disconnect/reconnect; see {args.out}")
     elif any(sum(r.stats[name] for r in relays) == 0 for name in

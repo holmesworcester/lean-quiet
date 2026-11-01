@@ -20,6 +20,19 @@ def postAt (c adm : Id) (name : String) (i : Nat) (text : ByteArray) : Op :=
   let nonce := (sha256 s!"join-fair/nonce/{name}/{i}".toUTF8).extract 0 24
   sealedPost c adm (device name) key nonce text i (1000 + i)
 
+/-- A targeted fixture for quota ordering. Couriers are read in descending
+op-id order, so choose explicit synthetic entropy that places the working
+address after all four dead addresses in the actual outgoing row order.
+The ordinary scenario still lets the production dial draw its own entropy. -/
+def orderedRequest (c : Id) (join : Op) (listen live : ByteArray) (dead : List ByteArray) :
+    Option (Op × Op) := Id.run do
+  for i in [0:512] do
+    let e := sha256 s!"join-fair/adversarial-ephemeral/{i}".toUTF8
+    let some ro := Request.op sodium (nk "B") (nodeKey "A") e (hello c listen [join]) | continue
+    if dead.all (fun h => bcmp (Send.op live ro).id (Send.op h ro).id == .lt) then
+      return some (ro, Eph.op e ro.id)
+  return none
+
 structure Peer where
   path : String
   run : Runner
@@ -49,7 +62,15 @@ def waitFor (ms : Nat) (p : IO Bool) : IO Bool := do
     IO.sleep 20
   return false
 
+def firstHintOnly (hint : ByteArray) (h : Hooks F (SqlM F)) : Hooks F (SqlM F) :=
+  { h with dial := fun now => do
+      return (← h.dial now).filter fun o =>
+        match (Codec.decode o.body : Option Connection.Body) with
+        | some (.send address) => address == hint
+        | _ => true }
+
 def start (dir name : String) (port advertise : Nat)
+    (onlyHint : Option ByteArray := none)
     (notify : List Id → IO Unit := fun _ => pure ()) : IO Peer := do
   let path := s!"{dir}/{name}.db"
   for suffix in ["", "-wal", "-shm"] do
@@ -59,7 +80,9 @@ def start (dir name : String) (port advertise : Nat)
   -- written for the harness, and every native hook remains the production one.
   let addr := s!"127.0.0.1:{advertise}".toUTF8
   let cfg : Config := { every := 500, askTime := 2000 }
-  let sync : Sync F (SqlM F) := { fam, cfg, hooks := hooks fam sodium addr }
+  let h := hooks fam sodium addr
+  let h := onlyHint.map (firstHintOnly · h) |>.getD h
+  let sync : Sync F (SqlM F) := { fam, cfg, hooks := h }
   let run ← Runner.start sync db 0 port.toUInt16 notify
     (cfg := { tickMs := 40, queue := 8, stallMs := 10000, stopMs := 250 })
   return { path, run }
@@ -68,14 +91,36 @@ structure Flood where
   runner : Runner
   c : Id
 
+def dialQueueChecks (t : Checks) : IO Unit := do
+  let cfg : RunConfig := { maxSocks := 4, perAddr := 4, maxPending := 8 }
+  let hints := (List.range 5).map fun i => s!"127.0.0.1:{48000 + i}".toUTF8
+  let (chosen, occupied) := DialQueue.reserve cfg [] hints
+  t.ok "actual dial reservation core obeys four-slot host quota" (chosen == hints.take 4 && occupied.length == 4)
+  let waiting := hints.filter (!chosen.contains ·)
+  let retried := DialQueue.enqueue cfg.maxPending hints[0]! waiting
+  t.ok "deferred fifth hint stays ahead of newly retried first hint" (retried == [hints[4]!, hints[0]!])
+  let (next, _) := DialQueue.reserve cfg (occupied.drop 1) retried
+  t.ok "released quota admits the deferred fifth hint first" (next == [hints[4]!])
+  let full := DialQueue.enqueue 1 hints[4]! [hints[0]!]
+  t.ok "pending-address capacity rejects without evicting queued work" (full == [hints[0]!])
+  let again := DialQueue.enqueue 1 hints[4]! (full.drop 1)
+  t.ok "previously rejected address is admitted on retry after capacity frees"
+    ((DialQueue.reserve cfg [] again).1 == [hints[4]!])
+  let other := "127.0.0.2:48005".toUTF8
+  t.ok "a saturated host does not block a different available host"
+    ((DialQueue.reserve { cfg with maxSocks := 5 } occupied [hints[4]!, other]).1 == [other])
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/join-fair"
   let relayPort := (args[1]?.getD "0").toNat!
   let aPort := (args[2]?.getD "0").toNat!
   let bPort := (args[3]?.getD "0").toNat!
   let relayBPort := (args[4]?.getD "0").toNat!
+  let deadHints := ((args[5]?.getD "").splitOn ",").filterMap fun p =>
+    p.toNat?.map fun n => s!"127.0.0.1:{n}".toUTF8
   IO.FS.createDirAll dir
   let t ← Checks.new
+  dialQueueChecks t
   let active ← IO.mkRef false
   let context ← IO.mkRef (none : Option Flood)
   let made ← IO.mkRef 0
@@ -97,8 +142,9 @@ def main (args : List String) : IO UInt32 := do
         unless accepted do
           pending.modify (·.filter (· != post.id))
           rejected.modify (· + 1)
-  let a ← start dir "A" aPort relayPort notify
-  let b ← start dir "B" bPort relayBPort
+  let a ← start dir "A" aPort relayPort none notify
+  let onlyHint := if args.contains "--first-hint-only" then deadHints.head? else none
+  let b ← start dir "B" bPort relayBPort onlyHint
   IO.FS.writeFile s!"{dir}/target-port" (toString a.run.port)
   let control (mode : String) : IO Unit := IO.FS.writeFile s!"{dir}/relay-mode" mode
   let finish : IO UInt32 := do
@@ -116,16 +162,28 @@ def main (args : List String) : IO UInt32 := do
     t.ok "founder commits through the real runner" (← waitFor 5000 (stored a c))
     let hint := s!"127.0.0.1:{relayPort}".toUTF8
     let some (inv, link) ← viewOn a (inviteTo c c (device "A")
-        (sha256 "join-fair/bearer".toUTF8) [hint])
+        (sha256 "join-fair/bearer".toUTF8) (deadHints ++ [hint]))
       | t.ok "production invite can be composed" false; return ← finish
     a.run.write inv.ops
     let req := link.request (device "B") (nodeKey "B")
     control "pause"
-    b.run.write (← viewOn b (join link (seed "B") "Bob".toUTF8 (nk "B"))).ops
+    let joining ← viewOn b (join link (seed "B") "Bob".toUTF8 (nk "B"))
+    let mut joinOps := joining.ops
+    if args.contains "--ordered-hints" then
+      let some (ro, eph) := orderedRequest c req s!"127.0.0.1:{relayBPort}".toUTF8 hint deadHints
+        | t.ok "adversarial courier order fixture exists" false; return ← finish
+      t.ok "working courier sorts after all four dead-hint couriers"
+        (deadHints.all fun h => bcmp (Send.op hint ro).id (Send.op h ro).id == .lt)
+      joinOps := joinOps ++ [ro, eph]
+    b.run.write joinOps
     IO.sleep 500
     t.ok "delayed actual bare join has not reached founder" (!(← stored a req.id))
     control "open"
-    t.ok "released bare join reaches founder" (← waitFor 10000 (stored a req.id))
+    let reached ← waitFor 6000 (stored a req.id)
+    t.ok "released bare join reaches founder" reached
+    unless reached do return ← finish
+    t.ok "join covers every hint beyond dead same-host addresses"
+      (link.hints.length == deadHints.length + 1)
     t.ok "neither endpoint establishes before approval"
       ((← established a) == 0 && (← established b) == 0 && !(← allowed a c "B"))
     a.run.write (← viewOn a (approveReq c req.id c (device "A"))).ops
@@ -138,6 +196,12 @@ def main (args : List String) : IO UInt32 := do
     let adms ← viewOn b (admission.byDevice.read [c, (device "B").pk])
     let some ((_, admB), _) := adms.rows.head?
       | t.ok "joiner has its own admission" false; return ← finish
+    if args.contains "--join-only" then
+      let post := postAt c admB "B" 1 "post after deferred hint".toUTF8
+      b.run.write [post]
+      t.ok "deferred-hint join admits a subsequently readable signed post"
+        (← waitFor 5000 (readable a post.id "post after deferred hint".toUTF8))
+      return ← finish
     context.set (some ⟨a.run, c⟩)
     active.set true
     let initial := postAt c c "A" 1 "start sustained writes".toUTF8

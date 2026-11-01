@@ -298,7 +298,7 @@ def connectedTo (peer : B) : m Bool := do
     | _ => false
 
 /-- What a tick sends for one pending join of community c, by device d,
-to the inviter's key at the link's first hint, if this node is in c as d
+to the inviter's key at every link hint, if this node is in c as d
 (`mine`: a join stopped waiting on is not, nor a cut device's):
 - **waiting** (d not admitted here): the request whose hello delivers
   this join's request, resent, or composed if this node holds none,
@@ -309,7 +309,7 @@ to the inviter's key at the link's first hint, if this node is in c as d
   dropped session is dialed again. -/
 def dialOne (K : Keys) (listen pk sk : B) : Community.Fact → m (List Op)
   | .joining c inviter hints req _ d _ => do
-    let some hint := hints.head? | return []
+    let some _ := hints.head? | return []
     let some (me, _) ← ((Community.mine c).liftL : View F _).run | return []
     if me ≠ d then return []
     let adm : Answer F ← Lists.list (m := m) (Community.admission.byDevice.query [c, d] (limit := some 0))
@@ -325,13 +325,13 @@ def dialOne (K : Keys) (listen pk sk : B) : Community.Fact → m (List Op)
     | some r =>
       let ro ← Store.getOp (m := m) r
       return match ro with
-        | some ro => [Send.op hint ro]
+        | some ro => hints.map (Send.op · ro)
         | none => []
     | none =>
       let some jr ← Store.getOp (m := m) req | return []
       let e ← Fresh.fresh
       return match Request.op K sk inviter e (hello c listen [jr]) with
-        | some ro => [ro, Eph.op e ro.id, Send.op hint ro]
+        | some ro => [ro, Eph.op e ro.id] ++ hints.map (Send.op · ro)
         | none => []
   | _ => return []
 

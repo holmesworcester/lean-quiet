@@ -1011,15 +1011,16 @@ def Unanswered (K : Keys) (listen : B) (s : DB F) (pk sk c inviter : B) (req : I
       (s.ops r).isSome
   | none => ∃ jr, s.ops req = some jr ∧ ∀ e, (Request.op K sk inviter e (hello c listen [jr])).isSome
 
-/-- `dialOne` sends a courier to the hint when it does not skip. -/
-theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
+/-- `dialOne` sends the same request to every listed hint on each retry. -/
+theorem dialOne_sends_mem (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint target : B} {hs : List B}
     {req : Id} {nm d : B} {n : Nat} {a : Id} {waiting : Bool}
     (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
     (hw : waiting = decide ((Engine.eval s (Community.admission.byDevice.query [c, d]
       (limit := some 0))).total = 0))
     (hskip : waiting = false → ((connectedTo inviter : Model F Bool).run s).1 = false)
-    (hu : Unanswered K listen s pk sk c inviter req waiting) :
-    ∃ ro, Send.op hint ro ∈
+    (hu : Unanswered K listen s pk sk c inviter req waiting)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈
       ((dialOne K listen pk sk (.joining c inviter (hint :: hs) req nm d n) : Model F (List Op)).run s).1 := by
   simp only [dialOne, List.head?_cons, Model.run_bind]
   rw [run_view, hm]
@@ -1047,7 +1048,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨_, ho⟩ := hu
       simp only [Model.run_bind, run_getOp, Model.run_pure]
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
-      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+      rw [hro]; exact ⟨ro, List.mem_map_of_mem ht⟩
     | none =>
       obtain ⟨jr, hjr, hop⟩ := hu
       simp only [Model.run_bind, run_getOp]
@@ -1055,7 +1056,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
       simp only [Model.run_bind, Model.run_pure]
       rw [hro]
-      exact ⟨ro, by simp⟩
+      exact ⟨ro, List.mem_append_right _ (List.mem_map_of_mem ht)⟩
   · -- waiting: sent until answered
     have hz : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0 := by
       rw [hwt] at hw; exact of_decide_eq_true hw.symm
@@ -1070,7 +1071,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       simp only [ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false, Model.run_bind,
         run_getOp, Model.run_pure]
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
-      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+      rw [hro]; exact ⟨ro, List.mem_map_of_mem ht⟩
     | none =>
       obtain ⟨jr, hjr, hop⟩ := hu
       simp only [Model.run_pure, Bool.false_eq_true, ite_false, Model.run_bind, run_getOp]
@@ -1078,7 +1079,19 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
       simp only [Model.run_bind, Model.run_pure]
       rw [hro]
-      exact ⟨ro, by simp⟩
+      exact ⟨ro, List.mem_append_right _ (List.mem_map_of_mem ht)⟩
+
+/-- The former first-hint guarantee is a special case of all-hint retry. -/
+theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
+    {req : Id} {nm d : B} {n : Nat} {a : Id} {waiting : Bool}
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hw : waiting = decide ((Engine.eval s (Community.admission.byDevice.query [c, d]
+      (limit := some 0))).total = 0))
+    (hskip : waiting = false → ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req waiting) :
+    ∃ ro, Send.op hint ro ∈
+      ((dialOne K listen pk sk (.joining c inviter (hint :: hs) req nm d n) : Model F (List Op)).run s).1 :=
+  dialOne_sends_mem K listen pk sk s hm hw hskip hu (by simp)
 
 theorem dialOne_state (hfr : FreshPure) (K : Keys) (listen pk sk : B) (f : Community.Fact) (s : DB F) :
     ((dialOne K listen pk sk f : Model F (List Op)).run s).2 = s := by
@@ -1191,6 +1204,48 @@ theorem reconnect_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s
     ∃ ro, Send.op hint ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
   obtain ⟨ro, hro⟩ := dialOne_sends (hint := hint) (hs := hs) (nm := nm) (n := n) K listen pk sk s hm
     (by simp [had]) (fun _ => hc) hu
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
+/-- Every retry-eligible tick covers every advertised hint, independently
+of the timestamp residues at which ticks happen. Transport admission is a
+separate bounded FIFO obligation; this law does not assume a hint succeeds. -/
+theorem rejoin_dials_each (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint target : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hna : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0)
+    (hu : Unanswered K listen s pk sk c inviter req true)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends_mem K listen pk sk s hm (by simp [hna]) (fun h => by cases h) hu ht
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
+theorem reconnect_dials_each (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint target : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (had : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total ≠ 0)
+    (hc : ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req false)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends_mem K listen pk sk s hm (by simp [had]) (fun _ => hc) hu ht
   refine ⟨ro, ?_⟩
   simp only [dial, Model.run_bind]
   have hs0 : ((endpoints : Model F _).run s).2 = s := rfl

@@ -46,6 +46,7 @@ send and dial would wait behind that work, and sync would crawl.
 import engine.wire.Node
 import engine.wire.Frame
 import engine.wire.Slots
+import engine.wire.DialQueue
 import Std.Async.TCP
 import Std.Sync.Channel
 import engine.wire.Listener
@@ -154,6 +155,8 @@ structure RunState where
   next : Nat := 0
   /-- Frames waiting for a dial to complete, by address. -/
   pending : List (ByteArray × List ByteArray) := []
+  /-- Pending destinations not yet given a native socket reservation. -/
+  waiting : List ByteArray := []
   lastTick : Nat := 0
   slots : Slots
 
@@ -284,6 +287,15 @@ def RunState.sockOf (st : RunState) (p : Sock → Bool) : Option Sock := st.sock
 def RunState.drop (st : RunState) (sid : Nat) : RunState :=
   { st with socks := st.socks.filter (·.id != sid) }
 
+/-- Reserve deferred destinations in their original FIFO order under the
+listener's mutex. Failed quota checks retain both position and frames. -/
+def RunState.startPending (cfg : RunConfig) (st : RunState) : IO RunState := do
+  let chosen ← st.slots.atomically do
+    modifyGetThe (List String) fun occupied => DialQueue.reserve cfg occupied st.waiting
+  for addr in chosen do
+    let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+  return { st with waiting := st.waiting.filter (!chosen.contains ·) }
+
 def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
     IO (RunState × Nat) := do
   let sid := st.next
@@ -336,9 +348,9 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
           let (node, more) ← (st.node.onClose x addr now).run st.db
           st ← ({ st with node, pending := st.pending.map fun (a, fs) => if a == addr then (a, []) else (a, fs) }).apply cfg more now
       | none =>
-        if ← st.slots.take cfg addr then
-          st := { st with pending := (addr, [b]) :: st.pending }
-          let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+        if st.pending.length < cfg.maxPending then
+          st := { st with pending := st.pending ++ [(addr, [b])], waiting := DialQueue.enqueue cfg.maxPending addr st.waiting }
+  st ← st.startPending ch cfg
   for sid in over do st ← close st sid
   -- Then the dropped sessions' sockets close, after their last frames
   -- (a removed member's notice) are sent on them.
@@ -387,11 +399,11 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
   | .dialed addr none =>
     st.slots.release addr
     let (node, e) ← (st.node.onClose x addr now).run st.db
-    some <$> ({ st with node, pending := st.pending.filter (·.1 != addr) }).apply x ch notify cfg e now
+    some <$> ({ st with node, pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }).apply x ch notify cfg e now
   | .dialed addr (some c) =>
     let (st, sid) ← st.addSock ch cfg c addr now
     let frames := (st.pending.find? (·.1 == addr)).map (·.2) |>.getD []
-    let st := { st with pending := st.pending.filter (·.1 != addr) }
+    let st := { st with pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }
     -- A new address's first frames are the session's opening: urgent.
     if let some s := st.sockOf (·.id == sid) then
       unless ← s.push cfg (frames.map (.urgent, ·)) do
