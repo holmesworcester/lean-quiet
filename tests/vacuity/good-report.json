@@ -82,5 +82,68 @@
     "witness": "Vacuity.Good.bounded",
     "module": "tests.vacuity.Good",
     "detail": "Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "onTick_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.onTick_keeps",
+    "witness": "Vacuity.Good.tickKeeps",
+    "module": "tests.vacuity.Good",
+    "detail": "Bob's node after Alice's write, its clock at time 0, with the plain setup's lawful run and its owes-queued pieces. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "onFrame_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.onFrame_keeps",
+    "witness": "Vacuity.Good.frameKeeps",
+    "module": "tests.vacuity.Good",
+    "detail": "Bob's node after Alice's write, a frame of Alice's op bytes from Alice's address. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "onWrite_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.onWrite_keeps",
+    "witness": "Vacuity.Good.writeKeeps",
+    "module": "tests.vacuity.Good",
+    "detail": "Bob's node after Alice's write, writing both ops. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "onClose_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.onClose_keeps",
+    "witness": "Vacuity.Good.closeKeeps",
+    "module": "tests.vacuity.Good",
+    "detail": "Bob's node after Alice's write, its transport to Alice's address closing. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "oq_pieces": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.oq_pieces",
+    "witness": "Vacuity.Good.oqPieces",
+    "module": "tests.vacuity.Good",
+    "detail": "Alice's node's pieces in the fixture's plain setup. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "ix_pieces": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.ix_pieces",
+    "witness": "Vacuity.Good.ixPieces",
+    "module": "tests.vacuity.Good",
+    "detail": "Alice's node's pieces in the fixture's plain setup. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "bounded_pieces": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.bounded_pieces",
+    "witness": "Vacuity.Good.boundedPieces",
+    "module": "tests.vacuity.Good",
+    "detail": "Alice's node's pieces in the fixture's plain setup. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "managed_pieces": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.managed_pieces",
+    "witness": "Vacuity.Good.managedPieces",
+    "module": "tests.vacuity.Good",
+    "detail": "Alice's node's pieces in the fixture's plain setup. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "dial_mutant_unindexed": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.dial_mutant_unindexed",
+    "witness": "Vacuity.Good.mutantUnindexed",
+    "module": "tests.vacuity.Good",
+    "detail": "The negative control at the fixture's room and Alice's op: the mutant dial hook's node has no index pieces. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
   }
 }

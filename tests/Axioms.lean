@@ -404,13 +404,10 @@ open Engine Community
 #print axioms Engine.World.Guar.always
 #print axioms Engine.World.sent_keeps
 #print axioms Engine.World.dial_mutant_unindexed
-#print axioms Engine.World.Plain.lawful
-#print axioms Engine.World.Plain.reads_meta
-#print axioms Connection.Execution.lawful
-#print axioms Connection.Execution.reads_meta
-#print axioms Connection.Execution.save_meta
-#print axioms Engine.World.Pieces.local
 #print axioms Engine.World.onTick_keeps
+#print axioms Engine.World.onFrame_keeps
+#print axioms Engine.World.onWrite_keeps
+#print axioms Engine.World.onClose_keeps
 #print axioms Engine.World.Plain.managed_pieces
 #print axioms Engine.World.Plain.oq_pieces
 #print axioms Engine.World.Plain.ix_pieces

@@ -69,6 +69,37 @@ theorem bounded : ∀ k i cid c, ((run.world k).node i).conn? cid = some c → c
 theorem managed : ∀ k i, ((run.world k).node i).managed = [] :=
   Plain.managed_nil run fun _ => rfl
 
+/-! ## The pieces, over the run -/
+
+theorem oqPieces : Pieces world.setup alice (fun n _ => NodeOQ n) := Plain.oq_pieces alice
+theorem ixPieces : Pieces world.setup alice (IxInv world.fam) := Plain.ix_pieces alice
+theorem boundedPieces : Pieces world.setup alice (fun n _ => NodeBounded world.cfg.maxKnown n) :=
+  Plain.bounded_pieces alice
+theorem managedPieces : Pieces world.setup alice (fun n _ => n.managed = []) := Plain.managed_pieces alice
+
+/-- Bob's node after Alice's write, every entry point at it: what its
+sessions owe stays queued. -/
+theorem tickKeeps : Ok world.setup (fun n _ => NodeOQ n)
+    (world.setup.run (((run.world 1).node bob).onTick (world.setup.sync bob) 0) ((run.world 1).box bob)) :=
+  onTick_keeps Plain.lawful (Plain.oq_pieces bob) _ 0 _ (Plain.good_node run 1 bob).owes
+
+theorem frameKeeps : Ok world.setup (fun n _ => NodeOQ n)
+    (world.setup.run (((run.world 1).node bob).onFrame (world.setup.sync bob) (world.addr alice) hello.bytes 0)
+      ((run.world 1).box bob)) :=
+  onFrame_keeps Plain.lawful (Plain.oq_pieces bob) _ _ _ 0 _ (Plain.good_node run 1 bob).owes
+
+theorem writeKeeps : Ok world.setup (fun n _ => NodeOQ n)
+    (world.setup.run (((run.world 1).node bob).onWrite (world.setup.sync bob) [reply, hello] 0) ((run.world 1).box bob)) :=
+  onWrite_keeps Plain.lawful (Plain.oq_pieces bob) _ _ 0 _ (Plain.good_node run 1 bob).owes
+
+theorem closeKeeps : Ok world.setup (fun n _ => NodeOQ n)
+    (world.setup.run (((run.world 1).node bob).onClose (world.setup.sync bob) (world.addr alice) 0) ((run.world 1).box bob)) :=
+  onClose_keeps Plain.lawful (Plain.oq_pieces bob) _ _ 0 _ (Plain.good_node run 1 bob).owes
+
+/-- The negative control, at the fixture's room and op. -/
+theorem mutantUnindexed : ¬ Pieces (dialMutant room hello) ⟨0, Nat.zero_lt_one⟩ (IxInv (oneRoom room)) :=
+  dial_mutant_unindexed room hello
+
 /-! ## Runtime witnesses: the ops' ids are decided by running SHA-256 -/
 
 def aliceBox : Held Unit := (run.world 2).box alice

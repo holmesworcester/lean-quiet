@@ -321,8 +321,7 @@ control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
-control Engine.World.dialStores A dial hook that stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
-control Engine.World.dialMutant = Engine.World.dialStores
+control Engine.World.dialMutant A node whose dial hook stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
