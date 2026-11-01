@@ -17,6 +17,7 @@ sdk=${ANDROID_SDK:-$HOME/android-sdk}
 port=5598; serial=emulator-$port; avd=lean-quiet-links; pkg=com.holmes.leanquiet
 out=$PWD/out/android-links
 mkdir -p "$out" "$ANDROID_AVD_HOME"
+python3 platforms/android/test/links_state.py --self-test
 adb=("$sdk/platform-tools/adb" -s "$serial")
 if "${adb[@]}" get-state >/dev/null 2>&1; then
   echo "$serial is occupied; refusing to replace another emulator" >&2
@@ -51,27 +52,37 @@ check() { if eval "$2"; then echo "ok   $1"; else echo "FAIL $1"; fails=$((fails
 ctl() { python3 tools/ctl.py -s "$serial" -p 7098 -t 20 "$@" 2>>"$out/ctl.err" | tr -d '\r'; }
 view() { "${adb[@]}" shell am start -W -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "'$1'" >> "$out/am.log" 2>&1; }
 until_invite() { for _ in $(seq 60); do [ "$(ctl invite)" = "$1" ] && return 0; sleep 1; done; return 1; }
-resolves() { "${adb[@]}" shell cmd package resolve-activity --brief -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "'$1'" | tr -d '\r' | tail -1; }
+resolves_ours() {
+  "${adb[@]}" shell cmd package resolve-activity --brief -a android.intent.action.VIEW -c android.intent.category.BROWSABLE -d "'$1'" |
+    tr -d '\r' | tee "$out/resolve-last.txt" | python3 platforms/android/test/links_state.py component "$pkg"
+}
+single_task() {
+  "${adb[@]}" shell dumpsys activity activities | tee "$out/activities-warm.txt" |
+    python3 platforms/android/test/links_state.py one-task "$pkg"
+}
 
-"${adb[@]}" install -r "$dev" >/dev/null
+# The verified suite-owned AVD is reset below; debug signatures may differ
+# between worktrees that previously used this test image.
+"${adb[@]}" uninstall "$pkg" >/dev/null 2>&1 || true
+"${adb[@]}" install "$dev" >/dev/null
 "${adb[@]}" shell pm clear "$pkg" >/dev/null
-check "leanquiet://join/ opens Lean Quiet" '[ "$(resolves "${L[2]}")" = "$pkg/$pkg.LeanActivity" ]'
-check "quiet:// (classic Quiet) does not" '[ "$(resolves quiet://join/x)" != "$pkg/$pkg.LeanActivity" ]'
+check "leanquiet://join/ opens Lean Quiet" 'resolves_ours "${L[2]}"'
+check "quiet:// (classic Quiet) does not" '! resolves_ours quiet://join/x'
 "${adb[@]}" shell am force-stop "$pkg"
 view "${L[2]}"
 check "cold: the app starts holding the invite" 'until_invite "${L[0]}"'
 check "cold: on Choose a name" 'ctl input | grep -q "page .*name "'
 view "${L[3]}"
 check "warm: the running app takes the second invite" 'until_invite "${L[1]}"'
-check "warm: one task, no second instance" '[ "$("${adb[@]}" shell dumpsys activity activities | grep -c "Task{.*$pkg")" = 1 ]'
+check "warm: one task, no second instance" 'single_task'
 view "leanquiet://join/not-valid"
 sleep 2
 check "a malformed link changes nothing" '[ "$(ctl invite)" = "${L[1]}" ]'
 if [ -n "${RELEASE_APK:-}" ]; then
   "${adb[@]}" uninstall "$pkg" >/dev/null
   "${adb[@]}" install "$RELEASE_APK" >/dev/null
-  check "release: leanquiet://join/ opens Lean Quiet" '[ "$(resolves "${L[2]}")" = "$pkg/$pkg.LeanActivity" ]'
-  check "release: quiet:// does not" '[ "$(resolves quiet://join/x)" != "$pkg/$pkg.LeanActivity" ]'
+  check "release: leanquiet://join/ opens Lean Quiet" 'resolves_ours "${L[2]}"'
+  check "release: quiet:// does not" '! resolves_ours quiet://join/x'
   view "${L[2]}"
   sleep 5
   check "release: a cold link starts the app and it keeps running" '[ -n "$("${adb[@]}" shell pidof "$pkg" | tr -d "\r")" ]'
