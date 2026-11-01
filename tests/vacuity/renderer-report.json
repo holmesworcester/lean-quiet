@@ -1117,7 +1117,7 @@
     "theorem": "ViewLaws.row_marked",
     "witness": "Vacuity.RendererSupplement.marked",
     "module": "tests.vacuity.RendererSupplement",
-    "detail": "The same signed duplicate-name community opens an actual sealed Bob message using its local content key. A successful Message.read match supplies the precise row premise; its complete row_marked conclusion is returned in a dependent certificate, and execution checks the actual row carries the Duplicate flag."
+    "detail": "Two actually admitted Ed25519 identities choose the same Bob label. Runtime validates the nonempty signed community and empty queue, then applies row_marked to the running author component for Bob. Execution checks that the actual sealed Bob message's owned row (Message.readOwn) names Bob as its author, and that Bob's author component (Profile.author, the frame's .author want) shows \"Bob\" marked Duplicate."
   },
   "receipt_once": {
     "status": "runtime-witness",

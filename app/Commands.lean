@@ -519,7 +519,7 @@ def Writer.start (path : String) (save : Db → ByteArray → IO Unit) : IO Writ
 /-! ## Queries and answers
 
 Every read is a list (Engine.Query): one fact is the list under its own
-id's key (`Q.get`), so a component's subscriptions are exactly the
+id's key (`factQ`), so a component's subscriptions are exactly the
 windows of the lists it reads (Engine.read_rows_iff: a read's rows
 change exactly when its window's do). The one other read is an op's own
 bytes (a chunk's slice, a pending request's body), immutable, watched on
@@ -532,8 +532,9 @@ inductive Q where
   | op (x : Id)
   deriving BEq, Hashable, Inhabited
 
-/-- One fact: the list under its op's own key, at most one row. -/
-def Q.get (x : Id) : Q := .list { key := opKey x, limit := some 1 }
+/-- One fact: the list under its op's own key, at most one row (what
+`readFact` reads). -/
+def factQ (x : Id) : ListQ := { key := opKey x, limit := some 1 }
 
 /-- What a read answers; `pending` names rows from the outbox. -/
 inductive Ans where
@@ -721,7 +722,7 @@ def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q
 
 /-- One fact (the list under its own id), whether it is pending, and deps. -/
 def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do
-  let (a, pend, deps) ← readList { key := opKey x, limit := some 1 } deps
+  let (a, pend, deps) ← readList (factQ x) deps
   return (a.rows.head?.map (·.2), pend.contains x, deps)
 
 /-- The set operation actually used by list-backed component views. -/

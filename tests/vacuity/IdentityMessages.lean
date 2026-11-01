@@ -28,13 +28,6 @@ def Shown (db : DB Fact) (msg : Id) : Prop :=
   ∃ c' u dev kid' sealed n tm clump,
     ViewLaws.factIn db msg = some (.message c' u dev kid' sealed n tm clump)
 
-def messageRead : Option (PLift (Shown (run scene) post1.id)) :=
-  match h : (Message.read (m := ViewLaws.Model) c c post1.id).run (run scene) with
-  | none => none
-  | some (d,deps) => some ⟨by
-      obtain ⟨c',u,dev,kid',sealed,n,tm,clump,hf,_⟩ := ViewLaws.message_read (run scene) c c post1.id d deps h
-      exact ⟨c',u,dev,kid',sealed,n,tm,clump,hf⟩⟩
-
 def messageOwn : Option (PLift (Shown (run scene) post1.id)) :=
   match h : (Message.readOwn (m := ViewLaws.Model) post1.id).run (run scene) with
   | none => none
@@ -107,15 +100,14 @@ def localFactMine :=
 
 def main : IO UInt32 := do
   let t ← Checks.new
-  t.ok "message_read actual decrypted row" messageRead.isSome
   t.ok "message_own actual decrypted row" messageOwn.isSome
   t.ok "readable_complete actual message and local key" readableComplete.isSome
   t.ok "readable_held actual nonempty row" readableHeld.isSome
   t.ok "order_total on two signed sealed messages" orderTotal.isSome
-  let full := (Message.read (m := ViewLaws.Model) c c post1.id).run (run scene)
   let own := (Message.readOwn (m := ViewLaws.Model) post1.id).run (run scene)
-  t.ok "exact plaintext, author name and time" (full.any fun (d,_) =>
-    d.text == plaintext && d.name == "Bob" && d.time == 29880000)
+  t.ok "exact plaintext, author name and time" (own.any fun (d,_) =>
+    d.text == plaintext && d.time == 29880000 &&
+    ((Profile.author (m := ViewLaws.Model) c d.author).run (run scene)).1.1 == "Bob")
   t.ok "owned row exact author, plaintext and time" (own.any fun (d,deps) =>
     d.author == requestB.id && d.text == plaintext && d.time == 29880000 && deps.size == 2)
   t.ok "readable includes both posts in counter order despite reverse times"

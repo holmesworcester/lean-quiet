@@ -74,25 +74,6 @@ def read (c msg : Id) (deps : Array Q) (withProgress : Bool := true) : m (Array 
     out := out.push p
   return (out, deps)
 end Kinds.File
-namespace Kinds.Message
-open _root_.Engine _root_.Community _root_.Data
-variable {m : Type → Type} [Monad m] [Reads m]
-
-def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.RowData × Array Q)) := do
-  let (f, pending, deps) ← readFact msg #[]
-  let some (.message _ u _ kid sealed _ tm clump) := f | return none
-  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
-  -- no key here yet, or a body it does not open: not shown (the list
-  -- leaves such messages out; this is the row's own check)
-  let some text := (match ks.rows.head? with
-    | some (_, .key _ _ k) => (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr
-    | _ => none) | return none
-  let (who, deps) ← Profile.read c u deps
-  let (twin, deps) ← Profile.namesake c u who.name deps
-  let (pics, deps) ← File.read c msg deps attachmentProgress
-  let (tallies, deps) ← React.read c msg me deps
-  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump, false, false, false⟩, deps)
-end Kinds.Message
 namespace ViewLaws
 open _root_.Engine _root_.Community _root_.Data _root_.Kinds
 
@@ -105,59 +86,26 @@ theorem profile_read (db : DB Fact) (c u : Id) (deps : Array Q) :
   · rfl
   · cases f <;> rfl
 
-/-- **A shown message is the store's.** If its row has data, the message
-is a fact of the store; the row's name is its author's name, its time
-the time it claims, and its text its body opened with a key the store
-holds under the message's key id. Not covered: that the message is of
-community `c`. The fact's community `c'` is not tied to `c`, and
-`Message.read` does not check it, so a message of another community
-would show with names read in `c`. Nothing that runs calls
-`Message.read`. -/
-theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Array Q)
-    (h : (Message.read (m := Model) c me msg).run db = some (d, deps)) :
-    ∃ c' u dev kid sealed n tm clump, factIn db msg = some (.message c' u dev kid sealed n tm clump) ∧
-      d.name = nameIn db c u ∧ d.time = tm ∧
-      (∃ deps', d.namesake = ((Profile.namesake (m := Model) c u d.name deps').run db).1) ∧
-      ∃ x y k, keyIn db kid = some (.key x y k) ∧
-        (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
-  simp only [Message.read, readFact, readList, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure,
-    Reads.read] at h
-  generalize hf : Option.map (fun x => x.snd) (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
-  rcases fo with _ | f
-  · exact absurd h (pure_none_ne _ _)
-  cases f <;> (try (rename_i x; cases x))
-  all_goals try (exact absurd h (pure_none_ne _ _))
-  rename_i c' u dev kid sealed n tm clump
-  simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
-  generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
-  rcases kr with _ | ⟨p, kf⟩
-  · exact absurd h (pure_none_ne _ _)
-  cases kf <;> (try (rename_i x; cases x))
-  all_goals dsimp only at h
-  all_goals try (exact absurd h (pure_none_ne _ _))
-  rename_i x y k
-  generalize ht : Option.map Profile.bytesStr (openSealed cryptoSeal c kid sealed k) = tx at h
-  rcases tx with _ | text
-  · dsimp only at h; exact absurd h (pure_none_ne _ _)
-  simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, -⟩ := h
-  refine ⟨c', u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf, profile_read db c u _, rfl,
-    ⟨_, rfl⟩, x, y, k, by simp [keyIn, hk], ht⟩
-
-/-- The running message component reads only its own fact and content
-key. Its author is an identity for a child, never a profile subscription. -/
+/-- **A shown message is the store's.** The running message component
+(`Message.readOwn`, the frame's `.row` want) shows a message only if it
+is a fact of the store; the row's author is its author, its time the
+time it claims, and its text its body opened with a key the store holds
+under the message's key id. It reads only its own fact and content key:
+its author is an identity for a child (the `.author` want: row_marked),
+never a profile subscription. Not covered: that the message is of the
+community whose names the row shows (the frame reads names in the
+current community, `s.me.c`; the fact's own `c` is not checked). -/
 theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
     (h : (Message.readOwn (m := Model) msg).run db = some (d, deps)) :
     ∃ c u dev kid sealed n tm clump,
       factIn db msg = some (.message c u dev kid sealed n tm clump) ∧
       d.author = u ∧ d.time = tm ∧
-      deps = #[Q.get msg, .list (key.byId.query [kid] (limit := some 1))] ∧
+      deps = #[.list (factQ msg), .list (key.byId.query [kid] (limit := some 1))] ∧
       ∃ x y k, keyIn db kid = some (.key x y k) ∧
         (openSealed cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
   simp only [Message.readOwn, readFact, readList, ReaderT.run, bind, ReaderT.bind,
     pure, ReaderT.pure, Reads.read] at h
-  generalize hf : Option.map (fun x => x.snd)
-    (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
+  generalize hf : Option.map (fun x => x.snd) (eval db (factQ msg)).rows.head? = fo at h
   rcases fo with _ | f
   · exact absurd h (pure_none_ne _ _)
   cases f <;> (try (rename_i x; cases x))
@@ -176,7 +124,7 @@ theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
   · dsimp only at h; exact absurd h (pure_none_ne _ _)
   simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
   obtain ⟨rfl, rfl⟩ := h
-  exact ⟨c, u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf,
+  exact ⟨c, u, dev, kid, sealed, n, tm, clump, by simpa [factIn, factQ] using hf,
     rfl, rfl, rfl, x, y, k, by simp [keyIn, hk], ht⟩
 end ViewLaws
 namespace Kinds.Profile
@@ -303,19 +251,27 @@ theorem namesake_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) (deps
       (by simp [rels]) h hq hv' (byLook_args.2 ⟨u', n', tm', rfl, by rw [← hl, hn]; rfl⟩)
     exact ⟨_, c, u', n', tm', hm, hne, hl⟩
 
-/-- **A message row is marked Duplicate exactly when its author has a
-namesake.** At rest, a shown message's row carries the mark exactly when
-another user of the community has a Valid profile whose newest name
-looks as its author's does. -/
-theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) {c me msg : Id} {d : Row.RowData}
-    {deps : Array Q} (hr : (Message.read (m := Model) c me msg).run s = some (d, deps)) :
-    ∃ c' u dev kid sealed n tm clump, factIn s msg = some (.message c' u dev kid sealed n tm clump) ∧
-      (d.namesake = true ↔ ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
-        nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
-  obtain ⟨c', u, dev, kid, sealed, n, tm, clump, hf, hn, -, ⟨deps', hd⟩, -⟩ := message_read s c me msg d deps hr
-  refine ⟨c', u, dev, kid, sealed, n, tm, clump, hf, ?_⟩
-  rw [hd, hn]
-  exact namesake_iff h hq c u deps'
+/-- **A message row's author is named as the store holds, and marked
+Duplicate exactly when they have a namesake.** The author component
+(`Profile.author`, which the frame wants for each shown row's author,
+the `author` of message_own) shows u's newest name in c, and at rest
+marks it exactly when another user of c has a Valid profile whose newest
+name looks the same. -/
+theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
+    ((Profile.author (m := Model) c u).run s).1.1 = nameIn s c u ∧
+      (((Profile.author (m := Model) c u).run s).1.2 = true ↔
+        ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
+          nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
+  have hn := profile_read s c u #[]
+  simp only [ReaderT.run] at hn
+  simp only [Profile.author, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure]
+  generalize Profile.read (m := Model) c u #[] s = r at hn
+  obtain ⟨who, deps⟩ := r
+  simp only at hn ⊢
+  have := namesake_iff (C := C) h hq c u deps
+  simp only [ReaderT.run] at this
+  rw [hn]
+  exact ⟨rfl, this⟩
 end ViewLaws
 namespace Kinds.File
 open _root_.Engine _root_.Community _root_.Data

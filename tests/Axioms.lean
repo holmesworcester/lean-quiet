@@ -528,8 +528,6 @@ section app
 #print axioms Text.wrap_fits
 #print axioms Text.place_starts
 #print axioms RowLaws.picBox_aspect
-#print axioms RowLaws.tally_nodup
-#print axioms RowLaws.tally_mem
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
 #print axioms RowLaws.flush_shows
@@ -546,7 +544,6 @@ section app
 #print axioms RowLaws.twin_shown
 #print axioms RowLaws.twin_before_time
 #print axioms RowLaws.hit_twin
-#print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
 #print axioms Reader.Want.withView_ofFrame

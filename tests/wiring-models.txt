@@ -92,9 +92,6 @@ PeopleLaws.presentW_lists_eq
 PeopleLaws.present_lists_eq
 PeopleLaws.present_scans
 PeopleLaws.unremoved_lists
-ViewLaws.message_own
-ViewLaws.message_read
-ViewLaws.row_marked
 
 # app.community.channel.message.Proofs
 Community.sum_map_add
@@ -111,10 +108,6 @@ ArrivalLaws.lit_full
 ArrivalLaws.lit_mono
 ArrivalLaws.lit_zero
 ArrivalLaws.ring_counts
-
-# app.community.channel.message.reaction.View
-RowLaws.tally_mem
-RowLaws.tally_nodup
 
 # app.community.member.invite.Proofs
 Community.parse_uri

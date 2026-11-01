@@ -1889,9 +1889,8 @@ def eval : Want → RM (Val × Array Q)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
   | .author c u => do
-    let (who, deps) ← Kinds.Profile.read c u #[]
-    let (twin, deps) ← Kinds.Profile.namesake c u who.name deps
-    return (.author who.name twin, deps)
+    let ((name, twin), deps) ← Kinds.Profile.author c u
+    return (.author name twin, deps)
   | .attachments c msg => do
     let (ids, deps) ← Kinds.File.ids c msg
     return (.ids ids, deps)
@@ -3985,7 +3984,7 @@ def syncText : M Unit := do
       s.io.setText t
       modify fun s => { s with native := t }
 
-/-- Message m's row: its view (Kinds.Message.read: the claimed time, in
+/-- Message m's row: its view (Kinds.Message.readOwn: the claimed time, in
 UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
