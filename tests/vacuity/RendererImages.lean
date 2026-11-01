@@ -1,7 +1,7 @@
 import engine.renderer.pic.Laws
 import engine.renderer.ImageLaws
 import engine.renderer.Ttf.Laws
-import engine.renderer.Ttf.Cache
+import engine.renderer.Ttf.Memo
 
 set_option maxRecDepth 10000
 set_option maxHeartbeats 800000
@@ -68,17 +68,17 @@ theorem saturated : (Ttf.coverage 128).toNat = min 255 (128 * 255 / 64) :=
 example : Ttf.coverage 128 = 255 ∧ Ttf.coverage 0 = 0 := by decide
 
 def glyph : Ttf.Bitmap := ⟨-1, -1, 2, 2, 1, 1, 1, 0, 1, 0, ByteArray.mk #[0, 127, 255, 0]⟩
-def glyphKey : Ttf.Cache.Key := ⟨0, 4, 20, 20⟩
-def initialCache := Ttf.Cache.put Ttf.Cache.empty glyphKey glyph
+def squares : Ttf.Memo.Table (fun k => k * k) := Ttf.Memo.Table.new _ fun _ => 200
 
-theorem cacheBound : Ttf.Cache.bytes (Ttf.Cache.put initialCache ⟨0, 5, 20, 20⟩ glyph) ≤ Ttf.Cache.budget ∧
-    (Ttf.Cache.put initialCache ⟨0, 5, 20, 20⟩ glyph).slots.size = Ttf.Cache.capacity ∧
-    (Ttf.Cache.put initialCache ⟨0, 5, 20, 20⟩ glyph).index.size ≤ Ttf.Cache.capacity ∧
-    (Ttf.Cache.put initialCache ⟨0, 5, 20, 20⟩ glyph).hand < Ttf.Cache.capacity :=
-  Ttf.Cache.put_bound initialCache ⟨0, 5, 20, 20⟩ glyph
+/-- A key on the table's third page, past its first page boundary. -/
+theorem tableAnswers : squares.get 130 = 130 * 130 := Ttf.Memo.Table.get_eq squares 130
+/-- A key past the table falls back to the function. -/
+theorem tablePast : squares.get 9000 = 9000 * 9000 := Ttf.Memo.Table.get_eq squares 9000
 
-theorem cachePayload : Ttf.Cache.payload (Ttf.Cache.put initialCache ⟨0, 5, 20, 20⟩ glyph) ≤
-    Ttf.Cache.budget := Ttf.Cache.put_payload_bound initialCache ⟨0, 5, 20, 20⟩ glyph
+def face : Ttf.Memo.Source := Ttf.Memo.source ByteArray.empty 20 20
+theorem memoRaster : face.bitmap 4 = face.bitmapFast 4 :=
+  congrFun (congrFun Ttf.Memo.bitmap_eq_fast face) 4
+theorem compactSame : Ttf.Memo.compact glyph = glyph := Ttf.Memo.compact_eq glyph
 example : glyph.Valid := by decide
 example : ¬ ({ glyph with pixels := ByteArray.mk #[0] } : Ttf.Bitmap).Valid := by decide
 

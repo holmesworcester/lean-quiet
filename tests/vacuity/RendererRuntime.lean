@@ -137,11 +137,13 @@ def main : IO UInt32 := do
   t.ok "real-font nonempty raster has an in-bounds pixel certificate" (rasterPixel face glyph).isSome
   t.ok "invalid zero-size native raster is rejected" ((Ttf.raster face glyph 0 24).isNone)
   t.ok "changed-answer journal reaches the exact cached query" noticedAgreement.isSome
-  let cache2 := Ttf.Cache.put RendererImages.initialCache ⟨0, 5, 20, 20⟩ RendererImages.glyph
-  t.ok "bounded glyph cache actually retains its first nonempty insertion"
-    ((Ttf.Cache.get? cache2 RendererImages.glyphKey).isSome)
-  t.ok "bounded glyph cache retains the second distinct glyph"
-    ((Ttf.Cache.get? cache2 ⟨0, 5, 20, 20⟩).isSome && cache2.index.size == 2)
+  let memo := Ttf.Memo.source bytes 24 24
+  t.ok "real-font glyph memo answers the raster's bytes"
+    ((memo.bitmap glyph).map (·.pixels) == (memo.uncached glyph).map (·.pixels) &&
+      (memo.bitmap glyph).isSome)
+  t.ok "compact keeps a real raster unchanged"
+    (((Ttf.raster face glyph 24 24).map Ttf.Memo.compact).map (·.pixels) ==
+      (Ttf.raster face glyph 24 24).map (·.pixels))
   t.ok "concrete two-pixel attachment grows and applies add_stored" addStored.isSome
   let sm ← Sim.new
   let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")

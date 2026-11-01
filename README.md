@@ -485,7 +485,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊 | **The layout is exact.** Proven of the running code: the emoji sheet's keys sit exactly over their tap boxes; the composer's photo chips are in order, apart and on screen; the invite's hints and QR and the camera preview fit. Not yet: the graphics API and pixel copies. | [`Surface.placed_row`], [`Surface.newest_drawn`], [`Surface.pinned_row`], [`keys_disjoint`], [`hit_cell`], [`reachable`], [`itemAt_place`], [`lineOf_ctop`], [`chips_apart`], [`x_clear`], [`chips_fit`], [`compose_row`], [`compose_top`], [`Link.hints_fit`], [`Link.qr_fits`], [`Camera.src_in`] |
 | 🟡 | 🥊🥊🥊 | **Message text is shown faithfully.** Wrapping drops only spaces, and every line fits when every character does; bidi reordering drops and invents nothing; the glyphs placed are exactly the visible characters; number runs stay whole and in order. Unicode's bidi tests pass in the implemented scope. Not yet: the bidi algorithm as a law, embeddings, isolates, brackets and mirroring ([scope](docs/BIDI.md)). | [`wrap_keeps`], [`wrap_fits`], [`visual_perm`], [`place_shows`], [`place_starts`], [`numbers_keep_order`], [`arabic_numbers_keep_order`] |
 | 🟡 | 🥊🥊🥊 | **Names are shown correctly.** A name is its author's newest valid profile, cut to a prefix; explicit bidi controls have no directional authority; a name starts next to its avatar; and a row is marked "⚠ Duplicate" exactly when another member's name looks alike. Not covered: look-alike letters across scripts, and invisible characters in a message's body. | [`profile_read`], [`profile_authorized`], [`no_renaming`], [`name_placed`], [`oneLine_prefix`], [`controls_neutral`], [`marks_invisible`], [`namesake_iff`], [`row_marked`], [`twin_shown`], [`twin_before_time`], [`hit_twin`], [`name_starts`], [`flush_shows`] |
-| 🟡 | 🥊🥊 | **Noto coverage and its cache are bounded.** Font reads are bounds-checked, coverage fits its bitmap, and the glyph cache stays within 4 MiB and 1,024 entries. Not yet: pixel fidelity, and native memory bounds; the raster is checked against fontTools ([report](docs/NOTO.md)). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`], [`Ttf.Cache.put_bound`], [`Ttf.Cache.put_payload_bound`] |
+| 🟡 | 🥊🥊 | **Noto coverage is bounded, and the glyph memo is the raster.** Font reads are bounds-checked, coverage fits its bitmap, and the memo the compiler runs for a glyph's bitmap is proven equal to rastering it (`@[csimp]`). Not yet: pixel fidelity, and memory bounds: a font keeps the glyphs it rasters until the app rebuilds it, on suspend and on a density change; the raster is checked against fontTools ([report](docs/NOTO.md)). | [`Ttf.byte_in_bounds`], [`Ttf.cmap_entry`], [`Ttf.coverage_value`], [`Ttf.raster_valid`], [`Ttf.raster_pixel`], [`Ttf.Memo.bitmap_eq_fast`], [`Ttf.Memo.Table.get_eq`] |
 | ✅ | 🥊🥊 | **Times, reactions and pictures are shown as held:** the claimed time's clock, each reaction's count of distinct reactors, and each picture at its own aspect inside its box. | [`time_shown`], [`projectSet_mem`], [`projectSet_nodup`], [`picBox_aspect`] |
 | 🟡 | 🥊🥊🥊 | **What you see is what was sent.** Over a model of the reads: a shown message is a Valid fact, shown with its author, claimed time and body opened with a key the store holds, and the conversation is exactly the messages this device can open. Not yet: from a row's layout to its pixels. | [`message_own`], [`readable_held`], [`readable_complete`], [`eval_stable`] |
 | ✅ | 🥊🥊🥊 | **Every community is reachable, and is one entry.** Every entry has a switcher row whose tap selects exactly it, no two entries share a community, and a page is drawn from its entry's op, never a name. | [`switcherOrder_sound`], [`switcherOrder_complete`], [`dedupe_nodup`], [`dedupe_one_per_community`], [`select_tapped_dedupe`], [`drawPage_key`], [`pageIn_acc`] |
@@ -836,12 +836,13 @@ cmap/metric index supports layout before parsing; faces and outlines are
 parsed on demand. Unifont remains the fallback, and colour emoji remain
 prebuilt QOI pictures. See [Noto rendering](docs/NOTO.md).
 
-The glyph cache has a 4 MiB accounting budget and at most 1,024 entries.
-Its insertion and the reader/raster bounds are proved over running Lean
-functions. The pure paint API has one memoization seam:
-Source.bitmap's compiled equivalence is tested, not proven. Tests compare
-every bitmap field and byte with the pure raster, including eviction,
-failed reads and concurrent calls. Native allocator/RSS bounds and the
+Each face at each size keeps the glyphs it has rastered, in a table of
+thunks that Lean's runtime evaluates once ([`Memo.lean`](engine/renderer/Ttf/Memo.lean)).
+The compiler runs that memo for `Source.bitmap`, and `bitmap_eq_fast`
+(`@[csimp]`) proves it equal to the raster, so the laws about painting are
+about what runs. A table lives as long as its font: the app empties every
+table on suspend (`Font.fresh`) and builds new ones on a density change.
+Glyph memory between those points, native allocator/RSS bounds and the
 build-time metric index's correspondence are not kernel theorems.
 
 Native code copies the finished rows into the OS's buffers:
@@ -884,8 +885,9 @@ cannot see into:
 | The 19 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `motion`, `text`, `ime`, `setText`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs`, `tzMin`, `log`, `poll`, `links` | `lq_*` in each shell | OS effects, raw events, placement and pixel publication |
 | `register`, `browse`, `poll` ([`NetProbe.lean`](platforms/ios/probe/NetProbe.lean)) | `lq_sd_*` in [`dnssd.c`](platforms/ios/probe/dnssd.c) | DNS-SD, for the iOS network probe only |
 
-- There is no `@[implemented_by]`, no `unsafe` and no `axiom`. The
-  other way, `@[export]` gives qr's own Android harness `Qr.decodeLuma`
+- The Lean that ships has no `@[implemented_by]`, no `unsafe` and no
+  `axiom` (test programs use `unsafe` only to compare object identity,
+  as the glyph memo's tests do). The other way, `@[export]` gives qr's own Android harness `Qr.decodeLuma`
   (`engine/renderer/qr/Export.lean`) and the picture composer
   (`engine/renderer/pic/Composer.lean`).
 - **A pure extern is one fixed function to the logic.** The C under

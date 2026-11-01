@@ -65,7 +65,7 @@ import app.community.key.View
 import app.community.profile.View
 import app.community.member.remove.View
 import engine.renderer.Ttf.Laws
-import engine.renderer.Ttf.Cache
+import engine.renderer.Ttf.Memo
 import app.community.channel.message.attachment.Screen
 import app.community.channel.message.attachment.View
 import engine.renderer.qr.Qr
@@ -998,7 +998,7 @@ end cost
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
 
--- Noto reader, raster and bounded cache.
+-- Noto reader, raster and glyph memo.
 #print axioms Ttf.byte_in_bounds
 #print axioms Ttf.cmap_entry
 #print axioms Ttf.lookup_singleton
@@ -1011,11 +1011,10 @@ end cost
 #print axioms Ttf.raster_valid
 #print axioms Ttf.ink_witness
 #print axioms Ttf.raster_pixel
-#print axioms Ttf.Cache.empty_valid
-#print axioms Ttf.Cache.checked_valid
-#print axioms Ttf.Cache.put_bound
-#print axioms Ttf.Cache.payload_le_bytes
-#print axioms Ttf.Cache.put_payload_bound
+#print axioms Ttf.Memo.Table.get_eq
+#print axioms Ttf.Memo.compact_eq
+#print axioms Ttf.Memo.bitmap_eq_fast
+#print axioms Ttf.Memo.shifted_not_exact
 
 #print axioms Surface.row_place
 #print axioms Surface.row_pinned

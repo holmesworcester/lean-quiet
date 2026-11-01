@@ -1,7 +1,8 @@
 /-
-The compiled memoization contract, compact layout records and lazy startup.
-Compare every bitmap field/byte on misses, hits, eviction, fresh sources,
-different sizes and concurrent calls. Invalid headers/outlines return none.
+The compiled memo (`bitmap_eq_fast` runs `bitmapFast`) on the real fonts,
+compact layout records and lazy startup. Compare every bitmap field/byte on
+first and kept reads, fresh sources, different sizes and concurrent calls;
+check a second read is the kept object. Invalid headers/outlines return none.
 -/
 import engine.renderer.Font
 
@@ -19,7 +20,13 @@ private def same : Option Ttf.Bitmap → Option Ttf.Bitmap → Bool
 private def contract (f : Ttf.Memo.Source) (g : Nat) : IO Unit :=
   check (same (f.bitmap g) (f.uncached g)) "memo contract: every field and byte"
 
-def main : IO Unit := do
+/-- Whether a glyph read twice is one kept object (a raster is a new one). -/
+private unsafe def keeps (f : Ttf.Memo.Source) (key : IO.Ref Nat) : IO Bool := do
+  match f.bitmap (← key.get), f.bitmap (← key.get) with
+  | some a, some b => return ptrEq a.pixels b.pixels
+  | _, _ => return false
+
+unsafe def main : IO Unit := do
   let checks ← Std.Mutex.new (0 : Nat)
   let compare := fun src g => do
     contract src g
@@ -53,7 +60,7 @@ def main : IO Unit := do
       check (Ttf.lookup f.cmap cp == some g && f.advances[g]? == some a) "compact cmap/hmtx agrees"
       pairs := pairs+1
     for size in [16,32,48,64] do
-      let src ← Ttf.Memo.source bytes size size
+      let src := Ttf.Memo.source bytes size size
       sources := sources.push src
       for (_,g,_) in m.chars.toList.take 16 do
         compare src g
@@ -66,9 +73,26 @@ def main : IO Unit := do
     if Cjk.supported cp.toNat then
       check (Cjk.choose (faces.extract Noto.names.size faces.size) cp.toNat == some (r.face-Noto.names.size,r.glyph)) "compact routing agrees"
     routed := routed+1
-  -- Force eviction, then revisit sources whose glyph numbers overlap.
+  -- Fill a CJK table, then revisit sources whose glyph numbers overlap.
   let some cjk := loaded.faces[9]? | throw (IO.userError "CJK source")
-  for g in [0:1800] do compare cjk g
+  let key ← IO.mkRef 0
+  let mut held := 0
+  for g in [0:1800] do
+    compare cjk g
+    key.set g
+    if (cjk.bitmap g).isSome then
+      check (← keeps cjk key) "a second read is the kept glyph"
+      held := held + 1
+  check (held > 1500) "the CJK fixture is non-vacuous"
+  let mut fresh := 0
+  for g in [0:64] do
+    key.set g
+    match cjk.uncached (← key.get), cjk.uncached (← key.get) with
+    | some a, some b =>
+      check (!ptrEq a.pixels b.pixels) "control: a raster is a new object"
+      fresh := fresh + 1
+    | _, _ => pure ()
+  check (fresh > 0) "the control is non-vacuous"
   for src in sources do
     for g in [0:16] do compare src g
   let mut tasks := #[]
@@ -80,11 +104,11 @@ def main : IO Unit := do
     match t.get with
     | .ok _ => pure ()
     | .error e => throw e
-  let broken ← Ttf.Memo.source ByteArray.empty 48 48
+  let broken := Ttf.Memo.source ByteArray.empty 48 48
   compare broken 1
   check ((broken.bitmap 1).isNone) "invalid source returns none"
   let bad ← IO.FS.readBinFile "out/noto/composite-loop.ttf"
-  let loop ← Ttf.Memo.source bad 48 48
+  let loop := Ttf.Memo.source bad 48 48
   let some f := Ttf.readHeader bad | throw (IO.userError "loop fixture header")
   let mut rejected := false
   for g in [0:f.advances.size] do
@@ -94,6 +118,4 @@ def main : IO Unit := do
       rejected := true
       break
   check rejected "loop fixture is non-vacuous"
-  let (hits,misses,bytes,peak,count) ← Ttf.Memo.stats
-  check (hits > 500 && misses > 1800 && bytes ≤ Ttf.Cache.budget && peak ≤ Ttf.Cache.budget && count ≤ Ttf.Cache.capacity) "memo used and bounded"
-  IO.println s!"font contract: {pairs} compact pairs; {routed} routed metrics; {refused} invalid indices; {← checks.atomically get} whole-result comparisons, 8 workers; hits {hits}, misses {misses}, peak {peak}"
+  IO.println s!"font contract: {pairs} compact pairs; {routed} routed metrics; {refused} invalid indices; {← checks.atomically get} whole-result comparisons, 8 workers; {held} kept CJK glyphs"

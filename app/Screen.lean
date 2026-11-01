@@ -2899,6 +2899,8 @@ def suspend (budget : Nat := 250) : M Unit := do
   s.wr.setPaused false
   leavePage
   saveCheckpoint
+  -- Let go of the glyphs the font kept; a resumed frame rasters what it shows.
+  modify fun s => { s with font := s.font.fresh }
   discard <| waitFor deadline do
     reap
     let s ← get
