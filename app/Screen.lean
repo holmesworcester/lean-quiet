@@ -30,7 +30,6 @@ import engine.renderer.Cover
 import engine.renderer.Session
 import engine.renderer.HoldCache
 import engine.renderer.Toast
-import engine.renderer.ThemeStore
 import app.community.channel.message.draft.View
 import app.community.member.invite.View
 import engine.renderer.Camera
@@ -1176,11 +1175,11 @@ def judgeWrite (rd : Db) (out : Array Pending) (w : Community.Write) : IO (Optio
       sts := sts ++ [← match mine[r]? with
         | some v => pure (some v)
         | none => match out.find? (·.op.id == r) with
-          | some p => pure (some (.valid (.inl p.fact)))
+          | some p => pure (some (.valid (.inl (.inl p.fact))))
           | none => Data.status rd r]
     match judge fam o sts with
-    | some (.valid (.inl f)) =>
-      mine := mine.insert o.id (.valid (.inl f))
+    | some (.valid (.inl (.inl f))) =>
+      mine := mine.insert o.id (.valid (.inl (.inl f)))
       pend := pend.push (⟨o, f, opKey o.id :: keys f⟩ : Pending)
     | some (.valid v) => mine := mine.insert o.id (.valid v)
     | none => pure ()
@@ -2018,6 +2017,9 @@ structure PageIn where
 structure St where
   io : Io
   theme : Theme.State := {}
+  /-- The newest appearance's revision this device holds (the store's,
+  or the last chosen here): a choice writes the next one. -/
+  themeRev : Nat := 0
   wide : Bool := false
   mobile : Bool := true
   editorFocused : Bool := false
@@ -2519,14 +2521,12 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
-     (Theme.encode s.theme.setting).toUTF8, Codec.encode (s.labelText.toUTF8, s.labelPage),
+     Codec.encode (s.labelText.toUTF8, s.labelPage),
      Codec.encode (s.mark.bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))])
 
-/-- Called only by the writer thread. Both writes are idempotent when its
+/-- Called only by the writer thread. The write is idempotent when its
 checkpoint retry meets a transient SQLite lock. -/
-def commitCheckpoint (db : Db) (bytes : ByteArray) : IO Unit := do
-  if let some (_, _, _, _, _, bs) := (Codec.decode bytes : Option Lifecycle.Checkpoint) then
-    if let some value := bs[12]? then Theme.save db (Theme.decode (String.fromUTF8! value))
+def commitCheckpoint (db : Db) (bytes : ByteArray) : IO Unit :=
   Lifecycle.save db bytes
 
 /-- A changed checkpoint, handed to the writer's thread, which commits
@@ -2569,7 +2569,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
-  let (label, labelPage) := (Codec.decode (b 13) : Option (ByteArray × Nat)).getD (.empty, 0)
+  let (label, labelPage) := (Codec.decode (b 12) : Option (ByteArray × Nat)).getD (.empty, 0)
   let nav := match stack.reverse with
     | [] => Nav.reset (PageId.ofCode p)
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
@@ -2579,7 +2579,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,
-    anchor := (Codec.decode (b (if bs.length > 14 then 14 else 11)) : Option (Option Pos)).getD
+    anchor := (Codec.decode (b (if bs.length > 13 then 13 else 11)) : Option (Option Pos)).getD
       ((Codec.decode (b 8) : Option (Option Pos)).getD none),
     links := ((Codec.decode (b 9) : Option (List (Id × ByteArray))).getD []).map fun (a, l) => (a, String.fromUTF8! l),
     saved := some cp, mountedPage := none }
@@ -2913,13 +2913,6 @@ def themed (s : St) (theme : Theme.State) : St :=
       (bytes, w, h, { chip with thumb }),
     topBmp := default, botBmp := default, chromeKey := "", pageNow := none, pageKey := none }
 
-def setTheme (setting : Theme.Setting) : M Unit := do
-  let s ← get
-  set (themed s { s.theme with setting })
-  saveCheckpoint
-  let s ← get
-  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
-
 def systemTheme (system : Theme.Value) : M Unit := do
   let s ← get
   let theme := { s.theme with system }
@@ -3020,6 +3013,17 @@ def submit (j : Job) : M Unit := do
     modify fun s => { s with toNode := s.toNode.push j.ops }
     flushNode
   else s.wr.submit j
+
+/-- Choosing an appearance writes it, a local op one revision past the
+newest (`Settings.Appearance.choose`), and shows it at once: the store's
+newest is the preference from its commit on (`Data.appearance`). -/
+def setTheme (setting : Theme.Setting) : M Unit := do
+  let s ← get
+  let rev := s.themeRev + 1
+  set { themed s { s.theme with setting } with themeRev := rev }
+  submit ⟨[Settings.Appearance.choose rev setting], true⟩
+  let s ← get
+  s.io.appearance (Theme.effective s.theme == .dark) (Palette.color s.dim.theme .bg)
 
 /-- The negative control of the frame's no-wait rule (`block` and
 `waits` in tests/wiring.txt): `submit` to the node as it was, through
@@ -3818,7 +3822,7 @@ def netStep : M Unit := do
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
     { fam, cfg := { every := 30000, askTime := 20000 },
-      hooks := Connection.hooks fam Connection.sodium listen }
+      hooks := Data.hooks listen }
   let path := s.dbPath
   let sh := s.sh
   let writer := s.wr
@@ -5443,7 +5447,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     let queued := (Codec.decode (bs[10]?.getD .empty) : Option (List ByteArray)).getD []
     let ops := queued.filterMap Op.decode
     if !ops.isEmpty then (receive fam (intake fam true ops)).run rd
-  let setting ← Theme.load rd
+  let (setting, themeRev) ← Data.appearance rd
   let wr ← Writer.start dbPath commitCheckpoint
   let theme : Theme.State := ⟨setting, Theme.ofWord (screen[5]?.getD 0)⟩
   io.appearance (Theme.effective theme == .dark) (Palette.color (Theme.effective theme) .bg)
@@ -5458,7 +5462,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     | .ok c => pure c
     | .error e => do IO.eprintln s!"no emoji catalogue: {e}"; pure #[]
   let initial : St := {
-           io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
+           io := io, theme := theme, themeRev, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
            wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,

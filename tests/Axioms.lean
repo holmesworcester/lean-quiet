@@ -10,6 +10,8 @@ import engine.wire.IngressLaws
 import engine.wire.IngressPriorityLaws
 import engine.wire.IngressChurnLaws
 import app.Proofs
+import app.settings.appearance.Proofs
+import app.settings.appearance.Commands
 import engine.renderer.Demand
 
 
@@ -37,6 +39,8 @@ import engine.wire.OutboxLaws
 import engine.sync.SweepLaws
 import engine.sync.SweepRun
 import engine.sync.SharedLog
+import engine.world.Link
+import engine.world.InvIx
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -362,6 +366,22 @@ open Engine Community
 #print axioms Engine.Sync.op_taken
 #print axioms Engine.Sync.stream_offered
 #print axioms Engine.Sync.stream_offered_runs
+#print axioms Engine.World.Plain.grows
+#print axioms Engine.World.Plain.managed_nil
+#print axioms Engine.World.Plain.converge
+#print axioms Engine.World.Plain.offline
+#print axioms Engine.World.onSealed_takes
+#print axioms Engine.World.onSealed_wants
+#print axioms Engine.World.onSealed_queues
+#print axioms Engine.World.onHold_wants
+#print axioms Engine.World.recv_asked
+#print axioms Engine.World.recv_owed
+#print axioms Engine.World.node_serve
+#print axioms Engine.World.Plain.deliver_takes
+#print axioms Engine.World.Plain.deliver_wants
+#print axioms Engine.World.Plain.deliver_queues
+#print axioms Engine.World.Plain.owes_queued_start
+#print axioms Engine.World.Plain.ix_covers_start
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
@@ -942,6 +962,13 @@ end cost
 #print axioms Connection.removed_node
 #print axioms Connection.connect_iff_node
 #print axioms Connection.refuse_nonmember_node
+-- The app's own ops on top of the node's (app/Family.lean, engine/core/Left.lean).
+#print axioms Engine.left_list
+#print axioms Engine.left_status
+#print axioms Engine.rightKey_of
+#print axioms Engine.top_right
+#print axioms Quiet.node_app
+#print axioms Quiet.node_left
 #print axioms Connection.removal_cuts_off_node
 #print axioms Connection.members_iff_node
 #print axioms Connection.recipients_iff_node
@@ -1045,6 +1072,10 @@ end cost
 #print axioms Theme.follows
 #print axioms Theme.forced
 #print axioms Theme.roundtrip
+#print axioms Settings.Appearance.choose_valid
+#print axioms Settings.Appearance.choose_local
+#print axioms Settings.Appearance.query_right
+#print axioms Settings.Appearance.current_newest
 #print axioms Appearance.selected_check
 #print axioms Contrast.channel_bounds
 #print axioms Contrast.ink_meets
