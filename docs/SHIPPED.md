@@ -39,10 +39,10 @@ suites. It needs clang/clang++, ar/nm/readelf, Python 3, libsodium for the
 crypto comparison, the pinned Lean toolchain,
 the Rust crypto dependencies, and local source checkouts:
 
-- `LEAN_SRC`: Lean 4.34.0, default
-  `/mnt/storage/holmes-wt/lean-src/lean4`;
+- `LEAN_SRC`: Lean 4.35.0, default
+  `/mnt/storage/holmes-wt/lean-src-435/lean4`;
 - `UV_SRC`: libuv 1.51.0, default
-  `/mnt/storage/holmes-wt/lean-src/libuv`.
+  `/mnt/storage/holmes-wt/lean-src-435/libuv`.
 
 `platforms/headless/build_runtime.py` copies the toolchain's headers,
 removes `LEAN_MIMALLOC`, leaves `LEAN_USE_GMP` undefined, and compiles
