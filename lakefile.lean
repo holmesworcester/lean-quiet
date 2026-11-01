@@ -301,6 +301,10 @@ lean_exe invite_link where
 lean_exe net_join where
   root := `platforms.headless.NetJoin
 
+-- Linked devices over real TCP on loopback: four apps, four nodes.
+lean_exe net_link where
+  root := `platforms.headless.NetLink
+
 lean_exe write_admission where
   root := `platforms.headless.WriteAdmission
 
