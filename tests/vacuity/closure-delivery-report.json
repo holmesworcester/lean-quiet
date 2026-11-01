@@ -1,0 +1,16 @@
+{
+  "closure_delivered": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.closure_delivered",
+    "witness": "Vacuity.ClosureDelivery.certificate",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Synthetic signed Alice/Bob community: native finite checks establish distinct IDs, exact source operations, authorization, actual onWant queue admission, and the signed message's source verdict. Kernel proofs construct infinitely recurring positive capacity with zero-capacity stalls, continuing onWant tail requests, duplicate receiver inputs, and actual Node.put retention/validation; the certificate applies closure_delivered to obtain permanent eventual closure possession and the same verdict. The receiver processes dependencies after the message. Negative controls withhold the root, revoke authorization, and give no send room. This is a running-core component theorem over Held and post-authorization inputs: discovery-to-request, sealed transport-to-input, SQLite refinement, hook mutations/purges, and full Node/TCP execution refinement remain separate obligations; no claim that this alone proves universal app bootstrap."
+  },
+  "ServiceRun.eventually_emitted": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.ServiceRun.eventually_emitted",
+    "witness": "Vacuity.ClosureDelivery.certificate",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "The closure certificate applies actual serveOwed FIFO progress with an occupied queue, unbounded tail requests, zero-capacity stalls and kernel-proved recurring positive capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. This theorem covers ordinary FIFO calls with first=[], under explicit service capacity and retention; it does not assert OS or TCP fairness."
+  }
+}
