@@ -115,7 +115,7 @@ def outsEq (a b : List Out) : Bool := a.length == b.length && (a.zip b).all fun 
 
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scale"
-  let sizes := match args.drop 1 with
+  let sizes : List Nat := match args.drop 1 with
     | [] => [1000, 10000, 100000]
     | l => l.filterMap String.toNat?
   IO.FS.createDirAll dir
