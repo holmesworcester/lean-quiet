@@ -531,6 +531,10 @@ run = "tests/app/skeleton.sh"
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
 
+[tasks."test:headline"]
+description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the DRAFT Comparator challenge states each law word for word, and three controls"
+run = "tests/headline.sh"
+
 [tasks."test:vacuity"]
 depends = ["crypto"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"

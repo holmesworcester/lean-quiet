@@ -328,16 +328,52 @@ elab "#headline " ids:ident+ : command => do
       s!"  spec-only, together: {allOff.size}: {describe env (sorted allOff)}\n" ++
       s!"  assumed, together: {allAssumed.size}: {showAll (sorted allAssumed)}")
 
+/-- `e` with every constant named under `a` (the auxiliaries Lean makes
+for theorem `a`: a `match`'s matcher and what it calls) renamed under `b`. -/
+def renameUnder (a b : Name) (e : Expr) : Expr :=
+  e.replace fun x => match x with
+    | .const n ls => if a.isPrefixOf n && n != a then some (.const (n.replacePrefix a b) ls) else none
+    | _ => none
+
+/-- The auxiliaries named under `a` that `e` reaches, through their own
+types and bodies. -/
+partial def auxUnder (env : Environment) (a : Name) (e : Expr) : NameSet :=
+  let rec go (todo : List Name) (seen : NameSet) : NameSet :=
+    match todo with
+    | [] => seen
+    | c :: rest =>
+      if seen.contains c then go rest seen else
+      let next := match env.find? c with
+        | some ci => (ci.type.getUsedConstants ++ ((ci.value?.map fun (v : Expr) => v.getUsedConstants).getD #[])).toList
+        | none => []
+      go ((next.filter fun n => a.isPrefixOf n && n != a) ++ rest) (seen.insert c)
+  go (e.getUsedConstants.toList.filter fun n => a.isPrefixOf n && n != a) {}
+
 /-- `#same_statement new old`: `new`'s statement is `old`'s, up to the
 names of bound variables. For restating a law elsewhere (a challenge
-file) without weakening it. -/
+file) without weakening it. A `match` in a statement makes auxiliary
+definitions named after its theorem (a matcher, and what the matcher
+calls), so two copies of a statement differ in those names: each
+auxiliary of `new` must have a partner of `old`'s, named alike, with the
+same type and body. -/
 elab "#same_statement " a:ident b:ident : command => do
   let env ← getEnv
   let na ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo a
   let nb ← liftCoreM <| realizeGlobalConstNoOverloadWithInfo b
   let (some ca, some cb) := (env.find? na, env.find? nb) | throwError "not found"
-  if ca.levelParams.length == cb.levelParams.length && ca.type.eqv cb.type then
-    logInfo m!"{na} states {nb}"
+  if ca.levelParams.length != cb.levelParams.length then
+    throwError "{na} and {nb} have different universe parameters"
+  let rn := renameUnder na nb
+  let aux := (auxUnder env na ca.type).toList
+  let paired := aux.all fun x => match env.find? x, env.find? (x.replacePrefix na nb) with
+    | some cx, some cy => (rn cx.type).eqv cy.type &&
+        match cx.value?, cy.value? with
+        | some vx, some vy => (rn vx).eqv vy
+        | none, none => true
+        | _, _ => false
+    | _, _ => false
+  if (rn ca.type).eqv cb.type && paired then
+    logInfo m!"{na} states {nb}{if aux.isEmpty then "" else s!" ({aux.length} auxiliaries paired)"}"
   else throwError "{na} does not state {nb}:\n{ca.type}\nvs\n{cb.type}"
 
 end SpecSurface
