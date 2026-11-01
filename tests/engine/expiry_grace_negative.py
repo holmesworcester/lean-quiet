@@ -43,15 +43,21 @@ def check(root, name, expected=None):
     if expected:
         assert code == 1 and 'epoch-ingress:' in text and 'FAIL: ' + expected in text, (code, text)
     else:
-        assert code == 0 and 'epoch-ingress: 29 passed, 0 failed' in text, (code, text)
+        assert code == 0 and 'epoch-ingress: 30 passed, 0 failed' in text, (code, text)
 
 CASES = [
-    ('no-grace', 'def budget (maxSocks : Nat) : Nat := 4 * (maxSocks + 1)',
+    ('no-grace', 'engine/wire/ExpiryGrace.lean', 'def budget (maxSocks : Nat) : Nat := 4 * (maxSocks + 1)',
      'def budget (_maxSocks : Nat) : Nat := 0',
      'UI-first write completes while one-shot grace preserves admitted target'),
-    ('pending-rearms-grace', 'if s.heard == heard then s else ⟨heard, budget⟩',
+    ('pending-rearms-grace', 'engine/wire/ExpiryGrace.lean', 'if s.heard == heard then s else ⟨heard, budget⟩',
      'if s.heard == heard then { s with left := budget } else ⟨heard, budget⟩',
      'sustained untrusted requests cannot reset grace or retain the honest session key'),
+    # The shipped retirement close: both directions at once, so the peer's
+    # next write met a reset and the peer dropped the unread notice.
+    ('reset-on-retirement', 'engine/wire/Tcp.lean',
+     '            linger cap c stallMs cleanupReader',
+     '            pure ()',
+     "retirement resets none of the peer's writes before the peer reads its notice"),
 ]
 check(ROOT, 'baseline')
 with tempfile.TemporaryDirectory(prefix='expiry-grace-', dir=os.environ['TMPDIR']) as temp:
@@ -59,9 +65,9 @@ with tempfile.TemporaryDirectory(prefix='expiry-grace-', dir=os.environ['TMPDIR'
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
         'engine/renderer engine/sync app tests/engine',
         'expiry-grace-snapshot', str(scratch)], cwd=ROOT, check=True)
-    source = scratch / 'engine/wire/ExpiryGrace.lean'
-    original = source.read_text()
-    for name, old, new, expected in CASES:
+    for name, path, old, new, expected in CASES:
+        source = scratch / path
+        original = source.read_text()
         assert original.count(old) == 1, f'{name}: ambiguous mutation anchor'
         try:
             source.write_text(original.replace(old, new))
@@ -72,4 +78,4 @@ with tempfile.TemporaryDirectory(prefix='expiry-grace-', dir=os.environ['TMPDIR'
             source.write_text(original)
     build(scratch, 'restored')
     check(scratch, 'restored')
-print('expiry grace: 11 kernel laws, 29 native checks, two compiling controls; restored suite passes', flush=True)
+print('expiry grace: 11 kernel laws, 30 native checks, three compiling controls; restored suite passes', flush=True)

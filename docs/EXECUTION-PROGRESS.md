@@ -278,6 +278,6 @@ Silence expiry now grants a pending source one bounded selection opportunity,
 with the existing UI-first selector unchanged. Junk cannot rearm the same
 authenticated-heard generation; authenticated removal and stalled-send
 cancellation retain immediate cleanup. See [EXPIRY-GRACE.md](EXPIRY-GRACE.md)
-for eleven kernel laws, nonempty witnesses and 29 native checks with controls.
+for eleven kernel laws, nonempty witnesses and 30 native checks with controls.
 This does not protect bytes not yet admitted or prove delivery across ordinary
 transport failure and key replacement.
