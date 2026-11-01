@@ -13,6 +13,10 @@ structure RunConfig where
   queue : Nat := 64
   perAddr : Nat := 4
   maxSocks : Nat := 64
+  /-- Distinct destinations whose framed sends may wait for dial admission.
+  Retries preserve FIFO position; this bounds address fanout independently
+  of the number of native connections already occupying socket slots. -/
+  maxPending : Nat := 64
   /-- Serve bytes in one native write, after the urgent frames (uiprio's
   `idleBatchBytes` on the send side). -/
   burst : Nat := 131072

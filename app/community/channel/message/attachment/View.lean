@@ -1,8 +1,9 @@
 import app.Commands
 import engine.renderer.Image
 import engine.renderer.Row
-import app.community.Proofs
 import app.community.channel.message.attachment.chunk.View
+import app.community.Family
+import app.community.channel.message.attachment.chunk.Commands
 
 /-!
 `community.channel.message.attachment`: its component, which reads its own facts, and the component's laws.

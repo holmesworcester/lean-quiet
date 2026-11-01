@@ -22,6 +22,11 @@ import engine.renderer.Cue
 import app.connection.given.Commands
 import app.connection.opened.Commands
 import engine.core.FIFO
+import engine.wire.WorldLaws
+import engine.sync.StoreEvolution
+import engine.sync.SimLaws
+import engine.wire.Loop
+import engine.wire.EgressLaws
 
 namespace Connection
 open Engine Codec
@@ -767,15 +772,16 @@ theorem resend_trusted (s : DB F) (addr : B) (o : Op) (at_ : Nat) (q : Op) (a : 
   · simp only [Model.run_pure, List.mem_append] at hq
     exact (hfirst _ hq).elim
 
-/-- `dialOne` sends a courier to the hint when it does not skip. -/
-theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
+/-- `dialOne` sends the same request to every listed hint on each retry. -/
+theorem dialOne_sends_mem (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint target : B} {hs : List B}
     {req : Id} {nm d : B} {n : Nat} {a : Id} {waiting : Bool}
     (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
     (hw : waiting = decide ((Engine.eval s (Community.admission.byDevice.query [c, d]
       (limit := some 0))).total = 0))
     (hskip : waiting = false → ((connectedTo inviter : Model F Bool).run s).1 = false)
-    (hu : Unanswered K listen s pk sk c inviter req waiting) :
-    ∃ ro, Send.op hint ro ∈
+    (hu : Unanswered K listen s pk sk c inviter req waiting)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈
       ((dialOne K listen pk sk (.joining c inviter (hint :: hs) req nm d n) : Model F (List Op)).run s).1 := by
   simp only [dialOne, List.head?_cons, Model.run_bind]
   rw [run_view, hm]
@@ -803,7 +809,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨_, ho⟩ := hu
       simp only [Model.run_bind, run_getOp, Model.run_pure]
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
-      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+      rw [hro]; exact ⟨ro, List.mem_map_of_mem ht⟩
     | none =>
       obtain ⟨jr, hjr, hop⟩ := hu
       simp only [Model.run_bind, run_getOp]
@@ -811,7 +817,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
       simp only [Model.run_bind, Model.run_pure]
       rw [hro]
-      exact ⟨ro, by simp⟩
+      exact ⟨ro, List.mem_append_right _ (List.mem_map_of_mem ht)⟩
   · -- waiting: sent until answered
     have hz : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0 := by
       rw [hwt] at hw; exact of_decide_eq_true hw.symm
@@ -826,7 +832,7 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       simp only [ne_eq, not_true_eq_false, decide_false, Bool.false_eq_true, ite_false, Model.run_bind,
         run_getOp, Model.run_pure]
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 ho
-      rw [hro]; exact ⟨ro, List.mem_singleton_self _⟩
+      rw [hro]; exact ⟨ro, List.mem_map_of_mem ht⟩
     | none =>
       obtain ⟨jr, hjr, hop⟩ := hu
       simp only [Model.run_pure, Bool.false_eq_true, ite_false, Model.run_bind, run_getOp]
@@ -834,7 +840,19 @@ theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint :
       obtain ⟨ro, hro⟩ := Option.isSome_iff_exists.1 (hop ((Fresh.fresh : Model F B).run s).1)
       simp only [Model.run_bind, Model.run_pure]
       rw [hro]
-      exact ⟨ro, by simp⟩
+      exact ⟨ro, List.mem_append_right _ (List.mem_map_of_mem ht)⟩
+
+/-- The former first-hint guarantee is a special case of all-hint retry. -/
+theorem dialOne_sends (K : Keys) (listen pk sk : B) (s : DB F) {c inviter hint : B} {hs : List B}
+    {req : Id} {nm d : B} {n : Nat} {a : Id} {waiting : Bool}
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hw : waiting = decide ((Engine.eval s (Community.admission.byDevice.query [c, d]
+      (limit := some 0))).total = 0))
+    (hskip : waiting = false → ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req waiting) :
+    ∃ ro, Send.op hint ro ∈
+      ((dialOne K listen pk sk (.joining c inviter (hint :: hs) req nm d n) : Model F (List Op)).run s).1 :=
+  dialOne_sends_mem K listen pk sk s hm hw hskip hu (by simp)
 
 theorem dialOne_state (hfr : FreshPure) (K : Keys) (listen pk sk : B) (f : Community.Fact) (s : DB F) :
     ((dialOne K listen pk sk f : Model F (List Op)).run s).2 = s := by
@@ -948,6 +966,48 @@ theorem reconnect_dials (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s
     ∃ ro, Send.op hint ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
   obtain ⟨ro, hro⟩ := dialOne_sends (hint := hint) (hs := hs) (nm := nm) (n := n) K listen pk sk s hm
     (by simp [had]) (fun _ => hc) hu
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
+/-- Every retry-eligible tick covers every advertised hint, independently
+of the timestamp residues at which ticks happen. Transport admission is a
+separate bounded FIFO obligation; this law does not assume a hint succeeds. -/
+theorem rejoin_dials_each (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint target : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (hna : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total = 0)
+    (hu : Unanswered K listen s pk sk c inviter req true)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends_mem K listen pk sk s hm (by simp [hna]) (fun h => by cases h) hu ht
+  refine ⟨ro, ?_⟩
+  simp only [dial, Model.run_bind]
+  have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
+  rw [hk, hs0]
+  simp only [List.head?_cons, Model.run_bind]
+  exact dialAll_mem hfr K listen pk sk _ s p _ _ hj hro
+
+theorem reconnect_dials_each (K : Keys) (listen : B) (now : Nat) (hfr : FreshPure) (s : DB F)
+    {pk sk : B} {x : Id} {more : List (B × B × Id)}
+    (hk : ((endpoints : Model F _).run s).1 = (pk, sk, x) :: more)
+    {p : Pos} {c inviter hint target : B} {hs : List B} {req : Id} {nm d : B} {n : Nat} {a : Id}
+    (hj : (p, Community.Fact.joining c inviter (hint :: hs) req nm d n) ∈
+      (Engine.eval s (Community.joining.all.query [])).lefts)
+    (hm : ((Community.mine c).liftL : View F _).eval s = some (d, a))
+    (had : (Engine.eval s (Community.admission.byDevice.query [c, d] (limit := some 0))).total ≠ 0)
+    (hc : ((connectedTo inviter : Model F Bool).run s).1 = false)
+    (hu : Unanswered K listen s pk sk c inviter req false)
+    (ht : target ∈ hint :: hs) :
+    ∃ ro, Send.op target ro ∈ ((dial K listen now : Model F (List Op)).run s).1 := by
+  obtain ⟨ro, hro⟩ := dialOne_sends_mem K listen pk sk s hm (by simp [had]) (fun _ => hc) hu ht
   refine ⟨ro, ?_⟩
   simp only [dial, Model.run_bind]
   have hs0 : ((endpoints : Model F _).run s).2 = s := rfl
@@ -1105,6 +1165,7 @@ theorem viewport_possible : (Geometry.Geom.mk 1280 24 300 80 100).Fits := by
   unfold Geometry.Geom.Fits; decide
 
 end LifecycleLaws
+
 
 end
 
@@ -1672,5 +1733,1126 @@ theorem successful_fair_extension (S : Setup) (initial : World) (actions : List 
   simpa only [Nat.add_zero, tail.zero] using h ▸ success
 
 end Connection.Execution
+
+end
+
+section
+
+/-
+The Connection family's hooks only read the store, on held data: each
+leaves the `Held` store as it is (`Reads`). Everything they would have
+stored they return as ops, which the node writes through the engine
+(`Node.store`, `Node.put`), and every id they want purged they return
+too (`closing`, `retired`, `outbox`), which the node purges through
+`Turn.purge`. `hooks_reads` collects them.
+
+The fresh bytes `react`, `dial` and `sealFor` draw are assumed to leave
+the store as it is (`hfr`), as the OS's random bytes do on SQLite.
+
+`view_held`: a view run on held data is its evaluation over the tables,
+and reads only; so `rooms` gives `roomsV` (`rooms_held`).
+-/
+
+namespace Connection
+open Engine Engine.Sync Codec
+
+/-- **A view run on held data is its evaluation**, and leaves the store
+as it is. -/
+theorem view_held {α} (v : View F α) (h : Held F) :
+    (v.run : HeldM F α).run h = (v.eval h.db, h) := by
+  induction v with
+  | pure a => rfl
+  | list q k ih => exact ih (Engine.eval h.db q)
+
+theorem view_reads {α} (v : View F α) : Reads (v.run : HeldM F α) := fun h => by
+  rw [view_held]
+
+/-- **The rooms hook is `roomsV`, read afresh from the store**, and it
+reads only. -/
+theorem rooms_held (cid : Id) (h : Held F) :
+    (rooms cid : HeldM F (List Room)).run h = ((roomsV cid).eval h.db, h) :=
+  view_held (roomsV cid) h
+
+theorem list_reads (q : ListQ) : Reads (Lists.list q : HeldM F (Answer F)) := fun _ => rfl
+
+theorem rows_reads (r : Rel Fact) (args : List B) : Reads (rows r args : HeldM F _) := by
+  unfold rows; keeps [list_reads]
+
+theorem count_reads (r : Rel Fact) (args : List B) : Reads (count r args : HeldM F _) := by
+  unfold count; keeps [list_reads]
+
+theorem endpoints_reads : Reads (endpoints : HeldM F _) := by
+  unfold endpoints; keeps [list_reads]
+
+theorem arrivedFrom_reads (x : Id) : Reads (arrivedFrom x : HeldM F _) := by
+  unfold arrivedFrom; keeps [rows_reads]
+
+theorem arrival_reads (x : Id) : Reads (arrival x : HeldM F _) := by
+  unfold arrival; keeps [rows_reads]
+
+/-- `sessionKeys_reads` (app/connection/Proofs.lean), as `Reads`. -/
+private theorem keys_reads (cid : Id) : Reads (sessionKeys cid : HeldM F _) := sessionKeys_reads cid
+
+theorem connectedTo_reads (peer : B) : Reads (connectedTo peer : HeldM F _) := by
+  unfold connectedTo; keeps [rows_reads]
+
+theorem helloOf_reads (K : Keys) (sk r to m1 : B) : Reads (helloOf K sk r to m1 : HeldM F _) := by
+  unfold helloOf; keeps [rows_reads]
+
+/-! ## react -/
+
+theorem openEach_reads (epOp : Id) : ∀ l, Reads (openEach epOp l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _) :: t => by rw [openEach]; keeps [count_reads, openEach_reads epOp t]
+
+theorem openAll_reads : ∀ l, Reads (openAll l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _, _) :: t => by rw [openAll]; keeps [rows_reads, openEach_reads, openAll_reads t]
+
+theorem joinsOf_reads (fam : Family F) (c : B) : ∀ l, Reads (joinsOf fam c l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | _ :: t => by rw [joinsOf]; keeps [joinsOf_reads fam c t]
+
+theorem deliverAll_reads (fam : Family F) : ∀ l, Reads (deliverAll fam l : HeldM F (List Op)) := by
+  intro l
+  induction l with
+  | nil => exact Reads.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [deliverAll] <;> keeps [joinsOf_reads, ih]
+
+theorem answerOne_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (K : Keys) (eps : List (B × B × Id)) (r c frm : B) :
+    Reads (answerOne K eps r c frm : HeldM F (List Op)) := by
+  unfold answerOne; keeps [count_reads, view_reads, arrivedFrom_reads, hfr]
+
+theorem answerAll_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (K : Keys) (eps : List (B × B × Id)) : ∀ l, Reads (answerAll K eps l : HeldM F (List Op)) := by
+  intro l
+  induction l with
+  | nil => exact Reads.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [answerAll] <;> keeps [answerOne_reads hfr, ih]
+
+theorem establishConns_reads (r e epOp : Id) : ∀ l, Reads (establishConns r e epOp l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _) :: t => by rw [establishConns]; keeps [count_reads, establishConns_reads r e epOp t]
+
+theorem establishReqs_reads (epOp : Id) : ∀ l, Reads (establishReqs epOp l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _) :: t => by
+    rw [establishReqs]; keeps [rows_reads, establishConns_reads, establishReqs_reads epOp t]
+
+theorem establishAll_reads : ∀ l, Reads (establishAll l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _, _) :: t => by rw [establishAll]; keeps [rows_reads, establishReqs_reads, establishAll_reads t]
+
+theorem react_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (fam : Family F) (K : Keys) :
+    Reads (react fam K : HeldM F (List Op)) := by
+  unfold react
+  keeps [endpoints_reads, rows_reads, openAll_reads, deliverAll_reads, answerAll_reads hfr,
+    establishAll_reads]
+
+/-! ## dial -/
+
+theorem requestOf_reads (K : Keys) (sk inviter : B) (req : Id) :
+    ∀ l, Reads (requestOf K sk inviter req l : HeldM F (Option Id)) := by
+  intro l
+  induction l with
+  | nil => exact Reads.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [requestOf] <;> keeps [helloOf_reads, ih]
+
+theorem dialOne_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen pk sk : B)
+    (f : Community.Fact) : Reads (dialOne K listen pk sk f : HeldM F (List Op)) := by
+  cases f <;> simp only [dialOne] <;>
+    keeps [view_reads, list_reads, requestOf_reads, rows_reads, connectedTo_reads, count_reads, hfr]
+
+theorem dialAll_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen pk sk : B) :
+    ∀ l, Reads (dialAll K listen pk sk l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _) :: t => by rw [dialAll]; keeps [dialOne_reads hfr, dialAll_reads hfr K listen pk sk t]
+
+theorem dial_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen : B) (t : Nat) :
+    Reads (dial K listen t : HeldM F (List Op)) := by
+  unfold dial; keeps [endpoints_reads, list_reads, dialAll_reads hfr]
+
+/-! ## Sessions -/
+
+theorem closing_reads (cid : Id) : Reads (closing cid : HeldM F (List Id)) := by
+  unfold closing; keeps []
+
+theorem rooms_reads (cid : Id) : Reads (rooms cid : HeldM F (List Room)) := by
+  unfold rooms; exact view_reads _
+
+theorem sessionOf_reads (f : Fact) : Reads (sessionOf f : HeldM F _) := by
+  cases f <;> simp only [sessionOf] <;> keeps [arrival_reads]
+
+theorem sessionsOf_reads : ∀ l, Reads (sessionsOf l : HeldM F _)
+  | [] => Reads.pure' _
+  | (_, _) :: t => by rw [sessionsOf]; keeps [sessionOf_reads, sessionsOf_reads t]
+
+theorem allSessions_reads : Reads (allSessions : HeldM F _) := by
+  unfold allSessions; keeps [rows_reads, sessionsOf_reads]
+
+theorem carrying_reads : ∀ l, Reads (carrying l : HeldM F _)
+  | [] => Reads.pure' _
+  | _ :: t => by rw [carrying]; keeps [view_reads, carrying_reads t]
+
+theorem openSessions_reads : Reads (openSessions : HeldM F _) := by
+  unfold openSessions; keeps [allSessions_reads, carrying_reads]
+
+theorem sessions_reads : Reads (sessions : HeldM F _) := by
+  unfold sessions; keeps [openSessions_reads]
+
+/-- `retired`, as this base has it (another branch reads the
+established facts themselves: redo this lemma there). -/
+theorem retired_reads : Reads (retired : HeldM F (List Id)) := by
+  unfold retired; keeps [allSessions_reads, openSessions_reads, rows_reads]
+
+theorem sealFor_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (cid : Id) (p : B) :
+    Reads (sealFor K cid p : HeldM F (Option B)) := by
+  unfold sealFor; keeps [keys_reads, hfr]
+
+theorem outbox_reads : Reads (outbox : HeldM F (List (Id × B × B))) := by
+  unfold outbox; keeps [rows_reads]
+
+theorem resendConns_reads (addr : B) : ∀ l, Reads (resendConns addr l : HeldM F (List Op))
+  | [] => Reads.pure' _
+  | (_, _) :: t => by rw [resendConns]; keeps [resendConns_reads addr t]
+
+theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
+    Reads (onArrival via addr o at_ : HeldM F (List Op)) := by
+  unfold onArrival; keeps [count_reads, view_reads, rows_reads, resendConns_reads]
+
+/-- **The Connection family's hooks only read the store.** Run on held
+data, each leaves the store as it is: what the family would store it
+returns as ops for the node to write, and what it would forget it
+returns as ids for the node to purge. -/
+theorem hooks_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (fam : Family F) (K : Keys) (listen : B) :
+    let k := (hooks fam K listen : Hooks F (HeldM F))
+    (∀ cid, Reads (k.rooms cid)) ∧ (∀ via a o t, Reads (k.recv via a o t)) ∧ Reads k.outbox ∧
+    (∀ cid, Reads (k.closing cid)) ∧ Reads k.retired ∧ Reads k.react ∧ (∀ t, Reads (k.dial t)) ∧
+    Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) :=
+  ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K⟩
+
+end Connection
+
+end
+
+section
+
+/- Production hooks with an advancing entropy tape. ReadsHeld preserves
+only the Held database/history; fresh draws are allowed to change cursor. -/
+
+namespace Connection.Execution
+open Engine Engine.Sync Codec
+
+@[simp] theorem M.bind_apply {α β} (p : M α) (k : α → M β) (s : Memory) :
+    (p >>= k) s = k (p s).1 (p s).2 := rfl
+@[simp] theorem M.pure_apply {α} (a : α) (s : Memory) :
+    (pure a : M α) s = (a, s) := rfl
+
+def ReadsHeld {α} (p : M α) : Prop := ∀ s, (p s).2.held = s.held
+
+namespace ReadsHeld
+ theorem pure' {α} (a : α) : ReadsHeld (pure a : M α) := fun _ => rfl
+ theorem bind' {α β} {p : M α} {k : α → M β}
+     (hp : ReadsHeld p) (hk : ∀ a, ReadsHeld (k a)) : ReadsHeld (p >>= k) := by
+   intro s
+   exact (hk _ _).trans (hp s)
+ theorem forIn' {α β} (l : List α) (b : β) {f : α → β → M (ForInStep β)}
+     (hf : ∀ a b, ReadsHeld (f a b)) : ReadsHeld (forIn l b f) := by
+   induction l generalizing b with
+   | nil => exact pure' b
+   | cons a t ih =>
+     rw [List.forIn_cons]
+     apply bind' (hf a b)
+     intro r
+     cases r with
+     | done b => exact pure' b
+     | yield b => exact ih b
+ theorem getOp' (i : Id) : ReadsHeld (Store.getOp i : M _) := fun _ => rfl
+ theorem getStatus' (i : Id) : ReadsHeld (Store.getStatus i : M _) := fun _ => rfl
+ theorem fresh : ReadsHeld (Fresh.fresh : M ByteArray) := fun _ => rfl
+end ReadsHeld
+
+syntax "readsHeld" "[" term,* "]" : tactic
+macro_rules
+  | `(tactic| readsHeld [$ts,*]) => do
+    let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
+    for t in ts.getElems.reverse do
+      tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
+    `(tactic| repeat' (first
+      | dsimp only | with_reducible_and_instances apply ReadsHeld.bind'
+      | with_reducible_and_instances apply ReadsHeld.pure' | with_reducible_and_instances apply ReadsHeld.forIn'
+      | with_reducible_and_instances apply ReadsHeld.getOp' | with_reducible_and_instances apply ReadsHeld.getStatus'
+      | $tac:tactic))
+
+/-- **A view run on held data is its evaluation**, and leaves the store
+as it is. -/
+theorem view_held {α} (v : View F α) (h : Memory) :
+    (v.run : M α) h = (v.eval h.held.db, h) := by
+  induction v with
+  | pure a => rfl
+  | list q k ih => exact ih (Engine.eval h.held.db q)
+
+theorem view_reads {α} (v : View F α) : ReadsHeld (v.run : M α) := fun h => by
+  rw [view_held]
+
+/-- **The rooms hook is `roomsV`, read afresh from the store**, and it
+reads only. -/
+theorem rooms_held (cid : Id) (h : Memory) :
+    (rooms cid : M (List Room)) h = ((roomsV cid).eval h.held.db, h) :=
+  view_held (roomsV cid) h
+
+theorem list_reads (q : ListQ) : ReadsHeld (Lists.list q : M (Answer F)) := fun _ => rfl
+
+theorem rows_reads (r : Rel Fact) (args : List B) : ReadsHeld (rows r args : M _) := by
+  unfold rows; readsHeld [list_reads]
+
+theorem count_reads (r : Rel Fact) (args : List B) : ReadsHeld (count r args : M _) := by
+  unfold count; readsHeld [list_reads]
+
+theorem endpoints_reads : ReadsHeld (endpoints : M _) := by
+  unfold endpoints; readsHeld [list_reads]
+
+theorem arrivedFrom_reads (x : Id) : ReadsHeld (arrivedFrom x : M _) := by
+  unfold arrivedFrom; readsHeld [rows_reads]
+
+theorem arrival_reads (x : Id) : ReadsHeld (arrival x : M _) := by
+  unfold arrival; readsHeld [rows_reads]
+
+/-- `sessionKeys_reads` (app/connection/Proofs.lean), as `ReadsHeld`. -/
+private theorem keys_reads (cid : Id) : ReadsHeld (sessionKeys cid : M _) := by
+  unfold sessionKeys; readsHeld [rows_reads]
+
+theorem connectedTo_reads (peer : B) : ReadsHeld (connectedTo peer : M _) := by
+  unfold connectedTo; readsHeld [rows_reads]
+
+theorem helloOf_reads (K : Keys) (sk r to m1 : B) : ReadsHeld (helloOf K sk r to m1 : M _) := by
+  unfold helloOf; readsHeld [rows_reads]
+
+/-! ## react -/
+
+theorem openEach_reads (epOp : Id) : ∀ l, ReadsHeld (openEach epOp l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by rw [openEach]; readsHeld [count_reads, openEach_reads epOp t]
+
+theorem openAll_reads : ∀ l, ReadsHeld (openAll l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _, _) :: t => by rw [openAll]; readsHeld [rows_reads, openEach_reads, openAll_reads t]
+
+theorem joinsOf_reads (fam : Family F) (c : B) : ∀ l, ReadsHeld (joinsOf fam c l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | _ :: t => by rw [joinsOf]; readsHeld [joinsOf_reads fam c t]
+
+theorem deliverAll_reads (fam : Family F) : ∀ l, ReadsHeld (deliverAll fam l : M (List Op)) := by
+  intro l
+  induction l with
+  | nil => exact ReadsHeld.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [deliverAll] <;> readsHeld [joinsOf_reads, ih]
+
+theorem answerOne_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
+    (K : Keys) (eps : List (B × B × Id)) (r c frm : B) :
+    ReadsHeld (answerOne K eps r c frm : M (List Op)) := by
+  unfold answerOne; readsHeld [count_reads, view_reads, arrivedFrom_reads, hfr]
+
+theorem answerAll_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
+    (K : Keys) (eps : List (B × B × Id)) : ∀ l, ReadsHeld (answerAll K eps l : M (List Op)) := by
+  intro l
+  induction l with
+  | nil => exact ReadsHeld.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [answerAll] <;> readsHeld [answerOne_reads hfr, ih]
+
+theorem establishConns_reads (r e epOp : Id) : ∀ l, ReadsHeld (establishConns r e epOp l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by rw [establishConns]; readsHeld [count_reads, establishConns_reads r e epOp t]
+
+theorem establishReqs_reads (epOp : Id) : ∀ l, ReadsHeld (establishReqs epOp l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by
+    rw [establishReqs]; readsHeld [rows_reads, establishConns_reads, establishReqs_reads epOp t]
+
+theorem establishAll_reads : ∀ l, ReadsHeld (establishAll l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _, _) :: t => by rw [establishAll]; readsHeld [rows_reads, establishReqs_reads, establishAll_reads t]
+
+theorem react_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (fam : Family F) (K : Keys) :
+    ReadsHeld (react fam K : M (List Op)) := by
+  unfold react
+  readsHeld [endpoints_reads, rows_reads, openAll_reads, deliverAll_reads, answerAll_reads hfr,
+    establishAll_reads]
+
+/-! ## dial -/
+
+theorem requestOf_reads (K : Keys) (sk inviter : B) (req : Id) :
+    ∀ l, ReadsHeld (requestOf K sk inviter req l : M (Option Id)) := by
+  intro l
+  induction l with
+  | nil => exact ReadsHeld.pure' _
+  | cons p t ih =>
+    obtain ⟨x, f⟩ := p
+    cases f <;> simp only [requestOf] <;> readsHeld [helloOf_reads, ih]
+
+theorem dialOne_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen pk sk : B)
+    (f : Community.Fact) : ReadsHeld (dialOne K listen pk sk f : M (List Op)) := by
+  cases f <;> simp only [dialOne] <;>
+    readsHeld [view_reads, list_reads, requestOf_reads, rows_reads, connectedTo_reads, count_reads, hfr]
+
+theorem dialAll_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen pk sk : B) :
+    ∀ l, ReadsHeld (dialAll K listen pk sk l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by rw [dialAll]; readsHeld [dialOne_reads hfr, dialAll_reads hfr K listen pk sk t]
+
+theorem dial_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen : B) (t : Nat) :
+    ReadsHeld (dial K listen t : M (List Op)) := by
+  unfold dial; readsHeld [endpoints_reads, list_reads, dialAll_reads hfr]
+
+/-! ## Sessions -/
+
+theorem closing_reads (cid : Id) : ReadsHeld (closing cid : M (List Id)) := by
+  unfold closing; readsHeld []
+
+theorem rooms_reads (cid : Id) : ReadsHeld (rooms cid : M (List Room)) := by
+  unfold rooms; exact view_reads _
+
+theorem sessionOf_reads (f : Fact) : ReadsHeld (sessionOf f : M _) := by
+  cases f <;> simp only [sessionOf] <;> readsHeld [arrival_reads]
+
+theorem sessionsOf_reads : ∀ l, ReadsHeld (sessionsOf l : M _)
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by rw [sessionsOf]; readsHeld [sessionOf_reads, sessionsOf_reads t]
+
+theorem allSessions_reads : ReadsHeld (allSessions : M _) := by
+  unfold allSessions; readsHeld [rows_reads, sessionsOf_reads]
+
+theorem carrying_reads : ∀ l, ReadsHeld (carrying l : M _)
+  | [] => ReadsHeld.pure' _
+  | _ :: t => by rw [carrying]; readsHeld [view_reads, carrying_reads t]
+
+theorem openSessions_reads : ReadsHeld (openSessions : M _) := by
+  unfold openSessions; readsHeld [allSessions_reads, carrying_reads]
+
+theorem sessions_reads : ReadsHeld (sessions : M _) := by
+  unfold sessions; readsHeld [openSessions_reads]
+
+/-- `retired`, as this base has it (another branch reads the
+established facts themselves: redo this lemma there). -/
+theorem retired_reads : ReadsHeld (retired : M (List Id)) := by
+  unfold retired; readsHeld [allSessions_reads, openSessions_reads, rows_reads]
+
+theorem sealFor_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (cid : Id) (p : B) :
+    ReadsHeld (sealFor K cid p : M (Option B)) := by
+  unfold sealFor; readsHeld [keys_reads, hfr]
+
+theorem outbox_reads : ReadsHeld (outbox : M (List (Id × B × B))) := by
+  unfold outbox; readsHeld [rows_reads]
+
+theorem resendConns_reads (addr : B) : ∀ l, ReadsHeld (resendConns addr l : M (List Op))
+  | [] => ReadsHeld.pure' _
+  | (_, _) :: t => by rw [resendConns]; readsHeld [resendConns_reads addr t]
+
+theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
+    ReadsHeld (onArrival via addr o at_ : M (List Op)) := by
+  unfold onArrival; readsHeld [count_reads, view_reads, rows_reads, resendConns_reads]
+
+theorem openFrame_tape_reads (K : Keys) (b : B) : ReadsHeld (openFrame K b : M _) := by
+  unfold openFrame; readsHeld [keys_reads]
+
+/-- **The Connection family's hooks only read the store.** Run on held
+data, each leaves the store as it is: what the family would store it
+returns as ops for the node to write, and what it would forget it
+returns as ids for the node to purge. -/
+theorem hooks_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
+    (fam : Family F) (K : Keys) (listen : B) :
+    let k := (hooks fam K listen : Hooks F (M))
+    (∀ cid, ReadsHeld (k.rooms cid)) ∧ (∀ via a o t, ReadsHeld (k.recv via a o t)) ∧ ReadsHeld k.outbox ∧
+    (∀ cid, ReadsHeld (k.closing cid)) ∧ ReadsHeld k.retired ∧ ReadsHeld k.react ∧ (∀ t, ReadsHeld (k.dial t)) ∧
+    ReadsHeld k.established ∧ (∀ cid b, ReadsHeld (k.sealFor cid b)) ∧ (∀ b, ReadsHeld (k.openFrame b)) :=
+  ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_tape_reads K⟩
+
+end Connection.Execution
+
+end
+
+section
+
+/-
+Positive progress through the connection code. Safety laws say that an
+answer is authorized if one exists; these laws establish that a ready request
+actually gets an answer and that an honest Noise exchange is accepted by the
+real opened/established validators. Store/transport scheduling is separate.
+-/
+
+namespace Connection.Progress
+open Engine Engine.Sync Codec
+
+/-- The actual two-message Noise computation, before the op validators run.
+These are primitive cryptographic results, not assumed session/admission facts. -/
+structure Exchange (K : Keys) where
+  initiator : B
+  responder : B
+  ephemeralI : B
+  ephemeralR : B
+  community : Id
+  address : B
+  introduction : List B
+  state : Noise.Sym B
+  message1 : B
+  sessionR : Noise.Session B
+  message2 : B
+  sessionI : Noise.Session B
+
+namespace Exchange
+variable {K : Keys} (x : Exchange K)
+
+def payload : B := encode (x.community, x.address, x.introduction)
+def request : Op := mkOp [] (.request (K.suite.pub x.responder) (K.suite.pub x.initiator) x.message1)
+def connection : Op := mkOp [x.request.id] (.connection x.message2)
+
+structure Correct : Prop where
+  distinct : K.suite.pub x.responder ≠ K.suite.pub x.initiator
+  write1 : Noise.write1 K.suite prologue x.initiator x.ephemeralI
+    (K.suite.pub x.responder) x.payload = some (x.state, x.message1)
+  read1 : Noise.read1 K.suite prologue x.responder (K.suite.pub x.initiator)
+    x.message1 = some (x.state, K.suite.pub x.ephemeralI, x.payload)
+  sent1 : Noise.sent1 K.suite prologue x.initiator x.ephemeralI
+    (K.suite.pub x.responder) x.message1 = some (x.state, x.payload)
+  write2 : Noise.write2 K.suite x.state x.ephemeralR (K.suite.pub x.initiator)
+    (K.suite.pub x.ephemeralI) .empty = some (x.sessionR, x.message2)
+  read2 : Noise.read2 K.suite x.state x.initiator x.ephemeralI
+    x.message2 = some (x.sessionI, .empty)
+
+theorem request_constructed (h : x.Correct) :
+    Request.op K x.initiator (K.suite.pub x.responder) x.ephemeralI x.payload = some x.request := by
+  simp [Request.op, h.write1, request]
+
+theorem answer_constructed (h : x.Correct) :
+    Reply.op K x.request.id x.responder (K.suite.pub x.initiator) x.message1 x.ephemeralR =
+      some x.connection := by
+  simp [Reply.op, h.read1, h.write2, connection]
+
+/-- Wire-format premises are separate from the cryptographic equations:
+Good alone does not promise key or ciphertext lengths. -/
+theorem request_accepts (h : x.Correct)
+    (hr : (K.suite.pub x.responder).size = 32)
+    (hi : (K.suite.pub x.initiator).size = 32) (hm : 48 ≤ x.message1.size) :
+    Request.check ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩ =
+      some ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩ := by
+  simp [Request.check, hr, hi, h.distinct, hm]
+
+theorem reply_accepts (hm : 48 ≤ x.message2.size) :
+    Reply.check x.connection ⟨x.message2⟩ ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩ =
+      some ⟨x.request.id, x.message2⟩ := by
+  simp [Reply.check, hm, connection, mkOp, Op.make]
+
+/-- Opening the actual request recovers its community, address and payload. -/
+theorem opened_accepts (h : x.Correct) (endpoint : Id) :
+    Opened.check K (Opened.op x.request.id endpoint) {} ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩
+      ⟨(K.suite.pub x.responder), x.responder⟩ =
+      some ⟨x.request.id, x.community, (K.suite.pub x.initiator), x.address, x.introduction⟩ := by
+  simp [Opened.check, Opened.op, h.read1, payload, decode_encode, mkOp, Op.make]
+
+/-- The responder's local established op validates; its existence is not a
+premise. This is the op answerOne writes alongside the actual reply. -/
+theorem responder_accepts (h : x.Correct) (eph endpoint : Id) :
+    Established.check K (Established.op x.connection.id x.request.id eph endpoint) {}
+      ⟨x.request.id, x.message2⟩ ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩
+      ⟨x.connection.id, K.suite.pub x.ephemeralR, x.ephemeralR⟩ ⟨(K.suite.pub x.responder), x.responder⟩ =
+      some ⟨x.connection.id, x.community, (K.suite.pub x.initiator),
+        x.sessionR.h, x.sessionR.send.k, x.sessionR.recv.k, false⟩ := by
+  simp [Established.check, Established.op, h.read1, h.write2, payload, decode_encode, mkOp, Op.make]
+
+/-- Receiving the honest answer produces a valid local established op at
+the initiator as well. The two private keys must name different nodes. -/
+theorem initiator_accepts (h : x.Correct) (eph endpoint : Id) :
+    Established.check K (Established.op x.connection.id x.request.id eph endpoint) {}
+      ⟨x.request.id, x.message2⟩ ⟨(K.suite.pub x.responder), (K.suite.pub x.initiator), x.message1⟩
+      ⟨x.request.id, K.suite.pub x.ephemeralI, x.ephemeralI⟩ ⟨(K.suite.pub x.initiator), x.initiator⟩ =
+      some ⟨x.connection.id, x.community, (K.suite.pub x.responder),
+        x.sessionI.h, x.sessionI.send.k, x.sessionI.recv.k, true⟩ := by
+  simp [Established.check, Established.op, h.distinct.symm, h.sent1, h.read2,
+    payload, decode_encode, mkOp, Op.make]
+
+end Exchange
+
+/-- Supported payloads and the four primitive DH results suffice to construct
+an exchange accepted by both actual session validators. This does not assume
+their success or a finished bootstrap. -/
+theorem honest_exchange (K : Keys) (g : K.suite.Good)
+    (si sr ei er c addr : B) (intro : List B)
+    (hne : K.suite.pub sr ≠ K.suite.pub si)
+    (hp : K.suite.ValidPayload (encode (c, addr, intro)))
+    (he : K.suite.ValidPayload .empty)
+    {es ss ee se : B}
+    (hes : K.suite.dh ei (K.suite.pub sr) = some es)
+    (hss : K.suite.dh si (K.suite.pub sr) = some ss)
+    (hee : K.suite.dh er (K.suite.pub ei) = some ee)
+    (hse : K.suite.dh er (K.suite.pub si) = some se) :
+    ∃ x : Exchange K, x.initiator = si ∧ x.responder = sr ∧
+      x.ephemeralI = ei ∧ x.ephemeralR = er ∧ x.community = c ∧
+      x.address = addr ∧ x.introduction = intro ∧ x.Correct ∧
+      x.sessionI.h = x.sessionR.h ∧ x.sessionI.send = x.sessionR.recv ∧
+      x.sessionI.recv = x.sessionR.send := by
+  obtain ⟨st, m1, h1, hr1, sessR, m2, h2, sessI, hr2, hh, hs, hr⟩ :=
+    Noise.handshake_agrees g prologue si sr ei er (encode (c, addr, intro)) .empty hp he hes hss hee hse
+  refine ⟨⟨si, sr, ei, er, c, addr, intro, st, m1, sessR, m2, sessI⟩,
+    rfl, rfl, rfl, rfl, rfl, rfl, rfl, ?_, hh, hs, hr⟩
+  exact ⟨hne, h1, hr1, Noise.sent1_write1 g hp h1, h2, hr2⟩
+
+section
+variable [Fresh (Model F)]
+
+theorem answerAll_contains (hfr : FreshPure) (K : Keys) (eps : List (B × B × Id))
+    (s : DB F) (o : Op) (x r c frm addr : B) (hs : List B)
+    (ho : o ∈ ((answerOne K eps r c frm : Model F (List Op)).run s).1) :
+    ∀ rs, (x, Fact.opened r c frm addr hs) ∈ rs →
+      o ∈ ((answerAll K eps rs : Model F (List Op)).run s).1 := by
+  intro rs
+  induction rs with
+  | nil => simp
+  | cons p rs ih =>
+    obtain ⟨y, f⟩ := p
+    intro hm
+    rcases List.mem_cons.1 hm with he | hm
+    · cases he
+      simp only [answerAll, Model.run_bind, Model.run_pure, List.mem_append]
+      exact Or.inl ho
+    · have ht := ih hm
+      cases f with
+      | ofOpened _ =>
+        simp only [answerAll, Model.run_bind, Model.run_pure, List.mem_append]
+        rw [answerOne_state hfr]
+        exact Or.inr ht
+      | _ => exact ht
+
+/-- A ready answer is included in the complete production reaction, even
+when unrelated opened requests precede or follow it. -/
+theorem react_contains_answer (hfr : FreshPure) (fam : Family F) (K : Keys)
+    (s : DB F) (o : Op) (x r c frm addr : B) (hs : List B)
+    (hm : (x, Fact.opened r c frm addr hs) ∈
+      ((rows opened.all [] : Model F (List (Id × Fact))).run s).1)
+    (ho : o ∈ ((answerOne K ((endpoints : Model F (List (B × B × Id))).run s).1
+      r c frm : Model F (List Op)).run s).1) :
+    o ∈ ((react fam K : Model F (List Op)).run s).1 := by
+  simp only [react, Model.run_bind, Model.run_pure, List.mem_append]
+  have he : ((endpoints : Model F (List (B × B × Id))).run s).2 = s := rfl
+  have hr : ((rows opened.all [] : Model F (List (Id × Fact))).run s).2 = s := rfl
+  rw [he, hr, openAll_state, deliverAll_state]
+  exact Or.inl (Or.inr (answerAll_contains hfr K _ s o x r c frm addr hs ho _ hm))
+
+/-- Every concrete readiness check is a read of the actual store. Under
+these conditions answerOne returns the reply, both local records and courier,
+so the existing safety law is accompanied by a positive progress law. -/
+theorem answer_ready (K : Keys) (s : DB F) (eps : List (B × B × Id))
+    (r c frm to frm' m1 sk epOp addr : B) (ro co : Op)
+    (hcount : ((count connection.byRequest [r] : Model F Nat).run s).1 = 0)
+    (hro : s.ops r = some ro)
+    (hb : (decode ro.body : Option Body) = some (.request to frm' m1))
+    (hep : eps.find? (fun p => decide (p.1 = to)) = some (to, sk, epOp))
+    (ht : ((trusts c to frm).liftL : View F Bool).eval s = true)
+    (ha : ((arrivedFrom r : Model F (Option B)).run s).1 = some addr)
+    (hc : Reply.op K r sk frm m1 ((Fresh.fresh : Model F B).run s).1 = some co) :
+    ((answerOne K eps r c frm : Model F (List Op)).run s).1 =
+      [co, Eph.op ((Fresh.fresh : Model F B).run s).1 co.id,
+       Established.op co.id r (Eph.op ((Fresh.fresh : Model F B).run s).1 co.id).id epOp,
+       Send.op addr co] := by
+  simp only [answerOne, Model.run_bind]
+  rw [ite_eq_right (by simpa using hcount), Model.run_bind]
+  have h0 : ((count connection.byRequest [r] : Model F Nat).run s).2 = s := rfl
+  rw [h0, run_getOp, hro]
+  simp only [hb, hep, Model.run_bind, run_view, ht, Bool.not_true, Bool.false_eq_true,
+    ↓reduceIte, run_arrivedFrom, ha, hc]
+  rfl
+
+end
+end Connection.Progress
+
+end
+
+section
+
+/- The positive answer law with the production interpreter's advancing
+entropy tape. This does not rely on FreshPure or repeat a secret whenever
+the database is unchanged. Native entropy remains an external input. -/
+namespace Connection.ProgressTape
+open Engine Engine.Sync Codec Execution
+
+theorem run_bind (a : M α) (f : α → M β) (s : Memory) :
+    (a >>= f) s = f (a s).1 (a s).2 := rfl
+
+theorem run_count (r : Rel Fact) (args : List B) (s : Memory) :
+    (count r args : M Nat) s = ((Engine.eval s.held.db (r.query args (limit := some 0))).total, s) := rfl
+
+theorem run_get (id : Id) (s : Memory) :
+    (Store.getOp id : M (Option Op)) s = (s.held.db.ops id, s) := rfl
+
+theorem run_view (v : View F α) (s : Memory) :
+    (v.run : M α) s = (v.eval s.held.db, s) := by
+  induction v with
+  | pure a => rfl
+  | list q k ih => exact ih (Engine.eval s.held.db q)
+
+theorem run_arrivedFrom (id : Id) (s : Memory) :
+    (arrivedFrom id : M (Option B)) s =
+      (((arrivedFrom id : Model F (Option B)).run s.held.db).1, s) := rfl
+
+theorem run_fresh (s : Memory) :
+    (Fresh.fresh : M B) s = (s.entropy s.cursor, { s with cursor := s.cursor + 1 }) := rfl
+
+/-- The actual answer handler consumes exactly its next entropy input and
+constructs the answer from that value. All earlier and later tape values
+are arbitrary. Store readiness is checked before that draw. -/
+theorem answer_ready (K : Keys) (s : Memory) (eps : List (B × B × Id))
+    (r c frm to frm' m1 sk epOp addr : B) (ro co : Op)
+    (hcount : (Engine.eval s.held.db (connection.byRequest.query [r] (limit := some 0))).total = 0)
+    (hro : s.held.db.ops r = some ro)
+    (hb : (decode ro.body : Option Body) = some (.request to frm' m1))
+    (hep : eps.find? (fun p => decide (p.1 = to)) = some (to, sk, epOp))
+    (ht : ((trusts c to frm).liftL : View F Bool).eval s.held.db = true)
+    (ha : ((arrivedFrom r : Model F (Option B)).run s.held.db).1 = some addr)
+    (hc : Reply.op K r sk frm m1 (s.entropy s.cursor) = some co) :
+    (answerOne K eps r c frm : M (List Op)) s =
+      ([co, Eph.op (s.entropy s.cursor) co.id,
+        Established.op co.id r (Eph.op (s.entropy s.cursor) co.id).id epOp,
+        Send.op addr co], { s with cursor := s.cursor + 1 }) := by
+  simp only [answerOne, run_bind, run_count, hcount, ne_eq, not_true_eq_false, ↓reduceIte,
+    run_get, hro, hb, hep, run_view, ht, Bool.not_true, Bool.false_eq_true,
+    run_arrivedFrom, ha]
+  simp only [run_fresh, hc]
+  rfl
+
+end Connection.ProgressTape
+
+end
+
+section
+
+/- Store effects of the actual Node event handlers, including production
+hooks with advancing entropy, reactions, courier purges and session closes. -/
+
+namespace Connection.Execution
+open Engine Engine.Sync
+
+/-- Only the store is constrained. In particular, entropy state can advance. -/
+def GoesM (fam : Family F) {α} (p : M α) : Prop :=
+  ∀ s, Moves fam s.held (p s).2.held
+
+theorem ReadsHeld.goes {fam : Family F} {α} {p : M α} (h : ReadsHeld p) : GoesM fam p :=
+  fun s => Moves.of_eq (h s).symm
+
+namespace GoesM
+theorem pure' (fam : Family F) {α} (a : α) : GoesM fam (pure a : M α) := fun _ => .refl _
+theorem bind' {fam : Family F} {α β} {p : M α} {k : α → M β}
+    (hp : GoesM fam p) (hk : ∀ a, GoesM fam (k a)) : GoesM fam (p >>= k) :=
+  fun s => (hp s).trans (hk _ _)
+theorem forIn' {fam : Family F} {α β} (l : List α) (b : β)
+    {f : α → β → M (ForInStep β)} (hf : ∀ a b, GoesM fam (f a b)) :
+    GoesM fam (forIn l b f) := by
+  induction l generalizing b with
+  | nil => exact pure' fam b
+  | cons a t ih =>
+    rw [List.forIn_cons]
+    apply bind' (hf a b)
+    intro r
+    cases r with
+    | done b => exact pure' fam b
+    | yield b => exact ih b
+theorem getOp' (fam : Family F) (i : Id) : GoesM fam (Store.getOp i : M _) :=
+  (ReadsHeld.getOp' i).goes
+theorem getStatus' (fam : Family F) (i : Id) : GoesM fam (Store.getStatus i : M _) :=
+  (ReadsHeld.getStatus' i).goes
+theorem turn' (fam : Family F) (ops : List Op) : GoesM fam (Turn.turn fam ops : M Unit) :=
+  fun _ => .single (.turn _ _)
+theorem purge' (fam : Family F) (ids : List Id) (scrub : Bool) :
+    GoesM fam (Turn.purge fam ids scrub : M Unit) := fun _ => .single (.purge ids scrub _)
+end GoesM
+
+syntax "goesTape" "[" term,* "]" : tactic
+macro_rules
+  | `(tactic| goesTape [$ts,*]) => do
+    let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
+    for t in ts.getElems.reverse do
+      tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
+    `(tactic| repeat' (first
+      | dsimp only | with_reducible_and_instances apply GoesM.bind'
+      | with_reducible_and_instances apply GoesM.pure' | with_reducible_and_instances apply GoesM.forIn'
+      | with_reducible_and_instances apply GoesM.getOp' | with_reducible_and_instances apply GoesM.getStatus'
+      | with_reducible_and_instances apply GoesM.turn' | with_reducible_and_instances apply GoesM.purge'
+      | $tac:tactic))
+
+namespace NodeTape
+
+structure ReadOnly (x : Sync F M) : Prop where
+  rooms : ∀ cid, ReadsHeld (x.hooks.rooms cid)
+  recv : ∀ via a o t, ReadsHeld (x.hooks.recv via a o t)
+  outbox : ReadsHeld x.hooks.outbox
+  closing : ∀ cid, ReadsHeld (x.hooks.closing cid)
+  retired : ReadsHeld x.hooks.retired
+  react : ReadsHeld x.hooks.react
+  dial : ∀ t, ReadsHeld (x.hooks.dial t)
+  established : ReadsHeld x.hooks.established
+  sealFor : ∀ cid b, ReadsHeld (x.hooks.sealFor cid b)
+  openFrame : ∀ b, ReadsHeld (x.hooks.openFrame b)
+
+/-- Discharges every hook premise for the actual advancing-tape interpreter. -/
+theorem production_readOnly (S : Setup) (side : Side) : ReadOnly (S.sync side) := by
+  obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩ :=
+    hooks_reads ReadsHeld.fresh family sodium (S.addr side)
+  exact ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10⟩
+
+theorem read_program {α} (p : Read α) : ReadsHeld (p.run (Store.getOp (F := F)) : M α) := by
+  induction p with
+  | done a => exact ReadsHeld.pure' a
+  | get i next ih => exact ReadsHeld.bind' (ReadsHeld.getOp' i) ih
+
+variable (fam : Family F) (cfg : Config)
+
+theorem holdsIn_reads (r i : Id) : ReadsHeld (holdsIn fam r i : M Bool) := by
+  unfold holdsIn; readsHeld []
+theorem onHold_reads (c : Conn) (r : Id) (ids : List Id) :
+    ReadsHeld (c.onHold fam cfg r ids : M Step) := by
+  unfold Conn.onHold; readsHeld [holdsIn_reads]
+theorem filed_reads (c : Conn) (ids : List Id) : ReadsHeld (c.filed fam cfg ids : M Step) := by
+  unfold Conn.filed; readsHeld []
+theorem closure_reads (r : Id) (fuel : Nat) : ∀ todo seen,
+    ReadsHeld (closureOps fam r fuel todo seen : M (List Op)) := by
+  induction fuel with
+  | zero => intro todo seen; rw [closureOps_zero]; exact ReadsHeld.pure' _
+  | succ n ih =>
+    intro todo
+    induction todo with
+    | nil => intro seen; rw [closureOps_nil]; exact ReadsHeld.pure' _
+    | cons y rest ihr =>
+      intro seen
+      rw [closureOps_cons]
+      split
+      · exact ihr seen
+      · refine ReadsHeld.bind' (ReadsHeld.getOp' y) fun oo => ?_
+        cases oo with
+        | none => exact ih _ _
+        | some o =>
+          dsimp only
+          split
+          · exact ReadsHeld.bind' (ih _ _) fun _ => ReadsHeld.pure' _
+          · exact ih _ _
+theorem give_reads : ∀ (l : List (Id × Id)) (c : Conn), ReadsHeld (c.give fam cfg l : M Step)
+  | [], _ => ReadsHeld.pure' _
+  | (r,x) :: rest, c => by
+    unfold Conn.give
+    split
+    · exact give_reads rest c
+    · exact ReadsHeld.bind' (closure_reads fam r _ _ _) fun _ =>
+        ReadsHeld.bind' (give_reads rest _) fun _ => ReadsHeld.pure' _
+theorem filedGive_reads (c : Conn) (ids : List Id) : ReadsHeld (c.filedGive fam cfg ids : M Step) := by
+  unfold Conn.filedGive Conn.notify; readsHeld [give_reads, filed_reads]
+theorem walkN_reads : ∀ budget (c : Conn) offer,
+    ReadsHeld (c.walkN fam cfg offer budget : M (Conn × List (Id × Id)))
+  | 0, _, _ => ReadsHeld.pure' _
+  | budget + 1, c, offer => by
+    unfold Conn.walkN
+    readsHeld [walkN_reads budget]
+theorem tickGive_reads (ix : Index) (c : Conn) (now : Nat) :
+    ReadsHeld (c.tickGive fam cfg ix now : M Step) := by
+  unfold Conn.tickGive Conn.notify Conn.tick Conn.work Conn.walk
+  readsHeld [give_reads, walkN_reads]
+theorem recv_reads (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) :
+    ReadsHeld (Conn.recv fam cfg ix c bytes now : M Step) := by
+  unfold Conn.recv; readsHeld [onHold_reads]
+theorem serveOwed_reads (c : Conn) (budget : Nat) (first : List Id) :
+    ReadsHeld (c.serveOwed fam cfg budget first : M (Conn × List Op × List Op)) := by
+  unfold Conn.serveOwed; readsHeld [read_program]
+
+variable {fam cfg}
+variable (x : Sync F M) (hr : ReadOnly x)
+
+theorem write_goes (n : Engine.Sync.Node) (ops : List Op) : GoesM x.fam (n.write x ops) := by
+  unfold Node.write; goesTape []
+theorem put_goes (n : Engine.Sync.Node) (ops : List Op) (mine : Bool) : GoesM x.fam (n.put x ops mine) :=
+  write_goes x n _
+theorem recordGiven_goes (n : Engine.Sync.Node) (st : List (Id × Id)) : GoesM x.fam (n.recordGiven x st) := by
+  unfold Node.recordGiven; goesTape [put_goes]
+include hr
+
+theorem refresh_reads (cid : Id) (c : Conn) : ReadsHeld (Node.refresh x cid c) := by
+  unfold Node.refresh; readsHeld [hr.rooms]
+theorem fanout_goes (n : Engine.Sync.Node) (ids : List Id) : GoesM x.fam (n.fanout x ids) := by
+  unfold Node.fanout
+  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+    fun c ids => (filedGive_reads x.fam x.cfg c ids).goes, recordGiven_goes]
+theorem store_goes (n : Engine.Sync.Node) (ops : List Op) (mine : Bool) : GoesM x.fam (n.store x ops mine) := by
+  unfold Node.store
+  simp only [Std.Legacy.Range.forIn_eq_forIn_range']
+  goesTape [put_goes, fanout_goes x hr, hr.react.goes]
+theorem open_goes (n : Engine.Sync.Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
+    GoesM x.fam (n.open x cid addr dialer now) := by
+  unfold Node.open; goesTape [fun cid => (hr.rooms cid).goes]
+theorem follow_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.follow x now) := by
+  unfold Node.follow; goesTape [hr.established.goes, open_goes x hr]
+omit hr in
+theorem effectsPurge_goes (ids : List Id) (scrub : Bool) : GoesM x.fam (Effects.purge x ids scrub) := by
+  unfold Effects.purge; goesTape []
+theorem flush_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.flush x out) := by
+  unfold Node.flush; goesTape [hr.outbox.goes, effectsPurge_goes]
+theorem seal_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.seal x out) := by
+  unfold Node.seal; goesTape [fun cid b => (hr.sealFor cid b).goes]
+theorem endSession_goes (cid : Id) : GoesM x.fam (Node.endSession x cid) := by
+  unfold Node.endSession; goesTape [fun cid => (hr.closing cid).goes, effectsPurge_goes]
+theorem finish_goes (n : Engine.Sync.Node) (out : Acts) (now : Nat) : GoesM x.fam (n.finish x out now) := by
+  unfold Node.finish
+  goesTape [follow_goes x hr, flush_goes x hr, hr.retired.goes, seal_goes x hr, endSession_goes x hr]
+theorem onClose_goes (n : Engine.Sync.Node) (addr : ByteArray) (now : Nat) : GoesM x.fam (n.onClose x addr now) := by
+  unfold Node.onClose; goesTape [finish_goes x hr]
+theorem apply_goes (n : Engine.Sync.Node) (cid : Id) (st : Step) (now : Nat) :
+    GoesM x.fam (n.apply x cid st now) := by
+  unfold Node.apply
+  goesTape [recordGiven_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goes]
+theorem serve_goes (n : Engine.Sync.Node) (cid : Id) (now : Nat) : GoesM x.fam (n.serveOwed x cid now) := by
+  unfold Node.serveOwed
+  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+    fun c budget first => (serveOwed_reads x.fam x.cfg c budget first).goes]
+theorem onSealed_goes (n : Engine.Sync.Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
+    GoesM x.fam (n.onSealed x addr opened now) := by
+  unfold Node.onSealed
+  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
+    fun ix c bytes now => (recv_reads x.fam x.cfg ix c bytes now).goes,
+    apply_goes x hr, serve_goes x hr, finish_goes x hr]
+theorem onFrame_goes (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : Nat) :
+    GoesM x.fam (n.onFrame x addr bytes now) := by
+  unfold Node.onFrame
+  goesTape [write_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goes,
+    finish_goes x hr, fun b => (hr.openFrame b).goes, onSealed_goes x hr]
+theorem onTick_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.onTick x now) := by
+  unfold Node.onTick
+  goesTape [fun t => (hr.dial t).goes, store_goes x hr,
+    fun cid c => (refresh_reads x hr cid c).goes,
+    fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goes,
+    apply_goes x hr, serve_goes x hr, finish_goes x hr]
+theorem onWrite_goes (n : Engine.Sync.Node) (ops : List Op) (now : Nat) : GoesM x.fam (n.onWrite x ops now) := by
+  unfold Node.onWrite; goesTape [store_goes x hr, finish_goes x hr]
+
+/-- Every full event handler uses only actual turn/purge effects, including
+the hooks' reactions and the common finish path. -/
+theorem step_goes (n : Engine.Sync.Node) (input : Node.Input) (now : Nat) :
+    GoesM x.fam (n.step x input now) := by
+  cases input with
+  | write ops => exact onWrite_goes x hr n ops now
+  | frame addr bytes => exact onFrame_goes x hr n addr bytes now
+  | tick => exact onTick_goes x hr n now
+  | close addr => exact onClose_goes x hr n addr now
+
+end NodeTape
+
+/-- Production hooks, the actual dispatch, every input, arbitrary entropy. -/
+theorem production_step_moves (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory) :
+    Moves family s.held ((n.step (S.sync side) input now) s).2.held :=
+  NodeTape.step_goes (S.sync side) (NodeTape.production_readOnly S side) n input now s
+
+theorem production_step_retains (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory) {i : Id} {o : Op}
+    (ho : s.held.db.ops i = some o) (hs : (family.room o).isSome) :
+    ((n.step (S.sync side) input now) s).2.held.db.ops i = some o :=
+  (production_step_moves S side n input now s).shared_retained ho hs
+
+theorem production_step_reachable (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory) (hr : s.held.Reachable family) :
+    (((n.step (S.sync side) input now) s).2.held).Reachable family :=
+  (production_step_moves S side n input now s).store_reachable hr
+
+/-- Finite settling of this call's validation queue, not a uniform bound on
+work per event: the proven runtime budget depends on stored history size. -/
+theorem production_step_settled (S : Setup) (side : Side) (n : Engine.Sync.Node)
+    (input : Node.Input) (now : Nat) (s : Memory)
+    (hr : s.held.Reachable family) (hq : s.held.db.queue = []) :
+    ((n.step (S.sync side) input now) s).2.held.db.queue = [] :=
+  (production_step_moves S side n input now s).store_settled hr hq
+
+theorem world_run_moves (S : Setup) (w : World) (side target : Side) (queue : List Packet)
+    (f : Engine.Sync.Node → M (Engine.Sync.Node × Effects)) (closed : Bool)
+    (hf : ∀ n s, Moves family s.held (f n s).2.held) :
+    Moves family (w.peer target).memory.held
+      ((w.run S side queue f closed).peer target).memory.held := by
+  cases side <;> cases target
+  · exact hf _ _
+  · exact .refl _
+  · exact .refl _
+  · exact hf _ _
+
+/-- Every environment action, including delivery, drops and two-sided close,
+preserves the exact per-peer primitive-store transition relation. -/
+theorem world_step_moves (S : Setup) (w : World) (a : Action) (target : Side) :
+    Moves family (w.peer target).memory.held ((step S w a).peer target).memory.held := by
+  have hp : ∀ (w : World) (side : Side) (queue : List Packet) (input : Node.Input) (closed : Bool),
+      Moves family (w.peer target).memory.held
+        ((w.run S side queue (fun n => n.step (S.sync side) input w.now) closed).peer target).memory.held :=
+    fun w side queue input closed => world_run_moves S w side target queue _ closed
+      (fun n s => production_step_moves S side n input w.now s)
+  have time : ∀ w' : World, ({ w' with now := w.now + 1 }.peer target).memory.held =
+      (w'.peer target).memory.held := by intro w'; cases target <;> rfl
+  unfold step
+  rw [time]
+  cases a with
+  | tick side => exact hp w side w.net .tick false
+  | write side ops => exact hp w side w.net (.write ops) false
+  | idle => exact .refl _
+  | drop => cases target <;> exact .refl _
+  | close =>
+    have ha := world_run_moves S w .a target []
+      (fun n => n.onClose (S.sync .a) (S.addr .b) w.now) true
+      (NodeTape.onClose_goes (S.sync .a) (NodeTape.production_readOnly S .a) · (S.addr .b) w.now)
+    let wa := w.run S .a [] (fun n => n.onClose (S.sync .a) (S.addr .b) w.now) true
+    have hb := world_run_moves S wa .b target wa.net
+      (fun n => n.onClose (S.sync .b) (S.addr .a) w.now) true
+      (NodeTape.onClose_goes (S.sync .b) (NodeTape.production_readOnly S .b) · (S.addr .a) w.now)
+    exact ha.trans hb
+  | deliver =>
+    cases hnet : w.net with
+    | nil => simpa only [World.deliver, hnet] using (Moves.refl (fam := family) (w.peer target).memory.held)
+    | cons p rest =>
+      by_cases ha : p.dst = S.addr .a
+      · simpa only [World.deliver, hnet, if_pos ha, Node.step] using hp w .a rest (.frame p.src p.bytes) false
+      · by_cases hb : p.dst = S.addr .b
+        · simpa only [World.deliver, hnet, if_neg ha, if_pos hb, Node.step] using hp w .b rest (.frame p.src p.bytes) false
+        · simp only [World.deliver, hnet, if_neg ha, if_neg hb]
+          cases target <;> exact .refl _
+
+theorem world_trace_moves (S : Setup) (w : World) (actions : List Action) (target : Side) :
+    Moves family (w.peer target).memory.held
+      ((trace S w actions).peer target).memory.held := by
+  induction actions generalizing w with
+  | nil => exact .refl _
+  | cons a rest ih => exact (world_step_moves S w a target).trans (ih (step S w a))
+
+/-- Arbitrary full production-event prefixes remain reachable and settled.
+The schedule need not be fair; entropy can differ at every fresh draw. -/
+theorem empty_trace_store (S : Setup) (ea eb : Nat → ByteArray)
+    (actions : List Action) (target : Side) :
+    let h := ((trace S (empty ea eb) actions).peer target).memory.held
+    h.Reachable family ∧ h.db.queue = [] := by
+  have hm := world_trace_moves S (empty ea eb) actions target
+  have he : ((empty ea eb).peer target).memory.held = ({} : Held F) := by cases target <;> rfl
+  rw [he] at hm
+  exact ⟨hm.store_reachable (held_empty_reachable family),
+    hm.store_settled (held_empty_reachable family) rfl⟩
+
+/-- The byte-retention statement applies to every execution, not only a
+chosen fair schedule. It does not claim an invalid op becomes valid. -/
+theorem Run.shared_retained {S initial} (r : Run S initial) (target : Side)
+    {n k : Nat} (hnk : n ≤ k) {i : Id} {o : Op}
+    (ho : ((r.state n).peer target).memory.held.db.ops i = some o)
+    (hs : (family.room o).isSome) :
+    ((r.state k).peer target).memory.held.db.ops i = some o := by
+  induction hnk with
+  | refl => exact ho
+  | @step k _ ih =>
+    rw [r.next k]
+    exact (world_step_moves S (r.state k) (r.action k) target).shared_retained ih hs
+
+end Connection.Execution
+
+end
+
+section
+
+/-
+**A removal reaches a live session**, over the node's entry points
+(`Node.onFrame`, `onTick`, `onWrite`, `onClose`), run on held data with
+the Connection family's own hooks.
+
+`entry_fresh` (engine/wire/EgressLaws.lean): every payload an entry point
+seals for a session is an op a connection step sent at a store on the
+way, on the session's connection as that store gave its rooms. Here the
+hooks are the family's (`hooks`), which only read (`hooks_reads`), and
+whose rooms are `roomsV` read afresh (`rooms_held`). Each step, run on
+held data, answers as on the model's tables (engine/sync/SimLaws.lean), so
+the per-step law `removed_gets_only_notice` (and `serveOwed_shown` for a
+session's queue) applies at that store: there, if this node is live in c
+and the trust rule refuses the peer, the op is a sync wire op, an op of
+another community, or in the requirement closure of a removal owed to
+the peer (`sent_mayGo`).
+
+So `removal_reaches_session`: once a removal is stored, every later step
+on the session reads it, and nothing of c but the removal's notice goes
+out, whatever entry point runs. The fresh bytes the hooks draw are
+assumed to leave the store as it is (`hfr`), as the OS's do.
+-/
+
+namespace Connection
+open Engine Engine.Sync Codec
+
+/-- The family's hooks only read, so the node's laws of hooks that only
+read hold of them. -/
+theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen) : ReadOnly x := by
+  obtain ⟨fam, cfg, hk, room⟩ := x
+  simp only at hx
+  subst hx
+  obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩ := hooks_reads hfr fam K listen
+  exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10⟩
+
+/-- What may go out on session cid at store h, as of community c: if
+this node is live in c and the trust rule refuses cid's peer, only a sync
+wire op, an op of another community, or an op in the requirement
+closure of a removal owed to the peer (`NoticeOnly`). -/
+def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
+  LiveIn h.db c → Refused h.db cid c → NoticeOnly fam h.db cid c o
+
+/-- **Each fresh step's send may go** (`sent_mayGo`): every op a
+connection step sends, run where the node runs it, on the connection as
+the store gives its rooms, is one `MayGo` allows at that store. -/
+theorem sent_mayGo [Fresh (HeldM F)] (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
+    {h : Held F} {cid : Id} {o : Op} (hs : Sent x h cid o) (c : B) : MayGo x.fam h cid c o := by
+  intro hl hr
+  have hR : ((x.hooks.rooms cid).run h).1 = (roomsV cid).eval h.db := by
+    simp only [hx, hooks, rooms_held]
+  have hrm := rooms_removed h.db hl hr
+  rcases hs with ⟨conn, ix, bytes, now, ho⟩ | ⟨conn, ids, ho⟩ | ⟨conn, ix, now, ho⟩ |
+      ⟨conn, budget, first, ho⟩ | ⟨dialer, floor, now, ho⟩
+  · rw [hR, recv_held] at ho
+    exact (removed_gets_only_notice x.fam x.cfg ix h.db cid c conn bytes [] now 0 false hl hr).2.1 o ho
+  · rw [hR, filedGive_held] at ho
+    exact (removed_gets_only_notice x.fam x.cfg {} h.db cid c conn .empty ids 0 0 false hl hr).2.2.2.1 o ho
+  · rw [hR, tickGive_held] at ho
+    exact (removed_gets_only_notice x.fam x.cfg ix h.db cid c conn .empty [] now 0 false hl hr).2.2.2.2 o ho
+  · rw [hR] at ho
+    have hsh := (serveOwed_shown x.fam x.cfg (conn.carry ((roomsV cid).eval h.db)) budget first h o ho).1
+    refine Or.inr (Or.inl fun hc => ?_)
+    simp only [Conn.shows, hc] at hsh
+    exact hrm _ (mem_syncs ((Engine.has_iff _ _).1 hsh)) rfl
+  · simp only [Conn.open, List.mem_singleton] at ho
+    subst ho
+    exact Or.inl (msg_wire _)
+
+/-- **A removal reaches a live session** (`removal_reaches_session`).
+Run with the Connection family's hooks, whatever entry point the node
+runs (a frame, the clock, a write, a socket closing), from any store:
+it changes the store only by write turns and purges, and every frame it
+sends is a bare op or a bundle sealed for one session cid, each of whose
+payloads is an op that, at the store a connection step sent it from,
+`MayGo` allows for every community: where this node is live in c and the
+trust rule refuses cid's peer, only a sync wire op, an op of another
+community, or one in the requirement closure of a removal owed to the
+peer. -/
+theorem removal_reaches_session [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+    (x : Sync F (HeldM F)) (K : Keys) (listen : B) (hx : x.hooks = hooks x.fam K listen)
+    {E : Engine.Sync.Node → HeldM F (Engine.Sync.Node × Effects)} (hE : Entry x E)
+    (n : Engine.Sync.Node) (h : Held F) :
+    Moves x.fam h ((E n).run h).2 ∧
+      FramesBy x (fun h' cid o => ∀ c, MayGo x.fam h' cid c o) h ((E n).run h).2 ((E n).run h).1.2 := by
+  obtain ⟨m, ok⟩ := entry_fresh (hooks_readOnly hfr x K listen hx) hE n h
+  exact ⟨m, ok.mono fun _ _ _ hs c => sent_mayGo x K listen hx hs c⟩
+
+end Connection
 
 end

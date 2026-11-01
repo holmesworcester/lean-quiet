@@ -55,6 +55,9 @@ theorem onRbsr_send (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
   by_cases h1 : (!has c.rooms r) = true
   · simp [h1, msg_wire]
   · rw [if_neg h1]
+    by_cases stale : c.oldRound r k = true
+    · simp [stale]
+    rw [if_neg stale]
     dsimp only
     by_cases h2 : cs.isEmpty = true
     · simp [h2]

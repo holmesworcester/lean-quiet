@@ -1,3 +1,4 @@
+import engine.renderer.Platform
 import engine.renderer.Row
 import engine.renderer.Overlay
 import engine.renderer.Label
@@ -10,7 +11,6 @@ import app.community.member.join.accept.View
 import engine.renderer.Board
 import engine.renderer.Demand
 import Std.Sync.Mutex
-import app.community.Proofs
 import app.community.member.invite.request.Commands
 import app.community.member.join.joining.Commands
 import app.connection.Commands
@@ -34,6 +34,41 @@ import app.community.member.invite.View
 import engine.renderer.Camera
 import app.community.member.remove.View
 import Std.Data.HashMap
+import engine.wire.Frame
+import app.community.member.invite.request.approve.admit.Commands
+import app.community.member.invite.request.Op
+import app.community.channel.message.reaction.Op
+import app.community.Family
+import app.community.key.Op
+import app.community.key.wrap.Op
+import app.community.channel.message.Op
+import app.community.member.invite.request.approve.admit.Op
+import app.community.channel.message.reaction.View
+import app.community.member.invite.Commands
+import app.community.profile.Commands
+import app.community.channel.message.reaction.Commands
+import app.community.member.remove.Op
+import app.community.member.join.joining.abandon.Commands
+import app.community.member.admin.Op
+import app.community.member.join.joining.abandon.Op
+import app.community.Commands
+import app.community.channel.message.Commands
+import app.community.channel.message.attachment.chunk.Op
+import app.community.channel.message.receipt.Op
+import app.community.profile.Op
+import app.community.profile.View
+import app.community.device.secret.Op
+import app.community.name.Op
+import app.community.member.join.accept.Op
+import app.community.channel.message.attachment.View
+import app.community.member.invite.request.approve.Op
+import app.community.channel.message.attachment.chunk.Commands
+import app.community.channel.message.attachment.Op
+import app.community.device.endpoint.Op
+import app.community.member.invite.Op
+import app.community.member.join.joining.Op
+import app.community.member.invite.request.approve.Commands
+import app.community.Op
 
 section
 
@@ -3400,6 +3435,77 @@ end
 section
 
 /-
+Admission for new app writes, before optimistic display or durable queueing.
+These are limits on admitted writes, not a claim about every app allocation.
+The frame allowance is the production Connection envelope with a 32-byte
+session id and 24-byte nonce. Low-level imports and historical stores still
+need their own domain checks.
+-/
+
+namespace App.WriteAdmission
+open Engine
+
+structure Limits where
+  ops : Nat := 8192
+  bytes : Nat := 128 * 1024 * 1024
+
+def bytes (xs : List ByteArray) : Nat := (xs.map ByteArray.size).sum
+
+/-- Even when sent alone, an op must fit the encrypted transport frame. -/
+def fits (o : Op) : Bool :=
+  decide ((Codec.encode [o.bytes]).size + 74 ≤ Sync.maxFrame)
+
+/-- Refusal leaves the existing queue and draft intact. -/
+def refusal (lim : Limits) (pending : List ByteArray) (incoming : List Op) : Option String :=
+  if !incoming.all fits then some "This message is too large to send. Shorten it and try again."
+  else if lim.ops < pending.length + incoming.length ||
+      lim.bytes < bytes pending + bytes (incoming.map Op.bytes) then
+    some "Too many changes are waiting to be saved. Try again after they finish."
+  else none
+
+theorem admitted_frames {lim : Limits} {pending : List ByteArray} {incoming : List Op}
+    (h : refusal lim pending incoming = none) :
+    ∀ o ∈ incoming, (Codec.encode [o.bytes]).size + 74 ≤ Sync.maxFrame := by
+  unfold refusal at h
+  split at h
+  · cases h
+  · rename_i hf
+    have ha : incoming.all fits = true := by simpa using hf
+    intro o ho
+    have := List.all_eq_true.mp ha o ho
+    simpa [fits] using this
+
+theorem admitted_count {lim : Limits} {pending : List ByteArray} {incoming : List Op}
+    (h : refusal lim pending incoming = none) :
+    pending.length + incoming.length ≤ lim.ops := by
+  unfold refusal at h
+  split at h
+  · cases h
+  · split at h
+    · cases h
+    · rename_i hc
+      simp only [Bool.or_eq_true, decide_eq_true_eq, not_or] at hc
+      omega
+
+theorem admitted_bytes {lim : Limits} {pending : List ByteArray} {incoming : List Op}
+    (h : refusal lim pending incoming = none) :
+    bytes pending + bytes (incoming.map Op.bytes) ≤ lim.bytes := by
+  unfold refusal at h
+  split at h
+  · cases h
+  · split at h
+    · cases h
+    · rename_i hc
+      simp only [Bool.or_eq_true, decide_eq_true_eq, not_or] at hc
+      omega
+
+end App.WriteAdmission
+
+end
+
+section
+
+/-
 The app: one conversation, bottom-anchored, with a header and a composer.
 
 Each frame:
@@ -3609,6 +3715,10 @@ of this node's own (`submit`). -/
 def writeAll (w : Community.Write) : M Bool := do
   let s ← get
   if !s.life.allows s.life.lease then return false
+  if let some reason := WriteAdmission.refusal {} s.queuedWrites w.ops then
+    let now ← IO.monoMsNow
+    modify fun s => { s with toast := Toast.raise now reason }
+    return false
   let mut mine : Std.HashMap Id (Verdict SF) := {}
   let mut pend := #[]
   for o in w.ops do
@@ -5778,6 +5888,20 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
 shared task pool), so the frame only takes the board. -/
 def spawnReader (s : St) : IO St := do
   return (← resumeReader.run { s with threaded := true }).2
+
+end App
+
+end
+
+section
+
+namespace App
+
+def Io.platform : Io :=
+  ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
+   Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
+   do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, Platform.pickPhoto, Platform.photoResult⟩
 
 end App
 

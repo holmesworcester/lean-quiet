@@ -14,11 +14,40 @@ import app.connection.send.Commands
 import engine.sync.Notice
 import engine.core.Engine
 import engine.core.Window
-import app.community.Proofs
-import app.connection.Proofs
 import engine.renderer.Platform
 import Std.Data.HashMap
 import engine.core.WindowIndex
+import app.community.member.invite.request.Op
+import app.community.channel.message.reaction.Op
+import app.community.Family
+import app.community.key.Op
+import app.community.key.wrap.Op
+import app.community.channel.message.Op
+import app.connection.connection.Op
+import app.connection.established.Op
+import app.community.member.remove.Op
+import app.connection.request.Op
+import app.connection.recv.Op
+import app.community.member.admin.Op
+import app.community.member.join.joining.abandon.Op
+import app.community.Commands
+import app.connection.opened.Op
+import app.community.channel.message.attachment.chunk.Op
+import app.connection.send.Op
+import app.community.channel.message.receipt.Op
+import app.community.profile.Op
+import app.community.device.secret.Op
+import app.community.name.Op
+import app.community.member.join.accept.Op
+import app.community.member.invite.request.approve.Op
+import app.community.channel.message.receipt.Commands
+import app.connection.eph.Op
+import app.connection.given.Op
+import app.community.channel.message.attachment.Op
+import app.community.device.endpoint.Op
+import app.community.member.invite.Op
+import app.community.member.join.joining.Op
+import app.community.Op
 
 namespace Connection
 open Engine Engine.Sync Codec
@@ -133,7 +162,7 @@ def react (fam : Family F) (K : Keys) : m (List Op) := do
   return o1 ++ o2 ++ o3 ++ o4
 
 /-- What a tick sends for one pending join of community c, by device d,
-to the inviter's key at the link's first hint, if this node is in c as d
+to the inviter's key at every link hint, if this node is in c as d
 (`mine`: a join stopped waiting on is not, nor a cut device's):
 - **waiting** (d not admitted here): the request whose hello delivers
   this join's request, resent, or composed if this node holds none,
@@ -144,7 +173,7 @@ to the inviter's key at the link's first hint, if this node is in c as d
   dropped session is dialed again. -/
 def dialOne (K : Keys) (listen pk sk : B) : Community.Fact → m (List Op)
   | .joining c inviter hints req _ d _ => do
-    let some hint := hints.head? | return []
+    let some _ := hints.head? | return []
     let some (me, _) ← ((Community.mine c).liftL : View F _).run | return []
     if me ≠ d then return []
     let adm : Answer F ← Lists.list (m := m) (Community.admission.byDevice.query [c, d] (limit := some 0))
@@ -160,13 +189,13 @@ def dialOne (K : Keys) (listen pk sk : B) : Community.Fact → m (List Op)
     | some r =>
       let ro ← Store.getOp (m := m) r
       return match ro with
-        | some ro => [Send.op hint ro]
+        | some ro => hints.map (Send.op · ro)
         | none => []
     | none =>
       let some jr ← Store.getOp (m := m) req | return []
       let e ← Fresh.fresh
       return match Request.op K sk inviter e (hello c listen [jr]) with
-        | some ro => [ro, Eph.op e ro.id, Send.op hint ro]
+        | some ro => [ro, Eph.op e ro.id] ++ hints.map (Send.op · ro)
         | none => []
   | _ => return []
 

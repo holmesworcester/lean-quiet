@@ -33,5 +33,19 @@
     "witness": "Vacuity.IdentityLifecycle.removedGetsOnlyNotice",
     "module": "tests.vacuity.IdentityLifecycle",
     "detail": "Actual signed Alice/Bob community and Noise session. Native branches prove all finite premises; universal community and node-device premises follow from exhaustive singleton acceptance/stored-verdict checks and Inv.sound. Bob removal sends its real requirement closure and excludes his chat message; given notice empties rooms and retires the actual session. Pending and admitted Bob both retry the actual stored Noise request to the invite address."
+  },
+  "entry_fresh": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.entry_fresh",
+    "witness": "Vacuity.IdentityLifecycle.entryFresh",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Alice's actual node, on held data with the Connection family's own hooks (hooks_readOnly; fresh bytes from a fixed tape that leaves the store as it is), runs a whole onTick from the store where Bob is removed and their actual Noise session is open. The run the theorem describes executes natively and seals a frame for Bob's session, so its sealed-frame case is exercised, not vacuous."
+  },
+  "removal_reaches_session": {
+    "status": "runtime-witness",
+    "theorem": "Connection.removal_reaches_session",
+    "witness": "Vacuity.IdentityLifecycle.removalReachesSession",
+    "module": "tests.vacuity.IdentityLifecycle",
+    "detail": "Same whole onTick of Alice's node. Native branches prove LiveIn and Refused (Bob refused for c) at the store the tick starts from, and the theorem applies to that run. The tick's frame for Bob, opened with the actual session key, carries the removal and not Bob's message."
   }
 }

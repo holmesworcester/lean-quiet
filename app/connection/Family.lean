@@ -1,7 +1,6 @@
 import engine.core.Families
 import engine.core.Project
 import engine.wire.Node
-import app.community.Proofs
 import app.connection.connection.Op
 import app.connection.connection.Validate
 import app.connection.eph.Op
@@ -20,6 +19,30 @@ import app.connection.send.Op
 import app.connection.send.Validate
 import engine.sync.Notice
 import engine.sync.NoticeLaws
+import app.community.member.invite.request.Op
+import app.community.channel.message.reaction.Op
+import app.community.Family
+import app.community.key.Op
+import app.community.key.wrap.Op
+import app.community.channel.message.Op
+import app.community.member.remove.Op
+import app.community.member.admin.Op
+import app.community.member.join.joining.abandon.Op
+import app.community.Commands
+import app.community.channel.message.attachment.chunk.Op
+import app.community.channel.message.receipt.Op
+import app.community.profile.Op
+import app.community.device.secret.Op
+import app.community.device.endpoint.Commands
+import app.community.name.Op
+import app.community.member.join.accept.Op
+import app.community.member.invite.request.approve.Op
+import app.community.member.remove.Proofs
+import app.community.channel.message.attachment.Op
+import app.community.device.endpoint.Op
+import app.community.member.invite.Op
+import app.community.member.join.joining.Op
+import app.community.Op
 
 /-
 The connection family: the handshake and sessions, made of ops. Each op
@@ -614,26 +637,4 @@ theorem view_node (h : Inv (node C K) s) (hq : s.queue = []) {α : Type}
     {v : View Community.Fact α} (hv : v.Reads (RelKey Community.rels)) :
     (v.liftL : View F α).eval s = v.eval (community C s) :=
   (sum_project_node h hq).2.2.2.2 v hv
-open Engine
-variable {C : Community.Crypto} {K : Keys} {s : DB F}
-open Community (Admitted Removed)
-
-/-- **Which nodes the node lets in.** At rest, the node's `allowPeer`
-accepts node key e for c exactly when a device admitted under e is live
-(admitted, into no removed user) among the Community ops it holds. -/
-theorem connect_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (e : Community.Key) :
-    ((Community.allowPeer c e).liftL : View F Bool).eval s = true ↔
-      ∃ u d, Admitted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
-  rw [view_node h hq (Community.reads_allowPeer c e)]
-  exact Community.connect_iff (community_inv h hq) hq c e
-
-/-- **A removal, once the node holds it, cuts the removed user's
-devices' node out of its trust rule.** -/
-theorem removal_cuts_off_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id}
-    {e : Community.Key} (hr : Removed C (community C s).ops c u)
-    (only : ∀ u' d, Admitted C (community C s).ops c u' d e → ∃ e', Admitted C (community C s).ops c u d e') :
-    ((Community.allowPeer c e).liftL : View F Bool).eval s = false := by
-  rw [view_node h hq (Community.reads_allowPeer c e)]
-  exact Community.removal_cuts_off (community_inv h hq) hq hr only
-
 end Connection

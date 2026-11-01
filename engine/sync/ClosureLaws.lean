@@ -34,8 +34,8 @@ theorem begin_closure_bounded (cfg : Config) (c : Conn) (k : Nat) (hb : c.Closur
     (c.beginRound k).ClosureBounded cfg := by
   unfold Conn.beginRound Conn.ClosureBounded
   split
-  · exact hb
   · simp
+  · exact hb
 
 variable {F : Type} (fam : Family F) (cfg : Config)
 
@@ -84,6 +84,6 @@ namespace Engine.Sync
 /-- Every new full round supplies the statelessness premise. -/
 theorem full_round_runs (c : Conn) (hf : c.floor ≤ 1) (hp : c.peerFloor.getD c.floor ≤ 1) :
     (c.beginRound (c.round + 1)).roundFloor ≤ 1 := by
-  simp only [Conn.beginRound, Nat.ne_add_one, ite_false]
+  simp only [Conn.beginRound, Nat.lt_add_one, ite_true]
   omega
 end Engine.Sync

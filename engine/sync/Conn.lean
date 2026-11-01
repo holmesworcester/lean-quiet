@@ -41,7 +41,6 @@ import engine.sync.Wire
 import engine.sync.Session
 import engine.sync.Serve
 import engine.sync.Closure
-import engine.sync.RoundLaws
 import engine.core.Sync
 import Std.Data.HashSet
 
@@ -142,6 +141,9 @@ structure Conn where
   lastAsk : Nat := 0
   /-- The rounds in flight here, each with the snapshot it is answered from. -/
   snaps : List ((Id × Nat) × List Item) := []
+  /-- Latest epoch seen in each room, retained after its snapshot is retired.
+  Delayed terminal markers and replayed claims cannot rewind another round. -/
+  epochs : List (Id × Nat) := []
   /-- Captured overlap floor, retained after the round ends for delayed wants. -/
   roundFloor : Nat := 0
   /-- A window closure ran out of slots in this round. -/
@@ -214,15 +216,29 @@ def chunks (ids : List Id) (mk : List Id → Msg) : List Op :=
 def Conn.open (dialer : Bool) (rooms : List Id) (floor : Nat) (now : Nat) : Step :=
   { conn := { session := Session.dialing.sayHello, dialer, rooms, floor, heard := now, sent := now, lastRound := now }, send := [(Msg.hello floor).op] }
 
-/-- Capture the round's overlap once, including on the responder. All rooms
-in a round use this window. A later hello cannot change delayed wants. -/
+/-- Remember a room's newest round, with at most one record per room. -/
+def noteEpoch (limit : Nat) (epochs : List (Id × Nat)) (r : Id) (k : Nat) : List (Id × Nat) :=
+  ((r, k) :: epochs.filter (fun p => !Decidable.decide (p.1 = r))).take limit
+
+/-- An older epoch, a completed duplicate, or a reply to a round the dialer
+never opened. Other rooms can lag behind the global counter. -/
+def Conn.oldRound (c : Conn) (r : Id) (k : Nat) : Bool :=
+  let active := c.snaps.any (fun p => Decidable.decide (p.1 = (r, k)))
+  (c.dialer && !active) ||
+    match c.epochs.find? (fun p => Decidable.decide (p.1 = r)) with
+    | none => false
+    | some (_, seen) => Decidable.decide (k < seen) || (Decidable.decide (k = seen) && !active)
+
+/-- Capture a newer round's overlap, including on the responder. Replies
+for a room still on an earlier epoch do not rewind the global counter or
+clear the newer round's closure work. -/
 def Conn.beginRound (c : Conn) (k : Nat) : Conn :=
   { c with
-    round := k
-    roundFloor := if c.round = k then c.roundFloor else max c.floor (c.peerFloor.getD c.floor),
-    closed := if c.round = k then c.closed else {},
-    frontier := if c.round = k then c.frontier else [],
-    closureCut := c.round = k && c.closureCut }
+    round := max c.round k
+    roundFloor := if c.round < k then max c.floor (c.peerFloor.getD c.floor) else c.roundFloor,
+    closed := if c.round < k then {} else c.closed,
+    frontier := if c.round < k then [] else c.frontier,
+    closureCut := if c.round < k then false else c.closureCut }
 
 /-- Queue requirements only for a captured windowed round. -/
 def Conn.queue (c : Conn) (ids : List Id) : Conn :=
@@ -241,7 +257,10 @@ def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
     let snaps := ready.map fun r => ((r, k), ix.items r)
     let send := snaps.map fun ((r, _), s) =>
       (Msg.rbsr r k (w.map (opening Prod.fst Prod.snd sha256 cfg.params s))).op
-    { conn := { c.beginRound k with lastRound := now, snaps := (c.snaps ++ snaps).take c.rooms.length }, send }
+    { conn := { c.beginRound k with
+        lastRound := now
+        snaps := (c.snaps ++ snaps).take c.rooms.length
+        epochs := ready.foldl (fun es r => noteEpoch c.rooms.length es r k) c.epochs }, send }
 
 /-- The snapshot round k in room r is answered from: the one taken when
 this side first saw the round, or the room as it is now. -/
@@ -254,8 +273,9 @@ def Conn.snap (ix : Index) (c : Conn) (r : Id) (k : Nat) : List Item :=
 snapshot; no claims ends the round. -/
 def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) : Step :=
   if !has c.rooms r then { conn := c, send := [(Msg.rbsr r k []).op] } else
+  if c.oldRound r k then { conn := c } else
   let snap := c.snap ix r k
-  let c := c.beginRound k
+  let c := { c.beginRound k with epochs := noteEpoch c.rooms.length c.epochs r k }
   let others := c.snaps.filter fun p => !Decidable.decide (p.1.1 = r)
   let ended (c : Conn) : Conn :=
     { c with snaps := others }
@@ -439,7 +459,10 @@ def Conn.tick (ix : Index) (c : Conn) (now : Nat) : m Step := do
 
 /-- The rooms the peer may see changed: forget the others' rounds. -/
 def Conn.setRooms (c : Conn) (rooms : List Id) : Conn :=
-  { c with rooms, snaps := (c.snaps.filter fun p => has rooms p.1.1).take rooms.length }
+  { c with
+    rooms
+    snaps := (c.snaps.filter fun p => has rooms p.1.1).take rooms.length
+    epochs := (c.epochs.filter fun p => has rooms p.1).take rooms.length }
 
 end
 

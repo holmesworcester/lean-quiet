@@ -114,7 +114,9 @@ witness for `NoSecondPreimage` is for a constructed model hash. The
 finite native scene certificates, a kernel-proved infinite fair/ideal model
 run, and a successful production Node/hooks execution with a fair continuation.
 The running scheduler has bounded service proofs and real TCP regression tests.
-Convergence of every fair execution of the full app remains unproved.
+The new round and closure component theorems have native premise certificates;
+the checks also repaired invite retries and stale round handling.
+[Full-app composition remains open](docs/BOOTSTRAP-LIVENESS.md).
 
 - **kernel-witness:** Lean checks a concrete fixture's premises and application
   of the named theorem. No new axioms, `sorry`, or `native_decide` are admitted.

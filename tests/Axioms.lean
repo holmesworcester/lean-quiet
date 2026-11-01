@@ -15,9 +15,13 @@ import engine.sync.Witnesses
 import engine.sync.RetryLaws
 import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
+import engine.sync.ClosureDelivery
+import engine.sync.RoundRun
+import engine.sync.SimLaws
 import engine.wire.CloseLaws
 import engine.wire.LaneLaws
 import engine.wire.Slots
+import engine.wire.DialQueue
 import engine.core.Engine
 import engine.core.IdemLaws
 import app.community.Proofs
@@ -62,6 +66,7 @@ import engine.core.CostErase
 import engine.renderer.ActsLaws
 import engine.core.Project
 import app.connection.Family
+import engine.wire.EgressLaws
 
 /-! Every law of the repository, each of which must rest on Lean's
 standard axioms only (tests/check.sh). One section per former package's
@@ -167,6 +172,9 @@ open Engine Community
 #print axioms Engine.sum_scope_left
 #print axioms Connection.open_seal
 #print axioms Connection.cid_seal
+#print axioms Connection.view_held
+#print axioms Connection.rooms_held
+#print axioms Connection.hooks_reads
 #print axioms Connection.established_agrees
 #print axioms Connection.Noise.sent1_read1
 #print axioms Connection.Noise.read2_write2'
@@ -385,6 +393,10 @@ open Engine Community
 #print axioms Engine.Sync.serveOwed_budget
 #print axioms Engine.Sync.serveOwed_shown
 #print axioms Engine.Sync.serveOwed_blind
+#print axioms Engine.Sync.recv_sim
+#print axioms Engine.Sync.filedGive_sim
+#print axioms Engine.Sync.tickGive_sim
+#print axioms Engine.Sync.serveOwed_sim
 #print axioms Engine.Sync.serveOwed_bounded
 #print axioms Engine.Sync.serveOwed_send
 #print axioms Engine.Sync.hot_ids
@@ -658,6 +670,14 @@ end net
 #print axioms Engine.Sync.filedGive_reads
 #print axioms Engine.Sync.filedGive_quiet
 #print axioms Connection.removed_gets_only_notice
+#print axioms Engine.Sync.onFrame_fresh
+#print axioms Engine.Sync.onTick_fresh
+#print axioms Engine.Sync.onWrite_fresh
+#print axioms Engine.Sync.onClose_fresh
+#print axioms Engine.Sync.entry_fresh
+#print axioms Connection.hooks_readOnly
+#print axioms Connection.sent_mayGo
+#print axioms Connection.removal_reaches_session
 #print axioms Engine.Sync.notify_bounded
 
 section windows
@@ -1168,3 +1188,95 @@ end cost
 #print axioms Text.pixelLine_glyphs
 
 #print axioms Text.metricWidth_fits
+
+-- Positive progress through production handlers, beyond conditional safety.
+#print axioms Connection.Progress.Exchange.request_constructed
+#print axioms Connection.Progress.Exchange.answer_constructed
+#print axioms Connection.Progress.Exchange.request_accepts
+#print axioms Connection.Progress.Exchange.reply_accepts
+#print axioms Connection.Progress.Exchange.opened_accepts
+#print axioms Connection.Progress.Exchange.responder_accepts
+#print axioms Connection.Progress.Exchange.initiator_accepts
+#print axioms Connection.Progress.honest_exchange
+#print axioms Connection.Progress.answerAll_contains
+#print axioms Connection.Progress.react_contains_answer
+#print axioms Connection.Progress.answer_ready
+#print axioms Engine.Sync.DialQueue.enqueue_pending
+#print axioms Engine.Sync.DialQueue.enqueue_bounded
+#print axioms Engine.Sync.DialQueue.reserve_head
+#print axioms Engine.Sync.DialQueue.reserve_mem
+#print axioms Engine.Sync.DialQueue.reserve_order
+#print axioms Engine.Sync.DialQueue.reserve_bounded
+#print axioms Connection.dialOne_sends_mem
+#print axioms Connection.rejoin_dials_each
+#print axioms Connection.reconnect_dials_each
+#print axioms Engine.Sync.recv_data_takes
+#print axioms Engine.Sync.write_store
+#print axioms Engine.Sync.absentStep_keeps
+#print axioms Engine.Sync.absentStep_source
+#print axioms Engine.Sync.absentFold_keeps
+#print axioms Engine.Sync.absentFold_source
+#print axioms Engine.Sync.absentFold_covers
+#print axioms Engine.Sync.write_preserves_op
+#print axioms Engine.Sync.write_takes
+#print axioms Engine.Sync.dedup_nodup
+#print axioms Engine.Sync.budget_same_ops
+#print axioms Engine.Sync.held_empty_reachable
+#print axioms Engine.Sync.ingest_many_reachable
+#print axioms Engine.Sync.turn_reachable
+#print axioms Engine.Sync.turn_settles
+#print axioms Engine.Sync.write_reachable
+#print axioms Engine.Sync.write_log_subset
+#print axioms Engine.Sync.write_settles
+#print axioms Engine.Sync.ReceiverRun.store_reachable
+#print axioms Engine.Sync.ReceiverRun.invariant
+#print axioms Engine.Sync.ReceiverRun.settled
+#print axioms Engine.Sync.ReceiverRun.keeps
+#print axioms Engine.Sync.ReceiverRun.retains
+#print axioms Engine.Sync.ReceiverRun.receives
+#print axioms Engine.Sync.serve_pending
+#print axioms Engine.Sync.ServiceRun.pending
+#print axioms Engine.Sync.ServiceRun.pending_until
+#print axioms Engine.Sync.ServiceRun.eventually_emitted
+#print axioms Engine.Sync.finite_eventually_held
+#print axioms Engine.Sync.closure_delivered
+#print axioms Engine.Sync.filter_idxOf_le
+#print axioms Engine.Sync.serveOwed_pending
+#print axioms Connection.ProgressTape.run_bind
+#print axioms Connection.ProgressTape.run_count
+#print axioms Connection.ProgressTape.run_get
+#print axioms Connection.ProgressTape.run_view
+#print axioms Connection.ProgressTape.run_arrivedFrom
+#print axioms Connection.ProgressTape.run_fresh
+#print axioms Connection.ProgressTape.answer_ready
+
+#print axioms Engine.Sync.conn_answers_claims
+#print axioms Engine.Sync.conn_ignores_old_round
+#print axioms Engine.Sync.beginRound_not_newer
+#print axioms Engine.Sync.noteEpoch_bounded
+#print axioms Engine.Sync.conn_round_continues
+#print axioms Engine.Sync.conn_returns_claims
+#print axioms Engine.Sync.RoundRun.successor
+#print axioms Engine.Sync.RoundRun.ready_next
+#print axioms Engine.Sync.RoundRun.answer_rank
+#print axioms Engine.Sync.RoundRun.next_mem
+#print axioms Engine.Sync.RoundRun.terminates
+#print axioms Engine.Sync.RoundRun.admit_covers
+#print axioms Engine.Sync.RoundRun.holds_announced
+#print axioms Engine.Sync.RoundRun.wants_seen
+#print axioms Engine.Sync.RoundRun.discovers
+#print axioms Engine.Sync.RoundRun.mem_inserts
+#print axioms Engine.Sync.RoundRun.asks_have_source
+#print axioms Engine.Sync.RoundRun.pending_source
+#print axioms Engine.Sync.RoundRun.discovers_wire
+#print axioms Engine.Sync.RoundRun.execute_runs
+#print axioms Engine.Sync.RoundRun.advance_empty
+#print axioms Engine.Sync.RoundRun.run_empty
+#print axioms Engine.Sync.RoundRun.run_bounded
+#print axioms Engine.Sync.RoundRun.filter_in_subsets
+#print axioms Engine.Sync.RoundRun.collisionCheck_sound
+#print axioms Engine.Sync.RoundRun.sound_of_check
+#print axioms Engine.Sync.RoundRun.initial_ready
+#print axioms Engine.Sync.RoundRun.initial_claim
+#print axioms Engine.Sync.RoundRun.initial_asks
+#print axioms Engine.Sync.conn_runs_exchange

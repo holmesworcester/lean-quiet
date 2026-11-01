@@ -8,6 +8,30 @@ import app.community.channel.message.reaction.View
 import app.community.key.View
 import app.community.member.join.accept.View
 import app.community.profile.View
+import app.community.member.invite.request.Op
+import app.community.channel.message.reaction.Op
+import app.community.Family
+import app.community.key.Op
+import app.community.key.wrap.Op
+import app.community.channel.message.Op
+import app.community.member.remove.Commands
+import app.community.member.remove.Op
+import app.community.member.admin.Op
+import app.community.member.join.joining.abandon.Op
+import app.community.Commands
+import app.community.channel.message.attachment.chunk.Op
+import app.community.channel.message.receipt.Op
+import app.community.profile.Op
+import app.community.device.secret.Op
+import app.community.name.Op
+import app.community.member.join.accept.Op
+import app.community.member.invite.request.approve.Op
+import app.community.member.remove.Proofs
+import app.community.channel.message.attachment.Op
+import app.community.device.endpoint.Op
+import app.community.member.invite.Op
+import app.community.member.join.joining.Op
+import app.community.Op
 
 namespace Kinds.Message
 open _root_.Engine _root_.Community _root_.Data

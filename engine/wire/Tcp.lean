@@ -46,6 +46,8 @@ send and dial would wait behind that work, and sync would crawl.
 import engine.wire.Node
 import engine.wire.Frame
 import engine.wire.Slots
+import engine.wire.DialQueue
+import engine.wire.Loop
 import Std.Async.TCP
 import Std.Sync.Channel
 import engine.wire.Listener
@@ -154,7 +156,8 @@ structure RunState where
   next : Nat := 0
   /-- Frames waiting for a dial to complete, by address. -/
   pending : List (ByteArray × List ByteArray) := []
-  lastTick : Nat := 0
+  /-- Pending destinations not yet given a native socket reservation. -/
+  waiting : List ByteArray := []
   slots : Slots
 
 /-- Block on a full event queue. Closing it releases stopped producers. -/
@@ -284,6 +287,15 @@ def RunState.sockOf (st : RunState) (p : Sock → Bool) : Option Sock := st.sock
 def RunState.drop (st : RunState) (sid : Nat) : RunState :=
   { st with socks := st.socks.filter (·.id != sid) }
 
+/-- Reserve deferred destinations in their original FIFO order under the
+listener's mutex. Failed quota checks retain both position and frames. -/
+def RunState.startPending (cfg : RunConfig) (st : RunState) : IO RunState := do
+  let chosen ← st.slots.atomically do
+    modifyGetThe (List String) fun occupied => DialQueue.reserve cfg occupied st.waiting
+  for addr in chosen do
+    let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+  return { st with waiting := st.waiting.filter (!chosen.contains ·) }
+
 def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (addr : ByteArray) (now : Nat) :
     IO (RunState × Nat) := do
   let sid := st.next
@@ -301,7 +313,7 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO 
   match st.sockOf (·.id == sid) with
   | none => return (st, {})
   | some s =>
-    let (node, e) ← (st.node.onClose x s.addr now).run st.db
+    let (node, e) ← (st.node.step x (.close s.addr) now).run st.db
     s.stopped.set true
     if drain then s.drain else s.stop
     return ({ st.drop sid with node }, e)
@@ -333,12 +345,12 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
         if fs.length < cfg.queue then
           st := { st with pending := st.pending.map fun (a, fs) => if a == addr then (a, fs ++ [b]) else (a, fs) }
         else
-          let (node, more) ← (st.node.onClose x addr now).run st.db
+          let (node, more) ← (st.node.step x (.close addr) now).run st.db
           st ← ({ st with node, pending := st.pending.map fun (a, fs) => if a == addr then (a, []) else (a, fs) }).apply cfg more now
       | none =>
-        if ← st.slots.take cfg addr then
-          st := { st with pending := (addr, [b]) :: st.pending }
-          let _ ← IO.asTask (prio := .dedicated) (dialOut ch st.slots addr)
+        if st.pending.length < cfg.maxPending then
+          st := { st with pending := st.pending ++ [(addr, [b])], waiting := DialQueue.enqueue cfg.maxPending addr st.waiting }
+  st ← st.startPending ch cfg
   for sid in over do st ← close st sid
   -- Then the dropped sessions' sockets close, after their last frames
   -- (a removed member's notice) are sent on them.
@@ -377,7 +389,7 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
     | some s =>
       let st := { st with socks := st.socks.map fun (s' : Sock) => if s'.id == sid then { s' with heard := now } else s' }
       let x' := { x with room := ← rooms cfg st.socks }
-      let (st, e) ← st.node? fun n => n.onFrame x' s.addr p now
+      let (st, e) ← st.node? fun n => n.step x' (.frame s.addr p) now
       some <$> st.apply x ch notify cfg e now
   | .closed sid => return some (← st.closeApply x ch notify cfg sid now)
   | .lanes reply =>
@@ -386,62 +398,71 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
   | .accepted c peer => return some (← st.addSock ch cfg c peer now).1
   | .dialed addr none =>
     st.slots.release addr
-    let (node, e) ← (st.node.onClose x addr now).run st.db
-    some <$> ({ st with node, pending := st.pending.filter (·.1 != addr) }).apply x ch notify cfg e now
+    let (node, e) ← (st.node.step x (.close addr) now).run st.db
+    some <$> ({ st with node, pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }).apply x ch notify cfg e now
   | .dialed addr (some c) =>
     let (st, sid) ← st.addSock ch cfg c addr now
     let frames := (st.pending.find? (·.1 == addr)).map (·.2) |>.getD []
-    let st := { st with pending := st.pending.filter (·.1 != addr) }
+    let st := { st with pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }
     -- A new address's first frames are the session's opening: urgent.
     if let some s := st.sockOf (·.id == sid) then
       unless ← s.push cfg (frames.map (.urgent, ·)) do
         return some (← st.closeApply x ch notify cfg sid now)
     return some st
 
-/-- The loop: bounded-fair choice between local writes and network events
-(`Inbox.next`), followed by the clock when `tickMs` has elapsed. -/
-def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState) : IO Unit := do
+/-- Stop producers, notify the node of every remaining transport end and
+wait at most `stopMs` for writes already under way. -/
+def RunState.shutdown (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op))
+    (st : RunState) (now : Nat) : IO RunState := do
   let mut st := st
-  let mut writeFirst := true
+  discard <| ch.close.toBaseIO
+  discard <| writes.close.toBaseIO
+  let socks := st.socks
+  for s in socks do
+    st := (← st.close x s.id now).1
+  for (_, addr) in st.node.addrs do
+    let (node, _) ← (st.node.step x (.close addr) now).run st.db
+    st := { st with node }
+  for s in socks do
+    while !(← IO.hasFinished s.done) && (← IO.monoMsNow) < now + cfg.stopMs do
+      IO.sleep 5
+  return st
+
+/-- Native adapters for the shared turn. Every node invocation uses
+`Node.step`; frames, effects, socket expiry and shutdown retain their actual
+SQLite and TCP implementations. -/
+def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) :
+    Loop.Backend IO RunState (List Op) Event where
+  clock := IO.monoMsNow
+  writes := writes.tryRecv
+  events := ch.tryRecv
+  write := fun st ops now => do
+    let (st, e) ← st.node? fun n => n.step x (.write ops) now
+    st.apply x ch notify cfg e now
+  event := fun st ev now => st.handle x ch notify cfg ev now
+  tick := fun st now => do
+    let x' := { x with room := ← rooms cfg st.socks }
+    let (st, e) ← st.node? fun n => n.step x' .tick now
+    st.apply x ch notify cfg e now
+  expire := fun st now => do
+    let mut st := st
+    for s in st.socks do
+      if shut cfg.idle cfg.stallMs now s.heard (← s.since) then
+        st ← st.closeApply x ch notify cfg s.id now
+    return st
+  stop := fun st now => st.shutdown x ch cfg writes now
+  idle := IO.sleep 5
+
+/-- Repeatedly execute the shared production turn. The result exposes the
+selected primary input and timer decision to proof interpreters and tests;
+the native loop needs only the next state and stopping flag. -/
+def runLoop (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (List Op)) (st : RunState) : IO Unit := do
+  let backend := RunState.loopBackend x ch notify cfg writes
+  let mut state : Loop.State RunState := { value := st }
   repeat
-    let now ← IO.monoMsNow
-    let mut busy := false
-    let (selected, nextPreference) ← Inbox.next writeFirst writes.tryRecv ch.tryRecv
-    writeFirst := nextPreference
-    match selected with
-    | some (.inl ops) =>
-      busy := true
-      let (st', e) ← st.node? fun n => n.onWrite x ops now
-      st ← st'.apply x ch notify cfg e now
-    | some (.inr ev) =>
-      busy := true
-      match ← st.handle x ch notify cfg ev now with
-      | some st' => st := st'
-      | none =>
-        discard <| ch.close.toBaseIO
-        discard <| writes.close.toBaseIO
-        let socks := st.socks
-        for s in socks do
-          st := (← st.close x s.id now).1
-        for (_, addr) in st.node.addrs do
-          let (node, _) ← (st.node.onClose x addr now).run st.db
-          st := { st with node }
-        -- Writers end their write under way, for at most `stopMs`.
-        for s in socks do
-          while !(← IO.hasFinished s.done) && (← IO.monoMsNow) < now + cfg.stopMs do
-            IO.sleep 5
-        return
-    | none => pure ()
-    let (tickNow, nextTick) := Tick.next cfg.tickMs st.lastTick now
-    st := { st with lastTick := nextTick }
-    if tickNow then
-      let x' := { x with room := ← rooms cfg st.socks }
-      let (st', e) ← st.node? fun n => n.onTick x' now
-      st ← st'.apply x ch notify cfg e now
-      for s in st.socks do
-        if shut cfg.idle cfg.stallMs now s.heard (← s.since) then
-          st ← st.closeApply x ch notify cfg s.id now
-    unless busy do IO.sleep 5
+    let result ← Loop.turn backend cfg.tickMs state
+    if result.stopped then return
+    state := result.state
 
 end
 

@@ -1,7 +1,13 @@
 import app.Commands
 import engine.renderer.Image
 import engine.renderer.Row
-import app.community.Proofs
+import app.community.Family
+import app.community.channel.message.Op
+import app.community.Commands
+import app.community.channel.message.attachment.chunk.Op
+import app.community.channel.message.attachment.chunk.Commands
+import app.community.channel.message.attachment.Op
+import app.community.Op
 
 /-!
 `community.channel.message.attachment.chunk`: its component, which reads its own facts, and the component's laws.

@@ -35,6 +35,8 @@ PLANNED = {
 # family -> families its modules may import (connection ops cite community facts)
 CROSS = {"app/connection": ["app/community"]}
 IMPORT = re.compile(r"^import\s+(\S+)", re.M)
+# the app's own root modules, beside app/: the engine imports none of them
+ROOTS = {"Quiet", "Main"}
 
 
 def files_of():
@@ -74,6 +76,9 @@ def check(src):
                 bad.append(f"{reg}: does not register {f}")
     for f in sorted(src):
         for i in IMPORT.findall(src[f]):
+            if f.startswith("engine/") and i in ROOTS:
+                bad.append(f"{f}: the engine imports {i}")
+                continue
             if i not in mod or not mod[i].startswith("app/"):
                 continue
             t = os.path.dirname(mod[i])
@@ -111,6 +116,7 @@ def main():
              {**src, fam: src[fam].replace(f"import {some_op[:-5].replace('/', '.')}\n", "")}),
             ("an import beside it", {**src, some_op: f"import {sibling[:-5].replace('/', '.')}\n" + src[some_op]}),
             ("the engine importing the app", {**src, "engine/core/Core.lean": "import app.Screen\n" + src["engine/core/Core.lean"]}),
+            ("the engine importing the app's root", {**src, "engine/core/Core.lean": "import Quiet\n" + src["engine/core/Core.lean"]}),
         ]
         for what, tree in cases:
             if check(tree) == bad:

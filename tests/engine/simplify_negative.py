@@ -16,6 +16,8 @@ assert run(["lake", "build", "simplify", "syncpair", "connection_check", "Sync",
 assert run([".lake/build/bin/simplify"], "baseline-run") == 0
 # name, source, unique text, mutation, target, runtime assertion (None = law)
 cases = [
+    ("stale-terminal", "engine/sync/Conn.lean", "Decidable.decide (k < seen)", "false", "simplify", "stale terminal keeps the newer room snapshot and epoch"),
+    ("round-rewind", "engine/sync/Conn.lean", "round := max c.round k", "round := k", "simplify", "older active room completes without rewinding another room"),
     ("notice-result", "engine/sync/Notice.lean", "given := x :: s.given", "given := s.given", "engine.sync.NoticeLaws", None),
     ("notice-repeat", "engine/sync/Notice.lean", "if has c.given x then", "if false then", "engine.sync.NoticeLaws", None),
     ("notice-phase", "engine/sync/Notice.lean", "{ c with given := x :: c.given }", "{ c with given := x :: c.given, session := .live }", "engine.sync.SessionLaws", None),

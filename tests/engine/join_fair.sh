@@ -14,6 +14,9 @@ if [ "${SKIP_TCP:-0}" = 1 ]; then
   exit 0
 fi
 python3 tests/engine/join_fair.py --out out/join-fair/baseline
+python3 tests/engine/join_fair.py --out out/join-fair/ordered-hints --ordered-hints --join-only
+python3 tests/engine/join_fair.py --out out/join-fair/first-hint-only \
+  --dead-hints 1 --first-hint-only --expect-hint-starvation
 scratch=$(mktemp -d "$TMPDIR/join-fair-negative.XXXXXX")
 trap 'rm -rf -- "$scratch"' EXIT
 . tests/snapshot.sh

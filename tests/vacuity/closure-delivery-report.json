@@ -1,0 +1,58 @@
+{
+  "write_store": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_store",
+    "witness": "Vacuity.ClosureDelivery.writeStoreWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Closed kernel instance of the actual Node.write/Turn.turn store equality for the populated signed Alice/Bob history and a nonempty batch containing old operations, a new signed message, and its retransmission. The native runner separately checks that the new-message branch stores and validates the new message while retaining the old history."
+  },
+  "absentStep_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.absentStep_keeps",
+    "witness": "Vacuity.ClosureDelivery.absentStepKeepsWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "The nonempty accumulator initially contains Bob's signed message; its membership premise is proved in the kernel before applying the actual absentStep retention law while another signed message is considered. Native checks confirm both queued values survive the fresh insertion branch."
+  },
+  "absentStep_source": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.absentStep_source",
+    "witness": "Vacuity.ClosureDelivery.absentStepSourceWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Native evaluation proves the newly signed message is a member of actual absentStep output against an already populated store and nonempty accumulator, then applies the source theorem. The selected operation is the new input, exercising the insertion alternative; the runner also verifies an unrelated removal is never invented."
+  },
+  "absentFold_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.absentFold_keeps",
+    "witness": "Vacuity.ClosureDelivery.absentFoldKeepsWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "A closed kernel proof discharges membership of the signed message in the initial nonempty accumulator and applies retention through four actual absentStep iterations containing a stored root, a fresh signed message, a stored message, and a retransmission. Native checks confirm the exact two-operation deduplicated result."
+  },
+  "absentFold_source": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.absentFold_source",
+    "witness": "Vacuity.ClosureDelivery.absentFoldSourceWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Native evaluation establishes that the fresh signed message appears after the nonempty mixed/repeated input fold, then applies the actual provenance theorem. The runner checks the exact result and rejects an unrelated removal absent from both the accumulator and input batch."
+  },
+  "absentFold_covers": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.absentFold_covers",
+    "witness": "Vacuity.ClosureDelivery.absentFoldCoversWitness",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Native store lookup proves the fresh signed message is absent from the populated community; its occurrence in a four-operation batch is proved in the kernel. The theorem then witnesses preservation of its id through the actual absent fold despite retransmission and already stored inputs. The required absence premise is checked on this fixture; this id-coverage theorem requires no collision assumption."
+  },
+  "closure_delivered": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.closure_delivered",
+    "witness": "Vacuity.ClosureDelivery.certificate",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "Synthetic signed Alice/Bob community: native finite checks establish distinct IDs, exact source operations, authorization, actual onWant queue admission, and the signed message's source verdict. Kernel proofs construct infinitely recurring positive capacity with zero-capacity stalls, continuing onWant tail requests, duplicate receiver inputs, and actual Node.put retention/validation; the certificate applies closure_delivered to obtain permanent eventual closure possession and the same verdict. The receiver processes dependencies after the message. Negative controls withhold the root, revoke authorization, and give no send room. This is a running-core component theorem over Held and post-authorization inputs: discovery-to-request, sealed transport-to-input, SQLite refinement, hook mutations/purges, and full Node/TCP execution refinement remain separate obligations; no claim that this alone proves universal app bootstrap."
+  },
+  "ServiceRun.eventually_emitted": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.ServiceRun.eventually_emitted",
+    "witness": "Vacuity.ClosureDelivery.certificate",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "The closure certificate applies actual serveOwed progress with an occupied queue, unbounded tail requests, continuously serviced hot requests, zero-capacity stalls and kernel-proved recurring positive ordinary capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. Hot targets emit immediately; hot filtering cannot move remaining targets backward, so ongoing urgent work does not starve ordinary FIFO requests. The theorem permits arbitrary changing hot prefixes; it does not assert OS or TCP fairness."
+  }
+}

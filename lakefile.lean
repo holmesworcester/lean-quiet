@@ -225,6 +225,15 @@ lean_exe vacuity_production_bootstrap where
 lean_exe vacuity_bootstrap where
   root := `tests.vacuity.BootstrapMain
 
+lean_exe vacuity_connection_progress where
+  root := `tests.vacuity.ConnectionProgressMain
+
+lean_exe vacuity_closure_delivery where
+  root := `tests.vacuity.ClosureDeliveryMain
+
+lean_exe vacuity_round_exchange where
+  root := `tests.vacuity.RoundExchangeMain
+
 lean_exe merkle_check where
   root := `tests.engine.MerkleCheck
 
@@ -281,6 +290,12 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `platforms.headless.NetJoin
+
+lean_exe write_admission where
+  root := `platforms.headless.WriteAdmission
+
+lean_exe vacuity_storage_effects where
+  root := `tests.vacuity.StorageEffectsMain
 
 -- Two phones, two communities, each in both, everything named alike.
 lean_exe cross where

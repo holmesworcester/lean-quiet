@@ -16,6 +16,9 @@ checks = audit.load_checks()
 RUNNERS = {
     'tests.vacuity.Bootstrap': 'vacuity_bootstrap',
     'tests.vacuity.ProductionBootstrap': 'vacuity_production_bootstrap',
+    'tests.vacuity.ConnectionProgress': 'vacuity_connection_progress',
+    'tests.vacuity.ClosureDelivery': 'vacuity_closure_delivery',
+    'tests.vacuity.RoundExchange': 'vacuity_round_exchange',
     'tests.vacuity.Identity': 'vacuity_identity',
     'tests.vacuity.IdentityTrust': 'vacuity_identity_trust',
     'tests.vacuity.IdentityPeople': 'vacuity_identity_people',

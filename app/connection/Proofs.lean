@@ -33,6 +33,7 @@ import app.connection.send.Proofs
 import app.connection.send.Validate
 import engine.wire.Noise
 import engine.wire.NoiseSymbolic
+import app.community.Proofs
 
 namespace Connection
 open Engine Codec
@@ -527,3 +528,29 @@ theorem cid_seal {cid sk n p : B}
 end
 end Connection
 
+namespace Connection
+section
+open Engine
+variable {C : Community.Crypto} {K : Keys} {s : DB F}
+open Community (Admitted Removed)
+
+/-- **Which nodes the node lets in.** At rest, the node's `allowPeer`
+accepts node key e for c exactly when a device admitted under e is live
+(admitted, into no removed user) among the Community ops it holds. -/
+theorem connect_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (e : Community.Key) :
+    ((Community.allowPeer c e).liftL : View F Bool).eval s = true ↔
+      ∃ u d, Admitted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
+  rw [view_node h hq (Community.reads_allowPeer c e)]
+  exact Community.connect_iff (community_inv h hq) hq c e
+
+/-- **A removal, once the node holds it, cuts the removed user's
+devices' node out of its trust rule.** -/
+theorem removal_cuts_off_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id}
+    {e : Community.Key} (hr : Removed C (community C s).ops c u)
+    (only : ∀ u' d, Admitted C (community C s).ops c u' d e → ∃ e', Admitted C (community C s).ops c u d e') :
+    ((Community.allowPeer c e).liftL : View F Bool).eval s = false := by
+  rw [view_node h hq (Community.reads_allowPeer c e)]
+  exact Community.removal_cuts_off (community_inv h hq) hq hr only
+
+end
+end Connection

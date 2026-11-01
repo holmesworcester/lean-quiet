@@ -1,7 +1,6 @@
 import Std.Net.Addr
 import engine.renderer.Paint
 import engine.renderer.qr.Qr
-import app.community.Proofs
 
 /-!
 `community.member.invite`: its component, which reads its own facts, and the component's laws.

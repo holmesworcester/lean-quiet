@@ -1,2 +1,7 @@
-# Tests run locally through ci/local.sh and the named Mise tasks.
-# No GitHub Actions workflow is enabled for this repository.
+# Tests run through ci/local.sh and the named Mise tasks.
+# ci/bootstrap-progress.workflow.yml is ready to run check, bootstrap-progress,
+# vacuity, readme and host:net-join on PRs, main pushes and manual dispatch.
+# Activation is blocked: the configured GitHub PAT lacks workflow scope.
+# With a suitably scoped credential, copy that file to
+# .github/workflows/bootstrap-progress.yml and commit it. Platform suites still
+# require the provisioned runners documented alongside their named tasks.

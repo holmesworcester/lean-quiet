@@ -1,6 +1,6 @@
 /- The native headless shell and the real app loop, with an explicit end
 after the script closes its window. No network node is needed. -/
-import engine.renderer.PlatformIo
+import app.Screen
 
 def main : IO Unit := do
   let screen ← Platform.screen

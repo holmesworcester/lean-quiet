@@ -373,6 +373,7 @@ validators and the intents. All are theorems in the axiom audit.
 | Does a removed member learn what this node holds of c? | `notice_no_holds` |
 | What does a removed member's session carry? | `rooms_removed` |
 | What reaches a removed member's node? | `removed_gets_only_notice` |
+| ...over a whole entry point (a frame, the clock, a write, a socket closing)? | `removal_reaches_session`, `entry_fresh` |
 | Is the session then closed? | `notice_then_cut` |
 | Does a removed node get a new session or a re-sent answer? | `answer_trusted`, `resend_trusted` |
 | Can anyone push ops in without a session? | `bare_takes_only_join` |
@@ -390,6 +391,20 @@ it, `c.carry ((roomsV cid).eval s)` (`rooms_model`), and Conn's `recv`,
 `filedGive`, `tickGive` and `open` run on it: the steps `Node.onFrame`,
 `Node.fanout` and `Node.onTick` run. Their premises are read from the
 lists of the node's own store, as `rooms_cut`'s are.
+
+`entry_fresh` (engine/wire/EgressLaws.lean) chains them. For hooks that
+only read, each entry point changes the store only by write turns and
+purges. Every frame it sends is a bare op or a bundle sealed for one
+session, each payload an op a connection step sent at a store on the
+way, on the connection as `Node.refresh` gave it there. The family's
+hooks only read (`hooks_reads`, app/Proofs.lean), and each
+step on held data answers as on the model (engine/sync/SimLaws.lean). So
+`removal_reaches_session` (app/Proofs.lean) gives the
+per-step law at that store: once a removal is stored, every later step
+reads it, and of c the session gets only sync messages and the notice.
+Its runtime witness runs Alice's whole tick on the actual removal
+fixture: the frame for Bob, opened with the session key, carries the
+removal and not his message.
 
 ## Tests
 
@@ -422,9 +437,11 @@ lists of the node's own store, as `rooms_cut`'s are.
 
 ## Not covered
 
-- An entry point as a whole: the laws are per connection step. The
-  composition (refresh, step, settle, follow, seal, purge) is tested,
-  not proven.
+- The bare handshake replies an entry point sends: `answer_trusted` and
+  `resend_trusted` are per step; that an entry point's bare frames are
+  only those is read from the code. And the entry-point laws run on a
+  store whose purge is `purgeS`, the SQL purge's model, until the purge
+  is written once over the store (`run_purge`).
 - Community's laws hold over a Community store. Their premises on the
   node's composed store are read from its lists, as `rooms_cut` does;
   carrying a Community law to the composed store (`sum_project`) is

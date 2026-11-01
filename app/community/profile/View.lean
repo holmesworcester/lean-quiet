@@ -1,6 +1,8 @@
 import app.Commands
 import engine.renderer.Row
-import app.community.Proofs
+import app.community.Family
+import app.community.profile.Op
+import app.community.Op
 
 /-!
 `community.profile`: its component, which reads its own facts, and the component's laws.

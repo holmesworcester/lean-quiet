@@ -87,6 +87,47 @@ def rooms (t : Checks) : IO Unit := do
   let next := ((ended.conn.tick fam cfg {} 20 : TM Step).run {}).1
   t.ok "completed room starts again beside stalled room" (next.send.any fun o => match Msg.ofOp o with | some (.rbsr r _ _) => r == fast | _ => false)
 
+def roundEpochs (t : Checks) : IO Unit := do
+  let slow := "slow".toUTF8
+  let fast := "fast".toUTF8
+  let x := Op.make 1 [fast] "newer snapshot".toUTF8
+  let cfg : Config := {}
+  let c : Conn := {
+    dialer := false
+    floor := 0
+    rooms := [slow, fast]
+    round := 3
+    roundFloor := 50
+    snaps := [((slow, 1), []), ((fast, 3), [(⟨3, 3⟩, x.id)])]
+    epochs := [(slow, 1), (fast, 3)]
+    frontier := [x.id]
+    closureCut := true }
+  let stale := c.onRbsr cfg {} fast 2 [] 20
+  t.ok "stale terminal keeps the newer room snapshot and epoch"
+    (stale.conn.snaps == c.snaps && stale.conn.epochs == c.epochs &&
+      stale.conn.round == 3 && stale.conn.frontier == [x.id] && stale.send.isEmpty)
+  let lag := c.onRbsr cfg {} slow 1 [] 21
+  t.ok "older active room completes without rewinding another room's closure"
+    (lag.conn.round == 3 && lag.conn.roundFloor == 50 && lag.conn.closureCut &&
+      lag.conn.frontier == [x.id] && lag.conn.snaps == [((fast, 3), [(⟨3, 3⟩, x.id)])])
+  let replay := lag.conn.onRbsr cfg {} slow 1 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 22
+  t.ok "completed epoch cannot be reopened by a replayed claim"
+    (replay.send.isEmpty && replay.conn.asked.isEmpty && replay.conn.epochs == lag.conn.epochs)
+  let newRound := lag.conn.onRbsr cfg {} slow 4 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 23
+  t.ok "responder accepts a later epoch after retiring a snapshot"
+    (newRound.conn.round == 4 && !newRound.send.isEmpty && newRound.conn.asked.contains x.id)
+  let dialer := { c with dialer := true }
+  let unstarted := dialer.onRbsr cfg {} fast 99 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 24
+  t.ok "dialer ignores replies for a round it never opened"
+    (unstarted.send.isEmpty && unstarted.conn.round == 3 && unstarted.conn.snaps == c.snaps)
+  let cut := c.setRooms [fast]
+  t.ok "removing a room also removes its remembered epoch"
+    (cut.epochs == [(fast, 3)] && cut.snaps == [((fast, 3), [(⟨3, 3⟩, x.id)])])
+  let mut bounded := c
+  for k in [4:50] do bounded := (bounded.onRbsr cfg {} fast k [] k).conn
+  t.ok "completed round epochs stay bounded by authorized rooms"
+    (bounded.epochs.length == 2 && bounded.epochs.contains (fast, 49))
+
 def secrecy (t : Checks) : IO Unit := do
   let r := "room".toUTF8
   let shared := Op.make 1 [r] "shared".toUTF8
@@ -143,6 +184,7 @@ def main : IO UInt32 := do
   Simplify.clock t
   Simplify.pair t
   Simplify.rooms t
+  Simplify.roundEpochs t
   Simplify.secrecy t
   Simplify.notices t
   Simplify.purges t

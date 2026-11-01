@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Regenerate: python3 ci/optree-map.py e727b5e > ci/optree-map.tsv (from the cutover branch head)
+# Regenerate: python3 ci/optree-map.py <main before the cutover> > ci/optree-map.tsv
 """ci/optree-map.tsv: each Lean file the op-tree cutover moved, split or
 merged (from BASE), and the files its declarations are in now (by count)."""
 import re, subprocess, sys, collections

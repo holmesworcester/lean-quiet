@@ -32,7 +32,10 @@ theorem extra_round (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
   unfold Conn.onRbsr
   split
   · exact hb
-  · have hb' := extra_begin cfg c k hb
+  · split
+    · exact hb
+    rename_i fresh
+    have hb' := extra_begin cfg c k hb
     have ht : ((c.beginRound k).snaps.filter (fun p => !Decidable.decide (p.1.1 = r))).length ≤ c.rooms.length :=
       Nat.le_trans (List.length_filter_le ..) hb.2.2
     dsimp only

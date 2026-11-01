@@ -1,5 +1,5 @@
 import app.Commands
-import app.community.Proofs
+import app.community.Family
 
 /-!
 `community.member.join.accept`: its component, which reads its own facts, and the component's laws.

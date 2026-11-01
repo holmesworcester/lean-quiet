@@ -1,6 +1,9 @@
 import app.Commands
 import engine.renderer.Row
-import app.community.Proofs
+import app.community.channel.message.reaction.Op
+import app.community.Family
+import app.community.channel.message.Op
+import app.community.Op
 
 /-!
 `community.channel.message.reaction`: its component, which reads its own facts, and the component's laws.
