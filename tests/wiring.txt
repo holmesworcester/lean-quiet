@@ -67,7 +67,7 @@ weak Chaos.freshSeed a seed from the microsecond clock, guessable by anyone who 
 # nonce it makes), and the node's connection family on SQLite (the
 # handshake's ephemerals, `Fresh`).
 door Engine.Crypto.randomBytes App.newBytes
-door Engine.Crypto.randomBytes Connection.instFreshSqlMFOfCodecOfSortKey
+door Engine.Crypto.randomBytes Connection.freshSql
 # The frame never waits on sync: what App.step reaches, short of the
 # threads it starts, makes no blocking send to a bounded channel (the
 # local-write queue can be full while sync is busy), and waits on no other thread's task. The frame offers
@@ -483,7 +483,6 @@ spec Translate.fillOrigin The periodic plane origin inside the scalar edge and f
 spec Translate.fillRect The viewport crop of that plane inside Translate.edge (Slide.edge_eq).
 spec Translate.seen The compositor's content contract: main's running Cover.seen at its selected source, else unloaded. Source selection is transferred by Slide.pick_eq; fill pixels by Slide.fillRow_eq and fill_pixel.
 
-block Theme.save a device appearance write must run on the checkpoint writer, never the UI thread
 
 wired Engine.Sync.offer_shared
 wired Engine.Sync.offer_stored

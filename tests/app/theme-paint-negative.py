@@ -7,7 +7,7 @@ cases=[
  ('text-path','engine/renderer/Paint.lean','Contrast.ink wanted (getPx row x)','wanted','proof'),
  ('scrim-paint','engine/renderer/Scrim.lean','for s in b.strokes do','for s in (#[] : Array Stroke) do','live'),
  ('edge-paint','engine/renderer/Overlay.lean','let c := if inside then getPx src i else edge theme (getPx dst (x+i))','let c := if inside then getPx src i else getPx src i','live'),
- ('persistence','engine/renderer/ThemeStore.lean','INSERT OR REPLACE INTO appearance (id, value) VALUES (1, ?)','SELECT value FROM appearance WHERE value = ?','write'),
+ ('persistence','app/Screen.lean','submit ⟨[Settings.Appearance.choose rev setting], true⟩','submit ⟨[], true⟩','write'),
 ]
 for name,file,old,new,mode in cases:
  p=Path(file);original=p.read_text();assert old in original

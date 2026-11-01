@@ -144,7 +144,7 @@ def main (args : List String) : IO UInt32 := do
   let beaHeld : M Bool := do
     let s ← get
     let (ms, _) ← Kinds.Profile.members s.me.c
-    let all ← (Connection.allSessions : SqlM SF _).run s.rd
+    let all ← (((Connection.allSessions : LeftM Quiet.AppFact (SqlM SF) _)) : SqlM SF _).run s.rd
     let k := Connection.kept all
     let bea := (ms.toList.filter fun (_, _, p) => p.name == "Bea").flatMap (·.2.1)
     return all.any fun (cid, peer, _) => k.contains cid && bea.contains peer
