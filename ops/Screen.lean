@@ -1,18 +1,16 @@
 import engine.renderer.Row
 import engine.renderer.Overlay
 import engine.renderer.Label
-import engine.renderer.LiveLaws
+import ops.Commands
 import Std.Data.HashMap.Lemmas
 import engine.renderer.Image
 import engine.core.Core
-import engine.renderer.Data
 import ops.community.Screen
 import ops.community.member.join.accept.View
 import engine.renderer.Board
 import engine.renderer.Demand
 import Std.Sync.Mutex
 import ops.community.Proofs
-import ops.Commands
 import ops.community.member.invite.request.Commands
 import ops.community.member.join.joining.Commands
 import ops.connection.Commands
@@ -37,7 +35,6 @@ import engine.renderer.Camera
 import ops.community.member.remove.View
 import Std.Data.HashMap
 
-/-! From ops/app/Pages.lean -/
 section
 
 /-
@@ -867,7 +864,6 @@ end Pages
 
 end
 
-/-! From ops/app/Lifecycle.lean -/
 section
 
 /-
@@ -1035,7 +1031,6 @@ end Lifecycle
 
 end
 
-/-! From ops/app/NodeOffer.lean -/
 section
 
 /-
@@ -1140,7 +1135,6 @@ end NodeOffer
 
 end
 
-/-! From ops/app/Photo.lean -/
 section
 
 /- A photo selection belongs to one composer request. OS presentation may
@@ -1181,7 +1175,6 @@ end Photo
 
 end
 
-/-! From ops/app/Chaos.lean -/
 section
 
 /-
@@ -1447,7 +1440,6 @@ end Chaos
 
 end
 
-/-! From ops/community/membership/RequestView.lean -/
 section
 
 /-
@@ -1510,7 +1502,6 @@ end Kinds.Request
 
 end
 
-/-! From ops/app/Reader.lean -/
 section
 
 /-
@@ -2060,7 +2051,6 @@ end Reader
 
 end
 
-/-! From ops/app/ReaderLife.lean -/
 section
 
 /- A revocable reader owned by a mounted page. Queries and publication
@@ -2100,7 +2090,6 @@ end Reader
 
 end
 
-/-! From ops/app/Components.lean -/
 section
 
 /- Components receive identities and constraints, and observe their own
@@ -2179,7 +2168,6 @@ end Component
 
 end
 
-/-! From ops/app/ClumpList.lean -/
 section
 
 /- A collection owns its window and counts, independently of the op rows
@@ -2240,7 +2228,6 @@ end ClumpList
 
 end
 
-/-! From engine/renderer/Appearance.lean -/
 section
 
 /- Settings share libquiet's drawer geometry on phones and desktop.
@@ -2541,7 +2528,6 @@ end Appearance
 
 end
 
-/-! From engine/renderer/SafeFrame.lean -/
 section
 
 /-
@@ -2627,7 +2613,6 @@ end SafeFrame
 
 end
 
-/-! From AppTypes.lean -/
 section
 
 /- App types shared by the root and lifecycle hooks. Existing fields retain their meaning. -/
@@ -3008,7 +2993,6 @@ end App
 
 end
 
-/-! From ops/app/Wait.lean -/
 section
 
 /- Bounded lifecycle polling. Only suspend may call waitFor; normal frames
@@ -3042,7 +3026,6 @@ end App
 
 end
 
-/-! From AppLife.lean -/
 section
 
 /-
@@ -3414,7 +3397,6 @@ end App
 
 end
 
-/-! From App.lean -/
 section
 
 /-

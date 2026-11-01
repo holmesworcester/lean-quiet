@@ -1689,7 +1689,6 @@ theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : 
 end
 end Community
 
-/-! From ops/connection/bootstrap/Node.lean -/
 section
 
 /-
@@ -1870,7 +1869,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/System.lean -/
 section
 
 /-
@@ -1965,7 +1963,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/Scene.lean -/
 section
 
 /-
@@ -2248,7 +2245,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/Inv.lean -/
 section
 
 /-
@@ -2610,7 +2606,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/Steps.lean -/
 section
 
 /-
@@ -2847,7 +2842,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/Laws.lean -/
 section
 
 /-
@@ -3283,7 +3277,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/Bridge.lean -/
 section
 
 /-
@@ -3331,7 +3324,6 @@ end Net
 
 end
 
-/-! From ops/connection/bootstrap/FairExecution.lean -/
 section
 
 /-

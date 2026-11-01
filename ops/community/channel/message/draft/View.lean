@@ -1,6 +1,5 @@
 import engine.renderer.Row
 
-/-! From ops/app/Composer.lean -/
 section
 
 /-

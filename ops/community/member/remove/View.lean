@@ -1,6 +1,5 @@
 import engine.core.Engine
 
-/-! From ops/app/Remove.lean -/
 section
 
 /-

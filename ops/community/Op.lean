@@ -1,7 +1,6 @@
 import engine.core.Crypto
 import engine.core.Engine
 
-/-! From ops/community/Keys.lean -/
 section
 
 /-
@@ -139,7 +138,6 @@ end Community
 
 end
 
-/-! From ops/community/Op.lean -/
 section
 
 /-

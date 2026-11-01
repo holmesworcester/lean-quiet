@@ -1,4 +1,4 @@
-import engine.renderer.Data
+import ops.Commands
 import engine.renderer.Row
 import ops.community.Proofs
 import ops.community.channel.message.attachment.View
@@ -70,7 +70,6 @@ theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att 
 end
 end ArrivalLaws
 
-/-! From ops/app/Raster.lean -/
 section
 
 /- Op-type components use the generic Work pool. A picture's QOI decode
@@ -139,7 +138,6 @@ end Raster
 
 end
 
-/-! From ops/app/Pics.lean -/
 section
 
 /-

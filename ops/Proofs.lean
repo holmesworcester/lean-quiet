@@ -1056,7 +1056,6 @@ theorem rooms_model (s : DB F) (cid : Id) :
 
 end Connection
 
-/-! From ops/app/LifecycleLaws.lean -/
 section
 
 /-
@@ -1126,7 +1125,6 @@ end LifecycleLaws
 
 end
 
-/-! From ops/app/NavLaws.lean -/
 section
 
 /-
@@ -1219,7 +1217,6 @@ end NavLaws
 
 end
 
-/-! From ops/community/membership/RemovedLaws.lean -/
 section
 
 /-
@@ -1305,7 +1302,6 @@ end RemovedLaws
 
 end
 
-/-! From engine/renderer/SafeLaws.lean -/
 section
 
 /-
@@ -1333,7 +1329,6 @@ end App
 
 end
 
-/-! From engine/renderer/ThemeLaws.lean -/
 section
 
 /-
@@ -1376,7 +1371,6 @@ end ThemeLaws
 
 end
 
-/-! From ops/connection/Execution.lean -/
 section
 
 /-
@@ -1567,7 +1561,6 @@ end Connection.Execution
 
 end
 
-/-! From ops/connection/ExecutionLaws.lean -/
 section
 
 namespace Connection.Execution

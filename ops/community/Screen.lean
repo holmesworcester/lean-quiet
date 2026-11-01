@@ -1,4 +1,4 @@
-import engine.renderer.Data
+import ops.Commands
 import engine.renderer.Row
 import ops.community.Proofs
 import ops.community.channel.message.View
@@ -380,7 +380,6 @@ theorem read_known (known : Array Me) : (read known : m (Array Me × Array Q)) =
 
 end Kinds.Accepted
 
-/-! From ops/app/PeopleLaws.lean -/
 section
 
 /-
@@ -629,7 +628,6 @@ end PeopleLaws
 
 end
 
-/-! From ops/app/Switch.lean -/
 section
 
 /-
