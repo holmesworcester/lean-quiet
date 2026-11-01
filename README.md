@@ -804,13 +804,28 @@ let us prove.
   `app/android`, `app/ios` and `app/host` are now `platforms/android`,
   `platforms/ios` and `platforms/headless`.
 
-The lifecycle port also adds an explicit listener close in
-[`listener.h`](engine/native/listener.h). After the acceptor joins,
-`Runner.stop` invokes the Lean 4.35 UV external object's finalizer once and
-replaces its finalizer with a no-op. This depends on the runtime's external
-object ABI and UV finalizer, not a Lean proof. A retained-runner test checks
-explicit close and repeated stop; the TCP test rebinds the same port while
-retaining the stopped runner.
+Lean's TCP API cannot close a listener, and it cannot cancel a write that
+it already gave to libuv. Its `shutdown` waits behind that write, so a peer
+that never reads would block it forever. So
+[`listener.h`](engine/native/listener.h) has two small C seams. A small
+change to Lean could remove both: a `close` (libuv's `uv_close`, which also
+cancels waiting writes) and an abort in `Std.Internal.UV.TCP`. Then this
+code would use only Lean's API.
+
+1. **Close the listener.** At `Runner.stop`, after the acceptor stops, the
+   C code calls the listener's finalizer once and puts a no-op in its place.
+   It uses only the public fields of Lean's external objects. A test keeps
+   the stopped runner and binds the same port again.
+2. **Abort a stuck write.** The C code reads the first field of Lean's
+   private TCP socket struct to get the descriptor, then calls the OS
+   `shutdown()`. This ends the stuck write. Our Lean outbox limits what can
+   be stuck: one batch in libuv per socket.
+3. **Review each Lean upgrade.** An `#error` lets the private read build
+   with one exact Lean version only. Before you change the version, read
+   Lean's `src/runtime/uv/tcp.{h,cpp}` again. The 4.35.0 review found the
+   same first field, finalizer, lock and functions. Its two small changes
+   (how visitors count references, and a second `shutdown` now fails at
+   once) do not break this code.
 
 ### Each platform's shell
 

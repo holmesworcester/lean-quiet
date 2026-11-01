@@ -55,9 +55,18 @@ lean_obj_res lq_listener_close(b_lean_obj_arg socket) {
 /* Socket abort capability: captures before client tasks begin. */
 /* Isolated POSIX prototype. Not installed in the application's runtime.
  * ABI seam: Lean 4.35.0's TCP native state begins with uv_tcp_t *m_uv_tcp.
- * Reviewed against 4.34.0 (src/runtime/uv/tcp.{h,cpp}): 4.35 only appends
- * m_shutdown_requested to the struct, the finalizer still uv_closes under
- * the loop lock, and getsockname still takes that lock.
+ * The 4.35.0 review (src/runtime/uv/tcp.{h,cpp} and lean.h against 4.34.0):
+ * - the socket struct still begins with m_uv_tcp; 4.35 only appends
+ *   m_shutdown_requested; lean_external_object is unchanged;
+ * - the finalizer still uv_closes under the loop lock and asserts no
+ *   accept, read or shutdown promise is pending. The listener only uses
+ *   tryAccept (no promise) and is never shut down, so lq_listener_close
+ *   meets that at Runner.stop;
+ * - getsockname still takes the loop lock (lq_socket_abort_barrier);
+ * - foreach visitors: 4.35 incs f and the field and decs the result, as
+ *   abort_foreach does (mark_mt_fn consumes its argument, returns a box);
+ * - shutdown now fails at once on a second request ("shutdown already
+ *   requested"); closeSocket's awaitUv returns that error and discards it.
  * Capture happens on an idle client after an SDK UV-mutex barrier, before
  * reader/writer tasks start. Failed connects may still own a descriptor.
  * uv_fileno is not called concurrently with operations on this handle.
@@ -105,7 +114,7 @@ static void abort_foreach(void *ptr, b_lean_obj_arg f) {
   lean_inc(f);
   /* The visitor consumes its argument (mark_mt_fn decrements it). */
   lean_inc(cap->socket);
-  lean_apply_1(f, cap->socket);
+  lean_dec(lean_apply_1(f, cap->socket));
 }
 
 static void abort_init(void) {
