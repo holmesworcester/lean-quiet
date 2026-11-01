@@ -22,7 +22,9 @@ contract can be stated, but not proven. It is tested from both sides:
   keeps its shape, and a store that drops a write does not.
 
 SQLite keeps more than the five tables the dumps read: a counter per
-key, the catalog, each op's requirements, each filing's sort key. So the
+key, the catalog, each op's requirements, each filing's sort key. (The
+catalog's reads are in the contract, as changing no table; its rows are
+not: a sweep's laws hold whatever positions it returns.) So the
 contract does not say that any file whose rows look right behaves. It
 says that some reading `holds` of a database as the model's tables
 exists: every database the app opens holds some tables, a database that
@@ -39,6 +41,7 @@ corrupted or edited is an assumption about the environment, stated here
 in prose only.
 -/
 import engine.core.Query
+import engine.core.Catalog
 
 namespace Trust
 open Engine
@@ -155,6 +158,20 @@ def budgetOf (s : DB F) : Nat :=
 /-- `budgetOf`, read on the model: what `budgetSql` reads on SQLite. -/
 def budgetM : Model F Nat := fun s => (budgetOf s, s)
 
+/-- **A read changes no table** (for any store whose states are `σ`):
+from a state that shows tables `s`, a read that returns leaves a state
+that still shows `s`. What it returns is not constrained. -/
+def ReadOnly {σ α : Type} (run : σ → Option (α × σ)) (shows : σ → DB F → Prop) : Prop :=
+  ∀ t s, shows t s → ∀ v t', run t = some (v, t') → shows t' s
+
+/-- An action on the SQLite store, from world `w`: its answer and the
+next world, or `none` if SQLite refused it. -/
+def sqlAct (db : Db) {α : Type} (x : SqlM F α) (w : Void IO.RealWorld) :
+    Option (α × Void IO.RealWorld) :=
+  match x db w with
+  | .ok v w' => some (v, w')
+  | .error _ _ => none
+
 /-- **`x` on SQLite runs as `y` on the model**: from a world where the
 database holds tables `s`, if `x` returns, it returns what `y` returns
 from `s`, and the database then holds the tables `y` leaves. -/
@@ -174,7 +191,10 @@ in world `w`, as the model's tables `s`. The contract:
 - each list query answers as `eval` on the model's tables, and changes
   no table;
 - a purge's `VACUUM` and checkpoint change no table, whether they
-  finish or not. -/
+  finish or not;
+- the catalog's two reads (`Catalog.sql`: its ceiling, a position's
+  row), which the sweep runs, change no table. What they return is not
+  constrained: the sweep's laws hold for every ceiling and row. -/
 structure SqliteStore (F : Type) [Codec F] [SortKey F] (holds : Db → Void IO.RealWorld → DB F → Prop) :
     Prop where
   opens : ∀ path w db w', (Db.openAt path) w = .ok db w' → ∃ s, holds db w' s
@@ -187,5 +207,7 @@ structure SqliteStore (F : Type) [Codec F] [SortKey F] (holds : Db → Void IO.R
   budget : Sim holds (budgetSql (F := F)) budgetM
   lists : ∀ q, Sim holds (listSql (F := F) q) (fun s => (eval s q, s))
   scrub : ∀ vacuum db w s, holds db w s → holds db (worldOf ((scrubSql (F := F) vacuum) db w)) s
+  catalog : ∀ db, ReadOnly (sqlAct db (Engine.Sync.Catalog.sql (F := F)).ceiling) (holds db) ∧
+    ∀ seq, ReadOnly (sqlAct db ((Engine.Sync.Catalog.sql (F := F)).read seq)) (holds db)
 
 end Trust

@@ -205,16 +205,4 @@ theorem retried_fair (states : Nat → Sweep) (ceilings rooms : Nat → Nat)
         omega
       exact ih _ dec (t + 1) (by omega) rfl
 
-/-- Semantic fair-loss for operation bytes, not ciphertext equality: fresh
-nonces may change every retry's frame. The link is permitted to lose any
-finite number of attempts. Scheduling and internal admission are separate. -/
-def FairLoss (emitted delivered : Nat → Op → Prop) : Prop :=
-  ∀ o, (∀ start, ∃ n, start ≤ n ∧ emitted n o) → ∃ n, delivered n o
-
-/-- A fair-loss link consumes the infinitely repeated output proved above;
-no premise requires delivery of each emission, a have, or a want. -/
-theorem fair_loss_delivered {emitted delivered : Nat → Op → Prop} {o : Op}
-    (retry : ∀ start, ∃ n, start ≤ n ∧ emitted n o) (fairLoss : FairLoss emitted delivered) :
-    ∃ n, delivered n o := fairLoss o retry
-
 end Engine.Sync.Sweep

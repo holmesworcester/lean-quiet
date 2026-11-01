@@ -195,7 +195,7 @@ assume Trust.Ed25519Signs = Trust.NativeCrypto
 assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`).
 assume Community.Seal.Good AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
-assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) and the catalog's reads change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn, purge and sweep take (`receive_as_model`, `purge_as_model`, `sql_run_step`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
 assume Trust.SqliteStore = Engine.Model.run
 assume Trust.ShowsAt = Engine.Model.run
 assume Trust.budgetM = Engine.Model.run
@@ -551,7 +551,7 @@ extern le_ed_sk_to_x none The Ed25519 to X25519 conversion of a secret key: a fi
 extern le_ed_pk_to_x none The same conversion of a public key (empty if not a point): no law assumes anything of what it returns.
 extern le_random none The OS's random bytes, as many as asked, or a failure. The laws hold for whatever bytes come back; sizes are checked where they are read (`Bytes.expect`). That they are unpredictable is a security assumption, not a Lean statement.
 # SQLite (engine/native/glue.c): engine/core/StoreTrust.lean
-extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's (`receive_as_model`, `purge_as_model`).
+extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's, and the catalog's reads change no table (`receive_as_model`, `purge_as_model`, `sql_run_step`).
 extern le_sql_exec prop:Trust.SqliteStore = le_sql_open
 extern le_sql_query prop:Trust.SqliteStore = le_sql_open
 # The runner's TCP seam (engine/native/listener.h)

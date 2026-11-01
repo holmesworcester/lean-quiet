@@ -32,7 +32,6 @@ import engine.sync.ServeLaws
 import engine.sync.TimeLaws
 import engine.sync.SessionLaws
 import engine.sync.SecrecyLaws
-import engine.sync.Witnesses
 import engine.sync.RetryLaws
 import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
@@ -1244,8 +1243,6 @@ end cost
 #print axioms Engine.Sync.work_send
 #print axioms Engine.Sync.ask_send
 #print axioms Engine.Sync.due_send
-#print axioms Engine.Sync.secrecy_runs
-#print axioms Engine.Sync.live_runs
 #print axioms Engine.Sync.Session.hello_allowed
 #print axioms Engine.Sync.Session.closed_terminal
 #print axioms Engine.Sync.filed_origin
@@ -1600,9 +1597,7 @@ end cost
 #print axioms Engine.Sync.Sweep.step_nonincrease
 #print axioms Engine.Sync.Sweep.retried
 #print axioms Engine.Sync.Sweep.retried_fair
-#print axioms Engine.Sync.Sweep.fair_loss_delivered
-#print axioms Engine.Sync.Sweep.run_observed
-#print axioms Engine.Sync.Sweep.held_run_observed
+#print axioms Engine.Sync.Sweep.sql_run_step
 #print axioms Engine.Sync.empty_log_agrees
 #print axioms Engine.Sync.shared_log_turn
 #print axioms Engine.Sync.shared_log_purge
