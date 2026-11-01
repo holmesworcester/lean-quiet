@@ -15,11 +15,11 @@ teeth.
   byte at a time, over L·(log₂ L + 2) from 16 bytes on. Byte strings of
   0 to 64 KiB: their length's bytes read, their bytes copied once; the
   list codec's way reads every byte.
-- A frame's pictures (app/app/Pics.lean), over 240 frames of a world as
-  data with real tasks: a picture costs its spawns and reads in its
-  first frame, then nothing; a file whose chunk ops are missing reads
-  them again every 120 frames and at no other frame. The old `decoded`
-  (`imageV`) spawns a preview decode every frame.
+- The old picture door as it shipped (`imageV`, the start passed as a
+  value, so run every frame), over 240 frames of a world as data with
+  real tasks: it spawns a preview decode every frame, as
+  `imageV_over_budget` proves (docs/CAUGHT.md). The door itself is gone:
+  the app decodes through the Work pool (Work.request_again).
 - Judging (engine/core/IngestCost.lean), on the engine's model store
   with real op ids: ops of 0 to 6 requirements, ingested and judged one
   step at a time, each step within `step_costs`'s budget at its R, K
@@ -151,32 +151,16 @@ def pics (t : Checks) : IO Unit := do
       (true, false, true), (false, false, false)] do
     let p := pic complete preview
     let name := s!"pics (complete {complete}, preview {preview}, stored {stored})"
-    let mut w := world stored
-    let mut spawns : Array Nat := #[]
-    let mut reads : Array Nat := #[]
     let mut spawnsV : Array Nat := #[]
     let mut wV := world stored
     for f in [0:240] do
-      w := { w with frames := f }
-      let c := costIn (image p 96 64) w
-      spawns := spawns.push c.spawns
-      reads := reads.push c.reads
-      w := after (image p 96 64) w
       wV := { wV with frames := f }
       spawnsV := spawnsV.push (costIn (imageV p 96 64) wV).spawns
       wV := after (imageV p 96 64) wV
-    let first := (if preview then 1 else 0) + (if complete && stored then 1 else 0)
-    t.ok s!"{name}: the first frame spawns each decode once" (spawns[0]! == first)
-    t.ok s!"{name}: no later frame spawns" (spawns.extract 1 240 |>.all (· == 0))
-    let readAt := fun (f : Nat) => if complete && (f == 0 || (!stored && f % 120 == 0)) then 3 else 0
-    t.ok s!"{name}: the store is read only in the first frame, and every 120 frames while chunks are missing"
-      ((List.range 240).all fun f => reads[f]! == readAt f)
-    t.ok s!"{name}: the second frame costs nothing (image_twice)"
-      (costIn (image p 96 64) (after (image p 96 64) (world stored)) == 0)
     if preview then
       t.ok s!"{name}: the old decoded spawns a preview decode every frame"
         (spawnsV.extract 1 240 |>.all (· == 1))
-    IO.println s!"{name}: spawns {spawns.foldl (· + ·) 0} in 240 frames, reads {reads.foldl (· + ·) 0}; old decoded spawns {spawnsV.foldl (· + ·) 0}"
+    IO.println s!"{name}: old decoded spawns {spawnsV.foldl (· + ·) 0} in 240 frames"
 
 end Pics
 
