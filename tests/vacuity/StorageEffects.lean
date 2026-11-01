@@ -1,4 +1,4 @@
-import ops.connection.WriteProgress
+import ops.connection.CatalogEvolution
 import tests.vacuity.ProductionBootstrap
 
 /- Synthetic Alice/Bob identities and messages; native signatures, Noise,
@@ -51,6 +51,22 @@ def freshWriteCertificate (p : Peer) (o : Op) (now : Nat)
 def writeCertificate (s : Scenario) :=
   freshWriteCertificate (finished s).b s.recoveryMessage (finished s).now (source_invariant s)
 
+theorem source_history (s : Scenario) : (finished s).b.memory.held.LogAgrees :=
+  (empty_trace_history setup (entropy "alice") (entropy "bob") s.completed .b).2
+
+/-- Existing-row bounds are checked natively. The history invariant itself
+comes from the actual arbitrary-prefix theorem, not a checked replacement DB. -/
+def historyCertificateFor (p : Peer) (input : Node.Input) (now seq : Nat)
+    (hr : p.memory.held.Reachable Connection.Execution.family) (ha : p.memory.held.LogAgrees) :=
+  if hb : 0 < seq ∧ seq ≤ (Catalog.shared Connection.Execution.family p.memory.held).length then
+    some (PLift.up (And.intro
+      ((production_step_history setup .b p.node input now p.memory).catalog_read hr ha hb.1 hb.2)
+      ((production_step_history setup .b p.node input now p.memory).ceiling_mono hr ha)))
+  else none
+
+def historyCertificate (s : Scenario) (input : Node.Input) (seq : Nat) :=
+  historyCertificateFor (finished s).b input (finished s).now seq (source_reachable s) (source_history s)
+
 def isValid (s : Memory) (o : Op) : Bool :=
   match s.held.db.status o.id with
   | some (.valid (.inl (.message ..))) => true
@@ -81,6 +97,21 @@ def main : IO UInt32 := do
       ("frame", frameInput), ("tick", .tick), ("close", .close (setup.addr .a))] do
     t.ok s!"{label}: native premises apply full handler retention and settling"
       (eventCertificate scene input).isSome
+  let catalog := Catalog.held Connection.Execution.family
+  let oldRows := Catalog.shared Connection.Execution.family p.memory.held
+  let seq := oldRows.idxOf scene.message + 1
+  t.ok "nonempty catalog position contains the retained signed message"
+    ((catalog.read seq p.memory.held).1 == some scene.message.id)
+  for (label, input) in [("write", Node.Input.write [scene.recoveryMessage]),
+      ("frame", frameInput), ("tick", .tick), ("close", .close (setup.addr .a))] do
+    t.ok s!"{label}: complete handler preserves captured catalog position"
+      (historyCertificate scene input seq).isSome
+  t.ok "catalog position zero and beyond captured ceiling reject witness"
+    (!(historyCertificate scene .tick 0).isSome &&
+      !(historyCertificate scene .tick (oldRows.length + 1)).isSome)
+  t.ok "actual append and session purge keep original message position"
+    ([written.2, framed.2, ticked.2, closed.2].all fun memory =>
+      (catalog.read seq memory.held).1 == some scene.message.id)
   t.ok "actual tick visits catalog and emits a bounded retry frame"
     (((Connection.retryKey cid : M _) p.memory).1.any (fun peer => (ticked.2.retries peer).isSome) &&
       ticked.1.2.serve > 0)
