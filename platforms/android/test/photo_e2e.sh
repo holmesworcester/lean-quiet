@@ -35,7 +35,10 @@ name=$("${adb[@]}" emu avd name | head -1 | tr -d '\r')
 "${adb[@]}" shell svc power stayon true
 "${adb[@]}" shell input keyevent KEYCODE_HOME
 "${adb[@]}" shell am force-stop com.holmes.leanquiet
-"${adb[@]}" install -r out/quiet.apk >/dev/null
+# This verified suite-owned AVD is reset below anyway. Remove an older
+# development signature before installing another worktree's debug APK.
+"${adb[@]}" uninstall com.holmes.leanquiet >/dev/null 2>&1 || true
+"${adb[@]}" install out/quiet.apk >/dev/null
 "${adb[@]}" shell pm clear com.holmes.leanquiet >/dev/null
 "${adb[@]}" push "$out/quiet-photo-fixture.jpg" /sdcard/Pictures/quiet-photo-fixture.jpg >/dev/null
 "${adb[@]}" shell am broadcast -a android.intent.action.MEDIA_SCANNER_SCAN_FILE -d file:///sdcard/Pictures/quiet-photo-fixture.jpg >/dev/null
