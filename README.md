@@ -804,13 +804,28 @@ let us prove.
   `app/android`, `app/ios` and `app/host` are now `platforms/android`,
   `platforms/ios` and `platforms/headless`.
 
-The lifecycle port also adds an explicit listener close in
-[`listener.h`](engine/native/listener.h). After the acceptor joins,
-`Runner.stop` invokes the Lean 4.34 UV external object's finalizer once and
-replaces its finalizer with a no-op. This depends on the runtime's external
-object ABI and UV finalizer, not a Lean proof. A retained-runner test checks
-explicit close and repeated stop; the TCP test rebinds the same port while
-retaining the stopped runner.
+Lean's TCP API cannot close a listener, and it cannot cancel a write that
+it already gave to libuv. Its `shutdown` waits behind that write, so a peer
+that never reads would block it forever. So
+[`listener.h`](engine/native/listener.h) has two small C seams. A small
+change to Lean could remove both: a `close` (libuv's `uv_close`, which also
+cancels waiting writes) and an abort in `Std.Internal.UV.TCP`. Then this
+code would use only Lean's API.
+
+1. **Close the listener.** At `Runner.stop`, after the acceptor stops, the
+   C code calls the listener's finalizer once and puts a no-op in its place.
+   It uses only the public fields of Lean's external objects. A test keeps
+   the stopped runner and binds the same port again.
+2. **Abort a stuck write.** The C code reads the first field of Lean's
+   private TCP socket struct to get the descriptor, then calls the OS
+   `shutdown()`. This ends the stuck write. Our Lean outbox limits what can
+   be stuck: one batch in libuv per socket.
+3. **Review each Lean upgrade.** An `#error` lets the private read build
+   with one exact Lean version only. Before you change the version, read
+   Lean's `src/runtime/uv/tcp.{h,cpp}` again. The 4.35.0 review found the
+   same first field, finalizer, lock and functions. Its two small changes
+   (how visitors count references, and a second `shutdown` now fails at
+   once) do not break this code.
 
 ### Each platform's shell
 
@@ -1722,9 +1737,9 @@ opportunities and full native delivery remain open.
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`decoded_started`]: app/community/channel/message/attachment/Screen.lean#L444-L448
-[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L539-L542
-[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L601-L603
-[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L614-L618
+[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L545-L548
+[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L607-L609
+[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L620-L624
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L210-L219
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
@@ -2545,9 +2560,9 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`ofList_wf`](engine/core/WindowIndex.lean#L445-L445) | **kernel-witness**: [Vacuity.Query.indexWF](tests/vacuity/Query.lean). Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic. |
 | [`screen_index`](engine/renderer/Screen.lean#L258-L261) | **kernel-witness**: [Vacuity.RendererModels.frameIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`decoded_started`](app/community/channel/message/attachment/Screen.lean#L444-L448) | **kernel-witness**: [Vacuity.RendererPics.started](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_steady`](app/community/channel/message/attachment/Screen.lean#L539-L542) | **kernel-witness**: [Vacuity.RendererPics.noWork](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_settles`](app/community/channel/message/attachment/Screen.lean#L601-L603) | **kernel-witness**: [Vacuity.RendererPics.settles](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_twice`](app/community/channel/message/attachment/Screen.lean#L614-L618) | **kernel-witness**: [Vacuity.RendererPics.twice](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_steady`](app/community/channel/message/attachment/Screen.lean#L545-L548) | **kernel-witness**: [Vacuity.RendererPics.noWork](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_settles`](app/community/channel/message/attachment/Screen.lean#L607-L609) | **kernel-witness**: [Vacuity.RendererPics.settles](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_twice`](app/community/channel/message/attachment/Screen.lean#L620-L624) | **kernel-witness**: [Vacuity.RendererPics.twice](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
 | [`RWorld.acts_shown`](engine/renderer/ActsLaws.lean#L210-L219) | **kernel-witness**: [Vacuity.RendererModels.actsShown](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`seen_take`](engine/renderer/BoardLaws.lean#L247-L248) | **kernel-witness**: [Vacuity.RendererModels.boardSeen](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |

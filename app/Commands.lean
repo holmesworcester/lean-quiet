@@ -68,22 +68,22 @@ def heldV : View F (List B) := do
 room, synced, where this node is a device of c and the trust rule takes
 the peer; else a notice of each removal that cuts a device under the
 peer's key (`Community.removalsAt`) and is not yet given on it
-(`given`); else nothing. -/
-def roomFor (given : List Id) (c peer : B) : View F (List Room) := do
+(`gave`); else nothing. -/
+def roomFor (gave : List Id) (c peer : B) : View F (List Room) := do
   match ← meV c with
   | some me =>
     let ok ← ((trusts c me peer).liftL : View F Bool)
     if ok then return [Room.sync c]
     let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
-    return (xs.filter fun x => !has given x).map (Room.notice c)
+    return (xs.filter fun x => !has gave x).map (Room.notice c)
   | none => return []
 
 /-- What a connection carries for these (community, peer) pairs. -/
-def roomsOf (given : List Id) : List (B × B) → View F (List Room)
+def roomsOf (gave : List Id) : List (B × B) → View F (List Room)
   | [] => pure []
   | (c, peer) :: rest => do
-    let here ← roomFor given c peer
-    let tail ← roomsOf given rest
+    let here ← roomFor gave c peer
+    let tail ← roomsOf gave rest
     return here ++ tail
 
 /-- What connection cid carries now, as a view read afresh on every
