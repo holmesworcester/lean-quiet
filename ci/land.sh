@@ -17,7 +17,17 @@
 #    `git push origin HEAD:main`; set it to push with your credentials).
 #    Then save the build for the next landing to start from.
 set -euo pipefail
-cd "$(dirname "$0")/.."
+# The merge below may change this very file while bash reads it (bash reads
+# a script as it runs): run from a copy of it that nothing changes.
+if [ -z "${LAND_ROOT:-}" ]; then
+  LAND_ROOT=$(cd "$(dirname "$0")/.." && pwd)
+  export LAND_ROOT
+  copy=$(mktemp "${TMPDIR:-/mnt/storage/holmes-tmp}/land.XXXXXX")
+  cp "$0" "$copy"
+  exec bash "$copy" "$@"
+fi
+trap 'rm -f -- "$0"' EXIT
+cd "$LAND_ROOT"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
