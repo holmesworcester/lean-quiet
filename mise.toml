@@ -137,7 +137,7 @@ depends = ["crypto"]
 run = "bash ci/forensics.sh"
 
 [tasks."forensics:judge"]
-description = "The nightly forensics judge: a small seeded Sonnet sample of vacuity-and-misstatement and unnecessary-hypotheses over the deterministic dump, per-call budget caps (about $1 a night), rates appended to /mnt/storage/holmes-tmp/forensics-nightly/history.tsv. Scheduled by ci/nightly (systemd user timer, 03:30)"
+description = "The nightly forensics judge: a small seeded Sonnet sample of vacuity-and-misstatement and unnecessary-hypotheses over the deterministic dump, per-call budget caps (about $1 a night), rates appended to /mnt/storage/holmes-tmp/forensics-nightly/history.tsv. Run nightly by ci/nightly.sh after the release run"
 run = "bash ci/forensics-judge.sh"
 
 [tasks."premises:check"]
@@ -662,6 +662,10 @@ run = "tests/app/desktop_presentation_native.sh"
 description = "The app's programs on the headless twin, each in one process: session, two apps by link, chunked photo arrival, picture retry, scroll seams, node queue, inkless frame"
 depends = ["crypto"]
 run = "tests/app/headless.sh"
+
+[tasks."ci:nightly"]
+description = "The nightly release run: main's head in its own worktree, ci/local.sh --full -j 4; summary and logs in $TMPDIR/lean-quiet-nightly/<date> (cron 30 3 * * *)"
+run = "ci/nightly.sh"
 
 [tasks."ci:full"]
 description = "The gate, then every other part: mutants, TCP, X, qr, mdns, net, zoom, site, workspace (nightly, and before a release)"

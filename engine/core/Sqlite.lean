@@ -26,8 +26,14 @@ opaque DbPointed : NonemptyType
 def Db : Type := DbPointed.type
 instance : Nonempty Db := DbPointed.property
 
+/-- Every database the app opens holds some model tables, and the store's
+operations, write turns, budget and list queries answer as the model's
+(`receive_as_model`, `purge_as_model`). Contract: `Trust.SqliteStore`
+(engine/core/StoreTrust.lean). -/
 @[extern "le_sql_open"] opaque Db.open (path : @& String) : IO Db
+/-- Contract: `Trust.SqliteStore` (engine/core/StoreTrust.lean). -/
 @[extern "le_sql_exec"] opaque Db.exec (db : @& Db) (sql : @& String) : IO Unit
+/-- Contract: `Trust.SqliteStore` (engine/core/StoreTrust.lean). -/
 @[extern "le_sql_query"] opaque Db.query (db : @& Db) (sql : @& String) (args : @& Array ByteArray) :
   IO (Array (Array ByteArray))
 

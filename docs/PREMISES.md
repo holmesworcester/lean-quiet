@@ -1986,6 +1986,46 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | hx | `s.ops x = some o` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+## ✅ Unsent text is an op, kept in memory
+
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
+
+**`App.stash_use`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hacc | `ByteArray.isEmpty s.me.acc = false` | [discharged] |
+| hne | `(s.text.toUTF8.isEmpty && (List.map (fun x => x.fst) s.chips.toList).isEmpty) = false` | [discharged] |
+| hd | `Engine.Distinct (Data.drafted s.eph s.me.acc (s.draftGen + 1) s.text.toUTF8 (List.map (fun x => x.fst) s.chips.toList))` | [crypto] |
+
+**`Data.draftIn_newest`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hne | `(text.isEmpty && pics.isEmpty) = false` | [discharged] |
+| hd | `Engine.Distinct (Data.drafted h acc gen text pics)` | [crypto] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Data.draftIn_empty`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| he | `(text.isEmpty && pics.isEmpty) = true` | [discharged] |
+| hd | `Engine.Distinct (Data.drafted h acc gen text pics)` | [crypto] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.Draft.write_ephemeral`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.Draft.write_valid`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
 ## ✅ The in-memory store's lists are in order, and never re-sorted.
 
 **`Engine.perm_sortPos`** (wired)

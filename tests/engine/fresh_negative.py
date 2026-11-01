@@ -2,12 +2,14 @@
 isolated snapshot: each mutant must fail its law, or the TCP test. A
 mutant's `old` and `new` may be tuples: edits to one file together."""
 import pathlib, subprocess, sys
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
+import mutants
 root, logs = map(pathlib.Path, sys.argv[1:])
 logs.mkdir(parents=True, exist_ok=True)
 
-def run(args, name):
+def run(args, name, cwd=root):
     with (logs / (name + ".log")).open("w") as out:
-        return subprocess.run(args, cwd=root, stdout=out, stderr=subprocess.STDOUT, timeout=600).returncode
+        return subprocess.run(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, timeout=600).returncode
 
 assert run(["lake", "build", "engine.wire.LaneLaws", "engine.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "baseline-build") == 0
 assert run([".lake/build/bin/fresh_tcp"], "baseline-run") == 0
@@ -128,34 +130,33 @@ if sys.platform != "win32":
          "  let .ok promise ← operation.toBaseIO | return false\n  if true then return false",
          "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=false)", True),
     ])
-for name, source, old, new, target, expected, runtime in cases:
-    path = root / source
-    original = path.read_text()
+def control(case, work):
+    name, source, old, new, target, expected, runtime = case
+    path = work / source
+    mutant = path.read_text()
     olds, news = (old, new) if isinstance(old, tuple) else ((old,), (new,))
-    mutant = original
     for o, n in zip(olds, news):
         assert mutant.count(o) == 1, (name, "mutation target missing", o)
         mutant = mutant.replace(o, n)
-    try:
-        path.write_text(mutant)
-        code = run(["lake", "build", target], name + "-build")
-        if runtime:
-            assert code == 0, (name, "mutant must compile before runtime control")
-            code = run([".lake/build/bin/" + target], name)
-            text = (logs / (name + ".log")).read_text()
-            assert code > 0, (name, "native control must report a test failure, not terminate by a signal")
-            assert not any(marker in text.lower() for marker in
-                ["panic", "segmentation fault", "assertion violation", "uncaught exception", "network runner stopped:"]), \
-                (name, "native failure is not a valid negative-control result")
-        else:
-            text = (logs / (name + "-build.log")).read_text()
-            assert "error: " + target.replace(".", "/") + ".lean" in text, \
-                (name, "must be rejected by the unchanged target proof, not an unrelated dependency")
-        assert code != 0 and expected in text, (name, "survived or failed for a different reason")
-        print("refused:", name, flush=True)
-    finally:
-        path.write_text(original)
-    assert run(["lake", "build", target], name + "-restored") == 0, (name, "restored source did not build")
+    path.write_text(mutant)
+    code = run(["lake", "build", target], name + "-build", work)
+    if runtime:
+        assert code == 0, (name, "mutant must compile before runtime control")
+        code = run([str(work / ".lake/build/bin" / target)], name, work)
+        text = (logs / (name + ".log")).read_text()
+        assert code > 0, (name, "native control must report a test failure, not terminate by a signal")
+        assert not any(marker in text.lower() for marker in
+            ["panic", "segmentation fault", "assertion violation", "uncaught exception", "network runner stopped:"]), \
+            (name, "native failure is not a valid negative-control result")
+    else:
+        text = (logs / (name + "-build.log")).read_text()
+        assert "error: " + target.replace(".", "/") + ".lean" in text, \
+            (name, "must be rejected by the unchanged target proof, not an unrelated dependency")
+    assert code != 0 and expected in text, (name, "survived or failed for a different reason")
+    return "refused: " + name
+
+# the startup control edited this snapshot: rebuild it as it was, once,
+# so that the copies rebuild only what their mutant touches
 assert run(["lake", "build", "engine.wire.LaneLaws", "engine.sync.ServeLaws", "engine.wire.WorldLaws", "fresh_tcp"], "restored-build") == 0
-assert run([".lake/build/bin/fresh_tcp"], "restored-run") == 0
-print(f"fresh negative controls: {len(cases) + 1} refused; restored suite passes")
+mutants.each(root, cases, control)
+print(f"fresh negative controls: {len(cases) + 1} refused, each in its own copy")

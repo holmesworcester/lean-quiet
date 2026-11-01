@@ -1,6 +1,7 @@
 import tests.engine.Checks
 import engine.core.Trust
 import app.community.Op
+import app.community.Commands
 import engine.wire.Noise
 
 /-! Each assumption of the crypto trust file (engine/core/Trust.lean), from
@@ -53,6 +54,13 @@ def toyHash (_ : ByteArray) : ByteArray := (Bytes.zeros 32).1
 
 theorem toyDigest : DigestSize toyHash := fun _ => (Bytes.zeros 32).2
 
+/-- A toy signature scheme: every signature verifies. -/
+def toyKeypair (_ : ByteArray) : ByteArray := (Bytes.zeros 96).1
+def toySign (_ _ : ByteArray) : ByteArray := .empty
+def toyVerify (_ _ _ : ByteArray) : Bool := true
+
+theorem toySigns : SignsVerify toyKeypair toySign toyVerify := fun _ _ => rfl
+
 /-! ## Has content: a broken implementation of each shape fails it -/
 
 /-- An AEAD whose open loses the plaintext's last byte. -/
@@ -92,6 +100,11 @@ theorem idHashRefused : ¬ DigestSize id := by
   have := h .empty
   revert this; decide +kernel
 
+/-- A signature scheme that verifies nothing. -/
+theorem noneVerifyRefused : ¬ SignsVerify toyKeypair toySign (fun _ _ _ => false) := by
+  intro h
+  exact Bool.false_ne_true (h key .empty)
+
 /-- The whole trust file, bridged to both running suites: what every
 crypto law's instance at running code takes. -/
 def nativeConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
@@ -116,6 +129,11 @@ theorem brokenSuiteRefused : ¬ Connection.Noise.Suite.Good brokenSuite := fun g
   have := g.dec_enc .empty trivial 0 .empty .empty trivial trivial
   simp [brokenSuite] at this
 
+/-- Ed25519's clause, bridged to the signing laws' premise for every
+device made from a seed (`ofSeed_signs`). -/
+def ed25519Conditional := some (PLift.up
+  (fun (t : Trust.NativeCrypto) => Community.ofSeed_signs t.ed25519))
+
 /-! ## Satisfied by the running code: each shape on the native crates -/
 
 def plaintexts : List Nat := [0, 1, 15, 16, 63, 64, 65, 1000, 4096, 70001]
@@ -133,6 +151,7 @@ def chachaAt (k : Key32) (n : UInt64) (ad p : ByteArray) : Bool :=
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "the trust file is what both running suites need" nativeConditional.isSome
+  t.ok "Ed25519's clause gives every seeded device's signing premise" ed25519Conditional.isSome
   let keys : List Key32 := [key, other, Bytes.zeros 32, Bytes.fit 32 ⟨Array.replicate 32 255⟩,
     ← Bytes.expect 32 (← randomBytes 32)]
   let nonces : List Nonce24 := [nonce, Bytes.zeros 24, ← Bytes.expect 24 (← randomBytes 24)]
@@ -150,6 +169,19 @@ def main : IO UInt32 := do
       t.ok "X25519 agrees" (x25519 k.1 (x25519Base k'.1) == x25519 k'.1 (x25519Base k.1))
   for len in [0, 1, 55, 56, 64, 1000, 70001] do
     t.ok s!"a SHA-256 digest of {len} bytes is 32 bytes" ((sha256 ⟨Array.replicate len 3⟩).size == 32)
+  -- Ed25519 verifies what it signed, for the key pair of each seed.
+  for k in keys do
+    let kp := edKeypair k.1
+    let (pk, sk) := (kp.extract 0 32, kp.extract 32 96)
+    t.ok s!"Ed25519 verifies what it signed, messages {plaintexts}"
+      (plaintexts.all fun len => edVerify pk ⟨Array.replicate len 42⟩ (edSign sk ⟨Array.replicate len 42⟩))
+    -- and only that: another key, message or signature verifies nothing
+    let m := "signed content".toUTF8
+    let sg := edSign sk m
+    let pk' := (edKeypair (if k.1 == other.1 then key.1 else other.1)).extract 0 32
+    t.ok "Ed25519: another key's public key rejects the signature" (!edVerify pk' m sg)
+    t.ok "Ed25519: another message is rejected" (!edVerify pk (m.push 0) sg)
+    t.ok "Ed25519: a tampered signature is rejected" (!edVerify pk m ⟨sg.data.modify 5 fun b => b ^^^ 1⟩)
   -- A different key, nonce or associated data opens nothing: the
   -- assumptions are about this crate, not a cipher that ignores its key.
   let p := "content-bearing plaintext".toUTF8
