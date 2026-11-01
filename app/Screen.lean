@@ -1,3 +1,4 @@
+import engine.renderer.Scrollbar
 import engine.core.Query
 import engine.renderer.Platform
 import engine.renderer.Row
@@ -829,6 +830,12 @@ inductive Want where
   bounded window API; membership comes from signed op references. -/
   | clumps (c : Id) (root : Option Id) (anchor : Option Pos) (above below : Nat)
   | clumpCount (c : Id) (root : Option Id) (anchor : Option Pos)
+  /-- The position of c's root at rank q, counting from the newest (0 is
+  the newest): the one with q roots newer than it (a rank past the
+  oldest answers the oldest; none while there are no roots). Found by
+  bisecting the counter, with the counts the reader already serves
+  (`readRank`), so a scrollbar drag can anchor the window there. -/
+  | rankPos (c : Id) (q : Nat)
   /-- Message m's own fact and content key (Kinds.Message.readOwn). -/
   | row (c me m : Id)
   | author (c user : Id)
@@ -905,6 +912,8 @@ inductive Val where
   | window (ids : Array Pos) (newerRows : Nat)
   /-- The counts beside the anchor: newer than it, and at or older. -/
   | count (newer older : Nat)
+  /-- The position `rankPos` found. -/
+  | pos (p : Option Pos)
   /-- The row, or none while its message cannot be shown. -/
   | row (d : Option Row.RowData)
   | author (name : String) (namesake : Bool)
@@ -1030,7 +1039,7 @@ def Want.need (w : Want) : Demand.Need Want :=
   { key := w, owner := match w with
       | .row c _ m => ["community".toUTF8, c, "message".toUTF8, m]
       | _ => ["page".toUTF8],
-    visible := match w with | .count .. | .clumpCount .. | .people .. | .members .. => false | _ => true }
+    visible := match w with | .count .. | .clumpCount .. | .rankPos .. | .people .. | .members .. => false | _ => true }
 
 def Shared.setWants (sh : Shared) (ws : Array Want) : IO Unit := sh.setNeeds (ws.map Want.need)
 
@@ -1073,6 +1082,36 @@ def readWindow (view : ListView) (anchor : Option Pos) (above below : Nat) : RM 
     let (n, deps) ← readView (view (some below) false (some p) none) deps
     return (.window ((n.rows.reverse ++ o.rows).map (·.1)).toArray n.rows.length, deps)
 
+/-- A message key as a number: its bytes, big-endian (`msgKey`: the
+counter in the first eight, then the time). -/
+def keyNat (k : ByteArray) : Nat :=
+  k.toList.foldl (fun a b => a * 256 + b.toNat) 0
+
+/-- A key of sixteen bytes holding `v`: the position a count about it is
+counted from (a root's own key when `v` is its `keyNat`). -/
+def natKey (v : Nat) : Pos := (be64 (v / 2 ^ 64) ++ be64 (v % 2 ^ 64), ByteArray.empty)
+
+/-- The rank-q root's position: its key `v` is the largest with at least
+q+1 roots at `v` or newer, bisected between 0 and the newest root's key
+(at most 128 counts, the reader's own), and the root is the oldest at `v`
+or newer. Keys tie only at the same counter, time and id. -/
+def readRank (view : ListView) (q : Nat) : RM (Val × Array Q) := do
+  let (top, d0) ← readView (view (some 1) true none none) #[]
+  let some ((k, _), _) := top.rows.head? | return (.pos none, d0)
+  let mut deps := d0
+  let mut lo := 0
+  let mut hi := keyNat k
+  let total := (← readView (view (some 0) true none none) #[]).1.total
+  let q := min q (total - 1)
+  for _ in [0:128] do
+    if lo < hi then
+      let mid := (lo + hi + 1) / 2
+      let (n, d) ← readView (view (some 0) true (some (natKey mid)) none) deps
+      deps := d
+      if n.inRange ≥ q + 1 then lo := mid else hi := mid - 1
+  let (one, d1) ← readView (view (some 1) false (some (natKey lo)) none) deps
+  return (.pos (one.rows.head?.map (·.1)), d1)
+
 def readCounts (view : ListView) (anchor : Option Pos) : RM (Val × Array Q) := do
   let (n, deps) ← readView (view (some 0) true anchor none) #[]
   return (match anchor with
@@ -1089,6 +1128,8 @@ def eval : Want → RM (Val × Array Q)
     readWindow (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor above below
   | .clumpCount c root anchor =>
     readCounts (fun limit desc after before => Community.readableClumps c root limit desc after before) anchor
+  | .rankPos c q =>
+    readRank (fun limit desc after before => Community.readableClumps c none limit desc after before) q
   | .comms => do
     let (all, deps) ← Kinds.Accepted.read (← get).known
     modify fun s => { s with known := all }
@@ -1941,6 +1982,22 @@ def PageId.all : List PageId :=
    .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label,
    .communitySettings, .channelSettings, .stub]
 
+def PageId.code : PageId → Nat
+  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
+  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
+  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
+  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
+  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
+
+def PageId.ofCode : Nat → PageId
+  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
+  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
+  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
+  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
+  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
+
+theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
+
 def PageId.drawer : PageId → Bool
   | .you | .appearance | .communitySettings | .channelSettings | .stub => true
   | _ => false
@@ -2020,6 +2077,11 @@ structure St where
   /-- The newest appearance's revision this device holds (the store's,
   or the last chosen here): a choice writes the next one. -/
   themeRev : Nat := 0
+  /-- The app's ephemeral log: its working state as ops, in memory only
+  (Engine.Scope.ephemeral). Today: this window's place, one nav op. -/
+  eph : Engine.Sync.Held SF := {}
+  /-- The newest nav op's generation: a change of page writes the next. -/
+  navGen : Nat := 0
   wide : Bool := false
   mobile : Bool := true
   editorFocused : Bool := false
@@ -2197,7 +2259,14 @@ removal is not announced again. -/
   mark : Option (Id × Nat) := none
   restoreAnchor : Bool := false
   restorePos : Option Pos := none
-  drafts : List (Id × String × List ByteArray) := []
+  /-- The newest draft's generation: a stash writes the next. Drafts
+  themselves are ephemeral ops in `eph`, one per entry. -/
+  draftGen : Nat := 0
+  /-- A scrollbar seek: the rank (messages newer than the screen's bottom
+  edge) being sought, and whether the window is anchored there yet. The
+  thumb is drawn at it meanwhile (Desktop.scrollbar), so a drag shows
+  where it will land, not where the window still is. -/
+  seek : Option (Nat × Bool) := none
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []
   queuedWrites : List ByteArray := []
@@ -2249,8 +2318,18 @@ def c (s : St) : Id := s.me.c
 /-- The page and the back stack, as Nav has them. -/
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
 
-/-- The page and the back stack, set to a Nav step's. -/
-def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with editorEpoch := s.editorEpoch + 1, page := n.page, backStack := n.stack, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+/-- The page and the back stack, set to a Nav step's. A change of page: a nav op, one generation past the newest, in place
+of the ephemeral log's nav op (`Data.placeIn`), and the page and stack it
+names as the frame's cache of it (`withNav_cache`). -/
+def St.withNav (s : St) (n : Nav.Nav PageId) : St := { s with page := n.page, backStack := n.stack, eph := Data.placeIn s.eph (s.navGen + 1) n.page.code (n.stack.map PageId.code), navGen := s.navGen + 1, editorEpoch := s.editorEpoch + 1, ownSends := if n.page == .chat then s.ownSends else {}, presenting := if n.page == .chat then s.presenting else none }
+
+/-- This window's place as the ephemeral log has it: the page and the
+back stack its newest nav op names (`withNav_cache`: the frame's cache of
+it); the cache's before any is written. -/
+def St.logNav (s : St) : Nat × List Nat :=
+  match Data.navOf s.eph with
+  | some (_, f) => (f.page, f.stack)
+  | none => (s.page.code, s.backStack.map PageId.code)
 
 /-- In at least one community: some acceptance that is not a join still
 waiting to be let in. -/
@@ -2309,22 +2388,6 @@ Only suspend polls for quiescence, with one absolute deadline. `page_round` chec
 
 namespace App
 open Engine Community Data Paint Font Row
-
-def PageId.code : PageId → Nat
-  | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
-  | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
-  | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
-  | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
-  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
-
-def PageId.ofCode : Nat → PageId
-  | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
-  | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
-  | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
-  | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
-  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
-
-theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
 def fieldPage (p : PageId) : Bool :=
   p == .create || p == .createName || p == .paste || p == .name
@@ -2491,7 +2554,8 @@ def captureAnchor (s : St) : Option (Id × Nat) := Id.run do
 
 def stashDraft (s : St) : St :=
   if s.me.acc.isEmpty then s else
-  { s with drafts := (s.me.acc, s.text, s.chips.toList.map (·.1)) :: s.drafts.filter (·.1 != s.me.acc) }
+  let gen := s.draftGen + 1
+  { s with eph := Data.draftIn s.eph s.me.acc gen s.text.toUTF8 (s.chips.toList.map (·.1)), draftGen := gen }
 
 def removalBytes (r : Remove.Step) : ByteArray :=
   Codec.encode (match r with
@@ -2511,14 +2575,16 @@ def checkpointAnchor (s : St) : Option (Id × Nat) :=
     if s.spacers.contains x then s.cellRoot[x]?.map (·, 0) else some (x, off)
 
 def checkpoint (s : St) : Lifecycle.Checkpoint :=
+  -- the page the log names, read before the draft is stashed beside it
+  let nav := s.logNav
   let s := { stashDraft s with mark := checkpointAnchor s }
   let a := s.mark.getD (.empty, 0)
-  (1, s.page.code, s.cur, a.1, a.2,
-    [Codec.encode (s.backStack.map PageId.code), s.field.toUTF8,
+  (1, nav.1, s.cur, a.1, a.2,
+    [Codec.encode nav.2, s.field.toUTF8,
      ((s.invite.map (·.text)).getD "").toUTF8, s.joinName.toUTF8, s.newCommunity.toUTF8,
      removalBytes s.removal,
      Codec.encode (s.profileOf.toList.map fun (u, n, me) => (u, n.toUTF8, me)),
-     Codec.encode (s.drafts.map fun (a, t, bs) => (a, t.toUTF8, bs)), Codec.encode s.anchor,
+     Codec.encode (Data.draftsIn s.eph), Codec.encode s.anchor,
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
      Codec.encode (s.labelText.toUTF8, s.labelPage),
@@ -2555,7 +2621,9 @@ def restoreChips (s : St) (bs : List ByteArray) : Array (ByteArray × Nat × Nat
     return (b, src.w, src.h, ⟨Image.square src (s.dim.px 64) (Palette.color s.dim.theme .bg), s!"{Arrival.humanBytes b.size}"⟩)).toArray
 
 def useDraft (s : St) : St :=
-  let (_, t, bs) := (s.drafts.find? (·.1 == s.me.acc)).getD (.empty, "", [])
+  let (t, bs) := match Data.draftOf s.eph s.me.acc with
+    | some (_, f) => (String.fromUTF8! f.text, f.pics)
+    | none => ("", [])
   { s with editorContent := s.editorContent + 1, text := t, chips := restoreChips s bs, sel := #[t.length.toUInt32, t.length.toUInt32, 0, 0] }
 
 /-- Called after switchToAcc selected the saved acceptance. A removed or
@@ -2564,8 +2632,10 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
   let (_, p, _, x, off, bs) := cp
   let b := fun i => bs[i]?.getD .empty
   let str := fun i => String.fromUTF8! (b i)
-  let drafts := ((Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []).map
-    fun (a, t, pics) => (a, String.fromUTF8! t, pics)
+  let drafts := (Codec.decode (b 7) : Option (List (Id × ByteArray × List ByteArray))).getD []
+  -- each saved draft, written back into the ephemeral log
+  let (eph, draftGen) := drafts.foldl (fun (h, g) (a, t, pics) => (Data.draftIn h a (g + 1) t pics, g + 1))
+    (s.eph, s.draftGen)
   let profile := ((Codec.decode (b 6) : Option (List (Id × ByteArray × Bool))).getD []).head?.map
     fun (u, n, me) => (u, String.fromUTF8! n, me)
   let stack := ((Codec.decode (b 0) : Option (List Nat)).getD []).map PageId.ofCode
@@ -2575,7 +2645,7 @@ def applyCheckpoint (s : St) (cp : Lifecycle.Checkpoint) : St := Id.run do
     | x :: xs => xs.foldl (fun n p => Nav.go p n) (Nav.reset x)
   let s := { s.withNav (Nav.go (PageId.ofCode p) nav) with
     field := str 1, invite := Community.Invite.parse (str 2), joinName := str 3, newCommunity := str 4,
-    removal := removalFrom (b 5), profileOf := profile, drafts,
+    removal := removalFrom (b 5), profileOf := profile, eph, draftGen,
     labelText := String.fromUTF8! label, labelPage,
     mark := if x.isEmpty then none else some (x, off), restoreAnchor := !x.isEmpty,
     restorePos := (Codec.decode (b 11) : Option (Option Pos)).getD none,
@@ -2853,6 +2923,8 @@ def suspend (budget : Nat := 250) : M Unit := do
   s.wr.setPaused false
   leavePage
   saveCheckpoint
+  -- Let go of the glyphs the font kept; a resumed frame rasters what it shows.
+  modify fun s => { s with font := s.font.fresh }
   discard <| waitFor deadline do
     reap
     let s ← get
@@ -3729,7 +3801,7 @@ def applyComms (all : Array Chaos.Me) : M Unit := do
 stays there: Nav.back_reset), and its conversation's window empty. -/
 def switchSt (a : Id) (s : St) : St :=
   let s := { s.withNav (Nav.reset .home) with cur := a, me := (Kinds.Accepted.select s.comms a).getD s.me }
-  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
+  let s := { s with ids := #[], roots := #[], clumps := {}, clumpHeights := {}, cellRoot := {}, spacers := {}, restorePos := none, seek := none, total := 0, people := 0, peopleAll := true, anchor := none, newer := 0, older := 0 }
   let s := { s with heights := {}, rows := {}, selected := none, sheet := none, ownSends := {}, presenting := none }
   { s with asking := #[], hidden := [], chromeKey := "", pageKey := none, ownName := "…", ownDevices := 1 }
 
@@ -5048,8 +5120,24 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   if s.restoreAnchor then
     if let some (x, _) := s.mark then
       discard <| query ⟨["community".toUTF8, s.me.c, "restore".toUTF8, x], true⟩ (.row s.me.c s.me.adm x)
+  if let some (q, false) := s.seek then
+    discard <| query ⟨["community".toUTF8, s.me.c, "rank".toUTF8], false⟩ (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1))
   readerPass
   let bd ← takeBoard
+  -- a seek's answer anchors the window at that root, as a restored
+  -- position does, its top at the screen's bottom edge: the rank before
+  -- the one sought, so the sought rank is below the screen; the seek ends
+  -- once the row has been placed
+  if let some (q, arrived) := s.seek then
+    if !arrived then
+      match bd.get? (.rankPos s.me.c (q / _root_.Scrollbar.unit - 1)) with
+      | some (.pos (some p), _) =>
+        modify fun s => { s with
+          seek := some (q, true), anchor := some p, mark := some (p.2, 0),
+          restoreAnchor := true, restorePos := some p }
+      | some (.pos none, _) => modify fun s => { s with seek := none }
+      | _ => pure ()
+    else if !s.restoreAnchor then modify fun s => { s with seek := none }
   if let some (.count _ n, _) := bd.get? (.count s.me.c none) then
     modify fun s => { s with total := n }
   let fresh := match bd.get? idsW with
@@ -5465,11 +5553,12 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            io := io, theme := theme, themeRev, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, me := me, comms := comms, cur := me.acc,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
-  let mut initial := initial
+  -- the start state is a root, written as this window's first nav op
+  let mut initial := initial.withNav (Nav.reset (if comms.isEmpty then .getStarted else .home))
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp
     if version == 1 then

@@ -78,7 +78,7 @@ build_all() {
 
 gate() {
   case $1 in
-    driver) mise run ci:driver-test ;;
+    driver) mise run ci:driver-test && python3 ci/readme-merge.py --self-test ;;
     build) build_all ;;
     check) mise run check ;;
     engine) mise run test:engine ;;
@@ -114,7 +114,7 @@ gate() {
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
-    layout) mise run layout:check ;;
+    layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;

@@ -127,6 +127,22 @@ catches it next time. The aim is no escapes.
   its `main-cadence` mutant (tests/engine/simplify_negative.py) leaves
   the joining responder waiting.
 
+- **A removed member could miss its removal notice** (found as a gate
+  "flake", 2026-11-01: expiry-grace's "actual retirement writer drains
+  the signed removal notice to its peer" failed about one run in six
+  under load, on main too). The retiring side wrote the notice, then
+  shut its socket in both directions (`SocketAbort.abort`). The removed
+  peer, still replying to earlier frames, wrote again; Linux answers a
+  segment to a read-shut socket with a reset, the peer's writer failed,
+  and a failed writer stops its reader: the notice it had not yet read
+  was dropped (a socket trace showed the reader cut off mid-frame).
+  Now a retirement ends with a FIN and reads until the peer's own end,
+  within `stallMs` (`Tcp.linger`). Pinned by a test, not yet a law:
+  tests/engine/EpochIngress.lean keeps the peer writing after the
+  retirement and checks its writer survives; the shipped close, its
+  control in tests/engine/expiry_grace_negative.py, fails it and the
+  notice check every run.
+
 - **Every checkpoint the app ever saved stayed on disk** (found by an
   audit hunting promises narrower than they read, 2026-10-31).
   `Lifecycle.save` only inserted into `app_ops`. Each row holds invite

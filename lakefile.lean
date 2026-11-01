@@ -67,6 +67,9 @@ lean_lib Pic where
 @[default_target] lean_lib Settings where
   globs := #[.submodules `app.settings]
 
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
+
 @[default_target] lean_lib Node where
   roots := #[`app.Family, `app.Commands]
 
@@ -231,8 +234,6 @@ lean_exe join_fair where
 lean_exe vacuity_production_bootstrap where
   root := `tests.vacuity.ProductionBootstrapMain
 
-lean_exe vacuity_bootstrap where
-  root := `tests.vacuity.BootstrapMain
 
 lean_exe vacuity_connection_progress where
   root := `tests.vacuity.ConnectionProgressMain
