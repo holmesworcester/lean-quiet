@@ -2043,6 +2043,9 @@ structure St where
   them; and whether the paste and scan pages are Link devices'. -/
   ownDeviceKeys : Array String := #[]
   linking : Bool := false
+  /-- This node's key, read when Link devices opens: which listed device
+  is this one. -/
+  nodePk : ByteArray := .empty
   window : Safe.Input := ⟨1080, 2400, {}, {}, {}⟩
   nowMs : Nat := 0
   noticeClock : Option (String × Nat) := none
@@ -3683,6 +3686,9 @@ def openPage (p : PageId) : M Unit := do
   -- link) once per session: an invitation op of mine, and the link that
   -- carries its bearer secret
   let device := p == .linkShare
+  if device then
+    let nk ← intentView Community.nodeKey
+    modify fun s => { s with nodePk := (nk.map (·.1)).getD .empty }
   if (p == .invite || device) && !s.me.waiting && !s.me.c.isEmpty && (linkOf s device).isNone then
     let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
@@ -3962,9 +3968,9 @@ def observeSettings (owner : Demand.Owner) (profile counts : Bool) : M Unit := d
     modify fun s => { s with ownName := name }
     if let some (.members ms _) ← query ⟨owner ++ ["devices".toUTF8], true⟩ (.members s.me.c s.me.user) then
       let mine := (ms.find? (·.1 == s.me.user)).map (·.2.1) |>.getD []
-      -- this user's devices, this one first and marked (Link devices)
-      let keys := (mine.filter (· == s.me.dev.pk)).map (fun d => s!"Device {Kinds.Request.hexShort d} (this device)") ++
-        (mine.filter (· != s.me.dev.pk)).map (fun d => s!"Device {Kinds.Request.hexShort d}")
+      -- this user's devices by node key, this one first and marked (Link devices)
+      let keys := (mine.filter (· == s.nodePk)).map (fun d => s!"Device {Kinds.Request.hexShort d} (this device)") ++
+        (mine.filter (· != s.nodePk)).map (fun d => s!"Device {Kinds.Request.hexShort d}")
       modify fun s => { s with ownDevices := max 1 mine.length, ownDeviceKeys := keys.toArray }
   if counts then
     if let some (.people n all) ← query ⟨owner ++ ["people".toUTF8], true⟩ (.people s.me.c) then

@@ -289,6 +289,10 @@ lean_exe pic_retry where
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
 
+-- Linked devices app to app: link, approve, sync, removal cuts both.
+lean_exe link_devices where
+  root := `platforms.headless.LinkDevices
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
