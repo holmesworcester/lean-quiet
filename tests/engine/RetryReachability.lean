@@ -23,10 +23,10 @@ def run (t : Checks) : IO Unit := do
   for i in [0:3] do
     let remote := Device.named s!"multiplex-authenticated-peer-{i}"
     let bearer := Device.named s!"multiplex-authenticated-invitation-{i}"
-    let invitation := Community.invite rootOp.id rootOp.id author bearer.pk false 1
+    let invitation := Community.invite rootOp.id rootOp.id author bearer.pk false
     let member := Community.request rootOp.id invitation.id remote (keyOf remote) bearer.sk
     let approval := Community.approve rootOp.id member.id rootOp.id author
-    let admission := Community.admit rootOp.id member.id [approval.id]
+    let admission := Community.admit rootOp.id member.id approval.id
     let eI := sha256 s!"multiplex-authenticated-initiator-{i}".toUTF8
     let eR := sha256 s!"multiplex-authenticated-responder-{i}".toUTF8
     let some req := Request.op sodium (static remote) (keyOf author) eI

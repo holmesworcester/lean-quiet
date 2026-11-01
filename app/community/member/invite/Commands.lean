@@ -3,19 +3,17 @@ import app.community.Family
 namespace Community
 open Engine Codec
 
-/-- An invitation needing `threshold` approvals (one by default; a link
-invitation needs exactly one). -/
-def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool)
-    (threshold : Nat := 1) : Op :=
+/-- An invitation: a request it carries is admitted by one approval. -/
+def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool) : Op :=
   let reqs := [c, issuerAdm]
-  mkOp reqs (.invite bearer link threshold (sig by_.sk reqs (.invite bearer link threshold .empty)))
+  mkOp reqs (.invite bearer link (sig by_.sk reqs (.invite bearer link .empty)))
 
 /-- An invitation of c by `by_` (whose admission is `issuerAdm`), on the
 node with key `key`, and its link: the bearer key pair from `secret`,
 dial hints for the joiner. -/
 def issue (c issuerAdm : Id) (by_ : Device) (key : Key) (secret : ByteArray)
-    (hints : List ByteArray) (threshold : Nat := 1) : Op × Invite :=
-  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false threshold
+    (hints : List ByteArray) : Op × Invite :=
+  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false
   (inv, ⟨c, inv.id, key, hints, secret⟩)
 open Engine Codec
 namespace Base62
