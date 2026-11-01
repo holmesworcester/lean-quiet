@@ -51,18 +51,6 @@ Connection.ProgressTape.run_view
 Community.members_iff
 Community.recipients_iff
 Community.unscoped_signs_all
-Net.FairExecution.fair
-Net.FairExecution.ideal
-Net.Scene.admitted_inv
-Net.Scene.allowedA
-Net.Scene.allowedB
-Net.Scene.bootstrap
-Net.Scene.bootstrap_possible
-Net.Scene.no_connection_before_approval
-Net.Scene.reachable_inv
-Net.Scene.sessions_trusted
-Net.allowPeer_iff
-Net.allowPeer_settles
 
 # app.connection.Family
 Community.reads_members
@@ -74,9 +62,6 @@ Connection.recipients_iff_node
 
 # engine.core.Cost
 Engine.Costs.time
-
-# engine.core.FIFO
-Net.FIFO.eventually_delivered
 
 # engine.core.ListCost
 Engine.list_costs

@@ -705,11 +705,16 @@ def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
 def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
   (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
 
+/-- The ops the log is rebuilt from when this window is placed: the log's
+other ops, then the nav op for `page` over `stack`. -/
+def placed (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : List Op :=
+  h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack]
+
 /-- The app's ephemeral log with this window placed at `page` over
 `stack`: the nav op at generation `gen` in place of the log's nav ops,
 the log rebuilt from its live ops (`Held.ofOps`). -/
 def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
-  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+  Engine.Sync.Held.ofOps fam (placed h gen page stack)
 
 /-- This device's appearance and its revision, from the store: the
 newest appearance op (`Settings.Appearance.current`), System before any. -/
