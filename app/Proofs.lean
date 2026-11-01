@@ -4032,3 +4032,103 @@ theorem Run.unique {S : Setup} {ea eb : Nat → ByteArray}
 end Connection.Execution
 
 end
+
+section
+
+/-
+Get started's layout laws, over the functions the page runs
+(`Pages.startTop`, `startGeom`, `startRow`, `startTaps`, `getStarted`,
+in app/community/Screen.lean):
+
+- `start_phone`, `start_below_bar`: on phones and narrow windows the
+  column starts right under the 60 px bar, and never under the bar.
+- `start_centred`: from 45rem, when it fits, the column is centred in
+  the window below the bar, to a quarter CSS pixel.
+- `start_column_inside`: the column (and so the card and its rows) is
+  inside the window.
+- `start_rows_in_card`, `start_rows_apart`: each row's box is inside the
+  card's 1 px edges, and each row ends where the next row's divider
+  starts, at every density: every edge is snapped on its own.
+- `getStarted_taps`, `startTaps_rows`: the page's taps are exactly the
+  rows' boxes, each with its own row's action; the painter draws row i
+  in `startRow dm g i` too, so a tap hits what is drawn.
+-/
+
+namespace Pages
+open Paint Text Font Row
+
+theorem q_mono (dm : Dim) {a b : Nat} (h : a ≤ b) : dm.q a ≤ dm.q b :=
+  Nat.div_le_div_right (Nat.add_le_add_right (Nat.mul_le_mul_right _ h) _)
+
+/-- The page's top (the stage's 56 px bar band) is a snapped edge too. -/
+theorem px56_q (dm : Dim) : dm.px 56 = dm.q 224 := by
+  simp only [Row.Dim.px, Row.Dim.q]; omega
+
+/-- **Phones top-anchor.** Below 45rem the column starts under the bar. -/
+theorem start_phone (stage4 lines : Nat) : startTop false stage4 lines = 240 := by
+  simp [startTop]
+
+/-- **Never under the bar.** -/
+theorem start_below_bar (wide : Bool) (stage4 lines : Nat) : 240 ≤ startTop wide stage4 lines := by
+  unfold startTop; split <;> omega
+
+/-- **Desktops centre.** From 45rem, when the column fits, the space
+between the bar and the column and the space under the column differ by
+at most a quarter CSS pixel. -/
+theorem start_centred (stage4 lines : Nat) (h : 240 + startBody lines ≤ stage4) :
+    startTop true stage4 lines - 240 ≤ stage4 - (startTop true stage4 lines + startBody lines) ∧
+    stage4 - (startTop true stage4 lines + startBody lines) ≤ startTop true stage4 lines - 240 + 1 := by
+  simp only [startTop, h, Bool.true_and, decide_true, if_true]
+  omega
+
+/-- **The column is inside the window** (once the window fits its two
+16 px gutters). -/
+theorem start_column_inside (dm : Dim) (W stage lines : Nat) (h : 2 * dm.px 16 ≤ min W (dm.px 384)) :
+    (startGeom dm W stage lines).col + (startGeom dm W stage lines).colW ≤ W := by
+  have := Nat.min_le_left W (dm.px 384)
+  simp only [startGeom]
+  omega
+
+/-- **Rows sit inside the card**, between its 1 px top and bottom edges. -/
+theorem start_rows_in_card (dm : Dim) (W stage lines i : Nat) (hi : i < 3) :
+    let g := startGeom dm W stage lines
+    dm.q (g.card4 + 4) - dm.px 56 ≤ (startRow dm g i).y ∧
+    (startRow dm g i).y + (startRow dm g i).h ≤ dm.q (g.card4 + 588) - dm.px 56 := by
+  intro g
+  have hb : 240 ≤ g.top4 := start_below_bar _ _ _
+  simp only [startRow, px56_q]
+  have h1 := q_mono dm (show 224 ≤ g.card4 + 4 + 196 * i by simp only [Start.card4]; omega)
+  have h2 := q_mono dm (Nat.le_add_right (g.card4 + 4 + 196 * i) 192)
+  have h3 := q_mono dm (show g.card4 + 4 ≤ g.card4 + 4 + 196 * i by omega)
+  have h4 := q_mono dm (show g.card4 + 4 + 196 * i + 192 ≤ g.card4 + 588 by omega)
+  omega
+
+/-- **Rows don't overlap**: row i ends where row i+1's divider begins,
+for any card below the page's top. -/
+theorem start_rows_apart (dm : Dim) (g : Start) (i : Nat) (hg : 224 ≤ g.card4) :
+    (startRow dm g i).y + (startRow dm g i).h ≤ (startDivider dm g (i + 1)).1 ∧
+    (startDivider dm g (i + 1)).2 = (startRow dm g (i + 1)).y := by
+  simp only [startRow, startDivider, px56_q]
+  have h1 := q_mono dm (show 224 ≤ g.card4 + 4 + 196 * i by omega)
+  have h2 := q_mono dm (Nat.le_add_right (g.card4 + 4 + 196 * i) 192)
+  have e1 : g.card4 + 196 * (i + 1) = g.card4 + 4 + 196 * i + 192 := by omega
+  have e2 : g.card4 + 4 + 196 * i + 192 + 4 = g.card4 + 4 + 196 * (i + 1) := by omega
+  rw [e1, e2]
+  exact ⟨by omega, rfl⟩
+
+/-- **Taps are the drawn rows.** Get started's taps are `startTaps` of
+its own geometry. -/
+theorem getStarted_taps {α : Type} [BEq α] [Inert α] (onJoin onCreate onDevices : α)
+    (f : Font) (dm : Dim) (W h stage : Nat) :
+    (getStarted onJoin onCreate onDevices f dm W h stage).taps =
+      startTaps dm (startOf f dm W stage).1 (startRows onJoin onCreate onDevices) := rfl
+
+/-- Row i's tap is row i's box with row i's action. -/
+theorem startTaps_rows {α : Type} (dm : Dim) (g : Start) (rows : Array (String × String × α)) (i : Nat)
+    (hi : i < rows.size) :
+    (startTaps dm g rows)[i]? = some (startRow dm g i, (rows[i]).2.2) := by
+  simp [startTaps, hi]
+
+end Pages
+
+end

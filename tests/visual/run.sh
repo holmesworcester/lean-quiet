@@ -18,3 +18,6 @@ python3 tests/visual/check_switcher_gate.py
 tests/visual/capture.sh out/visual/mobile-switcher-actual tests/visual/mobile-switcher-cases.tsv
 python3 tests/visual/compare.py tests/visual/mobile-switcher-reference out/visual/mobile-switcher-actual out/visual/mobile-switcher-report --budgets tests/visual/mobile-switcher-budgets.json
 python3 tests/visual/check_mobile_switcher_gate.py
+.lake/build/bin/visual out/visual/start-actual tests/visual/start-cases.tsv
+python3 tests/visual/compare.py tests/visual/start-reference out/visual/start-actual out/visual/start-report --budgets tests/visual/start-budgets.json
+python3 tests/visual/check_start_gate.py
