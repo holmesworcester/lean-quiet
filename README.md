@@ -370,7 +370,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1416 rest on Lean's standard axioms only, and about three quarters of its theorems (1058 of 1391, not counting 25 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1416 rest on Lean's standard axioms only, and about three quarters of its theorems (1061 of 1391, not counting 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -447,7 +447,7 @@ a new device on its own node (the 🟡 row under Connections).
 | ✅ | 🥊 | **Families compose, op by op:** adding a family changes no verdict or scope of the first's ops. Strict decoding round-trips. | [`sum_left`], [`sum_scope_left`], [`Codec.decode_encode`], [`Op.decode_bytes`] |
 | ✅ | 🥊🥊🥊 | **The Community laws hold in the running node** (`sum_project`). Its store also holds Connection ops, but at rest its Community ops keep Community's invariant and verdicts, and views that read only Community relations, such as the trust rule, answer as in a Community-only store. Assumes no SHA-256 collision among the ops received. | [`sum_project`], [`sum_project_node`], [`spec_sum_left`], [`view_proj`], [`connect_iff_node`], [`node_settles`] |
 | ✅ | 🥊🥊 | **The app's own state is ops, beside the node's.** The store also holds the app's settings, a family on top of Community's and Connection's: their ops keep their verdicts, and the node's hooks read the store as theirs. The appearance the app reads is the newest one stored, and choosing one writes a Valid local op, never offered to a peer. | [`current_newest`], [`choose_valid`], [`choose_local`], [`node_left`], [`left_list`] |
-| ✅ | 🥊🥊 | **Where a window is, is an op, kept in memory.** Each change of page writes a nav op to the app's ephemeral log, rebuilt from its live ops, and the page and back stack the frame shows are exactly what the newest nav op names. No ephemeral op is ever stored: the store's intake drops them, from this node's own jobs too. | [`withNav_cache`], [`placeIn_newest`], [`node_nav_ephemeral`], [`intake_durable`], [`stored_durable`] |
+| 🟡 | 🥊🥊 | **Where a window is, is an op, kept in memory.** Each change of page writes a nav op to the app's ephemeral log, rebuilt from its live ops, and the page and back stack the frame shows are exactly what the newest nav op names. No ephemeral op is ever stored: the store's intake drops them, from this node's own jobs too. Assumes no SHA-256 collision among the nav ops. Not yet: the nav laws are about `Data.placed`, which nothing running calls. | [`withNav_cache`], [`placeIn_newest`], [`node_nav_ephemeral`], [`intake_durable`], [`stored_durable`] |
 | ✅ | 🥊 | **The in-memory store's lists are in order, and never re-sorted.** Its reads, which the app's ephemeral log runs, put a list's rows in position order: exactly the rows filed, sorted, as the fast merge sort sorts them; a union of lists in order merges in one pass to the same rows. | [`perm_sortPos`], [`sortPos_sorted`], [`sortPos_eq_fast`], [`sortPos_map`], [`insertBy_map`], [`foldr_insertBy`], [`insertBy_merge`], [`mergeRuns_eq_sortPos`], [`union_rows`] |
 | ✅ | 🥊🥊🥊 | **The honest path works.** A request with its invitation and both signatures is valid, an eligible member's approval is valid, and one approval admits and lets the device in. The remover's intent writes only removals that stand. | [`request_valid`], [`approve_valid`], [`admit_admits`], [`connect_admitted`], [`removeMember_valid`] |
 | | | **Sync** | |
@@ -511,7 +511,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1058 of 1391 laws are about running code;** another 35 run its node code in a World, and 298 are not yet. Stated only: none. 25 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1061 of 1391 laws are about running code;** another 35 run its node code in a World, and 295 are not yet. Stated only: none. 25 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -524,8 +524,8 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 212 | 184 |  | 28 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 282 | 220 |  | 62 |
-| App | 139 | 97 | 6 | 36 |
+| Screen | 282 | 221 |  | 61 |
+| App | 139 | 98 | 6 | 35 |
 | Node | 16 | 16 |  |  |
 | App state | 9 | 7 |  | 2 |
 
@@ -636,7 +636,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 
 | Assumption | Laws | |
 |---|---|---|
-| [`Unforgeable`] | 2 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
+| [`Unforgeable`] | 3 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
 | [`CollisionFree`] | 19 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
@@ -1955,8 +1955,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 513 kernel witnesses, 183 runtime witnesses,
-24 conditional checks, 0 recorded runtime counterexamples; 16 of 736 linked declarations still pending.**
+**Coverage: 512 kernel witnesses, 183 runtime witnesses,
+24 conditional checks, 0 recorded runtime counterexamples; 16 of 735 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.

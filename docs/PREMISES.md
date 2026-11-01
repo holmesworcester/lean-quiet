@@ -1916,7 +1916,7 @@ Rests on: `Engine.Model.run`
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.Inv (Quiet.node C K) s` | [discharged] |
-| hy | `s.status y = some (Engine.Verdict.valid (Sum.inr (Settings.Fact.ofAppearance f)))` | [discharged] |
+| hy | `s.status y = some (Engine.Verdict.valid (Sum.inr (Sum.inl (Settings.Fact.ofAppearance f))))` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 **`Settings.Appearance.choose_valid`** (wired)
@@ -1935,7 +1935,7 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Settings.owns o.kind = false` | [discharged] |
+| h | `Quiet.appOwns o.kind = false` | [discharged] |
 
 **`Engine.left_list`** (wired)
 
@@ -1945,6 +1945,102 @@ Rests on: `Engine.Model.run`
 | hq | `s.queue = []` | [discharged] |
 | hk | `Engine.LeftKey s q.key` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+
+## 🟡 Where a window is, is an op, kept in memory.
+
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
+
+**`App.withNav_cache`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `Engine.Distinct (Data.placed s.eph (s.navGen + 1) n.page.code (List.map App.PageId.code n.stack))` | [crypto] |
+| (about) | `code that does not run: Data.placed` | [model] |
+
+**`Data.placeIn_newest`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `Engine.Distinct (Data.placed h gen page stack)` | [crypto] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (about) | `code that does not run: Data.placed` | [model] |
+
+**`Quiet.node_nav_ephemeral`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hs | `Settings.owns o.kind = false` | [discharged] |
+| h | `Nav.owns o.kind = true` | [discharged] |
+
+**`Engine.intake_durable`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `o ∈ Engine.intake fam mine ops` | [discharged] |
+
+**`Engine.stored_durable`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Fed fam M s` | [discharged] |
+| hx | `s.ops x = some o` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+## ✅ The in-memory store's lists are in order, and never re-sorted.
+
+**`Engine.perm_sortPos`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.sortPos_sorted`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.sortPos_eq_fast`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.sortPos_map`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hg | `∀ (p : Engine.Pos × α), (g p).fst = p.fst` | [discharged] |
+
+**`Engine.insertBy_map`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hg | `∀ (p : Engine.Pos × α), (g p).fst = p.fst` | [discharged] |
+
+**`Engine.foldr_insertBy`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `List.Pairwise (fun p q => Engine.posLE p q = true) r` | [discharged] |
+
+**`Engine.insertBy_merge`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hx | `∀ (z : Engine.Pos × α), z ∈ r → Engine.posLE x z = true` | [discharged] |
+
+**`Engine.mergeRuns_eq_sortPos`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `∀ (r : List (Engine.Pos × α)), r ∈ rs → List.Pairwise (fun p q => Engine.posLE p q = true) r` | [discharged] |
+
+**`Engine.union_rows`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `∀ (a : Engine.Answer F), a ∈ as → List.Pairwise (fun p q => Engine.posLE p q = true) (Engine.orient desc a.rows)` | [discharged] |
 
 ## ✅ The honest path works.
 
@@ -3668,7 +3764,7 @@ Rests on: `Community.Unforgeable`, `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-## 🟡 Noto coverage and its cache are bounded.
+## 🟡 Noto coverage is bounded, and the glyph memo is the raster.
 
 **`Ttf.byte_in_bounds`** (wired)
 
@@ -3702,13 +3798,13 @@ Rests on: `Community.Unforgeable`, `Engine.Model.run`
 | hx | `x < b.w` | [discharged] |
 | hy | `y < b.h` | [discharged] |
 
-**`Ttf.Cache.put_bound`** (wired)
+**`Ttf.Memo.bitmap_eq_fast`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | (none) | | |
 
-**`Ttf.Cache.put_payload_bound`** (wired)
+**`Ttf.Memo.Table.get_eq`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
