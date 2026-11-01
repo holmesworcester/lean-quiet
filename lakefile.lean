@@ -623,3 +623,6 @@ lean_exe runner_ownership where
 
 lean_exe node_uniqueness where
   root := `tests.engine.NodeUnique
+
+lean_exe app_network_ownership where
+  root := `tests.engine.AppNetworkOwnership

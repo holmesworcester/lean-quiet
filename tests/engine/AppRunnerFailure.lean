@@ -80,7 +80,8 @@ unsafe def run (dir : String) (t : Checks) (mode : Nat) : IO Unit := do
   let first := PublicationFixture.root "committed before runner failure"
   let second := PublicationFixture.root "accepted only by failed runner channel"
   let third := PublicationFixture.root "new local action after runner failure"
-  let mut state := { initial with net := some r, netCfg := some (0, true) }
+  let mut state := { initial with netCfg := some (0, true) }
+  state := (← (App.attachNetwork none (some r)).run state).2
   let held ← IO.mkRef (none : Option WriterQueue)
   let gate : QueueGate := ⟨initial.wr, held⟩
   try

@@ -2977,6 +2977,66 @@ structure PageIn where
   removeWhy : String := ""
   deriving BEq, Inhabited
 
+/-- Fixed network ownership slots live outside the frame's StateT. A frame
+may roll back its borrowed fields; these caps remain until actual cleanup.
+There is no growing retired-task collection. -/
+structure NetworkState where
+  boot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
+  runner : Option Engine.Sync.Runner := none
+  stopping : Option (Task (Except IO.Error Unit)) := none
+  replay : Option (Task (Except IO.Error Unit)) := none
+  failedStop : Option (Task (Except IO.Error Unit)) := none
+  retiredBoot : Option (Task (Except IO.Error Engine.Sync.Runner)) := none
+  retiredRunner : Option Engine.Sync.Runner := none
+  journal : List ByteArray := []
+  disabled : Bool := false
+  failedStopReported : Bool := false
+
+abbrev NetworkOwner := Std.Mutex NetworkState
+
+def NetworkOwner.new : BaseIO NetworkOwner := Std.Mutex.new {}
+
+def NetworkState.occupied (n : NetworkState) : Bool :=
+  n.disabled || n.boot.isSome || n.runner.isSome || n.stopping.isSome ||
+    n.replay.isSome || n.failedStop.isSome || n.retiredBoot.isSome || n.retiredRunner.isSome
+
+def NetworkOwner.snapshot (owner : NetworkOwner) : BaseIO NetworkState :=
+  owner.atomically get
+
+/-- Creation and registration cannot be separated by an IO exception.
+The factory does not log, join, or access SQLite under the owner mutex. -/
+def NetworkOwner.startBoot (owner : NetworkOwner)
+    (create : BaseIO (Task (Except IO.Error Engine.Sync.Runner))) : BaseIO Bool :=
+  owner.atomically do
+    let n ← get
+    if n.occupied then return false
+    let task ← create
+    set { n with boot := some task }
+    return true
+
+/-- Adoption changes the shared cap to the actual Runner; it never releases
+shared ownership merely because a frame has borrowed a completed result. -/
+def NetworkOwner.adoptBoot (owner : NetworkOwner) : BaseIO (Option (Except IO.Error Engine.Sync.Runner)) :=
+  owner.atomically do
+    let n ← get
+    let some task := n.boot | return none
+    unless ← IO.hasFinished task do return none
+    let result := task.get
+    match result with
+    | .ok runner => set { n with boot := none, runner := some runner }
+    | .error _ => set { n with boot := none, disabled := true }
+    return some result
+
+/-- An explicit transfer for already-owned wiring resources. Never infer
+such a transfer from stale borrowed frame fields. -/
+def NetworkOwner.attach (owner : NetworkOwner)
+    (boot : Option (Task (Except IO.Error Engine.Sync.Runner)))
+    (runner : Option Engine.Sync.Runner) : BaseIO Bool := owner.atomically do
+  let n ← get
+  if n.occupied then return false
+  set { n with boot, runner }
+  return true
+
 structure St where
   io : Io
   theme : Theme.State := {}
@@ -2997,6 +3057,7 @@ structure St where
   holdCache : Hold.MessageCache := none
   rd : Db
   wr : Writer
+  netOwner : NetworkOwner
   dbPath : String := ""
   /-- The network, if this app runs one: the port its node listens on,
   and whether it is reached on loopback (two apps on one machine, in
@@ -3181,6 +3242,25 @@ instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 
   pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty), {}⟩⟩
 
 abbrev M := StateT St IO
+
+/-- Frame fields borrow the authoritative shared network caps. -/
+def syncNetwork : M Unit := do
+  let n ← (← get).netOwner.snapshot
+  modify fun s => { s with
+    net := n.runner
+    netBoot := n.boot
+    netStop := n.stopping
+    netReplay := n.replay
+    failedNetStop := n.failedStop
+    netCfg := if n.disabled then none else s.netCfg }
+
+/-- Wiring adapters explicitly transfer a Runner or pending boot into App.
+Tests use the same ownership boundary instead of overwriting borrowed fields. -/
+def attachNetwork (boot : Option (Task (Except IO.Error Engine.Sync.Runner)))
+    (runner : Option Engine.Sync.Runner) : M Unit := do
+  unless ← (← get).netOwner.attach boot runner do
+    throw (IO.userError "network ownership is still occupied")
+  syncNetwork
 
 /-- The only observation door for UI components. It declares ownership
 and consumes a published answer; it never performs database IO. -/
@@ -3581,41 +3661,88 @@ def replayStoppedNodeWrites (boot : Option (Task (Except IO.Error Engine.Sync.Ru
     if let .ok r ← IO.wait task then discard <| IO.wait r.done
   replayNodeWrites writer bytes
 
+/-- Atomically claim one stop/replay generation and retain its original
+caps. Both tasks are installed before any fallible frame IO can run. -/
+def NetworkOwner.retire (owner : NetworkOwner) (writer : Writer)
+    (bytes : List ByteArray) (failed : Bool) : BaseIO Bool := owner.atomically do
+  let n ← get
+  if n.runner.isNone && n.boot.isNone then return false
+  if failed then
+    let some runner := n.runner | return false
+    unless ← IO.hasFinished runner.done do return false
+  let stopping ← IO.asTask (prio := .dedicated) (stopNodes n.boot n.runner)
+  let replay ← IO.asTask (prio := .dedicated)
+    (replayStoppedNodeWrites n.boot n.runner writer bytes)
+  set { n with
+    boot := none
+    runner := none
+    replay := some replay
+    stopping := if failed then n.stopping else some stopping
+    failedStop := if failed then some stopping else n.failedStop
+    retiredBoot := n.boot
+    retiredRunner := n.runner
+    journal := bytes
+    disabled := n.disabled || failed }
+  return true
+
+def NetworkOwner.takeReplay (owner : NetworkOwner) : BaseIO (Option (Except IO.Error Unit)) :=
+  owner.atomically do
+    let n ← get
+    let some task := n.replay | return none
+    unless ← IO.hasFinished task do return none
+    let result := task.get
+    set { n with
+      replay := none
+      journal := if result.isOk then [] else n.journal
+      disabled := n.disabled || !result.isOk }
+    return some result
+
+/-- Failed cleanup keeps both the original caps and the failed task owned.
+Only successful native cleanup releases that fixed retired slot. -/
+def NetworkOwner.takeStop (owner : NetworkOwner) (failed : Bool) :
+    BaseIO (Option (Except IO.Error Unit)) := owner.atomically do
+  let n ← get
+  let some task := (if failed then n.failedStop else n.stopping) | return none
+  unless ← IO.hasFinished task do return none
+  let result := task.get
+  match result with
+  | .ok _ =>
+    set { n with
+      stopping := if failed then n.stopping else none
+      failedStop := if failed then none else n.failedStop
+      retiredBoot := none
+      retiredRunner := none }
+  | .error _ =>
+    if failed && n.failedStopReported then return none
+    set { n with disabled := true, failedStopReported := n.failedStopReported || failed }
+  return some result
+
 /-- Observe a finished installed runner before offering any further work.
 The journal covers channel-admitted writes as well as parked ones. A failure
 racing a later offer is recovered at the next observation. No check-and-offer
 atomicity or exactly-once IO across an outer StateT rollback is claimed. -/
 def recoverNode : M Unit := do
+  syncNetwork
   let s ← get
-  let some r := s.net | return
-  unless ← IO.hasFinished r.done do return
-  let replay ← IO.asTask (prio := .dedicated) (replayNodeWrites s.wr s.queuedWrites)
-  let stopping ← IO.asTask (prio := .dedicated) (stopNodes none (some r))
-  modify fun s => { s with
-    net := none, netBoot := none, netCfg := none, toNode := #[],
-    netReplay := some replay, failedNetStop := some stopping,
-    notices := s.notices ++ ["Sync stopped. Changes will retry locally. Restart Quiet to reconnect."] }
+  if ← s.netOwner.retire s.wr s.queuedWrites true then
+    syncNetwork
+    modify fun s => { s with toNode := #[], notices := s.notices ++
+      ["Sync stopped. Changes will retry locally. Restart Quiet to reconnect."] }
 
 /-- A single nonblocking poll. A result is taken only after completion. -/
 def pollRetired : M Unit := do
+  syncNetwork
+  let owner := (← get).netOwner
+  if let some (.error _) ← owner.takeReplay then
+    modify fun s => { s with notices := s.notices ++
+      ["Local recovery failed. Restart Quiet to retry queued changes."] }
+  if let some (.error _) ← owner.takeStop true then
+    modify fun s => { s with notices := s.notices ++
+      ["Sync could not finish stopping. Restart Quiet before reconnecting."] }
+  let normal ← owner.takeStop false
+  syncNetwork
+  if let some (.error e) := normal then throw e
   let s ← get
-  if let some t := s.netReplay then
-    if ← IO.hasFinished t then
-      modify fun s => { s with netReplay := none }
-      if let .error _ := t.get then
-        modify fun s => { s with notices := s.notices ++
-          ["Local recovery failed. Restart Quiet to retry queued changes."] }
-  if let some t := s.failedNetStop then
-    if ← IO.hasFinished t then
-      modify fun s => { s with failedNetStop := none }
-      if let .error _ := t.get then
-        modify fun s => { s with notices := s.notices ++
-          ["Sync could not finish stopping. Restart Quiet before reconnecting."] }
-  if let some t := s.netStop then
-    if ← IO.hasFinished t then
-      match t.get with
-      | .ok _ => modify fun s => { s with netStop := none }
-      | .error e => throw e
   if let some w := s.readerStop then
     if ← IO.hasFinished w.done then
       match w.done.get with
@@ -3796,14 +3923,10 @@ def suspend (budget : Nat := 250) : M Unit := do
   recoverNode
   captureInput
   let s ← get
-  if s.net.isSome || s.netBoot.isSome then
-    let stopping ← IO.asTask (prio := .dedicated) (stopNodes s.netBoot s.net)
-    let replay ← IO.asTask (prio := .dedicated)
-      (replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites)
-    -- The journal includes both channel-admitted and parked operations.
-    -- Later submissions park afresh until this handoff has completed.
-    modify fun s => { s with netStop := some stopping, netReplay := some replay, toNode := #[] }
-  modify fun s => { s with net := none, netBoot := none, restoreAnchor := s.mark.isSome }
+  if ← s.netOwner.retire s.wr s.queuedWrites false then
+    syncNetwork
+    modify fun s => { s with toNode := #[] }
+  modify fun s => { s with restoreAnchor := s.mark.isSome }
   s.wr.setPaused false
   leavePage
   saveCheckpoint
@@ -4025,6 +4148,7 @@ def flushNode : M Unit := do
 /-- Store-owned writes survive unmount and are journaled before offering. -/
 def submit (j : Job) : M Unit := do
   if j.ops.isEmpty then return
+  syncNetwork
   let s ← get
   modify fun s => { s with queuedWrites := s.queuedWrites ++ j.ops.map Op.bytes }
   saveCheckpoint
@@ -4809,17 +4933,16 @@ def netStep : M Unit := do
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
   -- started: taken once it is up (the frame never waits on it)
-  if let some t := s.netBoot then
-    if !(← IO.hasFinished t) then return
-    modify fun s => { s with netBoot := none }
-    match t.get with
+  if s.netBoot.isSome then
+    let result ← s.netOwner.adoptBoot
+    syncNetwork
+    let some result := result | return
+    match result with
     | .ok r =>
       s.io.log s!"node: listening on {r.port}"
-      modify fun s => { s with net := some r }
       flushNode
     | .error e =>
       s.io.log s!"node: cannot start: {e}"
-      modify fun s => { s with netCfg := none }
       let pending := (← get).toNode
       modify fun s => { s with toNode := #[] }
       if !pending.isEmpty then for ops in pending do s.wr.submit ⟨ops, true⟩
@@ -4831,15 +4954,15 @@ def netStep : M Unit := do
   let path := s.dbPath
   let sh := s.sh
   let writer := s.wr
-  let t ← IO.asTask (prio := .dedicated) do
+  let created ← s.netOwner.startBoot (IO.asTask (prio := .dedicated) do
     -- Installing netBoot makes later App submissions park. Only the
     -- previously admitted writer work remains ahead of this store open.
     while (← writer.busy.get) > 0 do IO.sleep 2
     let db ← Db.openAt path
     -- the node's commits move the reader's counter (Reader.Shared.commits)
-    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1))
-  s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
-  modify fun s => { s with netBoot := some t }
+    Engine.Sync.Runner.start x db 0 port.toUInt16 (notify := fun _ => sh.commits.modify (· + 1)))
+  syncNetwork
+  if created then s.io.log s!"node: starting, dialed as {(String.fromUTF8? listen).getD "?"}"
 
 /-- The rows every commit since the last call filed or unfiled (the
 writer's and the node's alike), and the verdicts it recorded or cleared,
@@ -6418,6 +6541,7 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
 must not revoke its service opportunity; demand tickets still revoke obsolete
 publication, and the worker never holds its bookkeeping lock during paint. -/
 def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M (Option (List Event)) := do
+  syncNetwork
   modify fun s => { s with
     rasterNeeds := #[], queryNeeds := roots,
     querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
@@ -6452,6 +6576,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
     if !ops.isEmpty then (receive fam (intake fam true ops)).run rd
   let setting ← Theme.load rd
   let wr ← Writer.start dbPath commitCheckpoint
+  let netOwner ← NetworkOwner.new
   let theme : Theme.State := ⟨setting, Theme.ofWord (screen[5]?.getD 0)⟩
   io.appearance (Theme.effective theme == .dark) (Palette.color (Theme.effective theme) .bg)
   -- the communities are this device's accepted facts: read them once
@@ -6468,7 +6593,7 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            io := io, theme := theme, W := W, Hs := Hs, insetTop := safe.y, window, imeH := window.ime.bottom, catalog := catalog,
            dim := ⟨(screen[4]?.getD 420).toNat, font.cell, Theme.effective theme, none⟩,
            insetBot := Hs - safe.bottom, font := font, bgRow := solid (Palette.color (Theme.effective theme) .bg) W, rd := rd,
-           wr := wr, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
+           wr := wr, netOwner, me := me, comms := comms, cur := me.acc, page := if comms.isEmpty then .getStarted else .home,
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }

@@ -695,3 +695,8 @@ run = "bash tests/engine/runner_ownership.sh"
 description = "Actual Node ID/retry invariants, kernel witnesses and native mutation controls"
 depends = ["crypto"]
 run = "tests/engine/node_uniqueness.sh"
+
+[tasks."test:app-network-ownership"]
+description = "Actual Runner/listener and stop/replay ownership survive App StateT rollback; five compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_network_ownership.sh"

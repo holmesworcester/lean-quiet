@@ -54,7 +54,8 @@ def run (dir : String) (t : Checks) (fail : Bool) (holdStop : Bool := false) : I
         discard <| IO.wait releaseStop.result?
     else stoppingHeld.resolve ()
   discard <| IO.wait stoppingHeld.result?
-  let mut state := { initial with net := some r, netCfg := some (0, true) }
+  let mut state := { initial with netCfg := some (0, true) }
+  state := (← (App.attachNetwork none (some r)).run state).2
   try
     state := (← (App.submit ⟨[first], true⟩).run state).2
     unless ← waitFor 2000 entered.isResolved do

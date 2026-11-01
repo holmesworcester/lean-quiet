@@ -174,6 +174,16 @@ controls/three kernel controls, with restoration. The earlier transport counts
 above describe their earlier integration. Full app/platform validation remains
 open. See [RUNNER-OWNERSHIP.md](RUNNER-OWNERSHIP.md).
 
+App network boot, adopted Runner and retiring stop/replay tasks now have fixed
+shared ownership slots outside the frame's StateT. A throwing logger or later
+frame callback cannot lose those handles. Combined-source validation passes
+all 1,355 audited laws, the 707-entry metadata checks, and 52 real
+Runner/TCP/SQLite assertions with five compiling controls and restoration.
+Recovery and lifecycle compatibility checks are running. Reader registration,
+one-shot notices and other partial effects across rollback remain separate;
+normal pending cleanup still suppresses foreground UI at this milestone.
+See [APP-NETWORK-OWNERSHIP.md](APP-NETWORK-OWNERSHIP.md).
+
 ## Obstructions found by the stronger target
 
 | Obligation | Concrete remaining issue |
