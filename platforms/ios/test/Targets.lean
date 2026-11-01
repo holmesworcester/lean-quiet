@@ -20,7 +20,7 @@ def main (args : List String) : IO Unit := do
   let dpi := (args[1]? >>= String.toNat?).getD 480
   let f ← Font.load
   let dm : Row.Dim := ⟨dpi, f.cell, .light, none⟩
-  let pg := Pages.paste f dm W 2000 "" true none
+  let pg := Pages.paste Pages.Act.continue_ Pages.Act.field f dm W 2000 "" true none
   for (b, a) in pg.taps do
     let name := match a with
       | .field => "field" | .continue_ => "continue" | _ => "other"

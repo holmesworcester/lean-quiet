@@ -17,7 +17,7 @@ private def suite : IO Unit := do
         let entries : Array Pages.Entry := #[⟨"Same name", "abcdef1234", 0, false, false⟩,
           ⟨"Same name", "fedcba1234", 0, true, false⟩,
           ⟨"Pending", "abc1234567", 0, false, true⟩]
-        let pg := Pages.switcher base.font dm w (px 580) entries 0 true
+        let pg := Pages.switcher Pages.Act.switchTo Pages.Act.addMembers Pages.Act.communitySettings Pages.Act.joinCommunity Pages.Act.createCommunity Pages.Act.stub Pages.Act.back base.font dm w (px 580) entries 0 true
         let pw := Pages.switcherWidth dm w
         check "56dp outside dismissal strip" (w - pw ≥ px 56)
         check "current account first, duplicate labels preserve identity" (pg.hit (px 80) (px 30) == .switchTo 1)
@@ -28,7 +28,7 @@ private def suite : IO Unit := do
         check "outside dismisses" (pg.hit (w - 1) (px 100) == .back)
         check "avatar uses full identity color" (Paint.getPx pg.bmp.rows[px 25]! (px 22) == Palette.avatar "fedcba1234")
         let many := (Array.range 24).map fun i => { entries[0]! with name := s!"Community {i}", current := i == 0 }
-        let long := Pages.switcher base.font dm w (px 580) many 0 true
+        let long := Pages.switcher Pages.Act.switchTo Pages.Act.addMembers Pages.Act.communitySettings Pages.Act.joinCommunity Pages.Act.createCommunity Pages.Act.stub Pages.Act.back base.font dm w (px 580) many 0 true
         let s := { App.openSt .switcher base with
           W := w, Hs := px 640, dim := dm,
           insetTop := 0, insetBot := 0, pageNow := some long }
