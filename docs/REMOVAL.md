@@ -128,6 +128,12 @@ removal. Taking every cut means later removals only narrow what counts.
 - *Self-removal.* A member who leaves cites its own heads; leaving with
   fewer cuts its own admittees, who then need a fresh approval.
 
+**The notice grows.** A removal's requirement closure now holds the
+heads it cites, their chains (`prev`) and the approvals up to the
+founder's (`up`), so the notice a removed node is given carries them
+too. All of it stays within the walk's budget (`cfg.walk`, 100000 ops,
+engine/sync/Conn.lean), far above any approval chain.
+
 **Citation bound.** The intake caps an op at 64 requirements; a removal
 cites four, then at most 60 heads (`maxHeads`), one per device of the
 removed user with an approval: the remover flow takes the first 60
