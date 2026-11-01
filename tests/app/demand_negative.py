@@ -27,6 +27,18 @@ def run(args, cwd, name, timeout=300):
 
 
 cases = [
+    ("frame-pauses-worker", "component_demand", [
+        ("App.lean", "  stepCore evs\n", "  (← get).raster.pause true\n  try stepCore evs finally (← get).raster.pause false\n"),
+    ], "FAIL: actual App.step permits retained raster progress during frame assembly"),
+    ("replace-first-paint", "component_demand", [
+        ("ops/app/RowPaint.lean", "(first || old.version == version)", "old.version == version"),
+    ], "FAIL: reaction churn preserves the original admitted ticket and queue position"),
+    ("adopt-churning-layout", "component_demand", [
+        ("App.lean", "if d != r.data && !deferRowPaint s x r d then", "if d != r.data then"),
+    ], "FAIL: alternating reaction-row geometry cannot replace the committed snapshot"),
+    ("optimistic-counts-as-committed", "component_demand", [
+        ("App.lean", "r.shownCommitted || (value.isSome && !flight.data.pending)", "r.shownCommitted || value.isSome"),
+    ], "FAIL: real paused writer produces an already shown optimistic bitmap"),
     ("missed-remount", "component_demand", [
         ("ops/app/Reader.lean", "!s.wantSet.contains w || (board.get? w).isNone", "!s.wantSet.contains w"),
     ], "FAIL: unmount and remount between passes refills the revoked board answer"),

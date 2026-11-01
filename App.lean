@@ -427,13 +427,27 @@ def takeBoard : M (_root_.Live.Board Reader.Want Reader.Val) := do
     modify fun s => { s with imgWaiting := {} }
   return b
 
+/-- Keep the admitted first committed body and its measured layout together.
+Child queries still run; their latest answers are adopted after publication.
+Only ancillary name/reaction changes may wait. Access/content/global display
+changes immediately leave this path. -/
+def deferRowPaint (s : St) (x : Id) (r : RowSt) (next : RowData) : Bool :=
+  r.data.own && !r.data.pending && !r.shownCommitted &&
+  r.paintFlight.any (fun old => old.stamp ==
+    Raster.RowPaint.stamp s.life.generation x s.W s.dim s.bgRow next old.stamp.ready)
+
 /-- Row x from the board (Reader's row want), laid out again when its
 version moved; nothing while the board has none (the frame shows the
 row's placeholder, Cover). Its time is shown in the local timezone. -/
 def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := do
   let s ← get
   if s.page != .chat || !s.life.mounted then return
-  let some (.row (some d), ver) := bd.get? (.row s.me.c s.me.adm x) | return
+  let answer := bd.get? (.row s.me.c s.me.adm x)
+  if let some (.row none, _) := answer then
+    if let some old := s.rows[x]? then retireRow old
+    modify fun s => { s with rows := s.rows.erase x }
+    return
+  let some (.row (some d), ver) := answer | return
   if (s.rows[x]?.map (·.bver)) == some ver then return
   let tz := (← s.io.wall).2
   let d := { d with time := (d.time + tz).toNat, wide := s.wide, own := d.author == s.me.user }
@@ -454,7 +468,7 @@ def mount (bd : _root_.Live.Board Reader.Want Reader.Val) (x : Id) : M Unit := d
   | some r =>
     if r.data == d then
       modify fun s => { s with rows := s.rows.insert x { r with bver := ver } }
-    else
+    else if !deferRowPaint s x r d then
       let lay := Row.layout s.font s.dim s.W d
       modify fun s => { s with rows := s.rows.insert x { r with data := d, lay, bver := ver, ver := r.ver + 1 },
                                 heights := s.heights.insert x lay.h }
@@ -510,7 +524,7 @@ def mountChildren (x : Id) (bottom offset viewport : Nat) : M Unit := do
         else pure old
       next := next ++ [t]
     d := { d with tallies := next }
-  if d != r.data then
+  if d != r.data && !deferRowPaint s x r d then
     let lay := Row.layout s.font s.dim s.W d
     modify fun s => { s with
       rows := s.rows.insert x { r with data := d, lay, ver := r.ver + 1 },
@@ -551,15 +565,24 @@ def paintRow (x : Id) (bottom offset viewport : Nat := 0) : M Unit := do
   let selected := s.selected == some x
   if r.data.selected != selected then
     r := { r with data := { r.data with selected }, ver := r.ver + 1 }
-  let key := Raster.Key.row s.life.generation x r.ver ready s.dim.theme
   let (f, dm, W, bgRow, d, l) := (s.font, s.dim, s.W, s.bgRow, r.data, r.lay)
-  let handle ← rasterRequest owner key visible (fun _ => pure (some (Row.paint f dm W bgRow d l av imgs)))
-  let value ← handle.value
-  if r.painted != (r.ver, ready) then modify fun s => { s with paints := s.paints + 1 }
+  let stamp := Raster.RowPaint.stamp s.life.generation x W dm bgRow d ready
+  let first := d.own && !d.pending && !r.shownCommitted
+  let (flight, value) ← Raster.RowPaint.request s.raster owner visible first r.paintFlight
+    stamp r.ver d l imgs (fun _ => pure (some (Row.paint f dm W bgRow d l av imgs)))
+  -- Presentation must keep the admitted snapshot's key, not a newer
+  -- cosmetic version which would revoke the first paint before publication.
+  modify fun s => { s with rasterNeeds := s.rasterNeeds.push ⟨owner, flight.handle.ticket.key, visible⟩ }
+  if (r.paintFlight.map (·.handle.ticket)) != some flight.handle.ticket then
+    modify fun s => { s with paints := s.paints + 1 }
   r := { r with
-    task := if value.isSome then none else some handle,
-    painted := (r.ver, ready), shown := value.orElse fun _ => r.shown,
-    pixels := if !s.mobile && value.isSome then some ⟨d, l, imgs, r.ver, ready⟩ else r.pixels }
+    task := if value.isSome then none else some flight.handle,
+    paintFlight := some flight,
+    painted := if value.isSome then (flight.version, flight.stamp.ready) else r.painted,
+    shown := value.orElse fun _ => r.shown,
+    shownCommitted := r.shownCommitted || (value.isSome && !flight.data.pending),
+    pixels := if !s.mobile && value.isSome then
+      some ⟨flight.data, flight.lay, flight.images, flight.version, flight.stamp.ready⟩ else r.pixels }
   if s.selected.isSome && !selected then
     if let some bmp := r.shown then
       let key := Raster.Key.dim s.life.generation x r.ver ready s.dim.theme
@@ -2314,15 +2337,14 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
   saveCheckpoint
   return r
 
-/-- Foreground assembly suspends admission; the pool can run while the
-native shell presents. Finally also releases it on suspend or errors. -/
+/-- Raster work remains enabled during frame assembly. Repeated frames
+must not revoke its service opportunity; demand tickets still revoke obsolete
+publication, and the worker never holds its bookkeeping lock during paint. -/
 def step (evs : List Event) (roots : Array (Demand.Need Reader.Want) := #[]) : M (Option (List Event)) := do
-  let pool := (← get).raster
-  pool.pause true
   modify fun s => { s with
     rasterNeeds := #[], queryNeeds := roots,
     querySeen := roots.foldl (fun out n => out.insert (n.owner, n.key, n.visible)) {}, imgWaiting := {} }
-  try stepCore evs finally pool.pause false
+  stepCore evs
 
 partial def loop (evs : List Event) : M Unit := do
   match ← step evs with
