@@ -90,8 +90,8 @@ top, with `QUIET_DB=out/make/demo.db`. A judge has no second device, so
 the demo seeds two communities on the first run, opens no sockets, and
 shows the same screen every time; what they type is kept in that
 database. `make online` runs the app with networking (the phone TCP
-runner) and its own `out/make/quiet.db`. `ARGS` passes arguments to the
-app (`make run ARGS="--chaos 300"`).
+runner) and its own `out/make/quiet.db`. `ARGS` passes more arguments
+to the app.
 
 Updating the assets tarball: `tools/make/assets.py check` fails when a
 change to the tree makes the published tarball stale (the Noto and CJK

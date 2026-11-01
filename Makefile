@@ -11,8 +11,8 @@
 #   make assets    only the app's assets
 #
 # The build stays in this folder (.lake, out, assets). ELAN_HOME, CARGO_HOME,
-# RUSTUP_HOME and TMPDIR are honoured if set. ARGS passes arguments to the
-# app, as in: make run ARGS="--chaos 300".
+# RUSTUP_HOME and TMPDIR are honoured if set; ARGS passes more arguments to
+# the app.
 
 UNAME := $(shell uname -s)
 ifeq ($(UNAME),Linux)
