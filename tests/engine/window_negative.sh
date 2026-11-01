@@ -13,7 +13,7 @@ mkdir -p "$artifacts"
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
 snapshot "$tmp/base" engine/core engine/wire engine/renderer engine/sync app tests/engine
-targets=(app.community.channel.message.attachment.Proofs engine.sync.NewestLaws engine.sync.WindowLaws app.community.Proofs)
+targets=(app.community.channel.message.attachment.Proofs engine.sync.NewestLaws engine.sync.WindowLaws engine.sync.TimeLaws app.community.Proofs)
 cp -a "$tmp/base" "$tmp/w"
 (cd "$tmp/w" && lake build "${targets[@]}" >/dev/null 2>&1) || { echo "FAIL: the unmutated copy does not build"; exit 1; }
 
@@ -140,12 +140,17 @@ mutant "a bound by count in walk order" engine.sync.WindowLaws engine/sync/Walk.
 mutant "a window without its closure" engine.sync.WindowLaws engine/sync/WindowLaws.lean:over_mem \
   engine/sync/Conn.lean \
   "  let seen := (ix.closure k r f).1" "  let seen := Std.HashSet.ofList (ix.windowIds r f)"
-# window_covers (so closure_delivered_under_bound) is false: rounds open
-# over the window's own range, so a closure op older than the floor is in
-# no range the round reconciles.
-mutant "rounds over the window's ranges, not S's" engine.sync.WindowLaws engine/sync/WindowLaws.lean:window_covers \
+# room_independent (what a round opens over: the two full ranges) is
+# false: rounds open over the window's own ranges, so a closure op older
+# than the floor is in no range the round reconciles.
+mutant "rounds over the window's ranges, not S's" engine.sync.TimeLaws engine/sync/TimeLaws.lean:room_independent \
   engine/sync/Conn.lean \
-  "  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 1, 0⟩, none⟩]" "  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 2, 0⟩, none⟩]"
+  "      (Msg.rbsr r k ((window 0).map (ix.opening cfg.params r f))).op" \
+  "      (Msg.rbsr r k ((window f).map (ix.opening cfg.params r f))).op"
+# The suite: so the old requirements never reach the windowed node.
+caught "rounds over the window's ranges, not S's" window_sync engine/sync/Conn.lean \
+  "      (Msg.rbsr r k ((window 0).map (ix.opening cfg.params r f))).op" \
+  "      (Msg.rbsr r k ((window f).map (ix.opening cfg.params r f))).op"
 # The suite: S without its closure (the window alone), so the reaction's
 # old message never arrives, and `window_sync` fails.
 caught "a window without its closure" window_sync engine/sync/Conn.lean \
