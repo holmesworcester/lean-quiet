@@ -1,4 +1,4 @@
-import app.connection.NodeUnique
+import app.Proofs
 #print axioms Engine.Sync.io_lawful
 #print axioms Engine.Sync.NodeUnique.boot_valid
 #print axioms Engine.Sync.NodeUnique.open_valid
