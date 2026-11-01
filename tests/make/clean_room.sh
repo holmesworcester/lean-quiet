@@ -16,6 +16,8 @@
 # under Docker's root per image while it runs. Each container gets
 # CLEAN_ROOM_CPUS (8) CPUs and CLEAN_ROOM_MEMORY (24g) of memory, without
 # swap; images run one after another unless CLEAN_ROOM_PARALLEL=1.
+# VERIFY=1 also runs `make verify` (lake check, lake comparator) in the
+# container, which then runs privileged: both sandbox with bubblewrap.
 # Only committed files are tested. Artifacts (logs, screenshots, result.txt)
 # stay in out/make/clean-room/<image>/. Removes its containers.
 set -euo pipefail
@@ -71,7 +73,8 @@ one() {
   echo "clean-room: $image (container $name, $cpus CPUs, $mem)"
   docker run --rm --name "$name" --cpuset-cpus "$((slot * cpus))-$((slot * cpus + cpus - 1))" \
     --memory "$mem" --memory-swap "$mem" \
-    -e ASSETS_URL="$url" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" \
+    -e ASSETS_URL="$url" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -e VERIFY="${VERIFY:-0}" \
+    ${VERIFY:+$([ "$VERIFY" = 1 ] && echo --privileged)} \
     -v "$w/repo.bundle:/srv/repo.bundle:ro" -v "$top/tests/make/clean_room_inner.sh:/srv/inner.sh:ro" \
     "${mounts[@]}" -v "$dir:/out" \
     "$image" bash /srv/inner.sh > "$dir/container.log" 2>&1 || code=$?

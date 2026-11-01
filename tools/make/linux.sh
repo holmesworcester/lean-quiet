@@ -29,7 +29,7 @@ app=.lake/build/bin/linux
 rust_min=1.88
 # what the build needs from the system, as Debian and Ubuntu packages
 # (shell.c includes xcb's headers and X11's cursorfont.h and keysym.h)
-pkgs="gcc libc6-dev curl ca-certificates python3 libxcb1-dev libxcb-shm0-dev libxcb-sync-dev libx11-dev"
+pkgs="gcc libc6-dev curl ca-certificates python3 libxcb1-dev libxcb-shm0-dev libxcb-sync-dev libx11-dev bubblewrap"
 # the libraries the lakefile links, by these paths
 libs="libc.so.6 libxcb.so.1 libxcb-shm.so.0 libxcb-sync.so.1"
 

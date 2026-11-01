@@ -106,4 +106,13 @@ open_app() {
 open_app run
 step online
 open_app online
+# make verify (VERIFY=1; clean_room.sh then runs the container privileged,
+# since lake check and lake comparator sandbox with bubblewrap)
+if [ "${VERIFY:-0}" = 1 ]; then
+  step verify
+  t0=$(date +%s)
+  judge 'make verify' > "$out/verify.log" 2>&1 || die "make verify failed (verify.log)"
+  echo "verify_seconds=$(($(date +%s) - t0))" >> "$res"
+  grep -q 'verified: lake check and lake comparator pass' "$out/verify.log" || die "make verify did not say both checks passed (verify.log)"
+fi
 step pass
