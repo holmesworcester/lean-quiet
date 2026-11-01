@@ -8,6 +8,7 @@ library is a directory of the tree. A library inside another's directory
 app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
+  license := "AGPL-3.0-or-later"
   -- Native C uses the host's headers. Lean's bundled older glibc linker
   -- stub lacks fcntl64 (SQLite's file locks); resolve against the host libc.
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libc.so.6",
@@ -510,6 +511,17 @@ lean_exe vacuity_identity where
 
 lean_lib Vacuity where
   globs := #[.submodules `tests.vacuity]
+
+-- The spec-review commands (#spec_surface, #audit_axioms, #headline) that
+-- tests/Headline.lean runs on the headline laws (docs/HEADLINE.md).
+lean_lib SpecTools where
+  roots := #[`tests.SpecSurface]
+
+-- The headline laws for Comparator (tests/comparator, docs/HEADLINE.md):
+-- the challenge, the solution and its checks. Never a default target: the
+-- challenge's statements are `sorry` (`lake check` builds the defaults).
+lean_lib Comparator where
+  globs := #[.submodules `tests.comparator]
 
 lean_exe vacuity_identity_trust where
   root := `tests.vacuity.IdentityTrustMain

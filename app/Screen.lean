@@ -1004,6 +1004,10 @@ structure Shared where
   /-- The frame's queued writes, as of its last frame: an act's write is
   admitted against them and the pass's earlier acts (WriteAdmission). -/
   queued : IO.Ref (List ByteArray)
+  /-- The acts whose messages the frame presents at once (the composer's
+  sends), and each one's messages placed once judged (`placeMessage`). -/
+  present : IO.Ref (Std.HashSet Id)
+  placed : IO.Ref (Array (Id × Array (Id × Id × Pos × Pos)))
   plan : IO.Ref (Demand.Plan Want)
   /-- Scheduling belongs to this reader lifetime, outside transaction rollback.
   A failed selected query retries behind retained work on the next pass.
@@ -1014,8 +1018,8 @@ structure Shared where
 
 def Shared.new (commits : IO.Ref Nat) : IO Shared :=
   return ⟨← IO.mkRef {}, ← IO.mkRef (0, #[]), ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef 0,
-    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef [], ← IO.mkRef {}, ← IO.mkRef [],
-    ← Std.BaseMutex.new⟩
+    commits, ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef #[], ← IO.mkRef [], ← IO.mkRef {}, ← IO.mkRef #[],
+    ← IO.mkRef {}, ← IO.mkRef [], ← Std.BaseMutex.new⟩
 
 def Shared.locked (sh : Shared) (action : IO α) : IO α := do
   sh.gate.lock
@@ -1209,6 +1213,37 @@ def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
   let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
   new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
 
+/-- Position an admitted message exactly as the ordered views do.
+Saturated counters use this device's receipt, including a receipt in this
+same write; they never invent a position from the display timestamp. -/
+def placeOf {m : Type → Type} [Monad m] [Reads m] (ps : Array Pending) (message : Id) (fact : Fact) :
+    m (Option Pos) := do
+  let .message _ _ _ _ _ n _ _ := fact | return none
+  if n < countCap then return some (sortOf fact, message)
+  let receipt := ps.find? fun p => match p.fact with
+    | .received _ _ m _ _ => m == message
+    | _ => false
+  if let some p := receipt then return some (sortOf p.fact, message)
+  let (stored, _) ← readView (Community.received.byMsg.read [message] (limit := some 1)) #[]
+  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
+
+/-- A message of this write, placed: its community and author, its
+thread's root and its own position (what an own send presents). -/
+def placeMessage {m : Type → Type} [Monad m] [Reads m] (ps : Array Pending) (p : Pending) :
+    m (Option (Id × Id × Pos × Pos)) := do
+  let .message c user _ _ _ _ _ parent := p.fact | return none
+  let some position ← placeOf ps p.op.id p.fact | return none
+  let root ← match parent with
+    | none => pure (some position)
+    | some id => do
+      let fact ← match ps.find? (·.op.id == id) with
+        | some p => pure (some p.fact)
+        | none => pure (← readView (Community.Clump.fact id) #[]).1
+      match fact with
+      | some f => placeOf ps id f
+      | none => pure none
+  return root.map fun root => (c, user, root, position)
+
 /-- An act's write, judged as App.writeAll judges the frame's: each op
 in order against what is decided, the ops before it in the same write,
 then the outbox's (pending, so valid), then the store's. Its valid ops,
@@ -1301,6 +1336,7 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
             | none => pure (some (w, ← judgeWrite rd (← get).out w))
         catch e => do
           IO.eprintln s!"reader: an act failed: {e}"
+          sh.refusals.modify (·.push (id, toString e))
           pure none
       match r with
       | some (w, some pend) =>
@@ -1309,6 +1345,12 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
         sh.out.modify (· ++ pend)
         actNotes := actNotes ++ Pending.filings pend.toList
         admitted := admitted ++ w.ops.map Op.bytes
+        if (← sh.present.get).contains id then
+          let mut places := #[]
+          for p in pend do
+            if let some place ← placeMessage pend p then places := places.push place
+          sh.placed.modify (·.push (id, places))
+          sh.present.modify (·.erase id)
         sh.done.modify (·.push (id, some w))
       | _ => sh.done.modify (·.push (id, none))
     let notes := notes ++ Pending.filings gone.toList ++ actNotes
@@ -2104,6 +2146,10 @@ inductive Cont where
   | maintenance (c : Id) (ops : List ByteArray)
   /-- Chaos's last write: the writer is no longer busy with it. -/
   | chaosDone
+  /-- The composer's send of `text`: done, its messages are presented and
+  the editor's candidate consumed (or the text cleared); refused, the
+  candidate is released, the text kept. -/
+  | send (submission : Option Editor.Snapshot) (text : String)
 
 structure St where
   io : Io
@@ -3159,30 +3205,9 @@ def submitWaits (j : Job) : M Unit := do
 /-- Position an admitted message exactly as the Reader's ordered views do.
 Saturated counters use this device's receipt, including a receipt in this
 same write; they never invent a position from the display timestamp. -/
-def presentationPosition (ps : Array Pending) (message : Id) (fact : Fact) : M (Option Pos) := do
-  let .message _ _ _ _ _ n _ _ := fact | return none
-  if n < countCap then return some (sortOf fact, message)
-  let receipt := ps.find? fun p => match p.fact with
-    | .received _ _ m _ _ => m == message
-    | _ => false
-  if let some p := receipt then return some (sortOf p.fact, message)
-  let stored ← intentView (Community.received.byMsg.read [message] (limit := some 1))
-  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
-
 def presentationEntry (ps : Array Pending) (p : Pending) : M (Option Presentation.Entry) := do
   let s ← get
-  let .message c _ _ _ _ _ _ parent := p.fact | return none
-  let some position ← presentationPosition ps p.op.id p.fact | return none
-  let root ← match parent with
-    | none => pure (some position)
-    | some id => do
-      let fact ← match ps.find? (·.op.id == id) with
-        | some p => pure (some p.fact)
-        | none => intentView (Community.Clump.fact id)
-      match fact with
-      | some f => presentationPosition ps id f
-      | none => pure none
-  return root.map fun root => ⟨s.cur, c, root, position⟩
+  return (← transaction (Reader.placeMessage ps p)).map fun (c, _, root, position) => ⟨s.cur, c, root, position⟩
 
 def presentationRefusal : M Bool := do
   let now ← IO.monoMsNow
@@ -3259,6 +3284,16 @@ def takeDone : M (Array (Id × Option Community.Write)) := do
   for (_, w?) in ds do
     if let some w := w? then submit ⟨w.ops, true⟩
   return ds
+
+/-- An act whose messages the frame presents at once (the composer's
+send): the reader places them after judging. -/
+def actPresenting (k : Cont) (intent : Reader.RM Community.Write) : M Bool := do
+  if !(← get).life.mounted then return false
+  let id ← newBytes 16
+  (← get).sh.present.modify (·.insert id)
+  (← get).sh.act id intent
+  modify fun s => { s with conts := s.conts.insert id k }
+  return true
 
 /-- An act with what to do once it is done; false when no act could be
 queued (the page is not mounted). -/
@@ -4036,11 +4071,16 @@ def applyDone : M Unit := do
   let ds := (← get).doneQ
   modify fun s => { s with doneQ := #[] }
   let why ← (← get).sh.refusals.modifyGet fun a => (a, #[])
+  let placed ← (← get).sh.placed.modifyGet fun a => (a, #[])
   for (id, w?) in ds do
     let k := ((← get).conts[id]?).getD .none
     modify fun s => { s with conts := s.conts.erase id }
     if w?.isNone then
-      if let some (_, r) := why.find? (·.1 == id) then say r
+      match k, why.find? (·.1 == id) with
+      | .send _ _, some (_, r) => say (if r.startsWith "This " then r else "Couldn't send. Your message is still in the composer.")
+      | .send _ _, none => say "Couldn't send. Your message is still in the composer."
+      | _, some (_, r) => say r
+      | _, none => pure ()
     match k, w? with
     | .invite acc link, some _ =>
       if let some l ← link.get then
@@ -4061,6 +4101,27 @@ def applyDone : M Unit := do
       modify fun s => { s with serviceSeen := s.serviceSeen.erase c,
                                maintenanceRetry := s.maintenanceRetry.insert c (s.frames + 300) }
     | .chaosDone, _ => (← get).wr.busy.modify (· - 1)
+    | .send submission t, some _ =>
+      -- present this device's own messages of the write, as placed
+      let s ← get
+      let mut own := s.ownSends
+      for (c, user, root, position) in ((placed.find? (·.1 == id)).map (·.2)).getD #[] do
+        if c == s.me.c && user == s.me.user then
+          if let some next := own.offer ⟨s.cur, c, root, position⟩ then own := next
+      modify fun s => { s with ownSends := own }
+      let photos := (← get).chips.isEmpty
+      match submission with
+      | some action =>
+        discard <| (← get).io.editorIo.action action.ticket 3
+        if let some latest ← readEditor then adoptEditor latest
+        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if photos then 0 else 1),
+                                 editor := { s.editor with clear := some (action.ticket, action.revision) } }
+      | none =>
+        -- what was typed since the send stays
+        if (← get).text.trimAscii.toString == t then
+          modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
+        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if photos then 0 else 1) }
+    | .send (some action) _, none => discard <| (← get).io.editorIo.action action.ticket 2
     | _, _ => pure ()
   -- a new acceptance becomes current once the communities list it
   if let some a := (← get).awaitAcc then
@@ -4402,6 +4463,7 @@ def composerHasInk (s : St) (text : String) : Bool := Id.run do
 send intent (the post sealed under the community's current key, then
 each photo's attachment and chunks), one write. -/
 def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
+  let mut queued := false
   try
     if ← refuseSubmission refusal submission then return
     let s ← get
@@ -4416,8 +4478,11 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     if s.chips.isEmpty && !composerHasInk s t then
       say "Add visible text or a photo."
       return
-    let k? ← intentView (Community.currentKey s.me.c)
-    let some k := k? | say "This community's key hasn't arrived yet."; return
+    -- room on screen for this send's message, counting the sends in flight
+    let inFlight := s.conts.fold (fun n _ k => match k with | .send _ _ => n + 1 | _ => n) 0
+    if s.ownSends.entries.length + inFlight ≥ Presentation.capacity then
+      discard <| presentationRefusal
+      return
     let mut files := []
     for (bytes, w, h, _) in s.chips.toList do
       files := files ++ [({ info := { name := "photo.qoi".toUTF8, kind := "image/qoi".toUTF8, w, h,
@@ -4425,16 +4490,17 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
                             bytes, key := ← newSized 32, nonce := ← newSized 24,
                             metaNonce := ← newSized 24 } : Community.NewFile)]
     let nonce ← newSized 24
-    let w ← intentView (Community.send s.me.c s.me.adm s.me.dev k nonce t.toUTF8 (← nowMin) files)
-    if ← writeAll w (present := true) then
-      if let some action := submission then
-        discard <| s.io.editorIo.action action.ticket 3
-        if let some latest ← readEditor then adoptEditor latest
-        modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1), editor := { s.editor with clear := some (action.ticket, action.revision) } }
-      else
-        modify fun s => { s with text := "", sel := #[0, 0, 0, 0], chips := #[], chromeKey := "", editorContent := s.editorContent + (if s.chips.isEmpty then 0 else 1) }
+    let (c, adm, dev, now) := (s.me.c, s.me.adm, s.me.dev, ← nowMin)
+    -- the reader reads the key, runs the send and places its messages;
+    -- the editor keeps its candidate until the act is done (Cont.send)
+    queued ← actPresenting (.send submission t) do
+      let (k?, _) ← readView (Community.currentKey c) #[]
+      let some k := k? | throw (IO.userError "This community's key hasn't arrived yet.")
+      let (w, _) ← readView (Community.send c adm dev k nonce t.toUTF8 now files) #[]
+      return w
   finally
-    if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
+    if !queued then
+      if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
 /-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
