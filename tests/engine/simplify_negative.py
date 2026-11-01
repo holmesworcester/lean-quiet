@@ -16,7 +16,7 @@ assert run(["lake", "build", "simplify", "syncpair", "connection_check", "Sync",
 assert run([".lake/build/bin/simplify"], "baseline-run") == 0
 # name, source, unique text, mutation, target, runtime assertion (None = law)
 cases = [
-    ("stale-terminal", "engine/sync/Conn.lean", "Decidable.decide (k < seen)", "false", "simplify", "stale terminal keeps the newer room snapshot and epoch"),
+    ("stale-terminal", "engine/sync/Conn.lean", "Decidable.decide (k < seen)", "false", "simplify", "stale terminal keeps the newer room round and epoch"),
     ("round-rewind", "engine/sync/Conn.lean", "round := max c.round k", "round := k", "simplify", "older active room completes without rewinding another room"),
     ("notice-result", "engine/sync/Notice.lean", "given := x :: s.given", "given := s.given", "engine.sync.NoticeLaws", None),
     ("notice-repeat", "engine/sync/Notice.lean", "if has c.given x then", "if false then", "engine.sync.NoticeLaws", None),
@@ -29,7 +29,12 @@ cases = [
     ("late-keepalive", "engine/sync/Conn.lean", "s.send.isEmpty && sent + cfg.live / 3 ≤ now", "s.send.isEmpty && sent + cfg.live ≤ now", "engine.sync.TimeLaws", None),
     ("timestamp", "engine/wire/Node.lean", "then { c with sent := now } else c", "then c else c", "simplify", "node records outgoing time"),
     ("silent-room", "engine/sync/Conn.lean", "then { conn := c, send := [(Msg.rbsr r k []).op] } else", "then { conn := c } else", "engine.sync.TimeLaws", None),
-    ("room-gate", "engine/sync/Conn.lean", "if c.dialer && c.lastRound + cfg.every ≤ now", "if c.dialer && c.snaps.isEmpty && c.lastRound + cfg.every ≤ now", "simplify", "a stalled room"),
+    ("room-gate", "engine/sync/Conn.lean", "let ready := c.rooms.filter fun r => c.due cfg r now", "let ready := c.rooms.filter fun r => c.active.isEmpty && c.due cfg r now", "simplify", "a stalled room does not gate it"),
+    ("no-show-round", "engine/sync/Conn.lean", "  | none => true\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | none => false\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "simplify", "showing a room starts a round"),
+    ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => true", "simplify", "with no event, no round starts before the safety period"),
+    ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => false", "simplify", "the safety round reopens each room"),
+    ("responder-silent", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask now", "  let s := if c.dialer then c.start cfg ix now else { conn := c }", "simplify", "the responder asks for a round"),
+    ("ask-ignored", "engine/sync/Conn.lean", "      if ids.isEmpty then return { conn := c.onAsk r }", "      if ids.isEmpty then return { conn := c }", "simplify", "a responder's ask opens a round"),
     ("over-limit-handler", "engine/sync/Conn.lean", "asked := wants.foldl (·.insert ·) c.asked", "asked := (wants.foldl (·.insert ·) c.asked).insert .empty", "engine.sync.BoundsLaws", None),
     ("reopen-closed", "engine/sync/Session.lean", "def Session.hearHello : Session → Session\n  | .hello => .live\n  | s => s", "def Session.hearHello : Session → Session\n  | .closed => .live\n  | .hello => .live\n  | s => s", "engine.sync.SessionLaws", None),
     ("skip-hello", "engine/sync/Session.lean", "| .dialing => .hello", "| .dialing => .live", "engine.sync.SessionLaws", None),

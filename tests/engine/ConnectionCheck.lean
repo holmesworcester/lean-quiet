@@ -54,7 +54,7 @@ open Engine Engine.Sync Community Tests Connection
 
 def K := sodium
 def fam : Family F := node ed25519 K
-def cfg : Config := { every := 30000, askTime := 20000 }
+def cfg : Config := { askTime := 20000 }
 
 structure Peer where
   addr : ByteArray

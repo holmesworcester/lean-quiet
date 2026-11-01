@@ -43,7 +43,13 @@ theorem remembers_bounded {α : Type} (cap : Nat) (key : α → Id) (ids : List 
 
 theorem start_bounded (ix : Index) (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
     (c.start cfg ix now).conn.Bounded cfg := by
-  unfold Conn.start; split <;> exact hb
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, es, e⟩ <;> rw [e] <;> exact hb
+
+theorem ask_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) : (c.ask now).conn.Bounded cfg := by
+  obtain ⟨rs, e⟩ := Conn.ask_conn c now; rw [e]; exact hb
+
+theorem onAsk_bounded (c : Conn) (r : Id) (hb : c.Bounded cfg) : (c.onAsk r).Bounded cfg := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]; exact hb
 
 theorem round_bounded (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat)
     (hb : c.Bounded cfg) : (c.onRbsr cfg ix r k cs now).conn.Bounded cfg := by
@@ -116,7 +122,7 @@ theorem tick_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hb : c.Bo
     have hw := expire_bounded cfg _ now hw
     split
     · exact start_bounded cfg _ _ _ hw
-    · exact hw
+    · exact ask_bounded cfg _ _ hw
 
 theorem recv_bounded (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h : Held F)
     (hb : c.Bounded cfg) : ((c.recv fam cfg ix bytes now : HeldM F Step) h).1.conn.Bounded cfg := by
@@ -141,7 +147,9 @@ theorem recv_bounded (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
       | rbsr r k cs => exact (round_bounded cfg _ _ _ _ _ _ hb)
       | hold r ids =>
         dsimp only
-        exact (hold_bounded fam cfg _ _ _ _ hb)
+        split
+        · exact onAsk_bounded cfg _ r hb
+        · exact (hold_bounded fam cfg _ _ _ _ hb)
       | want ids =>
         dsimp only
         exact (onWant_bounded cfg _ _ _ hb)

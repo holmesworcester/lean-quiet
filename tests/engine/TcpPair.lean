@@ -115,7 +115,7 @@ def main (args : List String) : IO UInt32 := do
   IO.FS.createDirAll dir
   let t ← Checks.new
   let (h, c) := history 4 40
-  let x : Sync Fact (SqlM Fact) := { fam, cfg := { every := 5000, askTime := 8000 }, hooks := hooks [c] }
+  let x : Sync Fact (SqlM Fact) := { fam, cfg := { askTime := 8000 }, hooks := hooks [c] }
   let pa := dir ++ "/a.db"
   let pb := dir ++ "/b.db"
   let da ← fresh pa

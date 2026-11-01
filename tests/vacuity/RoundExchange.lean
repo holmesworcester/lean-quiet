@@ -18,16 +18,36 @@ def ix : Index := { rooms := [(room, xs)] }
 def iy : Index := { rooms := [(room, ys)] }
 def cfg : Config := { params := { leaf := 1, fan := 2 }, maxKnown := 8, maxIds := 1 }
 def times (n : Nat) : Nat := n * 10
+-- The responder reads ix at even steps, the dialer iy at odd ones.
+def ixs (n : Nat) : Index := if n % 2 = 0 then ix else iy
 def first := initial cfg room ix iy 0
-def states := execute cfg room 1 times first
+def states := execute cfg room 1 times ixs first
 
-theorem runs : Run cfg room 1 times states := execute_runs cfg room 1 times first
-theorem ready : Ready room 1 xs ys (states 0) := initial_ready ..
+theorem runs : Exec cfg room 1 times ixs states := execute_runs cfg room 1 times ixs first
+theorem run : Run cfg room 1 times states := exec_runs cfg room 1 times ixs states runs
+theorem ready : Both room 1 (states 0) := initial_ready ..
+theorem current : Current room 1 states := exec_current cfg room 1 times ixs states runs ready
 theorem sortedX : Sorted Prod.fst xs := by unfold Sorted xs; decide
 theorem sortedY : Sorted Prod.fst ys := by unfold Sorted ys; decide
 theorem named : Named Prod.fst Prod.snd (xs ++ ys) := by
   simp [Named, xs, ys]
   decide
+
+theorem itemsAt (n : Nat) : (states n).items room = if n % 2 = 0 then xs else ys := by
+  cases n with
+  | zero => rfl
+  | succ n =>
+    change (ixs (n + 1)).items room = _
+    unfold ixs
+    split <;> rfl
+
+theorem itemsX (t : Nat) : (states (2 * t)).items room = xs := by
+  rw [itemsAt, if_pos (by omega)]
+theorem itemsY (t : Nat) : (states (2 * t + 1)).items room = ys := by
+  rw [itemsAt, if_neg (by omega)]
+
+theorem items0 : (states 0).items room = xs := by simpa using itemsX 0
+theorem items1 : (states 1).items room = ys := by simpa using itemsY 0
 
 theorem withinX : within Prod.fst fullRange xs = xs := by decide
 theorem withinY : within Prod.fst fullRange ys = ys := by decide
@@ -42,53 +62,47 @@ theorem startsFingerprint : (states 0).pending =
 
 -- Count mismatch (1 versus 2) forces an id reply, independently of hashes.
 theorem firstReply : (states 1).pending = [.ids fullRange [alice]] := by
-  rw [runs 0, successor cfg room 1 (times 0) xs ys _ ready (by rw [startsFingerprint]; simp)]
+  rw [next_pending cfg room 1 times states run current 0 (by rw [startsFingerprint]; simp), items0]
   simp only [outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX]
   simp [cfg, fp, xs, nextClaims]
 
-theorem readyOne : Ready room 1 ys xs (states 1) := by
-  rw [runs 0]
-  apply ready_next cfg room 1 (times 0) xs ys _ ready (by rw [startsFingerprint]; simp)
-  rw [← runs 0, firstReply]
-  simp
-
 theorem secondReply : (states 2).pending = [] := by
-  rw [show 2 = 1 + 1 from rfl, runs 1,
-    successor cfg room 1 (times 1) ys xs _ readyOne (by rw [firstReply]; simp)]
-  simp [outputs, firstReply, answer, nextClaims]
+  rw [next_pending cfg room 1 times states run current 1 (by rw [firstReply]; simp), items1]
+  simp [outputs, firstReply, answer, nextClaims, withinY]
 
 theorem laterEmpty (n : Nat) : (states (n + 2)).pending = [] := by
-  simpa [Nat.add_comm] using run_empty cfg room 1 times states runs 2 secondReply n
+  simpa [Nat.add_comm] using run_empty cfg room 1 times ixs states runs 2 secondReply n
 
 theorem bounded (t : Nat) : (states t).receiving.Bounded cfg ∧ (states t).waiting.Bounded cfg :=
-  run_bounded cfg room 1 times states runs
-    (by simp [states, execute, first, initial, Conn.start, Conn.beginRound, Conn.Bounded, cfg]) t
+  run_bounded cfg room 1 times ixs states runs
+    (by simp [states, execute, first, initial, Conn.start, Conn.due, Conn.roundedAt, Conn.beginRound,
+      Conn.Bounded, cfg]) t
 
-theorem capacity (t : Nat) : Capacity cfg room 1 (states t) := by
+theorem capacity (t : Nat) : Capacity cfg room (states t) := by
   cases t with
   | zero =>
-    rw [Capacity, ready.2.2.2.2.1]
+    rw [Capacity, items0]
     have asks : (states 0).receiving.asked = ∅ := rfl
     simp only [asks, outputs, startsFingerprint, List.flatMap_cons, List.flatMap_nil, List.append_nil, answer, withinX]
     simp [fp, cfg, xs, roundWants]
   | succ t =>
     cases t with
     | zero =>
-      rw [Capacity, readyOne.2.2.2.2.1]
+      rw [Capacity, items1]
       have asks : (states 1).receiving.asked = ∅ := rfl
       simp only [asks, outputs, firstReply, List.flatMap_cons, List.flatMap_nil, List.append_nil,
-        answer, withinY, roundWants, List.flatMap_cons, List.flatMap_nil, List.nil_append, List.append_nil,
+        answer, roundWants, List.flatMap_cons, List.flatMap_nil, List.nil_append, List.append_nil,
         Std.HashSet.size_empty, Nat.zero_add]
+      simp only [withinY]
       exact Nat.le_trans (List.length_filter_le _ _) (by decide)
     | succ n =>
       have empty := laterEmpty n
       change (states (n + 2)).receiving.asked.size +
-        (roundWants (outputs cfg ((states (n + 2)).receiving.snap (states (n + 2)).index room 1)
-          (states (n + 2)).pending)).length ≤ cfg.maxKnown
+        (roundWants (outputs cfg ((states (n + 2)).items room) (states (n + 2)).pending)).length ≤ cfg.maxKnown
       simp only [empty, outputs, List.flatMap_nil, roundWants, List.length_nil, Nat.add_zero]
       exact (bounded (n + 2)).1.2
 
-theorem ranks : ∀ cl ∈ (states 0).pending, rank xs ys cl ≤ 7 := by
+theorem ranks : ∀ cl ∈ (states 0).pending, rankIn (xs ++ ys) cl ≤ 7 := by
   rw [startsFingerprint]
   intro cl hc
   obtain rfl := List.mem_singleton.mp hc
@@ -98,7 +112,16 @@ theorem emptyAsks : (states 0).receiving.asked = ∅ ∧ (states 0).waiting.aske
   initial_asks ..
 
 theorem terminates : ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
-  obtain ⟨j, _, hj, hdone⟩ := RoundRun.terminates cfg room 1 times states runs 7 0 xs ys ready sortedX sortedY ranks
+  have sub : ∀ t, ∀ a ∈ (states t).items room, a ∈ xs ++ ys := by
+    intro t a ha; rw [itemsAt] at ha
+    split at ha
+    · exact List.mem_append_left _ ha
+    · exact List.mem_append_right _ ha
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items room) := by
+    intro t; rw [itemsAt]; split
+    · exact sortedX
+    · exact sortedY
+  obtain ⟨j, _, hj, hdone⟩ := RoundRun.terminates cfg room 1 times states run current (xs ++ ys) sub sorted 7 0 ranks
   exact ⟨j, by omega, hdone⟩
 
 -- Checking all possible filtered snapshots proves Sound for every range.
@@ -107,8 +130,8 @@ def exchangeCertificate :=
   if checked : collisionCheck (hashInputs xs ++ hashInputs ys) = true then
     if pending : alice ∈ (states 2).waiting.asked then
       let sound := sound_of_check xs ys checked
-      let result := conn_runs_exchange cfg room 1 7 times states xs ys runs capacity (by decide)
-        ready sortedX sortedY named sound emptyAsks.1 emptyAsks.2 ranks
+      let result := conn_runs_exchange cfg room 1 7 times ixs states xs ys runs capacity (by decide)
+        ready itemsX itemsY sortedX sortedY named sound emptyAsks.1 emptyAsks.2 ranks
       have member : opening Prod.fst Prod.snd sha256 cfg.params ys fullRange ∈ (states 0).pending := by
         change _ ∈ (initial cfg room ix iy 0).pending
         rw [initial_claim]
@@ -123,7 +146,7 @@ def exchangeCertificate :=
       let aliceWire := announces alice (Or.inl aliceMissing)
       let bobWire := announces bob1 (Or.inr bobMissing)
       let bobWire2 := announces bob2 (Or.inr bobMissing2)
-      let earlierWant := pending_source cfg room 1 times states runs (by decide) emptyAsks.1 emptyAsks.2
+      let earlierWant := pending_source cfg room 1 times ixs states runs (by decide) emptyAsks.1 emptyAsks.2
         2 alice (Or.inr pending)
       some (PLift.up (And.intro result.1 (And.intro aliceWire (And.intro bobWire (And.intro bobWire2 earlierWant)))))
     else none

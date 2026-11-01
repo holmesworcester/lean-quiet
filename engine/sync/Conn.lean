@@ -9,11 +9,21 @@ closes the connection when `step.drop`.
   every op with no claimed time (roots, admissions, removals, ...) and
   every op claimed at or after the floor; a round runs over the overlap
   of the two windows (`window`).
-- **Rounds.** The dialer opens a round per room once it knows the
-  peer's floor, and again every `cfg.every` ms for each idle room.
-  Each side answers a round's claims from a snapshot of the room taken
-  when it first saw the round, so the round is `exchange`, and
-  `exchange_complete` applies. A message with no claims ends the round.
+- **Rounds.** Only the dialer opens rounds, and only on an event: once
+  it knows the peer's floor it opens one in every room the session
+  shows; on its clock it opens one in each shown room that is due
+  (`due`): a room it has not opened a round in on this session (newly
+  shown, or the responder asked), and every `cfg.safety` ms in each
+  room. The responder asks for a round in a room it starts showing
+  mid-session with an empty have naming it (`ask`). A newer round in a
+  room supersedes the one in flight there.
+- **Live answers.** Each side answers each claim from the live index as
+  it is at that instant (`ix.items r`); a connection keeps no copy of a
+  room, only which rounds are in flight (`active`). A matching
+  fingerprint means equal sets at that instant (`lbl_inj`), and ops
+  stored later reach the peer by the stream, so a round needs no calm
+  (RoundRun.lean, `live_round_complete`). A message with no claims ends
+  the round.
 - **Have and want.** What `answer` says this side holds and the peer
   lacks is offered (`sync.have`, naming its room); the peer wants what
   it lacks in that room (`sync.want`); wanted ops are sent as their
@@ -91,6 +101,24 @@ def Index.ofOps (ops : List Op) : Index := ops.foldl (Index.add fam) {}
 def Index.remove (ix : Index) (x : Id) : Index :=
   ⟨ix.rooms.map fun p => (p.1, p.2.filter fun a => !Decidable.decide (a.2 = x))⟩
 
+/-- How this side opens a round over w in room r, from its items there. -/
+def Index.opening (P : Params) (ix : Index) (r : Id) (w : Range) : Claim :=
+  Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) w
+/-- What this side answers to claim c in room r. -/
+def Index.answer (P : Params) (ix : Index) (r : Id) (c : Claim) : List Out :=
+  Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) c
+theorem Index.opening_eq (P : Params) (ix : Index) (r : Id) (w : Range) :
+    ix.opening P r w = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) w := rfl
+theorem Index.answer_eq (P : Params) (ix : Index) (r : Id) (c : Claim) :
+    ix.answer P r c = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) c := rfl
+/-- The two as functions, for rewriting under `map` and `flatMap`. -/
+theorem Index.opening_fun (P : Params) (ix : Index) (r : Id) :
+    ix.opening P r = Engine.Sync.opening Prod.fst Prod.snd sha256 P (ix.items r) :=
+  funext (Index.opening_eq P ix r)
+theorem Index.answer_fun (P : Params) (ix : Index) (r : Id) :
+    ix.answer P r = Engine.Sync.answer Prod.fst Prod.snd sha256 P (ix.items r) :=
+  funext (Index.answer_eq P ix r)
+
 end
 
 /-! ## Connections -/
@@ -102,8 +130,10 @@ def window (f : Nat) : List Range :=
 
 structure Config where
   params : Params := {}
-  /-- ms between rounds the dialer opens. -/
-  every : Nat := 30000
+  /-- ms after a room's last round before the dialer opens a safety
+  round in it. Otherwise rounds open only when a session starts showing
+  a room, or the responder asks for one. -/
+  safety : Nat := 600000
   /-- ms before an unserved ask expires, independently of session liveness. -/
   askTime : Nat := 20000
   /-- ms between retries of wanted ids (less than askTime by default). -/
@@ -137,11 +167,15 @@ structure Conn where
   floor : Nat
   peerFloor : Option Nat := none
   round : Nat := 0
-  lastRound : Nat := 0
+  /-- Each shown room with when its last round opened here (the dialer),
+  or when this side last saw or asked for one (the responder). A shown
+  room with no entry is due. -/
+  rounded : List (Id × Nat) := []
   lastAsk : Nat := 0
-  /-- The rounds in flight here, each with the snapshot it is answered from. -/
-  snaps : List ((Id × Nat) × List Item) := []
-  /-- Latest epoch seen in each room, retained after its snapshot is retired.
+  /-- The rounds in flight here: room and epoch, at most one per room.
+  No items: every claim is answered from the live index. -/
+  active : List (Id × Nat) := []
+  /-- Latest epoch seen in each room, retained after its round ends.
   Delayed terminal markers and replayed claims cannot rewind another round. -/
   epochs : List (Id × Nat) := []
   /-- Captured overlap floor, retained after the round ends for delayed wants. -/
@@ -214,16 +248,21 @@ def chunks (ids : List Id) (mk : List Id → Msg) : List Op :=
   (pieceIds cfg.maxIds ids.length ids).map fun l => (mk l).op
 
 def Conn.open (dialer : Bool) (rooms : List Id) (floor : Nat) (now : Nat) : Step :=
-  { conn := { session := Session.dialing.sayHello, dialer, rooms, floor, heard := now, sent := now, lastRound := now }, send := [(Msg.hello floor).op] }
+  { conn := { session := Session.dialing.sayHello, dialer, rooms, floor, heard := now, sent := now }, send := [(Msg.hello floor).op] }
 
 /-- Remember a room's newest round, with at most one record per room. -/
 def noteEpoch (limit : Nat) (epochs : List (Id × Nat)) (r : Id) (k : Nat) : List (Id × Nat) :=
   ((r, k) :: epochs.filter (fun p => !Decidable.decide (p.1 = r))).take limit
 
+/-- When room r's last round opened here (or, at the responder, when it
+last saw or asked for one), if any did on this session. -/
+def Conn.roundedAt (c : Conn) (r : Id) : Option Nat :=
+  (c.rounded.find? fun p => Decidable.decide (p.1 = r)).map (·.2)
+
 /-- An older epoch, a completed duplicate, or a reply to a round the dialer
 never opened. Other rooms can lag behind the global counter. -/
 def Conn.oldRound (c : Conn) (r : Id) (k : Nat) : Bool :=
-  let active := c.snaps.any (fun p => Decidable.decide (p.1 = (r, k)))
+  let active := c.active.any (fun p => Decidable.decide (p = (r, k)))
   (c.dialer && !active) ||
     match c.epochs.find? (fun p => Decidable.decide (p.1 = r)) with
     | none => false
@@ -246,45 +285,142 @@ def Conn.queue (c : Conn) (ids : List Id) : Conn :=
     else queueClosure cfg.closureCap c.closed c.frontier ids
   { c with frontier, closureCut := c.closureCut || cut }
 
-/-- The dialer opens a round in every room. -/
+/-- Room r is due a round at `now`: none has opened in it on this session
+(it is newly shown, or the responder asked), or the last opened
+`safety` ms ago or more. -/
+def Conn.due (c : Conn) (r : Id) (now : Nat) : Bool :=
+  match c.roundedAt r with
+  | none => true
+  | some t => Decidable.decide (t + cfg.safety ≤ now)
+
+/-- The dialer opens a round in every shown room that is due, all with
+the next epoch; a room's newer round supersedes the one in flight there.
+With no room due it does nothing. -/
 def Conn.start (ix : Index) (c : Conn) (now : Nat) : Step :=
   match c.peerFloor with
   | none => { conn := c }
   | some pf =>
+    let ready := c.rooms.filter fun r => c.due cfg r now
+    if ready.isEmpty then { conn := c } else
     let k := c.round + 1
     let w := window (max c.floor pf)
-    let ready := c.rooms.filter fun r => !c.snaps.any (fun p => p.1.1 == r)
-    let snaps := ready.map fun r => ((r, k), ix.items r)
-    let send := snaps.map fun ((r, _), s) =>
-      (Msg.rbsr r k (w.map (opening Prod.fst Prod.snd sha256 cfg.params s))).op
+    let send := ready.map fun r =>
+      (Msg.rbsr r k (w.map (ix.opening cfg.params r))).op
     { conn := { c.beginRound k with
-        lastRound := now
-        snaps := (c.snaps ++ snaps).take c.rooms.length
+        active := (ready.map (·, k) ++ c.active.filter fun p => !has ready p.1).take c.rooms.length
+        rounded := ready.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded
         epochs := ready.foldl (fun es r => noteEpoch c.rooms.length es r k) c.epochs }, send }
 
-/-- The snapshot round k in room r is answered from: the one taken when
-this side first saw the round, or the room as it is now. -/
-def Conn.snap (ix : Index) (c : Conn) (r : Id) (k : Nat) : List Item :=
-  match c.snaps.find? fun p => Decidable.decide (p.1 = (r, k)) with
-  | some (_, s) => s
-  | none => ix.items r
+/-- The responder asks for a round in each shown room it has neither seen
+a round in nor asked about on this session: an empty have naming it. -/
+def Conn.ask (c : Conn) (now : Nat) : Step :=
+  match c.peerFloor with
+  | none => { conn := c }
+  | some _ =>
+    let fresh := c.rooms.filter fun r => (c.roundedAt r).isNone
+    if fresh.isEmpty then { conn := c } else
+    { conn := { c with rounded := fresh.foldl (fun rs r => noteEpoch c.rooms.length rs r now) c.rounded }
+      send := fresh.map fun r => (Msg.hold r []).op }
 
-/-- A round's message about room r: answer its claims from the round's
-snapshot; no claims ends the round. -/
+@[simp] theorem Conn.start_drop (ix : Index) (c : Conn) (now : Nat) : (c.start cfg ix now).drop = false := by
+  unfold Conn.start; split
+  · rfl
+  · dsimp only; split <;> rfl
+
+@[simp] theorem Conn.start_take (ix : Index) (c : Conn) (now : Nat) : (c.start cfg ix now).take = [] := by
+  unfold Conn.start; split
+  · rfl
+  · dsimp only; split <;> rfl
+
+@[simp] theorem Conn.start_given (ix : Index) (c : Conn) (now : Nat) :
+    (c.start cfg ix now).conn.given = c.given ∧ (c.start cfg ix now).given = [] := by
+  unfold Conn.start; split
+  · exact ⟨rfl, rfl⟩
+  · dsimp only; split
+    · exact ⟨rfl, rfl⟩
+    · exact ⟨rfl, rfl⟩
+
+@[simp] theorem Conn.ask_drop (c : Conn) (now : Nat) : (c.ask now).drop = false := by
+  unfold Conn.ask; split
+  · rfl
+  · dsimp only; split <;> rfl
+
+@[simp] theorem Conn.ask_take (c : Conn) (now : Nat) : (c.ask now).take = [] := by
+  unfold Conn.ask; split
+  · rfl
+  · dsimp only; split <;> rfl
+
+@[simp] theorem Conn.ask_given (c : Conn) (now : Nat) :
+    (c.ask now).conn.given = c.given ∧ (c.ask now).given = [] := by
+  unfold Conn.ask; split
+  · exact ⟨rfl, rfl⟩
+  · dsimp only; split
+    · exact ⟨rfl, rfl⟩
+    · exact ⟨rfl, rfl⟩
+
+/-- The peer asks for a round in room r (an empty have naming it): the
+dialer makes a shown room with no round in flight due. -/
+def Conn.onAsk (c : Conn) (r : Id) : Conn :=
+  if c.dialer && has c.rooms r && !c.active.any (fun p => Decidable.decide (p.1 = r)) then
+    { c with rounded := c.rounded.filter fun p => !Decidable.decide (p.1 = r) }
+  else c
+
+/-- What `start` changes: nothing, or the round state only (the round
+counter and closure capture, the rounds in flight, when each room's
+round opened, the epochs). -/
+theorem Conn.start_conn (ix : Index) (c : Conn) (now : Nat) :
+    (c.start cfg ix now).conn = c ∨ ∃ k a rs es,
+      (c.start cfg ix now).conn = { c.beginRound k with active := a, rounded := rs, epochs := es } := by
+  unfold Conn.start; split
+  · exact Or.inl rfl
+  · dsimp only; split
+    · exact Or.inl rfl
+    · exact Or.inr ⟨_, _, _, _, rfl⟩
+
+/-- What `ask` changes: when each room's round was asked for, only. -/
+theorem Conn.ask_conn (c : Conn) (now : Nat) : ∃ rs, (c.ask now).conn = { c with rounded := rs } := by
+  unfold Conn.ask; split
+  · exact ⟨c.rounded, rfl⟩
+  · dsimp only; split
+    · exact ⟨c.rounded, rfl⟩
+    · exact ⟨_, rfl⟩
+
+/-- What `onAsk` changes: when each room's round opened, only. -/
+theorem Conn.onAsk_eq (c : Conn) (r : Id) : ∃ rs, c.onAsk r = { c with rounded := rs } := by
+  unfold Conn.onAsk; split
+  · exact ⟨_, rfl⟩
+  · exact ⟨c.rounded, rfl⟩
+
+@[simp] theorem Conn.onAsk_heard (c : Conn) (r : Id) : (c.onAsk r).heard = c.heard := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+@[simp] theorem Conn.onAsk_rooms (c : Conn) (r : Id) : (c.onAsk r).rooms = c.rooms := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+@[simp] theorem Conn.onAsk_sent (c : Conn) (r : Id) : (c.onAsk r).sent = c.sent := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+@[simp] theorem Conn.onAsk_given (c : Conn) (r : Id) : (c.onAsk r).given = c.given := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+@[simp] theorem Conn.onAsk_session (c : Conn) (r : Id) : (c.onAsk r).session = c.session := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+@[simp] theorem Conn.onAsk_dialer (c : Conn) (r : Id) : (c.onAsk r).dialer = c.dialer := by
+  obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
+
+/-- A round's message about room r: answer its claims from the room as
+the live index holds it now; no claims ends the round. -/
 def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) : Step :=
   if !has c.rooms r then { conn := c, send := [(Msg.rbsr r k []).op] } else
   if c.oldRound r k then { conn := c } else
-  let snap := c.snap ix r k
-  let c := { c.beginRound k with epochs := noteEpoch c.rooms.length c.epochs r k }
-  let others := c.snaps.filter fun p => !Decidable.decide (p.1.1 = r)
+  let c := { c.beginRound k with
+    epochs := noteEpoch c.rooms.length c.epochs r k
+    rounded := if c.dialer then c.rounded else noteEpoch c.rooms.length c.rounded r now }
+  let others := c.active.filter fun p => !Decidable.decide (p.1 = r)
   let ended (c : Conn) : Conn :=
-    { c with snaps := others }
+    { c with active := others }
   if cs.isEmpty then { conn := ended c } else
-  let outs := cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params snap)
+  let outs := cs.flatMap (ix.answer cfg.params r)
   let claims := outs.filterMap fun | .claim x => some x | _ => none
   let holds := outs.flatMap fun | .hold xs => xs | _ => []
   let wants := outs.flatMap fun | .want xs => xs | _ => []
-  let c := if claims.isEmpty then ended c else { c with snaps := (((r, k), snap) :: others).take c.rooms.length }
+  let c := if claims.isEmpty then ended c else { c with active := ((r, k) :: others).take c.rooms.length }
   let wants := admitAsks cfg.maxKnown c.asked wants
   let c := { c with
     askTime := wants.foldl (fun ts i => ts.insert i now) c.askTime
@@ -401,11 +537,15 @@ def Conn.recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) : m Step :
     | some (.hello f) =>
       let c := { c with peerFloor := some f, session := c.session.hearHello }
       -- The first hello may precede the dialer's keys if the bare answer
-      -- was lost. Answer its hello once it can open session frames.
+      -- was lost. Answer its hello once it can open session frames. The
+      -- dialer's answer opens a round in every room it shows, so the
+      -- responder asks for none of the rooms it shows now.
       return (if c.dialer then c.start cfg ix now else
-        { conn := c, send := [(Msg.hello c.floor).op] })
+        { conn := { c with rounded := c.rooms.map (·, now) }, send := [(Msg.hello c.floor).op] })
     | some (.rbsr r k cs) => return (c.onRbsr cfg ix r k cs now)
-    | some (.hold r ids) => return (← c.onHold fam cfg r ids)
+    | some (.hold r ids) =>
+      if ids.isEmpty then return { conn := c.onAsk r }
+      else return (← c.onHold fam cfg r ids)
     | some (.want ids) => return c.onWant cfg ix ids
     | none =>
       if isWire o.kind || !c.shows fam o then return { conn := c }
@@ -442,12 +582,12 @@ def Conn.expireAsks (cfg : Config) (c : Conn) (now : Nat) : Conn :=
 def Conn.retryIds (cfg : Config) (c : Conn) (now : Nat) : List Id :=
   if c.lastAsk + cfg.retry ≤ now then c.asked.toList.take cfg.maxIds else []
 
-/-- Work due on a live session: rounds, closure and retries. -/
+/-- Work due on a live session: the rounds due (the dialer) or asked for
+(the responder), closure and retries. -/
 def Conn.work (ix : Index) (c : Conn) (now : Nat) : m Step := do
   let (c, offer) ← c.walk fam cfg
   let c := c.expireAsks cfg now
-  let s := if c.dialer && c.lastRound + cfg.every ≤ now then c.start cfg ix now
-    else { conn := c }
+  let s := if c.dialer then c.start cfg ix now else c.ask now
   let due := c.lastAsk + cfg.retry ≤ now
   return { s with
     conn := { s.conn with lastAsk := if due then now else c.lastAsk }
@@ -458,11 +598,13 @@ def Conn.tick (ix : Index) (c : Conn) (now : Nat) : m Step := do
   if c.heard + cfg.live < now then return { conn := { c with session := c.session.close }, drop := true }
   return (← c.work fam cfg ix now).pulse cfg c.sent now
 
-/-- The rooms the peer may see changed: forget the others' rounds. -/
+/-- The rooms the peer may see changed: forget the others' rounds, so a
+room shown again is due again. -/
 def Conn.setRooms (c : Conn) (rooms : List Id) : Conn :=
   { c with
     rooms
-    snaps := (c.snaps.filter fun p => has rooms p.1.1).take rooms.length
+    active := (c.active.filter fun p => has rooms p.1).take rooms.length
+    rounded := (c.rounded.filter fun p => has rooms p.1).take rooms.length
     epochs := (c.epochs.filter fun p => has rooms p.1).take rooms.length }
 
 end

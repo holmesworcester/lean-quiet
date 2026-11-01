@@ -1644,7 +1644,7 @@ structure World where
 
 structure Setup where
   addr : Side → ByteArray
-  cfg : Config := { every := 30000, askTime := 20000 }
+  cfg : Config := { askTime := 20000 }
   /-- Flow-control input, in the same form the runner supplies to Sync. -/
   room : Side → ByteArray → Option Nat := fun _ _ => none
 

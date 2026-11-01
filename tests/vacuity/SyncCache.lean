@@ -16,9 +16,9 @@ theorem indexAnswers : heldIn fam held.db room msg.id = true ↔
 
 -- The filed path actually sends an advertisement; all cache/invariant
 -- premises are constructed for the nonempty held store.
-theorem shownAfterFile : Keeps fam boot.ix conn held
+theorem shownAfterFile : Keeps fam conn held
     ((conn.filed fam cfg [msg.id] : HeldM Unit Step) held) :=
-  (have_shown fam cfg heldInv bootCache (open_keeps fam (s := held.db) false [room] 0 0).1).2.2 [msg.id]
+  (have_shown fam cfg heldInv bootCache conn).2.2 [msg.id]
 
 theorem writeCache :
     Inv (setup.sync .a).fam ((Node.boot fam [] 0).write (setup.sync .a) [msg] ({} : Held Unit)).2.db ∧
@@ -32,15 +32,9 @@ theorem purgeCache : Inv fam ((Turn.purge fam [msg.id] true : HeldM Unit Unit) h
     Cached fam boot ((Turn.purge fam [msg.id] true : HeldM Unit Unit) held).2.db :=
   purge_cached fam [msg.id] true heldInv bootCache
 
-def snapConn : Conn := { conn with snaps := [((room, 1), [(keyOf fam msg, msg.id)])] }
-theorem snapshotIn : SnapsIn boot.ix snapConn := by
-  intro p hp a ha
-  obtain rfl := List.mem_singleton.mp hp
-  obtain rfl := List.mem_singleton.mp ha
-  exact messageIndexed
-
-theorem snapshotKept : SnapsIn (boot.write (setup.sync .a) [msg] held).1.1.ix snapConn :=
-  write_snaps (setup.sync .a) snapshotIn [msg] held
+-- A write turn keeps the indexed message: live answers read it after.
+theorem indexKept : (keyOf fam msg, msg.id) ∈ (boot.write (setup.sync .a) [msg] held).1.1.ix.items room :=
+  write_items (setup.sync .a) boot [msg] held room _ messageIndexed
 
 -- Notice carries an actual stored leaf and no synchronized room.
 def noticeConn : Conn := { conn with rooms := [], notices := [(room, msg.id)] }
@@ -91,7 +85,8 @@ def roundConn : Conn := { conn with peerFloor := some 0 }
 theorem startsRoom : (Msg.rbsr room (roundConn.round + 1)
     ((window (max roundConn.floor 0)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items room)))).op ∈
     (roundConn.start cfg ix 100).send :=
-  room_independent cfg ix roundConn room 100 0 rfl (by simp [roundConn, conn, Conn.open]) rfl
+  room_independent cfg ix roundConn room 100 0 rfl (by simp [roundConn, conn, Conn.open])
+    (by simp [Conn.due, Conn.roundedAt, roundConn, conn, Conn.open])
 
 def refused : Conn := { conn with rooms := [] }
 theorem refusesRound : refused.onRbsr cfg ix room 7 [.ids range [msg.id]] 100 =
@@ -103,7 +98,7 @@ theorem acceptsNewRound : (conn.onRbsr cfg ix room 7 [.ids range [msg.id]] 100).
       (([Claim.ids range [msg.id]].flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items room))).filterMap
         fun | .claim x => some x | _ => none)).op :=
   uncarried_room_answered cfg ix conn room 7 100 [.ids range [msg.id]]
-    (by simp [conn, Conn.open, has]) rfl rfl rfl
+    (by simp [conn, Conn.open, has]) rfl rfl
 
 def answersIds := conn_answers_ids cfg ix conn room 7 range (ix.items room)
   [(⟨0, 1⟩, "remote-message-id".toUTF8)] 100 (by simp [conn, Conn.open]) rfl rfl

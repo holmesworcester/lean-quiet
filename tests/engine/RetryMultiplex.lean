@@ -15,7 +15,7 @@ def cid (i : Nat) := sha256 s!"multiplex-session-{i}".toUTF8
 def peer (i : Nat) := cryptoSeal.pub (sha256 s!"multiplex-node-key-{i}".toUTF8)
 
 def setup (address : ByteArray) (established : Bool := true) (order : List Nat := [2,1,0]) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { live := 1000000000, every := 1000000000 },
+  { fam, cfg := { live := 1000000000, safety := 1000000000 },
     hooks := {
       rooms := fun c => pure (if (List.range 3).any (fun i => c == cid i) then [.sync rootOp.id] else [])
       sealFor := plainSeal, openFrame := plainOpen

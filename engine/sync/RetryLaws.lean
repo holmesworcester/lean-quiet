@@ -56,9 +56,15 @@ theorem recv_no_drop (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h 
       cases msg with
       | hello f =>
         dsimp only []
-        split <;> rfl
+        split
+        · simp [HeldM.pure_apply]
+        · rfl
       | rbsr r k cs => exact round_no_drop cfg _ _ _ _ _ _
-      | hold r ids => simp only [HeldM.bind_apply, HeldM.pure_apply]; exact hold_no_drop fam cfg _ _ _ _
+      | hold r ids =>
+        dsimp only
+        split
+        · rfl
+        · exact hold_no_drop fam cfg _ _ _ _
       | want ids => simp only [HeldM.bind_apply, HeldM.pure_apply]; exact want_no_drop cfg _ _ _
 
 theorem filedGive_no_drop (c : Conn) (ids : List Id) (h : Held F) :
@@ -111,7 +117,7 @@ theorem honest_no_drop (c : Conn) (now : Nat) (h : Held F) (s : Step)
   | tickGive ix => exact (tickGive_drop fam cfg ix c now h).1 hd
   | rooms rooms => cases hd
   | work ix => rw [work_no_drop] at hd; cases hd
-  | start ix => unfold Conn.start at hd; split at hd <;> cases hd
+  | start ix => rw [Conn.start_drop] at hd; cases hd
   | round ix r k cs => rw [round_no_drop] at hd; cases hd
   | hold r ids => rw [hold_no_drop] at hd; cases hd
   | want ix ids => rw [want_no_drop] at hd; cases hd
@@ -142,10 +148,22 @@ theorem retried_start (ix : Index) (c : Conn) (now : Nat) :
     retried (c.start cfg ix now).send = [] := by
   unfold Conn.start; split
   · rfl
-  · simp only [retried, List.flatMap_map, Function.comp_def]
-    apply List.flatMap_eq_nil_iff.mpr
-    intros
-    simp [Msg.ofOp, Msg.op, kRbsr, kHave, kWant, Codec.decode_encode]
+  · dsimp only; split
+    · rfl
+    · simp only [retried, List.flatMap_map, Function.comp_def]
+      apply List.flatMap_eq_nil_iff.mpr
+      intros
+      simp [Msg.ofOp, Msg.op, kRbsr, kHave, kWant, Codec.decode_encode]
+
+theorem retried_ask (c : Conn) (now : Nat) : retried (c.ask now).send = [] := by
+  unfold Conn.ask; split
+  · rfl
+  · dsimp only; split
+    · rfl
+    · simp only [retried, List.flatMap_map, Function.comp_def]
+      apply List.flatMap_eq_nil_iff.mpr
+      intros
+      simp [Msg.ofOp, Msg.op, kRbsr, kHave, kWant, Codec.decode_encode]
 
 theorem retried_holds (offers : List (Id × Id)) : retried (holdsOf cfg offers) = [] := by
   apply List.flatMap_eq_nil_iff.mpr
@@ -183,7 +201,7 @@ theorem work_retry_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     exact Nat.le_trans (pieces_short _ _ _ hl) hl
   split
   · simpa only [retried_start, List.nil_append] using hr _
-  · simpa only [retried, List.flatMap_nil, List.nil_append] using hr _
+  · simpa only [retried_ask, List.nil_append] using hr _
 
 theorem retry_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     (retried ((c.tick fam cfg ix now : HeldM F Step) h).1.send).length ≤ cfg.maxIds := by

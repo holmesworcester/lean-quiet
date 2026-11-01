@@ -43,7 +43,7 @@ def blob (i : Nat) : Op :=
 def sess (tag : String) : Op := Op.make 200 [] tag.toUTF8
 
 def setup (est : IO.Ref (List (Id × ByteArray × Bool))) : Sync Nat (SqlM Nat) :=
-  { fam := Harden.fam, cfg := { every := 1000 }, hooks := {
+  { fam := Harden.fam, cfg := {}, hooks := {
       rooms := fun _ => pure [.sync room]
       established := est.get
       sealFor := plainSeal, openFrame := plainOpen } }

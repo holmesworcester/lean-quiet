@@ -325,8 +325,8 @@ open Engine Community
 #print axioms Engine.Sync.recv_keeps
 #print axioms Engine.Sync.tick_keeps
 #print axioms Engine.Sync.open_keeps
-#print axioms Engine.Sync.setRooms_snaps
-#print axioms Engine.Sync.write_snaps
+#print axioms Engine.Sync.write_items
+#print axioms Engine.Sync.ask_keeps
 #print axioms Engine.Sync.have_shown
 #print axioms Engine.Sync.holdsOf_hold
 #print axioms Engine.Sync.holdsIn_apply
@@ -352,6 +352,8 @@ open Engine Community
 #print axioms Engine.Sync.conn_answers_ids
 #print axioms Engine.Sync.uncarried_room_answered
 #print axioms Engine.Sync.start_bounded
+#print axioms Engine.Sync.ask_bounded
+#print axioms Engine.Sync.onAsk_bounded
 #print axioms Engine.Sync.round_bounded
 #print axioms Engine.Sync.hold_bounded
 #print axioms Engine.Sync.onWant_bounded
@@ -758,6 +760,10 @@ open Engine
 end windows
 
 #print axioms Engine.Sync.conn_state_bounded
+#print axioms Engine.Sync.notes_bounded
+#print axioms Engine.Sync.walk_rounds
+#print axioms Engine.Sync.extra_ask
+#print axioms Engine.Sync.extra_onAsk
 #print axioms Engine.Sync.full_round_stateless
 #print axioms Engine.Sync.closure_capped
 #print axioms Engine.Sync.closure_complete_under_cap
@@ -1065,6 +1071,11 @@ end cost
 #print axioms Engine.Sync.keepalive_runs
 #print axioms Engine.Sync.unshown_room_answered
 #print axioms Engine.Sync.room_independent
+#print axioms Engine.Sync.Conn.start_conn
+#print axioms Engine.Sync.Conn.ask_conn
+#print axioms Engine.Sync.Conn.onAsk_eq
+#print axioms Engine.Sync.Index.opening_eq
+#print axioms Engine.Sync.Index.answer_eq
 #print axioms Engine.Sync.handlers_transition
 #print axioms Engine.Sync.closed_terminal
 #print axioms Engine.Sync.open_session
@@ -1079,6 +1090,7 @@ end cost
 #print axioms Engine.Sync.tick_sends_or_recent
 #print axioms Engine.Sync.peer_keeps_live
 #print axioms Engine.Sync.start_session
+#print axioms Engine.Sync.ask_session
 #print axioms Engine.Sync.round_session
 #print axioms Engine.Sync.hold_session
 #print axioms Engine.Sync.want_session
@@ -1087,6 +1099,8 @@ end cost
 #print axioms Engine.Sync.filed_session
 #print axioms Engine.Sync.recv_transition
 #print axioms Engine.Sync.work_send
+#print axioms Engine.Sync.ask_send
+#print axioms Engine.Sync.due_send
 #print axioms Engine.Sync.secrecy_runs
 #print axioms Engine.Sync.live_runs
 #print axioms Engine.Sync.Session.hello_allowed
@@ -1298,7 +1312,8 @@ end cost
 #print axioms Engine.Sync.conn_round_continues
 #print axioms Engine.Sync.conn_returns_claims
 #print axioms Engine.Sync.RoundRun.successor
-#print axioms Engine.Sync.RoundRun.ready_next
+#print axioms Engine.Sync.RoundRun.next_pending
+#print axioms Engine.Sync.RoundRun.piece_misses
 #print axioms Engine.Sync.RoundRun.answer_rank
 #print axioms Engine.Sync.RoundRun.next_mem
 #print axioms Engine.Sync.RoundRun.terminates
@@ -1306,10 +1321,13 @@ end cost
 #print axioms Engine.Sync.RoundRun.holds_announced
 #print axioms Engine.Sync.RoundRun.wants_seen
 #print axioms Engine.Sync.RoundRun.discovers
+#print axioms Engine.Sync.RoundRun.has_of_diff
+#print axioms Engine.Sync.RoundRun.diff_of
+#print axioms Engine.Sync.RoundRun.exec_runs
+#print axioms Engine.Sync.RoundRun.exec_current
 #print axioms Engine.Sync.RoundRun.mem_inserts
 #print axioms Engine.Sync.RoundRun.asks_have_source
 #print axioms Engine.Sync.RoundRun.pending_source
-#print axioms Engine.Sync.RoundRun.discovers_wire
 #print axioms Engine.Sync.RoundRun.execute_runs
 #print axioms Engine.Sync.RoundRun.advance_empty
 #print axioms Engine.Sync.RoundRun.run_empty
@@ -1320,7 +1338,10 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_ready
 #print axioms Engine.Sync.RoundRun.initial_claim
 #print axioms Engine.Sync.RoundRun.initial_asks
+#print axioms Engine.Sync.RoundRun.items_par
+#print axioms Engine.Sync.RoundRun.par_alt
 #print axioms Engine.Sync.conn_runs_exchange
+#print axioms Engine.Sync.live_round_complete
 
 #print axioms Connection.secret_unfiled
 #print axioms Connection.purge_forgets

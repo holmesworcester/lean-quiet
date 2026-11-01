@@ -490,12 +490,17 @@ theorem has_of_mem {l : List Id} {x : Id} (h : x ∈ l) : has l x = true := (Eng
 
 /-! ## What a connection does with each message -/
 
+/-- A have: with ids, answered by `onHold`; with none, a request for a
+round (`onAsk`). Either way the store is only read. -/
 theorem recv_hold (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (r : Id) (l : List Id) (now : Nat)
     (h : Held F) :
     (Conn.recv fam cfg ix c (Msg.hold r l).op.bytes now : HeldM F Step).run h =
-      ((({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1, h) := by
+      ((if l.isEmpty then { conn := ({ c with heard := now } : Conn).onAsk r }
+        else (({ c with heard := now }.onHold fam cfg r l : HeldM F Step).run h).1), h) := by
   simp only [Conn.recv, Op.decode_bytes, ofOp_hold]
-  exact Prod.ext rfl (onHold_reads _ _ _ _ _ h)
+  split
+  · rfl
+  · exact Prod.ext rfl (onHold_reads _ _ _ _ _ h)
 
 theorem onHold_take (fam : Family F) (c : Conn) (cfg : Config) (r : Id) (l : List Id) (h : Held F) :
     ((c.onHold fam cfg r l : HeldM F Step).run h).1.take = [] := by
@@ -701,7 +706,9 @@ theorem op_taken (n : Node) (cid : Id) (c : Conn) (src : ByteArray) (o : Op) (r 
   split
   · simp only [HeldM.run_bind, HeldM.run_pure, refresh_run, recv_hold]
     apply apply_reads
-    rw [onHold_take]
+    split
+    · rfl
+    · rw [onHold_take]
   · rfl
 
 /-- Opening a session at a node with no managed sessions: the session's
@@ -1508,16 +1515,17 @@ theorem stream_offered_runs (r cid : Id) :
 /-! ## The round, at one connection -/
 
 /-- An accepted id-claim batch is the base case of the connection's
-round exchange. It answers from the captured snapshot X, offers exactly
-the first side of `exchange`, and requests the admitted part of the
-second. Deferred wants require later service or another round. The
-epoch premise excludes stale or unstarted replies. General finite batch
-execution is proved in `engine.sync.RoundRun`; this pointwise statement does
-not assume arbitrary delivery order preserves a complete round. -/
+round exchange. It answers from the room as the live index X holds it
+then (`ix.items r`), offers exactly the first side of `exchange`, and
+requests the admitted part of the second. Deferred wants require later
+service or another round. The epoch premise excludes stale or unstarted
+replies. Runs whose index changes between batches are in
+`engine.sync.RoundRun` (`live_round_complete`); this pointwise statement
+does not assume arbitrary delivery order preserves a complete round. -/
 theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (rg : Range)
     (X Y : List Item) (now : Nat) (hr : r ∈ c.rooms)
     (fresh : c.oldRound r k = false)
-    (hX : X = ((c.snaps.find? fun p => Decidable.decide (p.1 = (r, k))).map (·.2)).getD (ix.items r)) :
+    (hX : X = ix.items r) :
     ∃ A B, (A, B) = exchange Prod.fst Prod.snd sha256 cfg.params 1 X Y
         (.ids rg ((within Prod.fst rg Y).map Prod.snd)) ∧
       (c.onRbsr cfg ix r k [.ids rg ((within Prod.fst rg Y).map Prod.snd)] now).send =
@@ -1528,11 +1536,9 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
           named Prod.snd (within Prod.fst rg X) i = false) := by
   refine ⟨_, _, rfl, ?_, exchange_ids (P := cfg.params) 0 X Y rg _ rfl⟩
   have hr' := has_of_mem hr
+  subst hX
   simp only [Conn.onRbsr, fresh, hr', Bool.not_true, Bool.false_eq_true, ite_false, List.flatMap_cons,
     List.flatMap_nil, List.append_nil, List.isEmpty_cons]
-  simp only [hX, Conn.snap, exchange, answer, give, get, Conn.beginRound]
-  cases List.find? (fun p => Decidable.decide (p.fst = (r, k))) c.snaps with
-  | none => simp
-  | some p => obtain ⟨_, _⟩ := p; simp
+  simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound]
 
 end Engine.Sync
