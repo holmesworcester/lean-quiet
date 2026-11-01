@@ -8,10 +8,12 @@ wire and lifecycle), over the running code:
 Good w → Legal P adv w a → Good (w.step P a)      so      Good w₀ → ∀ k, Good (E.world k)
 ```
 
-Every other law hangs under it, as a conjunct of `Good` or a corollary of
-`good_always`. This note fixes the shape; engine/world/Good.lean is the
-interface every later lane plugs into, and engine/world/PlainGood.lean
-is its first instance (`Plain.good_always`).
+The safety laws hang under it, each as a conjunct of `Good` or a
+corollary of `good_always`. The liveness laws (convergence, delivery
+bounds) are a separate spine, under `Edge` and the fair-network premises;
+`Good` supplies the invariants they consume. This note fixes the shape;
+engine/world/Good.lean is the interface every later lane plugs into, and
+engine/world/PlainGood.lean is its first instance (`Plain.good_always`).
 
 ## The interface (engine/world/Good.lean)
 
@@ -42,7 +44,17 @@ hooks, any attacker `adv`.
   (every world of every execution).
 
 An instance supplies, per node, the `Local` proofs of its conjuncts, and
-the `Keeps` proofs of the world-level ones.
+the `Keeps` proofs of the world-level ones. A fact that follows from the
+conjuncts at one state is a corollary, not a conjunct: it needs no
+preservation proof of its own.
+
+Wiring: the instance's laws (`Plain.good_always`, `Plain.good_keeps`,
+`moves_always`, `verdicts_spec`, `Plain.agree`, the projections) and the
+generic `Keeps.always`, `Guar.always`, `sent_keeps` class `world`. The
+generic `step_touch`, `Local.keeps`, `Boxes.guar` and `good_keeps` name
+the harness's `Node.connect` (through `Runs`), so they class `model` on
+their own and stay out of tests/Axioms.lean; the World laws above use
+them in their proofs.
 
 ## The event set
 
@@ -52,18 +64,18 @@ does beyond them, and how each enters:
 
 | Event | How it enters | Refinement to state and prove | Owner |
 |---|---|---|---|
-| Crash (kill -9, OOM, power) | `restart i`, as now | `P.crash` is what SQLite has committed: the store, and for production `Memory.retries`; the entropy cursor and every session are lost. Atomicity of an entry point's transaction stays an assumption, tested by the kill -9 suite. | 71 (production `crash`) |
+| Crash (kill -9, OOM, power) | `restart i` | `P.crash` is what SQLite has committed: the held store, session rows included (they are local ops), and `Memory.retries`; the entropy cursor is lost. Boot's crash recovery retires every session row it finds and purges its keys, so the production `Setup.reboot` must run that recovery, not only `Node.boot` (a World change: a `recover` step in `restart`). Atomicity of an entry point's transaction stays an assumption, tested by the kill -9 suite. | 71 (production `crash`, the recovery link), a8 (`restart`) |
 | Suspend (background, service off; always on iOS) | **Derived**, not a new act. `App.suspend` stops the runner (`Runner.stop`) and journals parked writes; every socket is dead after a mobile sleep, so all are closed. At peers: `close j (addr i)`. In flight to i: `drop`. At i: no act until resume. | A safety law over all executions already covers any subsequence of acts, so "no ticks while suspended" needs no act. For liveness, a suspended node is offline: `Net.Live` drops its edges. | new lane: app lifecycle |
-| Resume | **Derived**: `restart i` (`Runner.start` boots `Node.boot` of the store's log, floor 0, which is exactly `Setup.reboot`), then `write i journal`, then `tick i` (dial). | R1: `Runner.start` builds `Setup.reboot`'s node. R2: `replayStoppedNodeWrites` submits each parked write once, in order, through `onWrite` (honest per `P.honest`). | new lane: app lifecycle |
+| Resume | **Derived**: `restart i` (`Runner.start` boots `Node.boot` of the store's log, floor 0, which is `Setup.reboot`), then `write i journal`, then `tick i` (dial). | R1: `Runner.start` builds `Setup.reboot`'s node. R2: `replayStoppedNodeWrites` submits each parked write once, in order, through `onWrite`, after the old runner has finished with SQLite (runtime evidence today: the AppSuspendJournal and AppRunnerFailure suites). | new lane: app lifecycle |
 | Background, service on (Android) | No event: the runner keeps running. | None. | — |
-| App write journal | A separate layer above the World, whose only World effect is `write i ops`. | The App's outbox and journal submit exactly the user's ops, each once (R2 above), so `P.honest i` is what the App writes. | new lane: app lifecycle |
-| Renderer | A separate layer: reads only. | Its store effect is none (lane reads' generic `Reads`), and its writes are App writes. | lane reads |
+| App write journal | A separate layer above the World, whose only World effect is `write i ops`. | The App's outbox and journal submit exactly the user's ops, each once (R2), so `P.honest i` is what the App writes. | new lane: app lifecycle |
+| Renderer | A separate layer: reads only. | To prove: its store effect is none, and its writes are App writes. No law states it yet; lane reads' generic `Reads` is the tool. | to assign |
 | Clock | `tick i t`, with `Legal` keeping `now` monotone. | The runner's clock is `IO.monoMsNow`: assumed monotone. | — |
-| TCP | `flight` and `close`. | S1 (no loss without a close, no duplicates), audited against Tcp.lean. | as now (docs/PROOFS.md) |
+| TCP | `flight` and `close`. | S1 (no loss without a close, no duplicates), audited against Tcp.lean: an [env] premise. | as now (docs/PROOFS.md) |
 
 So lifecycle adds no act: suspend and resume refine to sequences of
 existing ones. What it adds is two refinement laws (R1, R2) over App code,
-and a production `crash`.
+and a production `crash` with recovery.
 
 ## The conjuncts
 
@@ -79,11 +91,10 @@ wire (a `Keeps`).
 | `ix` | node | the index covers the store, keyed; the store holds each op under its id, in its log | `ix_pieces`, `boot_ixinv` | production: catalog sweep and purges (purges take only room-less ops, so covering survives) | a8 / 71 |
 | `store` | node | the store is one the engine reaches from its log (`Held.Reachable`), so the store invariant `Inv` holds (`reach_inv`) | `Moves.store_reachable` over `entry_fresh`; production `world_step_moves` | `Runs` for the production setup | 71 |
 | `settled` | node | **urgent facts are settled after every event**; the rest settle after finitely many idle turns (see "Drain-cap") | `store_settled` (queue = []), until drain-cap lands; then `turn_urgent`, `urgent_settled` | the fit premise discharged from item 5's intake cap | 0f |
-| community trust | node | at rest, admitted/removed/rooms facts are the spec's | `admitted_node`, `removed_node`, `rooms_cut_node`, `connect_iff_node` (over `Inv ∧ queue = []`) | restate over `store` + urgent settled | join lane, then 80 |
-| secrets purged | node | a closed session's secrets and couriers are gone | `purge_gone`, retirement | as a `Local` | 71 |
+| secrets purged | node | a closed session's secrets and couriers are gone, after a close and after crash recovery | `purge_gone`, retirement; "each completed close, including crash recovery, leaves no row" | a `Local`: it is about which sessions the node holds open, so it needs its own proof per entry point (a close retires and purges; an open writes secrets only for an open session) and at reboot (recovery) | 71 |
 | `Sent` | world | every packet in flight was sent in the past | `sent_keeps` (any setup) | — | done |
-| provenance | world | a packet with `src = some i` is a frame node i's entry point sent (`FramesOk`/`FramesBy`); injected bytes are in `adv w` | `entry_fresh`, `removal_reaches_session` (per node) | lift per-node frames to `wire` | 71 |
-| secrecy | world | no packet on `wire` lets a non-member open a session's frames or a room's content | Noise `kk_secret`, pair secrecy (lq-pairsec) | `adv` as the Dolev–Yao closure of `wire`; the conjunct over `wire` | 71, pair-secrecy lane |
+| provenance | world | a packet with `src = some i` is a frame node i's entry point sent; injected bytes are in `adv w` | per node: `FramesOk`/`FramesBy` (`entry_fresh`, `removal_reaches_session`) | lift to `wire` with `Sent` and `step_touch` | 71 |
+| secrecy | world | no packet on `wire` lets a non-member open a session's frames or a room's content | handshake keys: Noise `kk_secret`; pair secrecy (lq-pairsec) | frame secrecy needs AEAD as a symbolic constructor in the same Dolev–Yao closure (`sealFor_opens` is correctness, not secrecy); `adv` built on holmes-80's `Derivable O K` (NoiseSymbolic), shared with 71's signature model (sig-model) so one closure covers handshake, frames and signatures. The honest-key exclusion in `Legal` is a [crypto] premise (`Trust.NativeCrypto`, the coming Ed25519 soundness Prop). | 71, 80 |
 | removal cuts off | world | after a removal is settled at i, no frame i sends carries the removed member's rooms | `removal_reaches_session`, `rooms_cut` | over `wire`, with `settled` | 80 / 71 |
 
 Step guarantees (`Guar`): each store moves only by turns and purges
@@ -92,17 +103,22 @@ time never goes back (`step_now`); the wire only grows.
 
 ## The corollaries
 
-With `Good` at every step of every execution, each headline README law
+With `Good` at every step of every execution, each headline safety law
 becomes a statement over every execution and every node:
 
 | README law | Corollary | From |
 |---|---|---|
 | Verdicts are the spec's, and final | `Plain.verdicts_spec`, ∀ k i | `store`, `settled` |
-| Honest nodes agree | `Plain.agree`, ∀ k k' i j | `store`, `settled` |
+| Honest nodes agree | `Plain.agree`, ∀ k k' i j: the same ops received, in any orders, give the same verdicts (`order_free` at every node) | `store`, `settled` |
 | Shared stores only grow; purge is safe | `Plain.grows`, `keeps_op` | step guarantee |
-| Everyone converges | `Plain.converge`, `want_reaches` | `managed`, `owes`, `bounded`, `ix` (via the `_start` projections) |
-| The Community laws hold in the running node; removal cuts off | `connect_iff`, `removal_cuts_off`, ∀ k i | `store`, urgent `settled`, community trust (join lane) |
+| The Community laws hold in the running node: admitted, removed, rooms, `connect_iff`, `removal_cuts_off` | the `*_node` laws, ∀ k i | `store` + urgent `settled`, through `status_iff_spec` and `sum_project_node`; lane join's `trace_good` is the production version |
 | Sessions are secret | per-wire secrecy | `secrecy` (71) |
+
+**Not a corollary: liveness.** `Plain.converge`, `offline` and
+`want_reaches` are the liveness spine, under `Edge` and the fair-network
+premises (`Net.Admits`); `Good` gives only the invariants they consume
+(`managed`, `owes`, `bounded`, `ix`, through the `_start` projections),
+and `want_reaches` can take them in one go as `good_node E m a`.
 
 ## The serial gate: `Pieces` beyond `Plain`
 
@@ -114,7 +130,7 @@ a catalog and a retry store. The next serial step generalizes `Pieces`
 to any `Setup` whose `run` is lawful, so the same `onX_keeps` proofs
 serve both, and the 49 duplicated `*_reads` lemmas (audit) go.
 
-A sketch, for a8 and 71 to react to:
+The sketch, with a8's and 71's review folded in:
 
 ```lean
 /-- `run` is a monad morphism into state passing. -/
@@ -132,30 +148,54 @@ structure Pieces (P : Setup F M S) (i : Fin P.n) (Φ : Node → S → Prop) : Pr
                           let st ← Conn.recv … (c.setRooms rs) b now
                           n.apply (P.sync i) cid st now) s)
   tick  : …  -- the same with Conn.tickGive
-  serve : ∀ n cid now s, Φ n s → Φ' (P.run (n.serveOwed (P.sync i) cid now) s)
+  -- the tick serves on `n.afterActs (P.sync i) out`, a different Sync
+  -- (room, retryRoom changed): keep today's form, any y with P's fam and hooks
+  serve : ∀ (y : Sync F M), y.fam = (P.sync i).fam → y.hooks = (P.sync i).hooks →
+            ∀ n cid now s, Φ n s → Φ' (P.run (n.serveOwed y cid now) s)
   finish, setAddr, heat, drop, opens   -- as today
-  -- new: what production hooks do that the plain ones do not
+  -- new: what production hooks do that the plain ones do not; names follow
+  -- the real split of Node.onTick / finish / onClose
   follow  : ∀ n now s, Φ n s → Φ' (P.run (n.follow (P.sync i) now) s)    -- established → managed
   react   : ∀ n s, Φ n s → Φ' (P.run (n.react (P.sync i)) s)             -- hooks' writes
   dial    : ∀ n now s, Φ n s → Φ' (P.run (n.dialStore (P.sync i) now) s) -- dialed ops stored
   sweep   : ∀ n cid s, Φ n s → Φ' (P.run (n.sweep (P.sync i) cid) s)     -- the catalog
   retire  : ∀ n s, Φ n s → Φ' (P.run (n.retire (P.sync i)) s)            -- purge retired
-  -- hooks that only read (sealFor, openFrame, rooms, retryKey) and draw
-  -- entropy (Fresh) need no field: a Reads law (lane reads) shows they
-  -- leave Φ as it was, given Φ ignores the entropy cursor.
+  closing : ∀ n addr s, Φ n s → Φ' (P.run (n.closePurge (P.sync i) addr) s) -- onClose's purge path
+
+/-- Effects that need no field, each by its own small law:
+- Reads (lane reads): rooms, sealFor (which may return none after a
+  size check), openFrame, retryKey, and Fresh's entropy draws.
+- MetaOnly (new, 71): the held store and index are unchanged, only
+  per-peer metadata moves: the catalog sweep's durable cursor
+  (`retryStore.save`, kept in `Memory.retries`).
+Φ must ignore the entropy cursor and `retries`. -/
 
 theorem Pieces.local (hP : P.Lawful) (h : ∀ i, Pieces P i (Φ i)) (boot : …) : Local P Φ Φ
+
+/-- The relational sibling (a8): progress facts are two-state relations,
+not invariants ("x waits no further back, or its op went out", the drain).
+R is reflexive and transitive; the fields are Pieces' with "R before after". -/
+structure Steps (P : Setup F M S) (i : Fin P.n) (R : Node × S → Node × S → Prop) : Prop where
+  refl : ∀ x, R x x
+  trans : ∀ x y z, R x y → R y z → R x z
+  write, store, recv, tick, serve, finish, setAddr, heat, drop, opens, …
+
+theorem Steps.local (hP : P.Lawful) (h : ∀ i, Steps P i (R i)) : Boxes P … R
 ```
 
-(`Φ' (n, s)` abbreviates `Φ n.1.1 n.2` on a run's result; the names of
-the new node pieces follow whatever `Node.onTick`/`finish` call when
-they are split.) Order: lane reads' generic `Reads` first; then
-`Setup.Lawful` with instances for `HeldM` (`rfl`) and `Execution.M`
-(`rfl`); then `Pieces` and the `onX_keeps` over `P.run`, replacing
-today's; then the production `Setup` (the n-node World on
-`Connection.hooks`), whose `Good` adds the production conjuncts above.
-This lane does not start it: it gets its own brief once this design is
-accepted.
+(`Φ' (n, s)` abbreviates `Φ n.1.1 n.2` on a run's result.) With
+`Steps`, the drain (`step_waits`, `onTick_moves`, `onSealed_waits`)
+comes from per-piece facts in the production World too; a8 owns it when
+the gate opens.
+
+Order: lane reads' generic `Reads` and a `MetaOnly` sibling first; then
+`Setup.Lawful` with instances for `HeldM` and `Execution.M` (both `rfl`:
+pure state passing, the entropy tape included); then `Pieces` and `Steps`
+with the `onX` skeletons over `P.run`, replacing today's; then the
+production `Setup` (the n-node World on `Connection.hooks`, with crash
+recovery in `restart`), whose `Good` adds the production conjuncts
+above. 71 sequences it after its landings and sig-model phase 2. This
+lane does not start it: it gets its own brief.
 
 ## Drain-cap: what "settled" means
 
@@ -185,8 +225,8 @@ many idle turns.**
   which holds on main and on fd/world-port. When drain-cap lands,
   `settled` becomes `urgent : UrgentSettled fam h` (a `Local` from
   `turn_urgent`), `verdicts_spec` is restated over urgent ids, and
-  `agree` over stores whose urgent facts are settled; the conjunct for
-  the rest is a liveness law under fair ticks, not a conjunct of `Good`.
+  `agree` over stores whose urgent facts are settled; the rest settling
+  is a liveness law under fair ticks, not a conjunct of `Good`.
 
 ## What `Plain.good_always` covers, and what it does not
 
@@ -195,8 +235,11 @@ Covers: every node of the plain World (n nodes running the real
 harness sessions), at every step of every execution from empty stores,
 against any attacker: `managed`, `owes`, `bounded`, `ix`, `store`,
 `settled` (as queue = []), and `Sent`; and each step's store moves.
+Witnessed on a concrete run (tests/vacuity/Good.lean): two nodes write
+the same two ops in opposite orders; `agree` and `verdicts_spec` are
+applied natively, with the ops' SHA-256 ids decided by running them.
 
 Does not cover: the production hooks (sealed sessions, the handshake,
-rooms from the store); lifecycle (R1, R2, production `crash`); the
-world-level conjuncts beyond `Sent` (provenance, secrecy, removal over
-the wire); and the community conjuncts.
+rooms from the store); lifecycle (R1, R2, production `crash` and
+recovery); the world-level conjuncts beyond `Sent` (provenance, secrecy,
+removal over the wire); drain-cap's urgent class; and liveness.

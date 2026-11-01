@@ -30,8 +30,13 @@ its corollary (`Plain.converge`, `Plain.offline`).
 
   Each runs the real `onSealed` loop. The other payloads in a frame may
   ask, queue or store anything; the laws track them through the loop.
-- **Inv.lean**: invariants of every node in every execution
-  (`managed_nil`).
+- **Good.lean, PlainGood.lean**: the top theorem's shape and its first
+  instance ([GOOD.md](GOOD.md)). A legal step touches one node, by one
+  entry point or a restart (`step_touch`); node-local conjuncts (`Local`)
+  and world-level ones (`Keeps`) lift to every execution. `Plain.good_always`:
+  every plain world is good, and the invariants below are its projections.
+- **Inv.lean, InvIx.lean, InvOwed.lean**: the node invariants, each a
+  `Local` (`managed_local`, `pieces_local` over `Pieces`).
 - **Link.lean**: the hops at a delivery (`deliver_wants`,
   `deliver_queues`, `deliver_takes`): what the step does at the node the
   packet reaches, and what it puts in flight back.

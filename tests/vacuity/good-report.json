@@ -1,0 +1,86 @@
+{
+  "good_always": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.good_always",
+    "witness": "Vacuity.Good.good",
+    "module": "tests.vacuity.Good",
+    "detail": "The run is a concrete execution; apply good_always at every step. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "Plain.good_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.good_keeps",
+    "witness": "Vacuity.Good.good",
+    "module": "tests.vacuity.Good",
+    "detail": "good_always's step: every legal act of the run keeps the world good. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "moves_always": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.moves_always",
+    "witness": "Vacuity.Good.writeMoves",
+    "module": "tests.vacuity.Good",
+    "detail": "Alice's write step: her store moves only by turns and purges. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "verdicts_spec": {
+    "status": "runtime-witness",
+    "theorem": "Engine.World.Plain.verdicts_spec",
+    "witness": "Vacuity.Good.replySpec",
+    "module": "tests.vacuity.Good",
+    "detail": "Natively, Alice's store holds a verdict on Bob's reply after her write; verdicts_spec turns it into the spec's verdict over her stored ops. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "Plain.agree": {
+    "status": "runtime-witness",
+    "theorem": "Engine.World.Plain.agree",
+    "witness": "Vacuity.Good.agreeing",
+    "module": "tests.vacuity.Good",
+    "detail": "Natively, both logs hold the same two ops in opposite orders and their SHA-256 ids are distinct; agree gives equal verdicts at both nodes. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "sent_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.sent_keeps",
+    "witness": "Vacuity.Good.good",
+    "module": "tests.vacuity.Good",
+    "detail": "The world-level conjunct of good_always, over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "Keeps.always": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Keeps.always",
+    "witness": "Vacuity.Good.good",
+    "module": "tests.vacuity.Good",
+    "detail": "Instantiated with the plain World's Good over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "Guar.always": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Guar.always",
+    "witness": "Vacuity.Good.writeMoves",
+    "module": "tests.vacuity.Good",
+    "detail": "Instantiated with the plain World's store moves over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "managed_nil": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.managed_nil",
+    "witness": "Vacuity.Good.managed",
+    "module": "tests.vacuity.Good",
+    "detail": "Every node of the run boots managing no session; no node ever manages one. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "owes_queued_start": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.owes_queued_start",
+    "witness": "Vacuity.Good.owes",
+    "module": "tests.vacuity.Good",
+    "detail": "Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "ix_covers_start": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.ix_covers_start",
+    "witness": "Vacuity.Good.covers",
+    "module": "tests.vacuity.Good",
+    "detail": "Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "owed_bounded_start": {
+    "status": "kernel-witness",
+    "theorem": "Engine.World.Plain.owed_bounded_start",
+    "witness": "Vacuity.Good.bounded",
+    "module": "tests.vacuity.Good",
+    "detail": "Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  }
+}
