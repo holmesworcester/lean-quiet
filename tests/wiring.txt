@@ -162,8 +162,11 @@ assume NodeOffer.Chan = NodeOffer.offerM
 assume Merkle.NoCollision No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean.
 assume Community.ChunkSound = Merkle.NoCollision
 assume Community.ChunksSound = Merkle.NoCollision
-assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only).
-assume Community.Seal.Good Supported-size AEAD inputs and key wraps roundtrip; valid private keys agree and public keys/hashes have 32-byte outputs (correctness only).
+assume Trust.NativeCrypto The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean).
+assume Trust.X25519 = Trust.NativeCrypto
+assume Trust.Sha256Size = Trust.NativeCrypto
+assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`).
+assume Community.Seal.Good AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
 assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean).
 assume Engine.Model = Engine.Model.run

@@ -56,7 +56,7 @@ with the setup's. -/
   | none => 0
 
 /-- Attach file f: its root, every chunk's proof, and the chunk ops. -/
-@[noinline] def attachFile (c : Id) (d : Device) (k : ByteArray) (f : NewFile) (_ : Nat) : Nat :=
+@[noinline] def attachFile (c : Id) (d : Device) (k : Key32) (f : NewFile) (_ : Nat) : Nat :=
   let (a, cs) := attach c c c d k f
   cs.foldl (fun n o => n + o.id.size) a.id.size
 
@@ -96,18 +96,18 @@ def main (args : List String) : IO UInt32 := do
   let sum ← IO.mkRef 0
   let seedA := sha256 "device A".toUTF8
   let dA := Device.ofSeed seedA
-  let kA := sha256 "Acme's content key".toUTF8
-  let nkA := sha256 "node A".toUTF8
-  let w := (found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (sha256 "esk 1".toUTF8) nkA).eval DB.empty
+  let kA := Bytes.digest "Acme's content key".toUTF8
+  let nkA := Bytes.digest "node A".toUTF8
+  let w := (found seedA "Acme".toUTF8 "Ann".toUTF8 1 kA (Bytes.digest "esk 1".toUTF8) nkA).eval DB.empty
   let c := (root dA (cryptoSeal.pub nkA)).id
   -- A file whose ciphertext (the plaintext and a 16-byte tag) is exactly
   -- 100 slices.
   let plain := ByteArray.mk ((Array.range (100 * Merkle.sliceSize - 16)).map
     fun i => (i * 7 + i / 300).toUInt8)
   let nf : NewFile := ⟨⟨"photo.qoi".toUTF8, "image/qoi".toUTF8, 640, 480, "tiny preview".toUTF8⟩, plain,
-    sha256 "file key".toUTF8, (sha256 "file nonce".toUTF8).extract 0 24,
-    (sha256 "info nonce".toUTF8).extract 0 24⟩
-  let wf := (send c c dA kA ((sha256 "nonce 2".toUTF8).extract 0 24) "a photo".toUTF8 7 [nf]).eval DB.empty
+    Bytes.digest "file key".toUTF8, (Bytes.fit 24 (sha256 "file nonce".toUTF8)),
+    (Bytes.fit 24 (sha256 "info nonce".toUTF8))⟩
+  let wf := (send c c dA kA ((Bytes.fit 24 (sha256 "nonce 2".toUTF8))) "a photo".toUTF8 7 [nf]).eval DB.empty
   let chunks := wf.ops.drop 2
   bench sum s!"build a {chunks.length}-chunk attachment (attach: root, proofs, chunk ops)" (cap := 3)
     fun i => pure (attachFile c dA kA nf i)
@@ -156,7 +156,7 @@ def main (args : List String) : IO UInt32 := do
   let mut size := 0
   let mut t := 100
   while size < 49152 do
-    let p := (send c c dA kA ((sha256 s!"nonce {t}".toUTF8).extract 0 24)
+    let p := (send c c dA kA ((Bytes.fit 24 (sha256 s!"nonce {t}".toUTF8)))
       s!"message {t}: {String.ofList (List.replicate 160 'x')}".toUTF8 t).eval DB.empty |>.ops.headD default
     if size + p.bytes.size > 49152 then break
     payloads := payloads.push p.bytes
@@ -180,10 +180,10 @@ def main (args : List String) : IO UInt32 := do
   let rdb ← fresh dir "reads.db"
   let mine (ops : List Op) : IO Unit := (receive fam (intake fam true ops)).run rdb
   mine w.ops
-  let keys := [kA] ++ (List.range 3).map fun j => sha256 s!"key {j}".toUTF8
-  mine (keys.drop 1 |>.map (contentKey c))
+  let keys := [kA] ++ (List.range 3).map fun j => Bytes.digest s!"key {j}".toUTF8
+  mine (keys.drop 1 |>.map (contentKey c ·.1))
   let posts := (List.range 1000).map fun t =>
-    ((send c c dA keys[t % 4]! ((sha256 s!"n {t}".toUTF8).extract 0 24) s!"message {t}".toUTF8 (t + 10)).eval
+    ((send c c dA (keys[t % 4]?.getD kA) ((Bytes.fit 24 (sha256 s!"n {t}".toUTF8))) s!"message {t}".toUTF8 (t + 10)).eval
       DB.empty).ops.headD default
   mine posts
   let got ← readAllMessages rdb c 0
