@@ -7,6 +7,7 @@ export PYTHONPATH="${CJK_PYTHON:-/mnt/storage/holmes-wt/lq-tonight/py}${PYTHONPA
 tools/noto_assets.sh
 python3 tests/app/cjk_reference.py prepare
 lake build cjk cjk_scroll
+python3 tests/app/cjk_failure.py
 .lake/build/bin/cjk out/cjk
 python3 tests/app/cjk_reference.py compare
 .lake/build/bin/cjk_scroll out/cjk-after out/cjk/corpus.txt

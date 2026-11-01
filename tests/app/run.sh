@@ -34,7 +34,7 @@ lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_re
 if stage fonts; then
 tests/app/noto.sh
 bash tests/app/font_contract.sh
-tests/app/cjk.sh
+mise run host:cjk
 tests/app/bidi.sh
 tests/app/bidi_host.sh
 fi

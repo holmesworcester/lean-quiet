@@ -2651,6 +2651,10 @@ the eight-entry send FIFO alone does not bound every stage's queued work.
 
 | Android semantic action ownership | Send/Continue retain captured text and editor/content revisions. Busy or stale actions are refused; asynchronous clearing preserves later typing, and a failed clear cannot replay consumed text. | Integrated core: 30 native and 22 Input/Session checks, six compiling controls; 1,294 laws/670 vacuity entries, 82 demand/34 component and 39 lifecycle checks pass. Windows/Linux host input checks pass. Earlier isolated Android: 209/0 and 14 controls; default integrated Android and full app gates remain pending. Broad input queue caps remain open. [Details](docs/ANDROID-OWNED-INPUT.md). |
 
+| CJK test failure propagation | The native test entrypoint now reports and exits on errors with its actual writer/pruner tasks running. The named `host:cjk` gate checks that failure path before scrolling. | Injected error regression passes. The full app attempt exposed a separate CJK performance failure: p95 29.2 ms, then 30.7 ms, against the unchanged 16.7 ms limit. Native stack and timings retained; performance repair and a passing full app gate remain open. [Details](docs/CJK-GATE.md). |
+
+| Modal Send test coverage | The safety fixture now returns to a real conversation and proves an uncovered Send commits readable bytes before checking modal refusal. Onboarding had made the old control vacuous. | Positive and restored suites: 343/0; all 26 named mutation controls pass. The compiled missing-modal-guard control fails exactly draft retention and admission protection while uncovered Send still commits readable bytes. The earlier app continuation correctly failed on the surviving control; it was not a full pass. [Details](docs/SAFE.md#non-vacuous-keyboard-send-control). |
+
 The app admission laws are [`WriteAdmission.admitted_frames`],
 [`WriteAdmission.admitted_count`] and [`WriteAdmission.admitted_bytes`].
 The previous alternating selector's [`write_first`], [`Sync.write_within`] and
