@@ -250,6 +250,57 @@ theorem carrying_mem : ∀ (es : List (Id × B × Bool × B × Nat)) (s : DB F) 
         · exact Or.inl rfl
         · exact Or.inr ⟨hm, hn⟩
 
+theorem openSessions_state (s : DB F) :
+    ((openSessions : Model F (List (Id × B × Bool × B × Nat))).run s).2 = s := by
+  simp only [openSessions, Model.run_bind]
+  rw [allSessions_state]
+  exact (carrying_mem _ s ((.empty, .empty, false, .empty, 0))).2
+
+/-- A session `sessionOf` places is an established fact's, under its id. -/
+theorem sessionOf_some (f : Fact) (s : DB F) {e : Id × B × Bool × B × Nat}
+    (h : ((sessionOf f : Model F _).run s).1 = some e) :
+    ∃ c p hh sk rk d, f = .established e.1 c p hh sk rk d := by
+  cases f with
+  | established cid c peer hh sk rk dialer =>
+    cases dialer <;>
+    · simp only [sessionOf, Bool.false_eq_true, ite_false, ite_true, Model.run_bind, Model.run_pure] at h
+      generalize ((arrival _ : Model F (Option (B × Nat))).run _).1 = a at h
+      cases a with
+      | none => cases h
+      | some at_ =>
+        simp only [Option.map_some, Option.some.injEq] at h
+        subst h
+        exact ⟨_, _, _, _, _, _, rfl⟩
+  | _ => cases h
+
+theorem mem_sessionsOf : ∀ (rs : List (Id × Fact)) (s : DB F) (e : Id × B × Bool × B × Nat),
+    e ∈ ((sessionsOf rs : Model F (List (Id × B × Bool × B × Nat))).run s).1 →
+      ∃ y c p hh sk rk d, (y, Fact.established e.1 c p hh sk rk d) ∈ rs
+  | [], _, _, h => by cases h
+  | (y, f) :: t, s, e, h => by
+    simp only [sessionsOf, Model.run_bind, Model.run_pure] at h
+    rw [sessionOf_state] at h
+    cases hf : ((sessionOf f : Model F _).run s).1 with
+    | none =>
+      rw [hf] at h
+      obtain ⟨y', c, p, hh, sk, rk, d, hm⟩ := mem_sessionsOf t s e h
+      exact ⟨y', c, p, hh, sk, rk, d, List.mem_cons_of_mem _ hm⟩
+    | some e' =>
+      rw [hf] at h
+      rcases List.mem_cons.1 h with rfl | h
+      · obtain ⟨c, p, hh, sk, rk, d, rfl⟩ := sessionOf_some f s hf
+        exact ⟨y, c, p, hh, sk, rk, d, List.mem_cons_self ..⟩
+      · obtain ⟨y', c, p, hh, sk, rk, d, hm⟩ := mem_sessionsOf t s e h
+        exact ⟨y', c, p, hh, sk, rk, d, List.mem_cons_of_mem _ hm⟩
+
+/-- Every session `allSessions` places is an established fact the store
+lists. -/
+theorem allSessions_established (s : DB F) {e : Id × B × Bool × B × Nat}
+    (he : e ∈ ((allSessions : Model F (List (Id × B × Bool × B × Nat))).run s).1) :
+    ∃ y c p hh sk rk d, (y, Fact.established e.1 c p hh sk rk d) ∈ ((rows established.all [] : Model F _).run s).1 := by
+  simp only [allSessions, Model.run_bind, Model.run_pure, List.mem_reverse] at he
+  exact mem_sessionsOf _ s e he
+
 /-- **Notice, then cut (`notice_then_cut`).** If, for every community c
 this node is in, it is a live member, the trust rule refuses cid's peer,
 and every removal owed to the peer is given on cid (`conn.given`), then
@@ -278,15 +329,15 @@ theorem notice_then_cut (s : DB F) {cid : B}
     obtain ⟨⟨cid', p, dialer, a, t⟩, ho, rfl⟩ := he
     exact hopen _ ho
   · rintro ⟨e, he, rfl⟩
+    obtain ⟨y, c, p, hh, sk, rk, d, hy⟩ := allSessions_established s he
     simp only [retired, Model.run_bind, Model.run_pure]
-    rw [allSessions_state]
-    rw [List.mem_filterMap]
-    refine ⟨e, he, ?_⟩
+    rw [openSessions_state, List.mem_filterMap]
+    refine ⟨_, hy, ?_⟩
     have : (((openSessions : Model F _).run s).1.any fun x => decide (x.1 = e.1)) = false := by
       rw [List.any_eq_false]
       intro x hx hb
       exact hopen x hx (of_decide_eq_true hb)
-    rw [this]; rfl
+    simp only [this, Bool.false_eq_true, ite_false]
 
 /-! ## E2 on the bare wire -/
 

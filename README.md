@@ -182,8 +182,9 @@ below; the [vacuity report](#vacuity-check-reports) records which concrete premi
 - **a node's trust rule lets in exactly the live members;** ¹
 - **honest nodes that hold the same ops agree;** ² *(model)*
 - **only a session's two nodes can derive its keys, even if both
-  nodes' long-term keys later leak,** once the session's ephemeral keys
-  are deleted. ³
+  nodes' long-term keys leak after it closes:** every session end
+  purges its keys from the store. ³ (A phone backup taken while it was
+  open is not covered.)
 
 And of what a user sees and does:
 
@@ -331,6 +332,10 @@ behavior; they do not prove all of these assumptions:
     filesystems, and flash wear-levelling, keep old blocks.
   - The sound fix is for session secrets never to reach the disk, as
     ephemeral ops (wanted, below).
+  - The app's checkpoint is one row: saving one deletes the older in the
+    same transaction, with the invites, drafts and queued secrets it held
+    (`tests/engine/Purge.lean`'s `checkpointRows`; before, every frame's
+    checkpoint was kept).
 - [**The native code**](#what-isnt-lean-and-why): what connects Lean to
   the OS, and the libraries it calls. It is tested end to end, over
   localhost TCP and on devices.
@@ -362,7 +367,7 @@ World); the rest are over models so far
 | ✅ | 🥊🥊 | **The stream discloses only what it may.** The running filed stream and closure walk offer only stored, shared ops in shown rooms. `Conn.tick` sends only round messages, offers and retries. | [`filed_send`], [`offer_shared`], [`offer_stored`], [`tick_send`] |
 | 🟡 | 🥊🥊🥊 | **Messages are sealed to members only.** Proven: `recipients` names exactly the live members' node keys, and a member opens what is sealed to it. Not yet: wrapping through that query (an approval below its threshold already wraps the key to the requester), and the seal's secrecy. | [`recipients_iff`], [`members_iff`], [`member_opens`], [`openSealed_seal`], [`unbox_box`], [`check_reads_shared`] |
 | ✅ | 🥊🥊🥊 | **Sessions are secret and authenticated,** in the symbolic model, over the handshake functions that run: an active attacker without the two static keys and the ephemerals derives neither transport key, and the initiator accepts only the responder's own reply. Replays are accepted again, and payloads are not covered. | [`kk_secret`], [`kk_secret_init`], [`kk_secret_resp`], [`kk_authentic`], [`kk_authentic_resp`], [`kk_secret_init_tight`], [`kk_runs`], [`handshake_agrees`] |
-| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every way a session ends purges its keys (a silent one after 90 s), and without the ephemerals nothing derives them; the database files are tested to keep no byte of them. Not yet: that closing names every ephemeral (`close_forgets`). | [`close_purges`], [`close_gone`], [`drop_iff_silent`], [`keepalive_sent`], [`live_stays`], [`kk_forward_secret`], [`purge_named`] |
+| 🟡 | 🥊🥊🥊 | **A closed session's keys cannot be recovered,** from the disk or from the static keys later. Every established session is kept open or retired, and every end, a crash's included, leaves no row holding its ephemeral or transport keys (a silent one ends after 90 s); no later purge brings one back, and without the ephemerals nothing derives them. Assumes a deleted row leaves no byte on disk (`secure_delete`, `VACUUM`, the WAL truncated; tested raw). Caught a crash's session kept for good ([caught](docs/CAUGHT.md)). Not yet: a phone backup taken while a session is open; an initiator's ephemeral while its request waits; the step from stored bytes to the symbolic model's names. | [`close_forgets`], [`purge_forgets`], [`retired_complete`], [`forget_stays`], [`close_purges`], [`close_gone`], [`drop_iff_silent`], [`keepalive_sent`], [`live_stays`], [`kk_forward_secret`], [`purge_named`] |
 | ⬜ | 🥊🥊🥊 | **Session secrets never reach the disk.** They would be ephemeral ops, held in memory, so forward secrecy would not rest on deletion. A restart then redials. | |
 | ⬜ | 🥊🥊🥊 | **Removed members cannot read new messages.** This needs key rotation, which is not built. | |
 | 🟡 | 🥊🥊 | **Every offered id names a stored op in one of the peer's rooms.** Proven of each connection step, given a room index that booting, writes and purges keep exact. Not yet: that the node's entry points chain these steps. | [`have_shown`], [`boot_cached`], [`write_cached`], [`purge_cached`], [`cached_items`], [`write_snaps`], [`have_shown_premises`] |
@@ -1136,7 +1141,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`kk_runs`]: ops/connection/NoiseSymbolic.lean#L309-L317
 [`handshake_agrees`]: ops/connection/Noise.lean#L356-L370
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
-[`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: ops/sync/TimeLaws.lean#L22-L24
 [`keepalive_sent`]: ops/sync/TimeLaws.lean#L31-L35
 [`live_stays`]: ops/sync/TimeLaws.lean#L73-L88
@@ -1153,7 +1157,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`established_endpoint`]: ops/connection/RemovalLaws.lean#L320-L333
 [`endpoint_signed`]: ops/community/RemovalLaws.lean#L44-L51
 [`endpoint_derives`]: ops/community/RemovalLaws.lean#L91-L93
-[`meV_node`]: ops/connection/RemovalLaws.lean#L383-L388
+[`meV_node`]: ops/connection/RemovalLaws.lean#L434-L439
 [`new_device_trusted`]: ops/community/RemovalLaws.lean#L100-L106
 [`connect_iff`]: ops/community/Connect.lean#L252-L256
 [`deviceLive_iff`]: ops/community/Connect.lean#L135-L139
@@ -1176,7 +1180,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`rooms_cut`]: ops/connection/RoomLaws.lean#L120-L131
 [`rooms_removed`]: ops/connection/RemovalLaws.lean#L96-L101
 [`rooms_complete`]: ops/connection/RemovalLaws.lean#L121-L127
-[`notice_then_cut`]: ops/connection/RemovalLaws.lean#L253-L266
+[`notice_then_cut`]: ops/connection/RemovalLaws.lean#L304-L317
 [`trusts_live`]: ops/connection/RoomLaws.lean#L45-L51
 [`rooms_model`]: ops/connection/RoomLaws.lean#L137-L140
 [`recv_take`]: ops/sync/ConnLaws.lean#L128-L130
@@ -1187,11 +1191,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`removed_gets_only_notice`]: ops/connection/RemovalLaws.lean#L133-L144
 [`notice_once`]: ops/sync/NoticeLaws.lean#L641-L647
 [`notice_no_holds`]: ops/sync/NoticeLaws.lean#L436-L447
-[`answer_trusted`]: ops/connection/RemovalLaws.lean#L842-L855
-[`resend_trusted`]: ops/connection/RemovalLaws.lean#L921-L932
+[`answer_trusted`]: ops/connection/RemovalLaws.lean#L893-L906
+[`resend_trusted`]: ops/connection/RemovalLaws.lean#L972-L983
 [`no_connection_before_approval`]: ops/connection/bootstrap/Laws.lean#L39-L46
 [`sessions_trusted`]: ops/connection/bootstrap/Laws.lean#L63-L68
-[`bare_takes_only_join`]: ops/connection/RemovalLaws.lean#L612-L624
+[`bare_takes_only_join`]: ops/connection/RemovalLaws.lean#L663-L675
 [`intake_local`]: engine/core/Sync.lean#L38-L40
 [`stored_local`]: engine/core/Sync.lean#L86-L89
 [`local_fact_mine`]: ops/community/Laws.lean#L676-L680
@@ -1200,7 +1204,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`open_seal`]: ops/connection/Frame.lean#L51-L58
 [`cid_seal`]: ops/connection/Frame.lean#L82-L86
 [`Codec.encode_decode`]: engine/core/Codec.lean#L743-L746
-[`Op.id_decode`]: engine/core/Core.lean#L89-L91
+[`Op.id_decode`]: engine/core/Core.lean#L91-L93
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
 [`op_of_valid`]: ops/community/Laws.lean#L253-L258
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
@@ -1254,10 +1258,11 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`ingest_twice`]: engine/core/IdemLaws.lean#L49-L51
 [`run_ingestEach`]: engine/core/IdemLaws.lean#L72-L75
 [`ingestAll_again`]: engine/core/IdemLaws.lean#L82-L84
-[`purge_gone`]: engine/core/Purge.lean#L261-L263
-[`purge_shared`]: engine/core/Purge.lean#L274-L276
+[`purge_gone`]: engine/core/Purge.lean#L564-L566
+[`purge_shared`]: engine/core/Purge.lean#L577-L579
 [`purge_settles`]: engine/core/Budget.lean#L192-L198
 [`run_purge`]: engine/core/Purge.lean#L550-L555
+[`purge_named`]: engine/core/Purge.lean#L570-L574
 [`purge_undecides`]: engine/core/Proofs.lean#L376-L383
 [`purge_inv`]: engine/core/Proofs.lean#L391-L395
 [`mem_purgeSet`]: engine/core/Proofs.lean#L364-L368
@@ -1265,7 +1270,7 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`sum_left`]: engine/core/Families.lean#L79-L82
 [`sum_scope_left`]: engine/core/Families.lean#L85-L86
 [`Codec.decode_encode`]: engine/core/Codec.lean#L737-L737
-[`Op.decode_bytes`]: engine/core/Core.lean#L94-L94
+[`Op.decode_bytes`]: engine/core/Core.lean#L96-L96
 [`sum_project`]: engine/core/Project.lean#L421-L432
 [`sum_project_node`]: ops/connection/NodeLaws.lean#L106-L117
 [`spec_sum_left`]: engine/core/Project.lean#L195-L198
@@ -1486,7 +1491,6 @@ went) and `ci/reorg-imports.py` (its new files' imports).
 [`op_taken`]: engine/wire/WorldLaws.lean#L667-L674
 [`write_offers_all`]: engine/wire/WorldLaws.lean#L1354-L1365
 [`secrecy_runs`]: ops/sync/Witnesses.lean#L10-L14
-[`reach_drain`]: engine/core/Proofs.lean#L529-L530
 [`exchange_ids_stable`]: ops/sync/TreeLaws.lean#L163-L165
 [`exchange_log`]: ops/sync/TreeLaws.lean#L210-L221
 [`exchange_stable`]: ops/sync/TreeLaws.lean#L171-L179

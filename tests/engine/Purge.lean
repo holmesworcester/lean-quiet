@@ -32,6 +32,7 @@ Purge on SQLite, against the model and on the file itself.
   make the walk outrun its bound: the purge aborts and changes nothing.
 -/
 import tests.engine.Lib
+import ops.app.Lifecycle
 
 open Engine Tests
 
@@ -423,6 +424,37 @@ def forwardSecrecy (t : Checks) (dir : String) : IO Unit := do
 end PurgeTest
 
 open PurgeTest in
+/-- The app's checkpoint table keeps one row (`Lifecycle.save`). Five
+checkpoints carrying a secret (a bearer seed the app has since
+forgotten), then one without: one row is left, and once the WAL is
+truncated (as every purge does) no file of the database holds a byte of
+the secret. The old save, an INSERT never deleted, keeps all six rows
+and the secret: the negative control. -/
+def checkpointRows (t : Checks) (dir : String) : IO Unit := do
+  for old in [false, true] do
+    let path := dir ++ (if old then "/checkpoint-old.db" else "/checkpoint.db")
+    clear path
+    let db ← Db.openAt path
+    Lifecycle.init db
+    let secret := sha256 "a bearer seed the app has since forgotten".toUTF8
+    let save (b : ByteArray) : IO Unit := do
+      if old then
+        let o := Op.make 239 [] b
+        let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+      else Lifecycle.save db b
+    for i in [0:5] do save (secret ++ s!"draft {i}".toUTF8)
+    save "nothing secret".toUTF8
+    let n := (← db.query "SELECT CAST(count(*) AS TEXT) FROM app_ops" #[])[0]?.bind (·[0]?)
+      |>.bind (fun b => String.fromUTF8? b >>= String.toNat?) |>.getD 0
+    db.exec "PRAGMA wal_checkpoint(TRUNCATE)"
+    let l ← leaks path [secret]
+    if old then
+      t.ok "negative control: checkpoints saved the old way keep every row, and the secret" (n == 6 && !l.isEmpty)
+    else
+      t.ok "the checkpoint table keeps one row, and no file keeps a byte of a forgotten secret"
+        (n == 1 && l.isEmpty)
+
+open PurgeTest in
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/purge"
   let seeds := (args.drop 1).head?.bind String.toNat? |>.getD 12
@@ -437,4 +469,5 @@ def main (args : List String) : IO UInt32 := do
   t.ok "purged ops arrived again" (st.back > 0)
   forwardSecrecy t dir
   tampered t dir
+  checkpointRows t dir
   t.finish "purge"

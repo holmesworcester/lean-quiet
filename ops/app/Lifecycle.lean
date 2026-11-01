@@ -147,11 +147,27 @@ The sequence is the local ordering; op bytes are content-addressed. -/
 def init (db : Db) : IO Unit :=
   db.exec "CREATE TABLE IF NOT EXISTS app_ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL, bytes BLOB NOT NULL);"
 
-/-- Commit an encoded checkpoint. Only the writer's thread runs it
-(`Data.Writer.start`): the frame hands checkpoints over (`Writer.save`). -/
+/-- Commit an encoded checkpoint as the table's only row: the older rows
+go in the same transaction. A checkpoint holds invite links with their
+bearer seeds, drafts with their photos, and queued writes (a found or
+join's device seed, node secret and content key), so an older row keeps
+what the app has since forgotten; `secure_delete` zeroes the freed cells,
+and the WAL's copies go at its next truncation (every scrubbing purge's,
+so each session end's; a courier's purge does not truncate). Kept
+forever, the rows also grew by one every committed frame. Only the
+writer's thread runs it (`Data.Writer.start`): the frame hands
+checkpoints over (`Writer.save`). tests/engine/Purge.lean
+(`checkpointRows`) checks it, with the old INSERT as its control. -/
 def save (db : Db) (cp : ByteArray) : IO Unit := do
   let o := Op.make 239 [] cp
-  let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+  db.exec "BEGIN IMMEDIATE"
+  try
+    let _ ← db.query "DELETE FROM app_ops" #[]
+    let _ ← db.query "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[o.id, o.bytes]
+    db.exec "COMMIT"
+  catch e =>
+    db.exec "ROLLBACK"
+    throw e
 
 def load (db : Db) : IO (Option Checkpoint) := do
   let rows ← db.query "SELECT bytes FROM app_ops ORDER BY seq DESC LIMIT 1" #[]

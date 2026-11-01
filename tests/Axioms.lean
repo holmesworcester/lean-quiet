@@ -32,6 +32,7 @@ import ops.connection.ExecutionLaws
 import ops.connection.Progress
 import ops.connection.ProgressTape
 import ops.connection.bootstrap.FairExecution
+import ops.connection.EraseLaws
 import engine.renderer.Geometry
 import engine.renderer.Cover
 import engine.renderer.ImageLaws
@@ -1296,3 +1297,11 @@ end cost
 #print axioms Engine.Sync.RoundRun.initial_claim
 #print axioms Engine.Sync.RoundRun.initial_asks
 #print axioms Engine.Sync.conn_runs_exchange
+
+#print axioms Connection.secret_unfiled
+#print axioms Connection.purge_forgets
+#print axioms Connection.forget_stays
+#print axioms Connection.close_forgets
+#print axioms Connection.retired_complete
+#print axioms Connection.retired_open
+#print axioms Connection.shipped_retired_misses

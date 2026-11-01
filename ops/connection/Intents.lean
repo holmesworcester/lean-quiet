@@ -352,9 +352,10 @@ def dial (K : Keys) (listen : B) (_now : Nat) : m (List Op) := do
 /-- What closing connection cid purges: the connection and the request
 it answers. Purge takes every dependent with them: the ephemerals, the
 opened and established ops, the couriers and the
-arrival records. -/
+arrival records. A connection no longer stored is still named, so
+nothing that cites it outlives the close (`close_forgets`). -/
 def closing (cid : Id) : m (List Id) := do
-  let some co ← Store.getOp (m := m) cid | return []
+  let some co ← Store.getOp (m := m) cid | return [cid]
   return cid :: co.reqs
 
 /-- What connection cid carries now (`roomsV`): rooms synced, and
@@ -437,8 +438,22 @@ ran on, and whether this side dialed. -/
 def sessions : m (List (Id × B × Bool)) := do
   return (← openSessions).map fun (cid, _, dialer, a, _) => (cid, a, dialer)
 
-/-- Sessions not kept open: to be closed and purged. -/
+/-- Every established session not kept open: to be closed and purged.
+Read off the established facts themselves, not `allSessions`, so a
+session `sessionOf` cannot place (its handshake's arrival record lost,
+as a crash between the two writes of `onFrame` leaves it) is retired
+too, rather than holding its keys forever (`retired_complete`). -/
 def retired : m (List Id) := do
+  let open_ ← openSessions
+  return (← rows established.all []).filterMap fun (_, f) => match f with
+    | .established cid .. => if open_.any (fun e => decide (e.1 = cid)) then none else some cid
+    | _ => none
+
+/-- `retired` as shipped until fs-erase: only the sessions `allSessions`
+places, so an established session whose arrival record is missing was
+neither kept open nor retired, and its keys and ephemeral stayed in the
+store (`shipped_retired_misses`). A negative control: never run. -/
+def retiredShipped : m (List Id) := do
   let all ← allSessions
   let open_ ← openSessions
   return all.filterMap fun (cid, _) => if open_.any (fun e => decide (e.1 = cid)) then none else some cid

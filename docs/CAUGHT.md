@@ -70,7 +70,45 @@ apart, at the end: there the law came second.
 - **Status at 566e566.** Not merged. Main's `kept` is still
   newest-wins.
 
+### A crash kept a session's keys in the store for good (found 2026-10-31)
+
+- **Bug.** `onFrame` stores a dialer's connection, then its arrival
+  record, in two writes. `retired` (ops/connection/Intents.lean) read
+  the sessions through `allSessions`, which places a session by that
+  arrival record. A dialer that crashed between the two writes booted
+  holding a session that was neither open nor retired. Nothing ever
+  closed it, so its transport keys and its ephemeral stayed in the
+  store for good, and `connectedTo` kept the node from dialing again.
+- **How the law noticed.** README's "a closed session's keys cannot be
+  recovered" was 🟡 because no law said the key-bearing ops go. The
+  user asked to broaden the statement until it failed: "no row of the
+  store holds key material of a session that has ended, by any path".
+  Proving `retired_complete` (every established session is kept open or
+  retired) failed on exactly this state.
+- **Fix.** `retired` reads the established facts themselves, so every
+  one not kept open is retired, and `closing` names a connection even
+  once it is gone. `close_forgets`, `purge_forgets` and `forget_stays`
+  then say no row holds the session's ephemeral or transport keys after
+  it ends. They are proven over the running purge (the purge bridge,
+  fd/purge-bridge), assuming SQLite's deletes leave no byte on disk.
+- **Kept caught by.** `Connection.retiredShipped`, a `control` in
+  tests/wiring.txt, and `shipped_retired_misses`, which proves the
+  shipped rule leaves that session with neither.
+  tests/engine/ConnectionCheck.lean (`crashedDial`) runs it on SQLite:
+  two nodes, the dialer's arrival record lost, its node rebooted. The
+  keys go, and with the shipped rule they stay.
+
 ## Found otherwise, pinned by a law afterwards
+
+- **Every checkpoint the app ever saved stayed on disk** (found by an
+  audit hunting promises narrower than they read, 2026-10-31).
+  `Lifecycle.save` only inserted into `app_ops`. Each row holds invite
+  links with their bearer seeds, drafts with their photos, and queued
+  writes (a found or join's device seed, node secret and content key),
+  and a row was added every committed frame. Now saving deletes the
+  older rows in the same transaction. Pinned by a test, not yet a law:
+  tests/engine/Purge.lean's `checkpointRows` finds no byte of a
+  forgotten secret, and the old INSERT, its control, keeps it.
 
 - **The switcher selected the wrong community** when two had the same
   name (seen on an iPhone). A tapped row was matched back to
