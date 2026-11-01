@@ -171,21 +171,27 @@ below; the [vacuity report](#vacuity-check-reports) records which concrete premi
   admitted;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
 - **a removal cuts off every device of the removed user, for good,** and
-  its node can rejoin only as a new device;
+  its node can rejoin only as a new device. The removed user is not yet
+  kept out: they can still approve that new device themselves (below);
 - **a removal reaches every live session:** each connection step reads
-  its rooms afresh, so once the removal is stored, only its notice of
-  that community goes to the removed member;
+  its rooms afresh, so once the removal is stored, every frame sealed
+  for the removed member carries, of that community, only its notice.
+  That bare handshake replies go only to trusted peers is proven for
+  each step, not yet for the whole node;
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
-- **non-members get none of a community's ops;**
+- **non-members get none of a community's ops,** even by asking by id.
+  This says which ops sync sends, not who can read them: that only
+  members can open a message is not yet proven (below);
 - **sync does not offer or send local secret ops;**
 - **a sealed frame is authenticated before any of it is parsed;**
 - **a node's trust rule lets in exactly the live members;** ¹
-- **honest nodes that hold the same ops agree;** ² *(model)*
+- **honest nodes that hold the same ops agree;** ² ⁴
 - **only a session's two nodes can derive its keys, even if both
   nodes' long-term keys leak after it closes:** every session end
-  purges its keys from the store. ³ (A phone backup taken while it was
-  open is not covered.)
+  purges its keys from the store. ³ This assumes that deleted bytes
+  leave the disk (below). A phone backup taken while the session was
+  open is not covered.
 
 And of what a user sees and does:
 
@@ -203,6 +209,9 @@ And of what a user sees and does:
 ¹ Interpreting verification as the owner actually signing needs the Ed25519
 assumptions and signing-history scoping fix below. ² Assuming no collision among
 the relevant encountered inputs. ³ In the symbolic model of the cryptography.
+⁴ Over the store model: the proof runs the engine's code on a store written
+in Lean; the app runs the same code on SQLite. That the two agree is assumed
+and tested ([what the proofs assume of SQLite](#what-the-proofs-assume-of-sqlite)).
 
 **Not yet proven:**
 - that removed users are not admitted to the network again: a removed
@@ -213,11 +222,16 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
   does not wait for the approval to be Valid);
 - that a removed member cannot read new messages: removal cuts their
   sync, but content keys are not rotated yet;
-- that a closed session's ephemeral keys are gone: that closing purges
-  every one (`close_forgets`), and that deleted bytes leave the disk
-  (assumed, and doubtful on journaling filesystems and flash);
-- that every member eventually gets every op: proven so far for two
-  nodes, over a model ([towards n clients](#towards-proofs-for-n-clients));
+- that a closed session's keys are gone from the disk. Closing purges
+  them from the store (`close_forgets`), but that deleted bytes leave
+  the disk is assumed, and doubtful on journaling filesystems and flash.
+  Also open: an initiator's ephemeral key while its request waits, and
+  the step from stored bytes to the symbolic model's names;
+- that every member eventually gets every op. In a World of n nodes
+  that run the node's sync code, it follows if each live link carries
+  every op within a set time. That premise is not proven yet, and the
+  World has no handshake or sealed frames
+  ([towards n clients](#towards-proofs-for-n-clients));
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
   ([evidence and remaining boundary](#bootstrap-witnesses-and-running-app-checks));
@@ -232,16 +246,25 @@ code being written: [what the proofs caught](docs/CAUGHT.md).
 
 ### Towards Proofs for n Clients
 
-The sync proofs already run the real sync code, in a world of two
-devices whose network can delay or reorder frames
-([`stream_delivers`]), though with sessions opened directly and frames
-in the clear: the handshake is not in that world yet. Devices that hold the same ops agree, whatever
-order the ops arrived in (proven so far over a model of purging:
-[`same_ops_same_verdicts`]). So for n devices, it comes down to proving
-that every op reaches every member. The delivered-round and queued-closure
-components are now proved (`conn_runs_exchange`, `closure_delivered`);
-their composition across delayed/reordered transport and reconnects remains
-open, followed by a world of n devices with fair delivery.
+Devices that hold the same ops agree, whatever order the ops arrived
+in ([`same_ops_same_verdicts`], over the running judging code and the
+store model ⁴). So for n devices, it comes down to proving that every
+op reaches every member.
+
+The sync proofs run the node's real sync code in two Worlds: one of two
+devices ([`stream_delivers`]) and one of n devices ([`converge`],
+[`offline`]). In both, the network can delay, reorder or drop frames,
+sessions open directly, and frames go in the clear: the handshake and
+sealed sessions are not in the Worlds yet. In the n-device World, if
+each live link carries every op within a time B, then while the network
+stays up, an op one member holds reaches every member within d · B
+(on a network of diameter d), and a device back from offline catches up.
+
+Still open: that each live link does carry every op within B. Its parts
+are proven (a delivered round finds the missing ids,
+`conn_runs_exchange`; queued closures arrive, `closure_delivered`), but
+not yet chained across delays, reordering and reconnects. Then the
+Worlds need the real transport and the handshake.
 
 ### What is Assumed
 
@@ -339,10 +362,9 @@ behavior; they do not prove all of these assumptions:
   is one file, engine/core/Trust.lean ([`NativeCrypto`]): correctness on
   sized inputs, checked against the crates in tests/vacuity/CryptoTrust.lean.
   These checks do not establish unforgeability or collision resistance.
-- **SQLite behaves like the engine's own store.** This is tested row for
-  row against the model, and with kill -9 crash tests. A frame's reads in one
-  transaction see one committed state (SQLite's snapshot isolation): the
-  snapshot hypothesis above, which the screen's laws take.
+- **SQLite behaves like the engine's own store:** what that takes of
+  SQLite, and how each part is met, is
+  [below](#what-the-proofs-assume-of-sqlite).
 - **Deleted bytes are gone from the disk.**
   - A purge deletes with SQLite's `secure_delete` on, then runs
     `VACUUM` and truncates the WAL.
@@ -364,6 +386,44 @@ behavior; they do not prove all of these assumptions:
   localhost TCP and on devices.
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
+
+#### What the proofs assume of SQLite
+
+The proofs run the engine's code on `Model` (engine/core/Model.lean), a
+store written in Lean. The app runs the same code on SQLite
+(engine/core/Sqlite.lean). That the two agree is the assumption
+[`Model.run`], which many laws take (⁴ above). It is tested, not proven:
+tests/engine/Differential.lean runs random workloads and schedules on
+both and compares every table row for row; QueryDiff.lean does the same
+for list queries, and Purge.lean for purges. It rests on five promises:
+
+- **Order.** Every read of a list says its order (`ORDER BY`). The waits
+  and an index key's rows are read by rowid. A new row's
+  [rowid](https://www.sqlite.org/autoinc.html) is one more than the
+  largest in its table, so this is insertion order until a rowid reaches
+  2^63 − 1. The queue, the catalog and the journal use AUTOINCREMENT,
+  which never reuses a number.
+- **Atomic turns.** Each write turn is one `BEGIN IMMEDIATE` … `COMMIT`,
+  with `ROLLBACK` on an error (`transact` in Sqlite.lean), so it is
+  [all or nothing](https://www.sqlite.org/lang_transaction.html). The
+  model has no failed turns: a turn that fails did not happen. The
+  progress laws assume that turns succeed.
+- **One state per read transaction.** A frame's reads run in one read
+  transaction (`BEGIN` … `COMMIT` in app/Screen.lean). In
+  [WAL mode](https://www.sqlite.org/wal.html) it sees one snapshot,
+  whatever the writer commits meanwhile
+  ([isolation](https://www.sqlite.org/isolation.html)): the snapshot
+  hypothesis above. Reads outside one can see two states; that was a
+  bug ([what the proofs caught](docs/CAUGHT.md), "a read at a time").
+- **Durability.** With
+  [`synchronous = FULL`](https://www.sqlite.org/pragma.html#pragma_synchronous),
+  each commit syncs the WAL before it returns, so a committed turn
+  survives power loss and OS crashes, given storage that keeps what it
+  has synced. tests/engine/SqliteBuild.lean checks the setting. The
+  kill -9 tests cover app crashes; power loss is not tested.
+- **Deleted bytes leave the file.** `secure_delete`, `VACUUM` and the
+  WAL's truncation are SQLite's part, tested by reading the files raw.
+  What the filesystem and the flash keep is beyond SQLite (above).
 
 ### Security proofs
 
