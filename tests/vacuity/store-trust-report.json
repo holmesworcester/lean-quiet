@@ -1,0 +1,26 @@
+{
+  "SqliteStore": {
+    "status": "conditional",
+    "theorem": "Trust.SqliteStore",
+    "witness": "Vacuity.StoreTrust.sqliteConditional",
+    "module": "tests.vacuity.StoreTrust",
+    "exercise": true,
+    "detail": "The store's trust file, bridged to the laws over the running write turn and purge (receive_as_model, purge_as_model). Tested from both sides: on a real SQLite file brought to the model's tables by a workload, each of the 15 store operations alone answers as the model and its rows show the model's next tables, then roll back; beginning and committing, a refused write turn, the budget query, list queries and a purge's rewrite change no table; a whole write turn and a purge show the model's. In the kernel the model's own store keeps the shape (modelKeeps), empty rows show empty tables (emptyShows), a store that drops a write fails (dropRefused) and queued rows do not show empty tables (queuedNotEmpty). A named premise, never an axiom."
+  },
+  "receive_as_model": {
+    "status": "conditional",
+    "theorem": "Trust.receive_as_model",
+    "witness": "Vacuity.StoreTrust.sqliteConditional",
+    "module": "tests.vacuity.StoreTrust",
+    "exercise": true,
+    "detail": "Applied to the app's family under the store's trust file (sqliteConditional). The executable runs the same write turn on SQLite and on the model and checks that the rows show the model's tables."
+  },
+  "purge_as_model": {
+    "status": "conditional",
+    "theorem": "Trust.purge_as_model",
+    "witness": "Vacuity.StoreTrust.sqliteConditional",
+    "module": "tests.vacuity.StoreTrust",
+    "exercise": true,
+    "detail": "Applied to the app's family under the store's trust file (sqliteConditional). The executable purges a stored op on SQLite and on the model and checks that the rows show the model's tables."
+  }
+}

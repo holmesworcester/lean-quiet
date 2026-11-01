@@ -32,6 +32,7 @@ RUNNERS = {
     'tests.vacuity.Contracts': 'vacuity_contracts',
     'tests.vacuity.SealAudit': 'vacuity_seal_audit',
     'tests.vacuity.CryptoTrust': 'vacuity_crypto_trust',
+    'tests.vacuity.StoreTrust': 'vacuity_store_trust',
     'tests.vacuity.CoreRuntime': 'vacuity_core',
     'tests.vacuity.RendererRuntime': 'vacuity_renderer_runtime',
     'tests.vacuity.RendererSupplement': 'vacuity_renderer_runtime',
