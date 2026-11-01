@@ -197,6 +197,115 @@ theorem write_hop {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : Worl
   rw [Exec.world_succ, ha]
   exact hsr
 
+/-- No op the execution carries (in a store, or in a frame in flight)
+shares op o's id: the crypto assumption behind ids, for o. -/
+def NoClash {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n} (E : Exec Q.setup adv w₀)
+    (o : Op) : Prop :=
+  (∀ m l o', ((E.world m).box l).db.ops o.id = some o' → o' = o) ∧
+  (∀ m q, q ∈ (E.world m).flight → ∀ cid g, q.bytes = plainFrame cid g →
+    ∀ c ∈ g, ∀ o', Op.decode c = some o' → o'.id = o.id → o' = o)
+
+theorem Net.Live.symm {n : Nat} {N : Net n} {i j : Fin n} {a b : Nat} (h : N.Live i j a b) : N.Live j i a b :=
+  fun t h1 h2 => let ⟨x, y, z, u⟩ := h t h1 h2; ⟨y, x, u, z⟩
+
+/-- **A packet in flight was sent no later than now**, in every execution. -/
+theorem sent_le_now {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
+    (E : Exec Q.setup adv w₀) (h0 : ∀ p ∈ w₀.flight, p.sent ≤ w₀.now) :
+    ∀ k, ∀ p ∈ (E.world k).flight, p.sent ≤ (E.world k).now := by
+  intro k
+  induction k with
+  | zero => exact h0
+  | succ k ih =>
+    have hle := step_now (E.world k) (E.act k) (E.legal k)
+    rw [Exec.world_succ]
+    have enter : ∀ (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)),
+        (∀ p ∈ w.flight, p.sent ≤ t) → ∀ p ∈ (w.enter Q.setup i t f).flight, p.sent ≤ (w.enter Q.setup i t f).now := by
+      intro w i t f hw p hp
+      simp only [World.enter] at hp ⊢
+      rcases List.mem_append.1 hp with hp | hp
+      · exact hw p hp
+      · exact Nat.le_of_eq (mem_packets_src i (Q.addr i) t _ _ p hp).2.2
+    cases ha : E.act k with
+    | deliver idx t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      cases hp : (E.world k).flight[idx]? with
+      | none => rw [hp] at hle; simpa [hp] using ih
+      | some q =>
+        rw [hp] at hle; dsimp only at hle ⊢
+        cases hj : Q.setup.at? q.dst with
+        | none =>
+          rw [hj] at hle; dsimp only at hle ⊢
+          exact fun p hp' => Nat.le_trans (ih p (List.mem_of_mem_eraseIdx hp')) hle
+        | some j =>
+          rw [hj] at hle; dsimp only at hle ⊢
+          exact enter _ j t _ (fun p hp' => Nat.le_trans (ih p (List.mem_of_mem_eraseIdx hp')) (by
+            simp only [World.enter] at hle; exact hle))
+    | dup idx =>
+      simp only [World.step]
+      cases (E.world k).flight[idx]? with
+      | none => exact ih
+      | some q =>
+        intro p hp
+        rcases List.mem_append.1 hp with hp | hp
+        · exact ih p hp
+        · rw [List.mem_singleton.1 hp]; exact Nat.le_refl _
+    | drop idx => simp only [World.step]; exact fun p hp => ih p (List.mem_of_mem_eraseIdx hp)
+    | tick i t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact enter _ i t _ (fun p hp => Nat.le_trans (ih p hp) (by simp only [World.enter] at hle; exact hle))
+    | write i ops t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact enter _ i t _ (fun p hp => Nat.le_trans (ih p hp) (by simp only [World.enter] at hle; exact hle))
+    | restart i t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact fun p hp => Nat.le_trans (ih p hp) hle
+    | close i a t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact enter _ i t _ (fun p hp => Nat.le_trans (ih p hp) (by simp only [World.enter] at hle; exact hle))
+    | connect i j cid dl t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact enter _ i t _ (fun p hp => Nat.le_trans (ih p hp) (by simp only [World.enter] at hle; exact hle))
+    | inject i o b t =>
+      rw [ha] at hle; simp only [World.step] at hle ⊢
+      exact enter _ i t _ (fun p hp => Nat.le_trans (ih p hp) (by simp only [World.enter] at hle; exact hle))
+
+/-- **A want gets its op across, in two hops.** A want naming x in flight
+from b to a, where a holds x (op o) from then on in a room both ends show
+and a's index lists it, on a session both ends hold open from then on,
+sent after gst across an edge live for 2Δ: within 2Δ of the want's
+sending, b holds x, or x waits in a's queue for the session (the
+backlog case, which `owed_within` bounds by its queue position). -/
+theorem want_to_op {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
+    (E : Exec Q.setup adv w₀) {N : Net Q.n} (hN : N.Admits E) (hinj : ∀ a b, Q.addr a = Q.addr b → a = b)
+    (hs0 : ∀ p ∈ w₀.flight, p.sent ≤ w₀.now)
+    {a b : Fin Q.n} {cid r x : Id} {o : Op} {k : Nat}
+    (hJa : ∀ m, k ≤ m → ∃ c, ((E.world m).node a).conn? cid = some c ∧ OwesQueued c)
+    (hJb : ∀ m, k ≤ m → (((E.world m).node b).conn? cid).isSome = true)
+    (hm : ∀ m, ((E.world m).node a).managed = [])
+    (hGab : N.G a b) (hGba : N.G b a) (hsa : r ∈ Q.rooms a cid) (hsb : r ∈ Q.rooms b cid)
+    (hr : Q.fam.room o = some r) (hw : isWire o.kind = false) (hox : o.id = x) (hcl : NoClash E o)
+    (hx : ∀ m, k ≤ m → ((E.world m).box a).db.ops x = some o ∧ ∃ it ∈ ((E.world m).node a).ix.items r, it.2 = x)
+    {p : Packet Q.n} (hp : p ∈ (E.world k).flight) (hsrc : p.src = some b) (hdst : p.dst = Q.addr a)
+    (hor : p.origin = Q.addr b) {g : List ByteArray} (hb : p.bytes = plainFrame cid g) {L : List Id}
+    (hwL : (Msg.want L).op.bytes ∈ g) (hxL : x ∈ L) (hL : L.length ≤ Q.cfg.maxIds)
+    (hroom : ∀ m c, k ≤ m → ((E.world m).node a).conn? cid = some c →
+      c.owed.length + (g.map wantsOf).sum ≤ Q.cfg.maxKnown)
+    (hgst : N.gst ≤ p.sent) (hlive : N.Live a b p.sent (p.sent + 2 * N.Δ)) :
+    ∃ k', k < k' ∧ (E.world k').now ≤ p.sent + 2 * N.Δ ∧
+      (((E.world k').box b).db.ops x = some o ∨ ∃ c', ((E.world k').node a).conn? cid = some c' ∧ x ∈ c'.owed) := by
+  obtain ⟨k1, hk1, ht1, h1⟩ := want_hop E hN hinj hJa hm hGba hsa hr hx hp hsrc hdst hor hb hwL hxL hL hroom hgst
+    ((Net.Live.symm hlive).mono (Nat.le_refl _) (by omega))
+  rcases h1 with hq | ⟨sr, g', ho, hf⟩
+  · exact ⟨k1, hk1, by omega, Or.inr hq⟩
+  · have hk1t : p.sent ≤ (E.world k1).now :=
+      Nat.le_trans (sent_le_now E hs0 k p hp) (Exec.now_mono E (Nat.le_of_lt hk1))
+    obtain ⟨k2, hk2, ht2, h2⟩ := op_hop E hN hinj (a := a) (b := b) (cid := cid) (r := r) (k := k1)
+      (fun m hm' => hJb m (by omega)) hGab hsb hf rfl rfl rfl ho hw hr (by simp only; omega)
+      (hlive.mono (by simp only; omega) (by simp only; omega)) (fun m o' h => hcl.1 m b o' h)
+      (hcl.2 k1 _ hf cid g' rfl)
+    refine ⟨k2, by omega, by simp only at ht2; omega, Or.inl ?_⟩
+    rw [← hox]; exact h2
+
 end Plain
 
 end Engine.World
