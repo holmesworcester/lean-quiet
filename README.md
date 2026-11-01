@@ -375,7 +375,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1417 rest on Lean's standard axioms only, and about three quarters of its theorems (1060 of 1393, not counting 24 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1372 rest on Lean's standard axioms only, and about four fifths of its theorems (1159 of 1288, not counting 59 proof steps and 25 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -522,7 +522,7 @@ reviewers check that a law's structures are the running code's own or
 a quantified environment (a `Run` of the running step).
 
 <!-- wiring:begin -->
-**1060 of 1393 laws are about running code;** another 35 run its node code in a World, and 298 are not yet. Stated only: none. 24 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1159 of 1288 laws are about running code;** another 35 run its node code in a World, and 94 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 25 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -530,7 +530,7 @@ a quantified environment (a `Run` of the running step).
 | Sync | 232 | 196 |  | 36 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
-| Node and wire | 208 | 143 | 16 | 49 |
+| Node and wire | 203 | 186 | 16 | 1 |
 | Connections | 30 | 26 |  | 4 |
 | Community | 201 | 198 |  | 3 |
 | QR codes | 10 | 10 |  |  |
@@ -586,17 +586,35 @@ a quantified environment (a `Run` of the running step).
 | `RWorld.nTouched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.passActs` do. |
 | `RWorld.passActs` | [`acts_shown`] | Nothing that runs calls it; `Live.AWorld.pass` do. |
 | `RWorld.touched` | [`passActs_picks`] | Nothing that runs calls it; `RWorld.actsWorld`, `RWorld.nTouched` do. |
-| `PeopleLaws.admIn` | [`live_lists_ge`], [`present_scans`] | Nothing that runs calls it. |
-| `Pics.decoded` | [`decoded_started`] | Nothing that runs calls it; `Pics.image`, `Pics.imageV` do. |
-| `Pics.image` | [`image_steady`], [`image_settles`], [`image_twice`] | Nothing that runs calls it. |
-| `Want.ofFrame` | [`withView_ofFrame`], [`withViewLast_moves`] | Nothing that runs calls it. |
-| `Want.withView` | [`withView_ofFrame`] | Nothing that runs calls it. |
-| `Want.withViewLast` | [`withViewLast_moves`] | Nothing that runs calls it. |
-| `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
-| `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| `Bidi.numberRuns` | [`run_contiguous`]* | Nothing that runs calls it; `Text.numberRuns` do. |
-| (none) | [`spec_extends`]†, [`distinct_of_collisionFree`]†, [`spec_local`]†, [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`val_erase`], [`cost_run`] +48 more | Nothing to wire: each is about a specification or an assumption. |
+| `World.commit` | [`World.inv_commit`] | Nothing that runs calls it; `Live.Gated.w4`, `Live.World.runActs` do. |
+| `World.marked` | [`World.settle`] | Nothing that runs calls it; `World.pass` do. |
+| `World.pass` | [`inv_pass`], [`World.settle`] | Nothing that runs calls it; `Live.Gated.w4`, `Gated.w5`, `Live.World.passActs` do. |
+| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`fair_loss_delivered`], [`empty_log_agrees`], [`nodup`] | Nothing to wire: each is about a specification or an assumption. |
+
+| Proof steps in | Steps | Used by (about running code) |
+|---|---|---|
+| `app.community.Family` | [`nodup_full`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `progress_done` +1 more |
+| `app.community.Proofs` | [`admission_consented`]† | `no_impersonation`, `no_renaming` |
+| `app.community.channel.message.Proofs` | [`sum_map_add`] | `count_partition` |
+| `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `view_lists`, `decide_costs`, `find_costs`, `ingest_costs` +5 more |
+| `engine.core.CostErase` | [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_pure`], [`erase_run`], [`erase_tick`], [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +10 more |
+| `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`] | `anchor_read`, `count_partition`, `rec_succ`, `cmp_succ` +1 more |
+| `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +15 more |
+| `engine.core.Proofs` | [`distinct_of_collisionFree`]† | `oneOpPerId_of` |
+| `engine.core.Query` | [`walks_le`] | `plan_stmt_cost`, `readPlan_cost_le` |
+| `engine.renderer.DemandRank` | [`Demand.filter_rank`]† | `selected_or_retired`, `selected_within`, `take_changes`, `take_progress` |
+| `engine.renderer.TranslateLaws` | [`fill_index`], [`source_iff`], [`tile_phase`] | `pick_eq`, `copied_row`, `fill_pixel`, `pick_source` +1 more |
+| `engine.renderer.bidi.Laws` | [`run_contiguous`] | `arabic_numbers_keep_order`, `numbers_keep_order` |
+| `engine.sync.BoundsLaws` | [`inserts_size`] | `admitAsks_bounded`, `conn_bounded`, `conn_state_bounded`, `hold_bounded` +2 more |
+| `engine.sync.ClosureDelivery` | [`filter_idxOf_le`], [`finite_eventually_held`] | `eventually_emitted`, `pending`, `pending_until`, `closure_delivered` +1 more |
+| `engine.sync.ClosureStore` | [`keeps`], [`retains`], [`settled`], [`absentFold_covers`], [`absentFold_keeps`], [`absentFold_source`], [`absentStep_keeps`], [`absentStep_source`], [`budget_same_ops`], [`dedup_nodup`], [`write_store`] | `withNav_cache`, `placeIn_newest`, `store_settled`, `invariant` +14 more |
+| `engine.sync.RoundRun` | [`mem_inserts`] | `asks_have_source` |
+| `engine.sync.Session` | [`Session.closed_terminal`] | `Sync.closed_terminal` |
+| `engine.sync.SweepLaws` | [`step_nonincrease`], [`Sweep.step_progress`] | `retried`, `retried_fair` |
+| `engine.wire.IngressChurnLaws` | [`same_inputs`] | `churnFlood_write`, `write_served_churn`, `write_within_churn` |
+| `engine.wire.IngressLaws` | [`distance_lt`] | `source_before_exhaustion`, `churnFlood_source`, `poll_exists`, `Prioritized.served` +7 more |
+| `engine.wire.NoiseSymbolic` | [`Symbolic.good`] | `kk_agree`, `kk_agree_resp`, `kk_authentic`, `kk_authentic_resp` +3 more |
+| `engine.wire.RetryOrderLaws` | [`eligible_spec`], [`RetryOrder.filter_rank`] | `offered_or_retired`, `offered_rank`, `reconcile_rank`, `scan_progress` +1 more |
 
 \* only a premise names it. ° about running code, but names it beside. † a guarantee above cites it.
 
@@ -1246,10 +1264,10 @@ opportunities and full native delivery remain open.
 [`kk_agree_resp`]: engine/wire/NoiseSymbolic.lean#L946-L960
 [`kk_authentic_tight`]: engine/wire/NoiseSymbolic.lean#L1027-L1039
 [`kk_authentic_resp_tight`]: engine/wire/NoiseSymbolic.lean#L1062-L1074
-[`close_forgets`]: app/Proofs.lean#L3869-L3881
-[`purge_forgets`]: app/Proofs.lean#L3844-L3848
-[`retired_complete`]: app/Proofs.lean#L3895-L3901
-[`forget_stays`]: app/Proofs.lean#L3851-L3855
+[`close_forgets`]: app/Proofs.lean#L3865-L3877
+[`purge_forgets`]: app/Proofs.lean#L3840-L3844
+[`retired_complete`]: app/Proofs.lean#L3891-L3897
+[`forget_stays`]: app/Proofs.lean#L3847-L3851
 [`close_purges`]: engine/wire/CloseLaws.lean#L34-L42
 [`close_gone`]: engine/wire/CloseLaws.lean#L21-L25
 [`drop_iff_silent`]: engine/sync/TimeLaws.lean#L22-L24
@@ -1770,7 +1788,6 @@ opportunities and full native delivery remain open.
 [`RWorld.inv_commit`]: engine/renderer/ReaderLaws.lean#L238-L239
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
 [`inv_pass`]: engine/renderer/BoardLaws.lean#L375-L376
-[`exposed_parts`]: engine/wire/NoiseSymbolic.lean#L1029-L1032
 [`Costs.time`]: engine/core/Cost.lean#L393-L395
 [`list_costs`]: engine/core/ListCost.lean#L32-L35
 [`model_fits`]: engine/core/ListCost.lean#L62-L63
@@ -1779,6 +1796,7 @@ opportunities and full native delivery remain open.
 [`run_fresh`]: app/Proofs.lean#L2600-L2601
 [`fair_loss_delivered`]: engine/sync/SweepLaws.lean#L214-L218
 [`empty_log_agrees`]: engine/sync/SharedLog.lean#L11-L11
+[`nodup`]: engine/wire/RetryOrderLaws.lean#L214-L215
 [`nodup_full`]: app/community/Family.lean#L1504-L1506
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L223-L224
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -1794,7 +1812,48 @@ opportunities and full native delivery remain open.
 [`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
-[`offerM`]: app/Screen.lean#L380-L386
+[`val_erase`]: engine/core/CostErase.lean#L55-L56
+[`eval_partition`]: engine/core/Order.lean#L103-L109
+[`lexCmp_append_zero`]: engine/core/Order.lean#L68-L69
+[`of_map`]: engine/core/Project.lean#L126-L127
+[`to_map`]: engine/core/Project.lean#L131-L132
+[`Reads.mono`]: engine/core/Project.lean#L289-L289
+[`eval_proj`]: engine/core/Project.lean#L385-L389
+[`filterMap_inlRow`]: engine/core/Project.lean#L404-L405
+[`leftOps_eq_some`]: engine/core/Project.lean#L41-L42
+[`leftOps_isSome`]: engine/core/Project.lean#L56-L57
+[`matching_proj`]: engine/core/Project.lean#L366-L368
+[`mem_proj_idx`]: engine/core/Project.lean#L215-L216
+[`specVerdict_eq_some`]: engine/core/Project.lean#L71-L72
+[`walks_le`]: engine/core/Query.lean#L586-L586
+[`fill_index`]: engine/renderer/TranslateLaws.lean#L48-L51
+[`source_iff`]: engine/renderer/TranslateLaws.lean#L21-L23
+[`tile_phase`]: engine/renderer/TranslateLaws.lean#L57-L60
+[`run_contiguous`]: engine/renderer/bidi/Laws.lean#L84-L87
+[`inserts_size`]: engine/sync/BoundsLaws.lean#L20-L21
+[`filter_idxOf_le`]: engine/sync/ClosureDelivery.lean#L59-L61
+[`finite_eventually_held`]: engine/sync/ClosureDelivery.lean#L198-L204
+[`keeps`]: engine/sync/ClosureStore.lean#L276-L277
+[`retains`]: engine/sync/ClosureStore.lean#L281-L282
+[`settled`]: engine/sync/ClosureStore.lean#L263-L263
+[`absentFold_covers`]: engine/sync/ClosureStore.lean#L85-L89
+[`absentFold_keeps`]: engine/sync/ClosureStore.lean#L68-L69
+[`absentFold_source`]: engine/sync/ClosureStore.lean#L74-L75
+[`absentStep_keeps`]: engine/sync/ClosureStore.lean#L48-L49
+[`absentStep_source`]: engine/sync/ClosureStore.lean#L57-L58
+[`budget_same_ops`]: engine/sync/ClosureStore.lean#L152-L155
+[`dedup_nodup`]: engine/sync/ClosureStore.lean#L143-L143
+[`write_store`]: engine/sync/ClosureStore.lean#L21-L25
+[`mem_inserts`]: engine/sync/RoundRun.lean#L348-L349
+[`Session.closed_terminal`]: engine/sync/Session.lean#L28-L28
+[`step_nonincrease`]: engine/sync/SweepLaws.lean#L124-L131
+[`Sweep.step_progress`]: engine/sync/SweepLaws.lean#L52-L61
+[`same_inputs`]: engine/wire/IngressChurnLaws.lean#L93-L95
+[`distance_lt`]: engine/wire/IngressLaws.lean#L5-L6
+[`Symbolic.good`]: engine/wire/NoiseSymbolic.lean#L316-L318
+[`eligible_spec`]: engine/wire/RetryOrderLaws.lean#L186-L188
+[`RetryOrder.filter_rank`]: engine/wire/RetryOrderLaws.lean#L84-L87
+[`offerM`]: app/Screen.lean#L360-L366
 [`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L276-L289
 [`Model.run`]: engine/core/Model.lean#L117-L117
 [`SeekCost.seek`]: engine/core/Query.lean#L536-L537
@@ -2003,10 +2062,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`kk_agree_resp`](engine/wire/NoiseSymbolic.lean#L946-L960) | **kernel-witness**: [Vacuity.Session.responderAgrees](tests/vacuity/Session.lean). Concrete transcript; O is exactly the run's two logged calls. Message 1 is derived through 11's logged request and accepted, and kk_agree_resp returns that logged call with ephemeral 33 and the written state. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
 | [`kk_authentic_tight`](engine/wire/NoiseSymbolic.lean#L1027-L1039) | **kernel-witness**: [Vacuity.Session.forgedReply](tests/vacuity/Session.lean). Negative control on the same successful handshake: responder static 22 leaked (11/33/44 secret), O barred from every answer by 22. The attacker has 11 send message 1, picks its own name 55 and writes a message 2 that this initiator accepts, so kk_authentic fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
 | [`kk_authentic_resp_tight`](engine/wire/NoiseSymbolic.lean#L1062-L1074) | **kernel-witness**: [Vacuity.Session.forgedRequest](tests/vacuity/Session.lean). Negative control (key-compromise impersonation): responder static 22 leaked, O barred from every request by 11. The attacker writes, with its own ephemeral 55, a message 1 that 22 accepts as from 11 with payload1, so kk_authentic_resp fails when its responder-secrecy premise does. Symbolic term algebra and synthetic literals; no computational crypto, native primitive, freshness or private-payload secrecy claim. |
-| [`close_forgets`](app/Proofs.lean#L3869-L3881) | **runtime-witness**: [Vacuity.IdentityConnection.closeForgets](tests/vacuity/IdentityConnection.lean). The node driver built from the family's own hooks (Connection.hooks), so its closing is the running one; Node.endSession on the session's connection. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`purge_forgets`](app/Proofs.lean#L3844-L3848) | **runtime-witness**: [Vacuity.IdentityConnection.purgeForgets](tests/vacuity/IdentityConnection.lean). Applied to the purge of the session's closing ids (the connection and the request it answers) and judging. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`retired_complete`](app/Proofs.lean#L3895-L3901) | **runtime-witness**: [Vacuity.IdentityConnection.retiredComplete](tests/vacuity/IdentityConnection.lean). The established row of the live session, found among the store's established rows at runtime; it is kept open (sessions lists it). The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
-| [`forget_stays`](app/Proofs.lean#L3851-L3855) | **runtime-witness**: [Vacuity.IdentityConnection.forgetStays](tests/vacuity/IdentityConnection.lean). Uncited from the first purge (purge_uncited), then a later purge of a community message. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`close_forgets`](app/Proofs.lean#L3865-L3877) | **runtime-witness**: [Vacuity.IdentityConnection.closeForgets](tests/vacuity/IdentityConnection.lean). The node driver built from the family's own hooks (Connection.hooks), so its closing is the running one; Node.endSession on the session's connection. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`purge_forgets`](app/Proofs.lean#L3840-L3844) | **runtime-witness**: [Vacuity.IdentityConnection.purgeForgets](tests/vacuity/IdentityConnection.lean). Applied to the purge of the session's closing ids (the connection and the request it answers) and judging. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`retired_complete`](app/Proofs.lean#L3891-L3897) | **runtime-witness**: [Vacuity.IdentityConnection.retiredComplete](tests/vacuity/IdentityConnection.lean). The established row of the live session, found among the store's established rows at runtime; it is kept open (sessions lists it). The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
+| [`forget_stays`](app/Proofs.lean#L3847-L3851) | **runtime-witness**: [Vacuity.IdentityConnection.forgetStays](tests/vacuity/IdentityConnection.lean). Uncited from the first purge (purge_uncited), then a later purge of a community message. The store holds a real Noise session between Alice's and Bob's nodes (native X25519/ChaCha20-Poly1305), with its ephemeral (eph) and transport keys (established) stored; the runner checks those rows are stored before the end and gone after it, as the node's own close step runs it, and after a later purge. |
 | [`close_purges`](engine/wire/CloseLaws.lean#L34-L42) | **kernel-witness**: [Vacuity.WireMore.closeRunner](tests/vacuity/WireMore.lean). Nonempty drop list and closing hook naming stored local secret; SyncMore.closeErases independently proves real deletion. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`close_gone`](engine/wire/CloseLaws.lean#L21-L25) | **kernel-witness**: [Vacuity.SyncMore.closeErases](tests/vacuity/SyncMore.lean). Closing hook returns the actual stored local secret id; prove stored lookup and local scope before applying close_gone. Held-store erasure, not physical disk deletion. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`drop_iff_silent`](engine/sync/TimeLaws.lean#L22-L24) | **kernel-witness**: [Vacuity.Network.timesOut](tests/vacuity/Network.lean). Apply the exact iff at 90001 ms; independent application at 90000 ms proves still live at the strict deadline. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
@@ -2541,7 +2600,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`RWorld.inv_commit`](engine/renderer/ReaderLaws.lean#L238-L239) | **kernel-witness**: [Vacuity.RendererModels.readerCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`inv_pass`](engine/renderer/BoardLaws.lean#L375-L376) | Pending: no concrete premise witness audited yet |
-| [`exposed_parts`](engine/wire/NoiseSymbolic.lean#L1029-L1032) | Pending: no concrete premise witness audited yet |
 | [`Costs.time`](engine/core/Cost.lean#L393-L395) | Pending: no concrete premise witness audited yet |
 | [`list_costs`](engine/core/ListCost.lean#L32-L35) | Pending: no concrete premise witness audited yet |
 | [`model_fits`](engine/core/ListCost.lean#L62-L63) | Pending: no concrete premise witness audited yet |
@@ -2550,6 +2608,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`run_fresh`](app/Proofs.lean#L2600-L2601) | Pending: no concrete premise witness audited yet |
 | [`fair_loss_delivered`](engine/sync/SweepLaws.lean#L214-L218) | Pending: no concrete premise witness audited yet |
 | [`empty_log_agrees`](engine/sync/SharedLog.lean#L11-L11) | Pending: no concrete premise witness audited yet |
+| [`nodup`](engine/wire/RetryOrderLaws.lean#L214-L215) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1504-L1506) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L223-L224) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
@@ -2565,7 +2624,48 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`erase_run`](engine/core/CostErase.lean#L22-L23) | **kernel-witness**: [Vacuity.Core.eraseRun](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
-| [`offerM`](app/Screen.lean#L380-L386) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
+| [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
+| [`eval_partition`](engine/core/Order.lean#L103-L109) | Pending: no concrete premise witness audited yet |
+| [`lexCmp_append_zero`](engine/core/Order.lean#L68-L69) | Pending: no concrete premise witness audited yet |
+| [`of_map`](engine/core/Project.lean#L126-L127) | Pending: no concrete premise witness audited yet |
+| [`to_map`](engine/core/Project.lean#L131-L132) | Pending: no concrete premise witness audited yet |
+| [`Reads.mono`](engine/core/Project.lean#L289-L289) | Pending: no concrete premise witness audited yet |
+| [`eval_proj`](engine/core/Project.lean#L385-L389) | **kernel-witness**: [Vacuity.Projection.evalRows](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
+| [`filterMap_inlRow`](engine/core/Project.lean#L404-L405) | **kernel-witness**: [Vacuity.Projection.filteringMap](tests/vacuity/Projection.lean). Two concrete rows with sort bytes0/1 and distinct message identifiers; map into left sum constructor and preserve positions, order/insertion, or filter back. Synthetic generic row algebra, not collected user data. |
+| [`leftOps_eq_some`](engine/core/Project.lean#L41-L42) | Pending: no concrete premise witness audited yet |
+| [`leftOps_isSome`](engine/core/Project.lean#L56-L57) | Pending: no concrete premise witness audited yet |
+| [`matching_proj`](engine/core/Project.lean#L366-L368) | **kernel-witness**: [Vacuity.Projection.matchingRows](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
+| [`mem_proj_idx`](engine/core/Project.lean#L215-L216) | **kernel-witness**: [Vacuity.Projection.projectedIndex](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
+| [`specVerdict_eq_some`](engine/core/Project.lean#L71-L72) | **kernel-witness**: [Vacuity.Projection.specVerdictPresent](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
+| [`walks_le`](engine/core/Query.lean#L586-L586) | **kernel-witness**: [Vacuity.Query.rowsWalkBound](tests/vacuity/Query.lean). 50-row limit within 100000 rows; independent expectation proves exactly 50 walks. Synthetic model fixture; no collected real-user traffic. |
+| [`fill_index`](engine/renderer/TranslateLaws.lean#L48-L51) | Pending: no concrete premise witness audited yet |
+| [`source_iff`](engine/renderer/TranslateLaws.lean#L21-L23) | Pending: no concrete premise witness audited yet |
+| [`tile_phase`](engine/renderer/TranslateLaws.lean#L57-L60) | Pending: no concrete premise witness audited yet |
+| [`run_contiguous`](engine/renderer/bidi/Laws.lean#L84-L87) | **kernel-witness**: [Vacuity.RendererSets.numberRun](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
+| [`inserts_size`](engine/sync/BoundsLaws.lean#L20-L21) | Pending: no concrete premise witness audited yet |
+| [`filter_idxOf_le`](engine/sync/ClosureDelivery.lean#L59-L61) | Pending: no concrete premise witness audited yet |
+| [`finite_eventually_held`](engine/sync/ClosureDelivery.lean#L198-L204) | Pending: no concrete premise witness audited yet |
+| [`keeps`](engine/sync/ClosureStore.lean#L276-L277) | Pending: no concrete premise witness audited yet |
+| [`retains`](engine/sync/ClosureStore.lean#L281-L282) | Pending: no concrete premise witness audited yet |
+| [`settled`](engine/sync/ClosureStore.lean#L263-L263) | Pending: no concrete premise witness audited yet |
+| [`absentFold_covers`](engine/sync/ClosureStore.lean#L85-L89) | **runtime-witness**: [Vacuity.ClosureDelivery.absentFoldCoversWitness](tests/vacuity/ClosureDelivery.lean). Native store lookup proves the fresh signed message is absent from the populated community; its occurrence in a four-operation batch is proved in the kernel. The theorem then witnesses preservation of its id through the actual absent fold despite retransmission and already stored inputs. The required absence premise is checked on this fixture; this id-coverage theorem requires no collision assumption. |
+| [`absentFold_keeps`](engine/sync/ClosureStore.lean#L68-L69) | **kernel-witness**: [Vacuity.ClosureDelivery.absentFoldKeepsWitness](tests/vacuity/ClosureDelivery.lean). A closed kernel proof discharges membership of the signed message in the initial nonempty accumulator and applies retention through four actual absentStep iterations containing a stored root, a fresh signed message, a stored message, and a retransmission. Native checks confirm the exact two-operation deduplicated result. |
+| [`absentFold_source`](engine/sync/ClosureStore.lean#L74-L75) | **runtime-witness**: [Vacuity.ClosureDelivery.absentFoldSourceWitness](tests/vacuity/ClosureDelivery.lean). Native evaluation establishes that the fresh signed message appears after the nonempty mixed/repeated input fold, then applies the actual provenance theorem. The runner checks the exact result and rejects an unrelated removal absent from both the accumulator and input batch. |
+| [`absentStep_keeps`](engine/sync/ClosureStore.lean#L48-L49) | **kernel-witness**: [Vacuity.ClosureDelivery.absentStepKeepsWitness](tests/vacuity/ClosureDelivery.lean). The nonempty accumulator initially contains Bob's signed message; its membership premise is proved in the kernel before applying the actual absentStep retention law while another signed message is considered. Native checks confirm both queued values survive the fresh insertion branch. |
+| [`absentStep_source`](engine/sync/ClosureStore.lean#L57-L58) | **runtime-witness**: [Vacuity.ClosureDelivery.absentStepSourceWitness](tests/vacuity/ClosureDelivery.lean). Native evaluation proves the newly signed message is a member of actual absentStep output against an already populated store and nonempty accumulator, then applies the source theorem. The selected operation is the new input, exercising the insertion alternative; the runner also verifies an unrelated removal is never invented. |
+| [`budget_same_ops`](engine/sync/ClosureStore.lean#L152-L155) | Pending: no concrete premise witness audited yet |
+| [`dedup_nodup`](engine/sync/ClosureStore.lean#L143-L143) | Pending: no concrete premise witness audited yet |
+| [`write_store`](engine/sync/ClosureStore.lean#L21-L25) | **kernel-witness**: [Vacuity.ClosureDelivery.writeStoreWitness](tests/vacuity/ClosureDelivery.lean). Closed kernel instance of the actual Node.write/Turn.turn store equality for the populated signed Alice/Bob history and a nonempty batch containing old operations, a new signed message, and its retransmission. The native runner separately checks that the new-message branch stores and validates the new message while retaining the old history. |
+| [`mem_inserts`](engine/sync/RoundRun.lean#L348-L349) | Pending: no concrete premise witness audited yet |
+| [`Session.closed_terminal`](engine/sync/Session.lean#L28-L28) | Pending: no concrete premise witness audited yet |
+| [`step_nonincrease`](engine/sync/SweepLaws.lean#L124-L131) | **kernel-witness**: [Vacuity.Sweep.stalled](tests/vacuity/Sweep.lean). The same eligible nonempty message encounters zero output room. The unsent premise is kernel checked, the theorem preserves its rank and an independent exact check proves the cursor does not advance. A revoked-authorization control suppresses output. |
+| [`Sweep.step_progress`](engine/sync/SweepLaws.lean#L52-L61) | **kernel-witness**: [Vacuity.Sweep.progress](tests/vacuity/Sweep.lean). A retained nonempty synthetic Alice message at catalog position1 is authorized and fits the reserved frame. All premises are kernel discharged; the exact output is independently checked. A later ceiling of500 does not extend the captured ceiling1. This is cursor progress, not proof that the native writer supplies reservation. |
+| [`same_inputs`](engine/wire/IngressChurnLaws.lean#L93-L95) | Pending: no concrete premise witness audited yet |
+| [`distance_lt`](engine/wire/IngressLaws.lean#L5-L6) | **kernel-witness**: [Vacuity.Ingress.distanceBound](tests/vacuity/Ingress.lean). Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem. |
+| [`Symbolic.good`](engine/wire/NoiseSymbolic.lean#L316-L318) | Pending: no concrete premise witness audited yet |
+| [`eligible_spec`](engine/wire/RetryOrderLaws.lean#L186-L188) | Pending: no concrete premise witness audited yet |
+| [`RetryOrder.filter_rank`](engine/wire/RetryOrderLaws.lean#L84-L87) | Pending: no concrete premise witness audited yet |
+| [`offerM`](app/Screen.lean#L360-L366) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
 | [`Symbolic.sym`](engine/wire/NoiseSymbolic.lean#L276-L289) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
 | [`Model.run`](engine/core/Model.lean#L117-L117) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`SeekCost.seek`](engine/core/Query.lean#L536-L537) | Pending: no concrete premise witness audited yet |
