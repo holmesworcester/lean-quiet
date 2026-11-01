@@ -281,7 +281,6 @@ Nothing in this section is in the submitted commit. Each item names its
 branch.
 
 - `vibecheck/mac`: `make install && make run` on macOS.
-- `vibecheck/demo`: a two-window demo.
 - `a3/no-models` (pushed to origin): a ratchet against laws over models.
   `tests/wiring-models.txt` lists the laws that the check counts as over a
   model. The wiring check fails on any other model law, and the list can
