@@ -223,5 +223,12 @@
     "module": "tests.vacuity.CoreRuntime",
     "detail": "Actual removeMember intent emits one valid Alice-removes-Bob operation; nonempty membership, settled DB, extension and stored-op premises checked at runtime. Self-removal and already-removed controls emit nothing. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it.",
     "exercise": true
+  },
+  "run_purge": {
+    "status": "kernel-witness",
+    "theorem": "Engine.run_purge",
+    "witness": "Vacuity.CoreRuntime.runPurge",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "The engine's purge run on a real signed store, purging a local secret that a shared message cites: it equals purgeS and returns purgeSet. The runtime checks beside it (purgeGone, purgeShared, purgeUndecides) exercise the same nonempty purge."
   }
 }
