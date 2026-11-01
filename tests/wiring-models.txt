@@ -85,12 +85,6 @@ Connection.recipients_iff_node
 Engine.Costs.time
 
 # engine.core.CostErase
-Engine.CostT.erase_bind
-Engine.CostT.erase_charged
-Engine.CostT.erase_chargedBy
-Engine.CostT.erase_lift
-Engine.CostT.erase_pure
-Engine.CostT.erase_run
 Engine.CostT.erase_tick
 
 # engine.core.FIFO

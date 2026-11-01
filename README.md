@@ -372,7 +372,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1382 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1299, not counting 60 proof steps and 23 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1382 rest on Lean's standard axioms only, and about four fifths of its theorems (1105 of 1293, not counting 66 proof steps and 23 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -509,11 +509,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1105 of 1299 laws are about running code;** another 35 run its node code in a World, and 159 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 60 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1105 of 1293 laws are about running code;** another 35 run its node code in a World, and 153 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 66 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 23 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 174 | 155 |  | 19 |
+| Engine | 168 | 155 |  | 13 |
 | Sync | 225 | 188 |  | 37 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
@@ -588,7 +588,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Screen.far` | [`keep_scrolled_off`]† | Nothing that runs calls it; `Screen.frame2` do. |
 | `Screen.frame2` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
 | `Screen.keepAll` | [`keep_scrolled_off`]† | Nothing that runs calls it. |
-| (none) | [`erase_run`], [`erase_pure`], [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`] +10 more | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`erase_tick`], [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`exposed_parts`], [`eventually_delivered`], [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`] +4 more | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -596,7 +596,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `app.community.Proofs` | [`admission_consented`]† | `no_impersonation`, `no_renaming` |
 | `app.community.channel.message.Proofs` | [`sum_map_add`] | `count_partition` |
 | `engine.core.Cost` | [`Costs.mono`], [`costs_bind`], [`costs_bindP`], [`within_bind`], [`within_bindP`] | `decide_costs`, `find_costs`, `ingest_costs`, `rank_costs` +1 more |
-| `engine.core.CostErase` | [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +8 more |
+| `engine.core.CostErase` | [`erase_bind`], [`erase_charged`], [`erase_chargedBy`], [`erase_lift`], [`erase_pure`], [`erase_run`], [`cost_run`], [`val_erase`] | `cost_decBytesFromM_at`, `val_decBytesFromM`, `val_decNatFromM`, `work_decBytesFromM` +8 more |
 | `engine.core.Decl` | [`perm_sortPos`] | `complete_iff_held`, `file_whole`, `pic_complete_iff_held`, `anchor_read` +46 more |
 | `engine.core.Order` | [`eval_partition`], [`lexCmp_append_zero`], [`sortPos_sorted`] | `anchor_read`, `arrival_order`, `count_partition`, `rec_succ` +14 more |
 | `engine.core.Project` | [`of_map`], [`to_map`], [`Reads.mono`], [`eval_proj`], [`filterMap_inlRow`], [`leftOps_eq_some`], [`leftOps_isSome`], [`matching_proj`], [`mem_proj_idx`], [`sortPos_map`], [`specVerdict_eq_some`] | `admitted_node`, `community_inv`, `connect_iff_node`, `refuse_nonmember_node` +15 more |
@@ -1793,16 +1793,15 @@ opportunities and full native delivery remain open.
 [`passActs_nil`]: engine/renderer/ActsLaws.lean#L142-L144
 [`inv_passActs`]: engine/renderer/ActsLaws.lean#L193-L196
 [`idxok_passActs`]: engine/renderer/ActsLaws.lean#L200-L204
-[`erase_run`]: engine/core/CostErase.lean#L22-L23
-[`erase_pure`]: engine/core/CostErase.lean#L25-L25
-[`erase_bind`]: engine/core/CostErase.lean#L28-L29
-[`erase_charged`]: engine/core/CostErase.lean#L38-L38
-[`erase_chargedBy`]: engine/core/CostErase.lean#L41-L41
-[`erase_lift`]: engine/core/CostErase.lean#L44-L44
 [`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`exposed_parts`]: engine/wire/NoiseSymbolic.lean#L941-L944
 [`eventually_delivered`]: engine/core/FIFO.lean#L50-L55
 [`Costs.time`]: engine/core/Cost.lean#L393-L395
+[`list_costs`]: engine/core/ListCost.lean#L32-L35
+[`model_fits`]: engine/core/ListCost.lean#L62-L63
+[`id_bind`]: engine/core/Query.lean#L672-L673
+[`run_bind`]: app/Proofs.lean#L2565-L2566
+[`run_fresh`]: app/Proofs.lean#L2584-L2585
 [`nodup_full`]: app/community/Family.lean#L1504-L1506
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L223-L224
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -1810,6 +1809,12 @@ opportunities and full native delivery remain open.
 [`costs_bindP`]: engine/core/Cost.lean#L425-L429
 [`within_bind`]: engine/core/Cost.lean#L210-L212
 [`within_bindP`]: engine/core/Cost.lean#L268-L271
+[`erase_bind`]: engine/core/CostErase.lean#L28-L29
+[`erase_charged`]: engine/core/CostErase.lean#L38-L38
+[`erase_chargedBy`]: engine/core/CostErase.lean#L41-L41
+[`erase_lift`]: engine/core/CostErase.lean#L44-L44
+[`erase_pure`]: engine/core/CostErase.lean#L25-L25
+[`erase_run`]: engine/core/CostErase.lean#L22-L23
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`perm_sortPos`]: engine/core/Decl.lean#L132-L133
@@ -1945,7 +1950,7 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 488 kernel witnesses, 192 runtime witnesses,
-23 conditional checks, 0 recorded runtime counterexamples; 40 of 743 linked declarations still pending.**
+23 conditional checks, 0 recorded runtime counterexamples; 45 of 748 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2616,16 +2621,15 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`passActs_nil`](engine/renderer/ActsLaws.lean#L142-L144) | **kernel-witness**: [Vacuity.RendererModels.noActions](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`inv_passActs`](engine/renderer/ActsLaws.lean#L193-L196) | **kernel-witness**: [Vacuity.RendererModels.actionsInvariant](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`idxok_passActs`](engine/renderer/ActsLaws.lean#L200-L204) | **kernel-witness**: [Vacuity.RendererModels.actionIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
-| [`erase_run`](engine/core/CostErase.lean#L22-L23) | **kernel-witness**: [Vacuity.Core.eraseRun](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
-| [`erase_pure`](engine/core/CostErase.lean#L25-L25) | **kernel-witness**: [Vacuity.Core.erasePure](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
-| [`erase_bind`](engine/core/CostErase.lean#L28-L29) | **kernel-witness**: [Vacuity.Core.eraseBind](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
-| [`erase_charged`](engine/core/CostErase.lean#L38-L38) | **kernel-witness**: [Vacuity.Core.eraseCharged](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
-| [`erase_chargedBy`](engine/core/CostErase.lean#L41-L41) | **kernel-witness**: [Vacuity.Core.eraseChargedBy](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
-| [`erase_lift`](engine/core/CostErase.lean#L44-L44) | **kernel-witness**: [Vacuity.Core.eraseLift](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`exposed_parts`](engine/wire/NoiseSymbolic.lean#L941-L944) | Pending: no concrete premise witness audited yet |
 | [`eventually_delivered`](engine/core/FIFO.lean#L50-L55) | Pending: no concrete premise witness audited yet |
 | [`Costs.time`](engine/core/Cost.lean#L393-L395) | Pending: no concrete premise witness audited yet |
+| [`list_costs`](engine/core/ListCost.lean#L32-L35) | Pending: no concrete premise witness audited yet |
+| [`model_fits`](engine/core/ListCost.lean#L62-L63) | Pending: no concrete premise witness audited yet |
+| [`id_bind`](engine/core/Query.lean#L672-L673) | Pending: no concrete premise witness audited yet |
+| [`run_bind`](app/Proofs.lean#L2565-L2566) | Pending: no concrete premise witness audited yet |
+| [`run_fresh`](app/Proofs.lean#L2584-L2585) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1504-L1506) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L223-L224) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
@@ -2633,6 +2637,12 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`costs_bindP`](engine/core/Cost.lean#L425-L429) | Pending: no concrete premise witness audited yet |
 | [`within_bind`](engine/core/Cost.lean#L210-L212) | Pending: no concrete premise witness audited yet |
 | [`within_bindP`](engine/core/Cost.lean#L268-L271) | Pending: no concrete premise witness audited yet |
+| [`erase_bind`](engine/core/CostErase.lean#L28-L29) | **kernel-witness**: [Vacuity.Core.eraseBind](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_charged`](engine/core/CostErase.lean#L38-L38) | **kernel-witness**: [Vacuity.Core.eraseCharged](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_chargedBy`](engine/core/CostErase.lean#L41-L41) | **kernel-witness**: [Vacuity.Core.eraseChargedBy](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_lift`](engine/core/CostErase.lean#L44-L44) | **kernel-witness**: [Vacuity.Core.eraseLift](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_pure`](engine/core/CostErase.lean#L25-L25) | **kernel-witness**: [Vacuity.Core.erasePure](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
+| [`erase_run`](engine/core/CostErase.lean#L22-L23) | **kernel-witness**: [Vacuity.Core.eraseRun](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`perm_sortPos`](engine/core/Decl.lean#L132-L133) | **kernel-witness**: [Vacuity.Core.permutation](tests/vacuity/Core.lean). Nonempty out-of-order message rows retained by sorting. |

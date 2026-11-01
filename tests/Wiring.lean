@@ -69,7 +69,8 @@ output, and local CI fails when it goes stale.
   run: the rule's negative control.
 - **Step:** a law that would be a model, but that a wired law's proof
   uses (through the theorems it uses, as their proof bodies show; a law
-  stated over an instrument uses the instrument's erasing law): a proof
+  stated over an instrument uses every instrument's erasing law, the
+  meter's erasure algebra as a whole): a proof
   step of a law about running code, not a claim of its own. Computed,
   never noted: drop the wired use and it is a model again. Counted apart,
   with the wired laws that use it; a README row that cites a step must
@@ -750,10 +751,15 @@ unsafe def main : IO UInt32 := do
   -- wired laws that use each
   let wiredNames := (out.filter (·.wired)).toList.map (·.name)
   let wiredSet : NameSet := wiredNames.foldl (·.insert ·) {}
+  -- a wired law over the meter rests on its whole erasure algebra (erase
+  -- commutes with pure, bind and each door): naming any instrument, it
+  -- uses every instrument's law
+  let instrumentLaws := ns.instrument.toList.map (·.2)
   let instrumentUse (n : Name) : List Name :=
     if !wiredSet.contains n then [] else match env.find? n with
-      | some ci => ns.instrument.toList.filterMap fun (i, law) =>
-          if (named env ci.type).contains i then some law else none
+      | some ci =>
+        let cs := named env ci.type
+        if ns.instrument.toList.any (fun (i, _) => cs.contains i) then instrumentLaws else []
       | none => []
   let (parents, usedByWired) := proofUses env wiredNames instrumentUse
   out := out.map fun l =>
