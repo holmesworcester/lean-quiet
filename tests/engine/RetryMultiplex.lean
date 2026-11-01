@@ -12,7 +12,7 @@ def fam : Family Fact := family ed25519
 def author := Device.named "multiplex-author"
 def rootOp := root author (keyOf author)
 def cid (i : Nat) := sha256 s!"multiplex-session-{i}".toUTF8
-def peer (i : Nat) := cryptoSeal.pub (sha256 s!"multiplex-node-key-{i}".toUTF8)
+def peer (i : Nat) := cryptoSeal.pub (Bytes.digest s!"multiplex-node-key-{i}".toUTF8)
 
 def setup (address : ByteArray) (established : Bool := true) (order : List Nat := [2,1,0]) : Sync Fact (SqlM Fact) :=
   { fam, cfg := { live := 1000000000, safety := 1000000000 },

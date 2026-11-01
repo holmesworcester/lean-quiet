@@ -160,3 +160,18 @@ catches it next time. The aim is no escapes.
   mark is kept as `PeopleLaws.removedShipped`, a `control` in
   tests/wiring.txt, and `shipped_removed_without_removal` proves it marks
   an entry removed with no removal read.
+- **A command's "authoritative snapshot" was a read at a time** (found
+  by the gate's pixel test under load, 2026-11-01, by several sessions:
+  "You're in." over a founder's pages, "visual key missing", cases whose
+  pixels changed run to run). `transaction`, the one-shot reader every
+  command uses (`intentView`, `refreshCommsNow`), ran its reads on the
+  frame's connection without a transaction of its own: inside a frame
+  they shared the frame's snapshot, but a command run outside one (a
+  fixture, a lifecycle handler) read the store as of each read, with
+  the writer committing between them. `Accepted.read` then found the
+  founder's admission in one list and not in the next, so its entry
+  looked waiting and the frame said "You're in." when it was read again.
+  Fixed: `transaction` opens a savepoint, a read transaction of its own
+  when none is open and nested in the frame's when one is. All 72 pixel
+  cases, 24 runs at once: 4 cases changed run to run and 3 runs lost the
+  key before the fix; none after. Pinned by a test, not yet a law.

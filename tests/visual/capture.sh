@@ -12,13 +12,22 @@ trap 'rm -rf -- "$parts"' EXIT
 grep -v '^#' "$manifest" | grep . > "$parts/all" || true
 [ -s "$parts/all" ] || { echo "no cases in $manifest" >&2; exit 1; }
 split -n "r/$jobs" -d "$parts/all" "$parts/part."
-pids=()
+pids=() files=()
 for p in "$parts"/part.*; do
   [ -s "$p" ] || continue
-  .lake/build/bin/visual "$dir" "$p" > "$p.log" 2>&1 & pids+=($!)
+  case $p in *.log) continue ;; esac
+  .lake/build/bin/visual "$dir" "$p" > "$p.log" 2>&1 & pids+=($!) files+=("$p")
 done
 fail=0
-for i in "${!pids[@]}"; do wait "${pids[$i]}" || fail=1; done
+for i in "${!pids[@]}"; do
+  code=0; wait "${pids[$i]}" || code=$?
+  if [ "$code" != 0 ]; then
+    fail=1
+    echo "visual capture: part $i of $manifest exited $code; its cases and log:" >&2
+    sed 's/^/  case: /' "${files[$i]}" >&2
+    sed 's/^/  log: /' "${files[$i]}.log" >&2
+  fi
+done
 cat "$parts"/part.*.log
 [ "$fail" = 0 ] || { echo "visual capture failed for $manifest" >&2; exit 1; }
 echo "captured $(wc -l < "$parts/all") cases from $manifest"

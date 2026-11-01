@@ -217,8 +217,8 @@ def fileOf (i slices : Nat) : NewFile :=
     for j in [0:n] do b := b.push ((j * 7 + i * 13 + j / 300) % 256).toUInt8
     return b
   ⟨⟨s!"f{i}".toUTF8, "application/octet-stream".toUTF8, 0, 0, .empty⟩, plain,
-    sha256 s!"file key {i}".toUTF8, (sha256 s!"file nonce {i}".toUTF8).extract 0 24,
-    (sha256 s!"meta nonce {i}".toUTF8).extract 0 24⟩
+    Bytes.digest s!"file key {i}".toUTF8, (Bytes.fit 24 (sha256 s!"file nonce {i}".toUTF8)),
+    (Bytes.fit 24 (sha256 s!"meta nonce {i}".toUTF8))⟩
 
 structure Fixture where
   c : Id
@@ -232,16 +232,16 @@ chunks in all, and a fresh post. -/
 def fixture (n : Nat) : Fixture := Id.run do
   let seed := sha256 "fresh founder".toUTF8
   let d := Device.ofSeed seed
-  let k := sha256 "fresh content key".toUTF8
-  let nk := sha256 "fresh node key".toUTF8
-  let w := (found seed "Fresh".toUTF8 "Ann".toUTF8 1 k (sha256 "fresh esk".toUTF8) nk).eval DB.empty
+  let k := Bytes.digest "fresh content key".toUTF8
+  let nk := Bytes.digest "fresh node key".toUTF8
+  let w := (found seed "Fresh".toUTF8 "Ann".toUTF8 1 k (Bytes.digest "fresh esk".toUTF8) nk).eval DB.empty
   let c := (root d (cryptoSeal.pub nk)).id
   let mut files := []
   for i in [0:(n + 999) / 1000] do
-    let p := sealedPost c c d k ((sha256 s!"post nonce {i}".toUTF8).extract 0 24) s!"file {i}".toUTF8 (i + 1) (10 + i)
+    let p := sealedPost c c d k ((Bytes.fit 24 (sha256 s!"post nonce {i}".toUTF8))) s!"file {i}".toUTF8 (i + 1) (10 + i)
     let (a, cs) := attach c c p.id d k (fileOf i (min 1000 (n - 1000 * i)))
     files := files ++ [([p, a], cs)]
-  let post := sealedPost c c d k ((sha256 "fresh post nonce".toUTF8).extract 0 24) "fresh".toUTF8 1000 100000
+  let post := sealedPost c c d k ((Bytes.fit 24 (sha256 "fresh post nonce".toUTF8))) "fresh".toUTF8 1000 100000
   return { c, base := w.ops, files, post }
 
 /-- The first n chunks, with their files' posts and attachments. -/

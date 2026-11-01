@@ -9,18 +9,18 @@ namespace Vacuity.IdentityMessages
 open Engine Community Codec Tests Kinds Vacuity.Identity Vacuity.IdentityTrust
 set_option linter.defProp false
 
-def content : ByteArray := ⟨Array.replicate 32 41⟩
-def nonce : ByteArray := ⟨Array.replicate 24 43⟩
+def content : Key32 := ⟨⟨Array.replicate 32 41⟩, rfl⟩
+def nonce : Nonce24 := ⟨⟨Array.replicate 24 43⟩, rfl⟩
 def plaintext := "Hello Alice — a sealed message from Bob."
 def kid := kidOf cryptoSeal content
 def post1 := sealedPost c admission.id bob content nonce plaintext.toUTF8 1 29880000
-def post2 := sealedPost c admission.id bob content ⟨Array.replicate 24 44⟩ "Second message".toUTF8 2 1
-def localKey := contentKey c content
+def post2 := sealedPost c admission.id bob content ⟨⟨Array.replicate 24 44⟩, rfl⟩ "Second message".toUTF8 2 1
+def localKey := contentKey c content.1
 def bobName := profile c admission.id bob "Bob".toUTF8 29880001
 def scene := before ++ [post1,post2,localKey,bobName]
-def cipher1 := nonce ++ sealBody cryptoSeal content nonce c kid plaintext.toUTF8
+def cipher1 := nonce.1 ++ sealBody cryptoSeal content nonce c kid plaintext.toUTF8
 def cipher2 := (⟨Array.replicate 24 44⟩ : ByteArray) ++
-  sealBody cryptoSeal content ⟨Array.replicate 24 44⟩ c kid "Second message".toUTF8
+  sealBody cryptoSeal content ⟨⟨Array.replicate 24 44⟩, rfl⟩ c kid "Second message".toUTF8
 def fact1 := Fact.message c requestB.id bob.pk kid cipher1 1 29880000
 def fact2 := Fact.message c requestB.id bob.pk kid cipher2 2 1
 
