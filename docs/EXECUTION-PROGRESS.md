@@ -70,9 +70,10 @@ Raster work now remains enabled during frame assembly. The real component
 task passed 52 demand checks and 34 signed-component checks; scrolling had
 zero placeholder frames out of 180, with a 12.95 ms median frame and a
 one-frame settle. Four compiled mutations fail their intended assertions.
-Mounted visibility and finite completed frame work remain boundaries: fresh
-posts can move the own row offscreen, and reaction collection/layout is not
-yet capped against unbounded distinct emojis.
+At that milestone, newer posts could still move the own row offscreen. The
+composer FIFO below addresses that eviction. Finite completed frame work remains
+a boundary: reaction collection/layout is not capped against unbounded distinct
+emojis.
 
 [Sweep](../engine/sync/Sweep.lean) adds one indexed catalog read per session tick,
 with a fixed high-water mark during each pass. Its cursor persists under an
@@ -114,11 +115,11 @@ all reader lifetimes, or Windows cancellation.
 |---|---|
 | Per-peer service | Fixed peer mailboxes remove competition for the shared network queue, and the admitted-source deadline survives peer churn. Competing local/control producers still lack a fair admission bound; completion of a loop turn remains separate. |
 | Wait cancellation | Supported POSIX sends/connects now abort; socket reservations include original reader completion, and synchronized stop requests survive overlapping reads. Native callback/worker progress, final OS-thread teardown, handler-exception cleanup and Windows cancellation remain open. |
-| Bounded iteration work | Store draining has a finite history-dependent budget, not a fixed configuration bound. Connection hooks can traverse all matching rows. |
-| Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. |
-| Fair-loss progress | Reserved output now survives ordinary/hot pressure. Raw wire fair-loss still permits every frame to arrive after its session key has been discarded; multiplexed sessions also need fair retry admission. See the concrete execution in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
-| Write-to-display bound | Ancillary paint-ticket churn and frame-pause starvation are repaired. Selection, commit, reader refresh and presentation still need composition; fresh posts can remove the own row from view before presentation. Reaction collections/layout and native worker delays also lack a uniform bound. |
-| User-action outcomes | Joining can remain pending while approval is withheld. A completion-or-failure theorem needs an explicit cancellation/deadline policy as well as bounded service of the action. |
+| Bounded iteration work | Store draining and connection hooks can traverse history. App/Reader journal reads and action batches run before the reader budget check; a query is nonpreemptive. Reaction layout traverses all reactions, and pending-write cleanup reads every pending op each frame. |
+| Bounded memory | The sync index, snapshots, retired-session routing/tombstone history and some app recovery queues grow with history. Android native event/touch arrays still grow by reallocation. |
+| Fair-loss progress | Reserved output survives ordinary/hot pressure. The projection from real encrypted attempts and session teardown to semantic delivery is unproved; distinct sessions also need fair retry admission. The earlier closed-socket delay example was not a demonstrated TCP execution and is corrected in [RETRY-RESERVATION.md](RETRY-RESERVATION.md). |
+| Write-to-display bound | A bounded composer FIFO pins root/child positions against newer posts and uses exact native completion identity on Android/iOS. Desktop still acknowledges staging before native publication. Full composition, reaction/layout work, worker/callback delays and serial exhaustion prevent a universal bound. |
+| User-action outcomes | Joining can remain pending while approval is withheld. A permanently failing checkpoint retries before writer jobs indefinitely, and failed writes need explicit user-visible outcomes. Completion-or-failure requires cancellation/deadline policies and bounded service. |
 
 The current work addresses these in the running code. A successful finite
 test or a new component lemma does not close the corresponding whole-app row.
@@ -195,3 +196,13 @@ be lost to an overlapping getter in the pinned SDK. The named native gate
 checks 24 runtime assertions and 11 compiling controls, including this exact
 SDK interleaving. These repairs establish regression coverage, not universal
 OS progress. [NATIVE-LIFETIMES.md](NATIVE-LIFETIMES.md) records precise limits.
+
+## Composer presentation milestone
+
+The actual Send path admits at most eight pending presentation obligations and
+pins the oldest root/child position against new peer posts. The Android/iOS
+bridge distinguishes accepted publication from its matching native completion;
+a staged, optimistic, blank or shifted image cannot satisfy the receipt.
+The finite TCP regression keeps its 64-frame/1,500 ms limit. Desktop staging
+acknowledgement remains a separate repair, and the iOS wrapper has source review
+only in this Linux environment. See [PRESENTATION-PROGRESS.md](PRESENTATION-PROGRESS.md).

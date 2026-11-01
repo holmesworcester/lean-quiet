@@ -171,6 +171,8 @@ def main (args : List String) : IO UInt32 := do
   check s!"A's chaos reaches B over TCP (A {a8.total}, B {b5.total}, before {before})" synced
   let (b5, responsive) ← UiFair.run a8 b5 sb
   check "own writes commit, read back and paint during sustained TCP sync" responsive
+  let (b5, presented) ← UiFair.run a8 b5 sb (evict := true)
+  check "accepted own send survives a whole newer peer page before first paint" presented
   -- QUIET_IDLE_MS: both apps keep stepping, joined and idle, for a CPU
   -- profile of an idle phone (per thread: top -H -p <pid>)
   if let some ms := (← IO.getEnv "QUIET_IDLE_MS") >>= String.toNat? then

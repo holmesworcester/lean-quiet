@@ -543,3 +543,15 @@ lean_exe native_lifetime where
 lean_exe reader_stop where
   root := `tests.engine.ReaderStop
   moreLinkObjs := #[stop_probe.o]
+
+lean_exe checkpoint_ack where
+  root := `tests.engine.CheckpointAck
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe writer_resume where
+  root := `tests.engine.WriterResume
+  moreLinkObjs := #[stop_probe.o]
+
+lean_exe prune_ack where
+  root := `tests.engine.PruneAck
+  moreLinkObjs := #[stop_probe.o]

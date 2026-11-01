@@ -86,14 +86,14 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     for i in [0:220] do
       arriving := arriving ++ [sealedPost saved.me.c saved.me.adm saved.me.dev key (← newBytes 24)
         s!"Arriving child {i}".toUTF8 (600 + i) 101 (some root.id)]
-    saved.wr.paused.set true
+    saved.wr.setPaused true
     ck.ok "a burst of child messages is accepted" (← writeAll ⟨arriving⟩)
     steps 1
     let shifted ← get
     ck.ok "child arrivals preserve the reading position on their first frame"
       (mark.isSome && position shifted == beforePosition &&
        captureAnchor shifted == mark)
-    saved.wr.paused.set false
+    saved.wr.setPaused false
     waitIdle sm
     settle
     let saved ← get

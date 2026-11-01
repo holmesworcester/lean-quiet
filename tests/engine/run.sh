@@ -75,6 +75,7 @@ if [ "${1:-}" != --phone-runtime ]; then
   mise run test:reserved-retry
   mise run test:ingress
   mise run test:native-lifetimes
+  mise run test:ref-publications
   tests/engine/restart.sh
   tests/shipped/check.sh engine
 fi

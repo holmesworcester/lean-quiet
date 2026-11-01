@@ -19,9 +19,11 @@ bool bl_scroll_y(float* y);
 // staging any new layer; false is a bounded rejection, never acceptance.
 bool bl_begin(void);
 void bl_abort(void);
-void bl_geometry(const uint32_t* place);
+bool bl_geometry(const uint32_t* place);
 uint32_t bl_frame_id(void);
 uint64_t bl_view_id(void);
+uint64_t bl_acceptance_id(void);
+bool bl_completed_frame(uint64_t* publication, uint32_t* frame, int32_t* shift);
 
 // The window's layers, made if win is new. Call with the window held
 // (activity.c's ba_lock); it never waits.

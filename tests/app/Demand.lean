@@ -3,6 +3,7 @@ The pool executes the same queue, ticket and publication code as App. -/
 import app.community.channel.message.attachment.Screen
 import app.Screen
 import platforms.headless.Sim
+import tests.app.Presentation
 import tests.engine.Checks
 
 open Engine Community Data Tests
@@ -357,7 +358,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
     App.openPage .chat
     waitIdle sm
     let writer := (← get).wr
-    writer.paused.set true
+    writer.setPaused true
     discard <| App.sendText "My committed body survives reaction churn"
     let mut optimistic : Option (Id × App.RowSt) := none
     for _ in [0:400] do
@@ -380,7 +381,7 @@ def appPaintChurn (ck : Checks) : IO Unit := do
       await "finite app paint barrier" release.get
       return pending.shown
     await "app paint barrier entered" entered.get
-    writer.paused.set false
+    writer.setPaused false
     let mut committedFound : Option App.RowSt := none
     for _ in [0:400] do
       steps 1
@@ -531,6 +532,7 @@ def main : IO UInt32 := do
     DemandTest.paintInvalidation ck
     DemandTest.appPaintChurn ck
     DemandTest.appWorkerProgress ck
+    PresentationTests.run ck
     ck.finish "component-demand"
   catch e => IO.eprintln s!"component-demand: {e}"; pure 1
   (← IO.getStdout).flush

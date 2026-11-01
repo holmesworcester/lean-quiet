@@ -1,3 +1,4 @@
+import app.Screen
 import engine.wire.IngressLaws
 import engine.wire.IngressPriorityLaws
 import engine.wire.IngressChurnLaws
@@ -52,7 +53,6 @@ import app.community.channel.message.View
 import app.community.key.View
 import app.community.profile.View
 import app.community.member.remove.View
-import app.Screen
 import engine.renderer.Ttf.Laws
 import engine.renderer.Ttf.Cache
 import app.community.channel.message.attachment.Screen
@@ -1399,3 +1399,8 @@ end cost
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_source
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_write
 #print axioms Engine.Sync.Ingress.Prioritized.churnFlood_exact
+
+#print axioms App.Presentation.bounded
+#print axioms App.Presentation.offer_append
+#print axioms App.Presentation.offer_full
+#print axioms App.Presentation.acknowledge_matches
