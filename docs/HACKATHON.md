@@ -27,7 +27,7 @@ line. [ci/proof-links.py](../ci/proof-links.py) writes that line from
 the code (`mise run readme:links`).
 
 <!-- hackathon:begin -->
-Computed by `ci/hackathon.py` from git alone, at [`9683fcca8bf3`](https://github.com/holmesworcester/lean-quiet/commit/9683fcca8bf3615a05d849e11d37bd35144dc164) (committed 2026-11-01 14:51 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
+Computed by `ci/hackathon.py` from git alone, at [`53d8ca9edd4b`](https://github.com/holmesworcester/lean-quiet/commit/53d8ca9edd4be936df3b8d16feff98f896a4a355) (committed 2026-11-01 14:53 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
 
 | | Base | Head | Change |
 |---|--:|--:|--:|
@@ -39,20 +39,20 @@ Computed by `ci/hackathon.py` from git alone, at [`9683fcca8bf3`](https://github
 | README promises proven over running code (✅) | 40 | 51 | +11 |
 | README promises partly proven (🟡) | 31 | 28 | -3 |
 | README promises wanted, not proven (⬜) | 14 | 13 | -1 |
-| `theorem` declarations in .lean files | 2,399 | 4,197 | +1,798 |
-| .lean files | 362 | 635 | +273 |
-| Lines of Lean | 77,516 | 114,308 | +36,792 |
+| `theorem` declarations in .lean files | 2,399 | 4,258 | +1,859 |
+| .lean files | 362 | 650 | +288 |
+| Lines of Lean | 77,516 | 116,015 | +38,499 |
 
 - **Promises that changed mark** (same title at the base and the head): ✅ → 🟡: "A removed member's node stops holding the community, and can rejoin only as a new device"; 🟡 → ✅: "A removal ends a live session's sync", "Peers cannot push ops in", "Judging cannot be hung", "Honest nodes agree", "Purge is safe", "Purge takes exactly what it must"; ⬜ → 🟡: "Everyone converges". 16 promises at the head have a title the base does not have (new or reworded).
 - **Vacuity** at the base: no report (README.md has no "Vacuity check reports").
 - **Vacuity** at the head: of 747 declarations the README links, 517 have a concrete input checked by Lean's kernel and 183 one checked by running the code; 31 are conditional on a named assumption; 16 are pending: `converge`, `offline`, `grows`, `managed_nil`, `owes_queued_start`, `ix_covers_start`, `deliver_wants`, `deliver_queues`, `deliver_takes`, `onSealed_wants`, `onSealed_queues`, `onSealed_takes`, `onHold_wants`, `recv_asked`, `recv_owed`, `node_serve`.
 - **docs/CAUGHT.md** at the base: absent.
 - **docs/CAUGHT.md** at the head: "Caught by a law": 3 (Back to the switcher lost its backdrop (566e566, 2026-10-31); A replayed handshake retired a live session (found 2026-10-28; fix not on main); A crash kept a session's keys in the store for good (found 2026-10-31)). "Found otherwise, pinned by a law afterwards": 6, of which 3 say they are pinned by a test, not yet a law.
-- **Lean toolchain** (lean-toolchain): base v4.34.0; head v4.34.0.
+- **Lean toolchain** (lean-toolchain): base v4.34.0; head v4.35.0.
 - **Build and judging files** at the base: no Makefile; no comparator.json; no LICENSE file.
-- **Build and judging files** at the head: no Makefile; no comparator.json; no LICENSE file.
-- **Commits** since the base: 306, of which 66 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
-- **Files changed** since the base: 1,124 (+96,854 lines, -20,725 lines).
+- **Build and judging files** at the head: a Makefile with targets `help`, `install`, `run`, `online`, `check`, `assets`, `verify`; comparator.json with 17 theorems, permitted axioms `propext`, `Quot.sound`, `Classical.choice`; a LICENSE file.
+- **Commits** since the base: 355, of which 72 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
+- **Files changed** since the base: 1,185 (+104,548 lines, -20,769 lines).
 <!-- hackathon:end -->
 
 - A law is **about running code** when every definition its statement
