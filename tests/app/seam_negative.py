@@ -15,7 +15,6 @@ def run(args, name):
     (logs / f'{name}.log').write_text(result.stdout + result.stderr)
     return result.returncode
 
-assert run(['lake', 'build', 'engine.renderer.InputLaws', 'seam', 'seam_app'], 'baseline') == 0
 cases = [
     ('redundant-geometry', 'platforms/android/twin/layer.c', 'if (!bl_ready && sample == bl_applied_sample) goto complete_tick;', '/* broken: every idle vsync takes the callback slot */', 'native'),
     ('trace-wrong-position', 'platforms/android/twin/layer.c', 'done->composer_y = bl_place[10];',
@@ -73,6 +72,7 @@ if sys.argv[1:]:
     selected = set(sys.argv[1:])
     assert selected <= {case[0] for case in cases}, 'unknown mutation'
     cases = [case for case in cases if case[0] in selected]
+assert run(['lake', 'build', 'engine.renderer.InputLaws', 'seam', 'seam_app'], 'baseline') == 0
 for name, relative, old, new, kind in cases:
     path = root / relative
     saved = path.read_text()
