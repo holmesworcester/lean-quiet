@@ -103,12 +103,21 @@ PROBE = """open Lean in
 """
 
 
+def twice(names):
+    """The names an audit prints more than once: each would count as two laws."""
+    seen = set()
+    return sorted({n for n in names if n in seen or seen.add(n)})
+
+
 def audit():
     if not os.path.exists(AUDIT):
         sys.exit("proof-links: no axiom audit (tests/Axioms.lean)")
     text = open(AUDIT).read()
-    return (re.findall(r"^import (\S+)", text, re.M),
-            re.findall(r"^#print axioms (\S+)", text, re.M))
+    names = re.findall(r"^#print axioms (\S+)", text, re.M)
+    if twice(names):
+        sys.exit(f"proof-links: tests/Axioms.lean audits {', '.join(twice(names))} more than once; "
+                 "each law counts once")
+    return re.findall(r"^import (\S+)", text, re.M), names
 
 
 def ranges():
@@ -286,10 +295,12 @@ def controls(rows, resolve):
         problems.append(f'negative control: "{above}" for {w} of {t} was not caught')
     if not lead(f"about {right} of its theorems ({w} of {t}); another {k + 1} run the phone's node code", w, t, k, c)[0]:
         problems.append(f"negative control: another {k + 1} for {k} World laws was not caught")
+    if twice([a_wired, model, a_wired]) != [a_wired]:
+        problems.append(f"negative control: {a_wired}, audited twice, was not caught")
     if not problems:
         print(f"proof-links: negative controls: {model} and {world} marked wired, a ✅ row citing only "
-              f'a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, and another '
-              f"{k + 1} for {k} World laws, all caught")
+              f'a model law, a 🟡 row saying nothing missing, "{above}" for {w} of {t}, another '
+              f"{k + 1} for {k} World laws, and {a_wired} audited twice, all caught")
     return problems
 
 
