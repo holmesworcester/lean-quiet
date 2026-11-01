@@ -90,7 +90,7 @@ wire (a `Keeps`).
 | `bounded` | node | every queue holds at most `maxKnown` ids | `bounded_pieces` | same | a8 / 71 |
 | `ix` | node | the index covers the store, keyed; the store holds each op under its id, in its log | `ix_pieces`, `boot_ixinv` | production: catalog sweep and purges (purges take only room-less ops, so covering survives) | a8 / 71 |
 | `store` | node | the store is one the engine reaches from its log (`Held.Reachable`), so the store invariant `Inv` holds (`reach_inv`) | `Moves.store_reachable` over `entry_fresh`; production `world_step_moves` | `Runs` for the production setup | 71 |
-| `settled` | node | **urgent facts are settled after every event**; the rest settle after finitely many idle turns (see "Drain-cap") | `store_settled` (queue = []), until drain-cap lands; then `turn_urgent`, `urgent_settled` | the fit premise discharged from item 5's intake cap | 0f |
+| `settled` | node | **urgent status = Spec after every step**: every stored urgent op's status is its Spec verdict over the stored ops (`urgent_spec`, no premise); the rest settle after finitely many idle turns (see "Drain-cap") | `store_settled` (queue = []), until drain-cap lands; then `urgent_spec` | `urgent_spec`; the family obligation `urgent_closed` | 0f |
 | secrets purged | node | a closed session's secrets and couriers are gone, after a close and after crash recovery | `purge_gone`, retirement; "each completed close, including crash recovery, leaves no row" | a `Local`: it is about which sessions the node holds open, so it needs its own proof per entry point (a close retires and purges; an open writes secrets only for an open session) and at reboot (recovery) | 71 |
 | `Sent` | world | every packet in flight was sent in the past | `sent_keeps` (any setup) | — | done |
 | provenance | world | a packet with `src = some i` is a frame node i's entry point sent; injected bytes are in `adv w` | per node: `FramesOk`/`FramesBy` (`entry_fresh`, `removal_reaches_session`) | lift to `wire` with `Sent` and `step_touch` | 71 |
@@ -199,34 +199,36 @@ lane does not start it: it gets its own brief.
 
 ## Drain-cap: what "settled" means
 
-holmes-77 chose option (a) (2026-11-01). The store conjunct is: **urgent
-facts are settled after every event, and the rest settle after finitely
-many idle turns.**
+holmes-77 chose job closure (2026-11-01): a turn judges, transitively,
+the urgent waiters its own decisions wake. The store conjunct is:
+**urgent status = Spec after every step** (`urgent_spec`, no premise),
+and the rest settle after finitely many idle turns.
 
-- **The urgent class** (holmes-0f, a3/drain-cap 549688c): own writes;
-  connection ops (handshake, established, session); and `Family.urgent`,
-  which for Community is root, invite, request, grant, remove, approve and
-  admit.
+- **The urgent class** (holmes-0f): own writes; connection ops
+  (handshake, established, session); and `Family.urgent`, which for
+  Community is root, invite, request, grant, remove, approve and admit.
 - **queue = [] after every entry point stops holding.** A turn makes
   urgent attempts, then at most 1024 FIFO pops, then urgent attempts
   again; other content may carry to later turns.
-- **`turn_urgent`**: a closed urgent batch is decided within its own turn
-  if the ready urgent work fits `urgentCap/2` per half. A removal cites
-  only membership ops, so it wakes (`urgent_deferred`, `wake`) in the
-  turn its last requirement is decided. The fit premise is to be
-  discharged from item 5's intake cap, so that `urgent_settled` holds
-  without premises.
+- **What 0f states:** `urgent_spec`, every stored urgent op's status is
+  its Spec verdict over the stored ops, after every step, with no
+  premise; `turn_cost`, amortized over the wait-edge potential, with a
+  spike bound.
+- **A family obligation, `urgent_closed`:** urgent kinds cite only urgent
+  kinds. Each family declares it, so a turn's closure over urgent waiters
+  never waits on a non-urgent op.
 - **The community laws keep their meaning** through
   engine/core/Locality.lean (`spec_local`): a membership op's verdict
-  depends only on the ops it cites, all of which are urgent. So
-  `connect_iff`, `removal_cuts_off` and the `*_node` laws take "urgent
-  settled" in place of `queue = []`, and conclude about the same facts.
+  depends only on the ops it cites, all of which are urgent
+  (`urgent_closed`). So `connect_iff`, `removal_cuts_off` and the
+  `*_node` laws take "urgent status = Spec" in place of `queue = []`, and
+  conclude about the same facts. Reads stay over Valid ops only.
 - **The plain instance today** uses `queue = []` (`NodeGood.settled`),
   which holds on main and on fd/world-port. When drain-cap lands,
-  `settled` becomes `urgent : UrgentSettled fam h` (a `Local` from
-  `turn_urgent`), `verdicts_spec` is restated over urgent ids, and
-  `agree` over stores whose urgent facts are settled; the rest settling
-  is a liveness law under fair ticks, not a conjunct of `Good`.
+  `settled` becomes `urgent : UrgentSpec fam h` (a `Local` from
+  `urgent_spec`), `verdicts_spec` is restated over urgent ids, and
+  `agree` over stores whose urgent status is the spec's; the rest
+  settling is a liveness law under fair ticks, not a conjunct of `Good`.
 
 ## What `Plain.good_always` covers, and what it does not
 
