@@ -163,6 +163,7 @@ wired Connection.refused_gets_only_notice
 wired Connection.preadmit_sends_nothing
 wired Connection.preadmit_reaches_session
 wired Engine.Sync.take_unshown
+wired Engine.Sync.Conn.answer_blank
 wired Engine.Sync.start_take_blank
 wired Engine.Sync.onRbsr_take_blank
 wired Engine.Sync.take_opens

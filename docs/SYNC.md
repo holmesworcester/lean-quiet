@@ -52,8 +52,8 @@ Papers and the poc survey behind these: `/mnt/storage/holmes-research/rbsr/`.
 ## Notice delivery after the simplification
 
 `Hooks.rooms` still returns typed `List Room`: `Room.sync r` permits sync;
-`Room.take r` permits taking r's ops and running its rounds from the
-empty index, showing nothing (docs/TAKE-ROOM.md); `Room.notice r x`
+`Room.take r` permits taking r's ops and running its rounds blank,
+showing nothing (docs/TAKE-ROOM.md); `Room.notice r x`
 permits only the removal notice and its requirement closure.
 `Conn.carry` refreshes these separately on every node step. Rounds and
 their gates operate on the synced and taken rooms (`Conn.carried`).

@@ -155,7 +155,7 @@ theorem uncarried_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (
     (c.onRbsr cfg ix r k cs now).send.head? = some (Msg.rbsr r k
       ((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).filterMap
         fun | .claim x => some x | _ => none)).op := by
-  have hv : Conn.view ix c r = ix := Conn.view_shown hr
-  simp [Conn.onRbsr, Conn.has_carried_eq, hr, hc, fresh, hv]; rfl
+  have hv : Conn.answer cfg.params ix c r = ix.answer cfg.params r := Conn.answer_shown hr
+  simp [Conn.onRbsr, Conn.has_carried_eq, hr, hc, fresh, hv, Index.answer_fun]; rfl
 
 end Engine.Sync

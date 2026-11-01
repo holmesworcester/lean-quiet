@@ -32,7 +32,7 @@ def malloryInvite : Community.Invite :=
   ⟨c, sha256 "vacuity-mallory-invitation".toUTF8, pkM, [malAddr], sha256 "vacuity-mallory-bearer".toUTF8⟩
 def rejoinSeed := sha256 "vacuity-bob-rejoin".toUTF8
 def rejoinName := "Bob again".toUTF8
-def unusedFresh := sha256 "unused-node-seed".toUTF8
+def unusedFresh := Bytes.digest "unused-node-seed".toUTF8
 def rejoinRequest := malloryInvite.request (Community.Device.ofSeed rejoinSeed) pkB
 def rejoinOps := (Community.joinOps malloryInvite rejoinSeed rejoinName pkB).ops
 
@@ -88,9 +88,9 @@ def sendsNothing (l : Link) := do
   pure (PLift.up (preadmit_sends_nothing fam {} (ix l) (db l) (cid l) c conn0
     (Sync.Msg.want ((history l).map Op.id)).op.bytes ((history l).map Op.id) 100 0 true hk))
 
-def linkOwesNothing (l : Link) := do
+def linkOnlyUnlive (l : Link) := do
   let ⟨hk⟩ ← linkOnly l
-  pure (PLift.up (link_owes_nothing (x := removeB.id) hk))
+  pure (PLift.up (linkOnly_unlive (x := removeB.id) hk))
 
 def refusedOnlyNotice (l : Link) := do
   let ⟨hk⟩ ← linkOnly l
@@ -169,6 +169,12 @@ def takeUnshown (l : Link) :=
     if ho : fam.room message = some c then
       some (PLift.up (Sync.take_unshown fam (carried l) hr ho))
     else none
+  else none
+
+def answerBlank (l : Link) :=
+  if hr : has (carried l).rooms c = false then
+    some (PLift.up (Sync.Conn.answer_blank (P := ({} : Sync.Config).params) (ix := ix l) hr
+      (.ids ⟨⟨0, 0⟩, none⟩ [message.id])))
   else none
 
 def startBlank (l : Link) :=
@@ -323,7 +329,7 @@ def main : IO UInt32 := do
   t.ok "link only" (linkOnly l).isSome
   t.ok "preadmit_sends_nothing applies" (sendsNothing l).isSome
   t.ok "refused_gets_only_notice applies" (refusedOnlyNotice l).isSome
-  t.ok "link_owes_nothing applies" (linkOwesNothing l).isSome
+  t.ok "linkOnly_unlive applies" (linkOnlyUnlive l).isSome
   t.ok "linked_unlive applies" (linkedUnlive l).isSome
   t.ok "rooms_take applies" (roomsTake l).isSome
   t.ok "roomFor_law applies" (roomForLaw l).isSome
@@ -332,7 +338,11 @@ def main : IO UInt32 := do
   t.ok "hello: Bob opens c blank" (noneOfC (helloStep l).send && blank (helloStep l).send &&
     (helloStep l).send.any fun o => match Sync.Msg.ofOp o with | some (.rbsr r _ _) => r == c | _ => false)
   t.ok "a fingerprint round is answered blank" (noneOfC (fpRound l).send && blank (fpRound l).send)
-  t.ok "an id round is answered blank, with wants only" (noneOfC (idsRound l).send && blank (idsRound l).send)
+  t.ok "an id round is answered blank, with no want" (noneOfC (idsRound l).send && blank (idsRound l).send &&
+    (idsRound l).send.all fun o => match Sync.Msg.ofOp o with | some (.want _) => false | _ => true)
+  t.ok "Bob's message, offered as a have, is not wanted: Bob holds it"
+    ((stepRun l (.hold c [message.id, malloryOp.id])).send.all fun o => match Sync.Msg.ofOp o with
+      | some (.want ids) => !ids.contains message.id | _ => true)
   t.ok "filed offers nothing of c" (noneOfC (filedStep l).send && blank (filedStep l).send)
   t.ok "tick sends nothing of c" (noneOfC (tickStep l).send && blank (tickStep l).send)
   t.ok "inbound: Mallory's have is wanted" ((offerStep l).send.any fun o =>
@@ -340,6 +350,7 @@ def main : IO UInt32 := do
   t.ok "inbound: Mallory's op of c is taken" ((takeStep l).take.map (·.id) == [malloryOp.id])
   t.ok "recv_takes_taken applies" (takesTaken l).isSome
   t.ok "take_unshown applies" (takeUnshown l).isSome
+  t.ok "Conn.answer_blank applies" (answerBlank l).isSome
   t.ok "start_take_blank applies" (startBlank l).isSome
   t.ok "onRbsr_take_blank applies" (rbsrBlank l).isSome
   t.ok "take_opens applies" (takeOpens l).isSome

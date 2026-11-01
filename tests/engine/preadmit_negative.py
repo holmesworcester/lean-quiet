@@ -51,10 +51,18 @@ CASES = [
      '    if ← ((linked c me peer).liftL : View F Bool) then return [Room.take c]',
      '    if ← ((linked c me peer).liftL : View F Bool) then return [Room.sync c]',
      'app.Proofs', 'app/Proofs.lean', 'roomFor_law', ['roomFor_law', 'eval_roomFor']),
-    ('take-room-shows-index', 'engine/sync/Conn.lean',
+    ('unlive-notices', 'app/Commands.lean',
+     '    if !(← ((Community.allowPeer c me).liftL : View F Bool)) then return []\n',
+     '',
+     'app.Proofs', 'app/Proofs.lean', 'roomFor_law', ['roomFor_law', 'eval_roomFor']),
+    ('take-room-opens-from-index', 'engine/sync/Conn.lean',
      'def Conn.view (ix : Index) (c : Conn) (r : Id) : Index := if has c.rooms r then ix else {}',
      'def Conn.view (ix : Index) (c : Conn) (r : Id) : Index := if has c.rooms r then ix else ix',
      'engine.sync.Conn', 'engine/sync/Conn.lean', 'Conn.view_items', ['Conn.view_items']),
+    ('take-room-wants-blind', 'engine/sync/Conn.lean',
+     '  if has c.rooms r then ix.answer P r cl else answerTake P cl',
+     '  if has c.rooms r then ix.answer P r cl else ({} : Index).answer P r cl',
+     'engine.sync.Conn', 'engine/sync/Conn.lean', 'Conn.answer_blank', ['Conn.answer_blank']),
 ]
 
 with tempfile.TemporaryDirectory(prefix='preadmit-', dir=os.environ.get('TMPDIR')) as temp:

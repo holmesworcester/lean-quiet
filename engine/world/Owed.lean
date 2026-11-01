@@ -38,6 +38,11 @@ theorem wantsOf_want (L : List Id) : wantsOf (Msg.want L).op.bytes = L.length :=
 /-- Every id a connection owes is in its queue. -/
 def OwesQueued (c : Conn) : Prop := ∀ y, y ∈ c.owing → y ∈ c.owed
 
+/-- The dialer's rounds leave the queue as it is. -/
+theorem start_owed (cfg : Config) (ix : Index) (c : Conn) (now : Nat) :
+    (c.start cfg ix now).conn.owed = c.owed ∧ (c.start cfg ix now).conn.owing = c.owing := by
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e] <;> exact ⟨rfl, rfl⟩
+
 /-- A round message leaves the queue as it is. -/
 theorem onRbsr_owed (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) :
     (c.onRbsr cfg ix r k cs now).conn.owed = c.owed ∧ (c.onRbsr cfg ix r k cs now).conn.owing = c.owing := by
@@ -70,9 +75,12 @@ theorem recv_owed (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : B
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · unfold Conn.start; split
-          · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
-          · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
+        · obtain ⟨e1, e2⟩ := start_owed cfg ix
+            ({ ({ c with heard := now } : Conn) with peerFloor := some f, session := c.session.hearHello } : Conn) now
+          refine ⟨fun y hy => ?_, fun y hy => ?_, ?_⟩
+          · rw [e2] at hy; rw [e1]; exact hq y hy
+          · rw [e1]; exact hy
+          · rw [e1]; exact Nat.le_add_right _ _
         · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
       | rbsr r k cs =>
         simp only [HeldM.run_pure]
@@ -83,6 +91,10 @@ theorem recv_owed (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : B
         · rw [e1]; exact Nat.le_add_right _ _
       | hold r ids =>
         simp only [HeldM.run_bind, HeldM.run_pure]
+        split
+        · obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          simp only [HeldM.run_pure, e]
+          exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         split

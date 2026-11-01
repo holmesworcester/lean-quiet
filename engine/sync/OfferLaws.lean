@@ -145,6 +145,19 @@ theorem answer_offers {key : Item → Key} {P : Params} {mine : List Item} {cl :
       exact ⟨a, (mem_within.1 ha).1, rfl⟩
     · simp [Out.offers] at hi
 
+/-- An id a round's answer offers is an item of a shown room: a taken
+room's answers offer none (`Conn.answer_blank`). -/
+theorem Conn.answer_offers {ix : Index} {s : DB F} (hx : IxShown fam ix s) {P : Params} {c : Conn}
+    {r : Id} {cl : Claim} {o : Out} (ho : o ∈ Conn.answer P ix c r cl) :
+    ∀ i ∈ o.offers, Shown fam s c i := by
+  intro i hi
+  cases h : has c.rooms r
+  · obtain ⟨q, rfl⟩ := Conn.answer_blank h cl o ho
+    simp [Out.offers, Claim.offers] at hi
+  · rw [Conn.answer_shown h, Index.answer_eq] at ho
+    obtain ⟨a, ha, rfl⟩ := Engine.Sync.answer_offers ho i hi
+    exact shown_item fam hx ((Engine.has_iff _ _).1 h) ha
+
 theorem opening_offers {key : Item → Key} {P : Params} {mine : List Item} {r : Range} :
     ∀ i ∈ (opening key Prod.snd sha256 P mine r).offers, ∃ a ∈ mine, a.2 = i := by
   intro i hi
@@ -211,15 +224,13 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
   dsimp only
   by_cases h2 : cs.isEmpty = true
   · rw [ite_eq_left h2]; exact ⟨rfl, by simp⟩
-  rw [ite_eq_right h2, Index.answer_fun]
-  generalize hos : cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params ((Conn.view ix c r).items r)) = outs
+  rw [ite_eq_right h2]
+  generalize hos : cs.flatMap (Conn.answer cfg.params ix c r) = outs
   have hout : ∀ o ∈ outs, ∀ i ∈ o.offers, Shown fam s c i := by
     rw [← hos]
-    intro o ho i hi
+    intro o ho
     obtain ⟨cl, _, ho⟩ := List.mem_flatMap.1 ho
-    obtain ⟨a, ha, rfl⟩ := answer_offers ho i hi
-    obtain ⟨hs, ha⟩ := Conn.view_items ha
-    exact shown_item fam hx ((Engine.has_iff _ _).1 hs) ha
+    exact Conn.answer_offers fam hx ho
   refine ⟨?_, ?_⟩
   · split <;> rfl
   · intro o hm

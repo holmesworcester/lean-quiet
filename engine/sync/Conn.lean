@@ -29,11 +29,12 @@ closes the connection when `step.drop`.
   the round.
 - **Take rooms.** A room may be carried taken rather than synced
   (`takes`, engine/sync/Notice.lean's `Room.take`): its rounds run, and
-  its ops are wanted and taken, as a synced room's; but this side answers
-  and opens them from the empty index, and never offers, serves or
-  streams an op of it (`shows` reads `rooms` only). A node not yet let
-  into a community takes it from the inviter its link names, and sends
-  none of it (docs/TAKE-ROOM.md).
+  its ops are wanted (by `onHold`, from the store) and taken, as a synced
+  room's; but this side opens its rounds from the empty index and
+  answers every claim with an empty id claim (`Conn.answer`), and never
+  offers, serves or streams an op of it (`shows` reads `rooms` only). A
+  node not yet let into a community takes it from the inviter its link
+  names, and sends none of it (docs/TAKE-ROOM.md).
 - **Have and want.** What `answer` says this side holds and the peer
   lacks is offered (`sync.have`, naming its room); the peer wants what
   it lacks in that room (`sync.want`); wanted ops are sent as their
@@ -295,6 +296,45 @@ theorem Conn.view_items {ix : Index} {c : Conn} {r q : Id} {a : Item}
   · exact ⟨by assumption, h⟩
   · simp at h
 
+/-- A take room's answer to a claim (`Conn.answer`): a fingerprint as
+from the empty index (settled if it names nothing, else an empty id
+claim over its range); a claim of ids by an empty id claim over its
+range, so the peer offers those ids as haves and this side wants, by
+`onHold`, which reads its store, only the ones it lacks. -/
+def answerTake (P : Params) : Claim → List Out
+  | .ids q xs => if xs.isEmpty then [] else [.claim (.ids q [])]
+  | .fp q n l => Engine.Sync.answer Prod.fst Prod.snd sha256 P ([] : List Item) (.fp q n l)
+
+/-- What this side answers claim cl of room r with: from the live index
+for a shown room; for a taken room, `answerTake`, which names nothing
+this side holds. -/
+def Conn.answer (P : Params) (ix : Index) (c : Conn) (r : Id) (cl : Claim) : List Out :=
+  if has c.rooms r then ix.answer P r cl else answerTake P cl
+
+theorem Conn.answer_shown {P : Params} {ix : Index} {c : Conn} {r : Id} (h : has c.rooms r = true) :
+    Conn.answer P ix c r = ix.answer P r := by
+  funext cl; simp [Conn.answer, h]
+
+/-- **A take room answers blank (`Conn.answer_blank`).** Every answer
+this side gives a claim of a room it does not show is an empty id
+claim: no fingerprint, no have, no want. -/
+theorem Conn.answer_blank {P : Params} {ix : Index} {c : Conn} {r : Id} (h : has c.rooms r = false)
+    (cl : Claim) : ∀ o ∈ Conn.answer P ix c r cl, ∃ q, o = .claim (.ids q []) := by
+  intro o ho
+  simp only [Conn.answer, h, Bool.false_eq_true, ite_false] at ho
+  cases cl with
+  | ids q xs =>
+    simp only [answerTake] at ho
+    by_cases hx : xs.isEmpty = true
+    · rw [ite_eq_left hx] at ho; cases ho
+    · rw [ite_eq_right hx] at ho; exact ⟨q, List.mem_singleton.1 ho⟩
+  | fp q n l =>
+    simp only [answerTake, Engine.Sync.answer, within, List.filter_nil, List.length_nil, Nat.zero_le,
+      ite_true, List.map_nil] at ho
+    by_cases hf : fp Prod.fst Prod.snd sha256 ([] : List Item) = (n, l)
+    · rw [ite_eq_left hf] at ho; cases ho
+    · rw [ite_eq_right hf] at ho; exact ⟨q, List.mem_singleton.1 ho⟩
+
 theorem Conn.has_carried (c : Conn) (r : Id) :
     has c.carried r = true ↔ r ∈ c.rooms ∨ r ∈ c.takes := by
   simp [Conn.carried, Engine.has_iff]
@@ -482,11 +522,12 @@ theorem Conn.onAsk_eq (c : Conn) (r : Id) : ∃ rs, c.onAsk r = { c with rounded
   obtain ⟨rs, e⟩ := Conn.onAsk_eq c r; rw [e]
 
 /-- A round's message about room r: answer its claims from the room as
-the live index holds it now; no claims ends the round. -/
+the live index holds it now (a taken room, blank: `Conn.answer`); no
+claims ends the round. -/
 def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat) : Step :=
   if !has c.carried r then { conn := c, send := [(Msg.rbsr r k []).op] } else
   if c.oldRound r k then { conn := c } else
-  let ix := Conn.view ix c r
+  let ans := Conn.answer cfg.params ix c r
   let c := { c.beginRound k with
     epochs := noteEpoch c.carried.length c.epochs r k
     rounded := if c.dialer then c.rounded else noteEpoch c.carried.length c.rounded r now }
@@ -494,7 +535,7 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
   let ended (c : Conn) : Conn :=
     { c with active := others }
   if cs.isEmpty then { conn := ended c } else
-  let outs := cs.flatMap (ix.answer cfg.params r)
+  let outs := cs.flatMap ans
   let claims := outs.filterMap fun | .claim x => some x | _ => none
   let holds := outs.flatMap fun | .hold xs => xs | _ => []
   let wants := outs.flatMap fun | .want xs => xs | _ => []

@@ -87,7 +87,7 @@ theorem turnH_one_ops (fam : Family F) (o : Op) (h : Held F) (hn : h.db.ops o.id
 
 /-- **A payload's step:** it reads the store, never drops the session,
 and takes nothing or the payload's own op, an op of a room the
-connection shows. -/
+connection shows or takes. -/
 theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : ByteArray) (now : Nat)
     (h : Held F) :
     ((Conn.recv fam cfg ix c b now : HeldM F Step).run h).2 = h ∧
@@ -107,7 +107,7 @@ theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · unfold Conn.start; split <;> exact ⟨rfl, Or.inl rfl⟩
+        · exact ⟨Conn.start_drop cfg _ _ _, Or.inl (Conn.start_take cfg _ _ _)⟩
         · exact ⟨rfl, Or.inl rfl⟩
       | rbsr r k cs =>
         simp only [HeldM.run_pure]
@@ -118,7 +118,9 @@ theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
           · exact ⟨rfl, Or.inl rfl⟩
           · dsimp only; split <;> exact ⟨rfl, Or.inl rfl⟩
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
+        split
+        · exact ⟨rfl, Or.inl rfl⟩
         refine ⟨?_, Or.inl (onHold_take fam _ cfg r ids h)⟩
         unfold Conn.onHold
         split
@@ -137,7 +139,7 @@ theorem recv_cases (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
         simp only [Bool.or_eq_true, not_or, Bool.not_eq_true] at hn
         refine ⟨rfl, Or.inr ⟨o, rfl, rfl, ?_⟩⟩
         have hs := hn.2
-        simp only [Conn.shows, Bool.not_eq_false] at hs
+        simp only [Conn.shows, Conn.takesOp] at hs
         unfold Family.shared
         revert hs; cases fam.room o <;> simp
 

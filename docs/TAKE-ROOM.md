@@ -29,10 +29,14 @@ stores it through `deliverAll`/`joinsOf`).
 |---|---|
 | `allowPeer c peer` | `Room.sync c` |
 | only the link clause (`linked c me peer`) | `Room.take c` |
-| neither | a notice of each removal owed to the peer's key, not yet given |
+| neither, this node live in c | a notice of each removal owed to the peer's key, not yet given |
+| neither, this node not live in c | nothing |
 
 The handshake's trust rule is unchanged: the session opens; what it
-carries changed.
+carries changed. A node not live in c gives no removal notices either:
+the live members do, so no honest flow needs it, and the law is
+unconditional: a node not live in c sends no op of c on a link-trusted
+session.
 
 ## The take room (engine/sync)
 
@@ -43,11 +47,14 @@ carries changed.
 - **Wanted:** `onHold` answers haves for `rooms ++ takes`, wanting the
   ids this side lacks (it reads this side's ops of that room only).
 - **Rounds:** `start` and `ask` iterate `rooms ++ takes`, so a take room
-  is due like any other. Its rounds open and answer through the same
-  interface from the empty index (`Conn.view`): an opening is one
-  `.ids q []` per window range; a fingerprint is answered `.ids q []`
-  (or settled if it names nothing); an id claim is answered with wants
-  for its ids, and no claim back.
+  is due like any other. It opens from the empty index (`Conn.view`):
+  one `.ids q []` per window range. It answers every claim blank
+  (`Conn.answer`, `answerTake`): a fingerprint as from the empty index
+  (`.ids q []`, or settled if it names nothing); an id claim `.ids q xs`
+  with `.ids q []`, not `want xs`, so the peer offers those ids as haves
+  and `onHold` wants only the ones this side lacks, reading its store. A
+  take room never re-fetches what it holds, and its rounds name nothing
+  it holds.
 - **Never shown:** `shows`, `filed`, `authorize`/`onWant`, `serveOwed`
   and the closure walk read `rooms` only, so nothing of a take room is
   offered, served or streamed.
@@ -57,9 +64,11 @@ carries changed.
   room that turns synced is due at once (`shown_due`).
 
 No wire change: the empty id claim is the bytes a synced room sends
-for a range it holds nothing in. The peer that syncs c answers a take
-room's opening by ending the round and offering, as haves, every id it
-holds in the window (`take_round_offers`).
+for a range it holds nothing in. Answering an id claim with a claim is
+new in a round, but an existing message form, which the peer answers
+as any claim: with haves of all it holds in the range. The peer that
+syncs c answers a take room's opening by ending the round and offering,
+as haves, every id it holds in the window (`take_round_offers`).
 
 Cost: per round, a take room sends one claim per window range and the
 wants; the peer sends a have per id it holds in the window, every
@@ -74,8 +83,8 @@ Engine (engine/sync/TakeLaws.lean; restated: `recv_take`, `recv_cases`,
 `RoundBounded`, `conn_state_bounded`):
 
 - `take_unshown`: an op of a room not shown is not shown.
-- `start_take_blank`, `onRbsr_take_blank`: a take room's rounds claim
-  only empty id lists and send no have.
+- `Conn.answer_blank`, `start_take_blank`, `onRbsr_take_blank`: a take
+  room's rounds claim only empty id lists and send no have and no want.
 - `take_opens`: a due take room opens.
 - `take_round_offers`: the syncing peer offers all it holds there.
 - `recv_takes_taken`: a take room's op received is taken.
@@ -84,7 +93,8 @@ App (app/Proofs.lean):
 
 - `roomFor_law`: each room `roomFor` gives, read from the code: synced
   only where `allowPeer` takes the peer; taken only where `allowPeer`
-  refuses it and the link clause takes it; else an owed notice.
+  refuses it and the link clause takes it; else an owed notice, only
+  where this node is live.
 - `rooms_take`: a take room means this node is not live in c
   (`linked_unlive`) and a peer only the link lets in.
 - `rooms_removed`, `rooms_cut`, `rooms_cut_node`, `refused_gets_only_notice`:
@@ -92,7 +102,9 @@ App (app/Proofs.lean):
   no synced c, and of c only wire ops and owed notices go out. `MayGo`
   no longer needs this node live, so `removal_reaches_session` holds of
   every node.
-- `link_owes_nothing`: nothing is owed to a link's peer.
+- `linkOnly_unlive`: a node a link-trusted session is open on is not
+  live, so it gives that peer no notice (`NoticeOnly`'s notices need the
+  node live).
 - **`preadmit_sends_nothing`**, per step, and
   **`preadmit_reaches_session`**, over every entry point: on a session
   whose peers only the link lets in, no op of c goes out.
@@ -112,16 +124,15 @@ him back: that session takes c, takes Bob's new admission, and once
 Dave's ops are held c is synced and Bob is live.
 
 `mise run test:preadmit` (tests/engine/controls.txt): the witness, then
-the mutants (tests/engine/preadmit_negative.py): `roomFor`'s link branch
-syncing c is rejected inside `roomFor_law`; a take room answering from
-the live index is rejected inside `Conn.view_items`.
+the mutants (tests/engine/preadmit_negative.py), each rejected inside
+the named law: `roomFor`'s link branch syncing c (`roomFor_law`);
+notices given by a node not live in c (`roomFor_law`); a take room
+opening from the live index (`Conn.view_items`); a take room answering
+id claims with blind wants (`Conn.answer_blank`).
 
 ## Not covered
 
 - A take room's wants say which of the ids the peer offers this node
-  lacks (no content).
-- A node not live in c that opens a link naming a removed member's key
-  still gives that member the notices of its removal, with their
-  closures, as any node does (`refused_gets_only_notice` states it).
+  lacks: ops the peer already holds.
 - That `dialOne`'s hello carries the join request is the code, run end
   to end by ProductionBootstrap, not a separate law.

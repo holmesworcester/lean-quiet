@@ -1538,7 +1538,7 @@ theorem conn_answers_ids (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Na
   have hr' := has_of_mem hr
   subst hX
   simp only [Conn.onRbsr, fresh, Conn.has_carried_eq, hr', Bool.true_or, Bool.not_true, Bool.false_eq_true,
-    ite_false, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.isEmpty_cons, Conn.view_shown hr']
+    ite_false, List.flatMap_cons, List.flatMap_nil, List.append_nil, List.isEmpty_cons, Conn.answer_shown hr']
   simp [Index.answer_fun, exchange, answer, give, get, Conn.beginRound]
 
 end Engine.Sync

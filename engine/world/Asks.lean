@@ -175,7 +175,7 @@ theorem onHold_wants (fam : Family F) (cfg : Config) (c : Conn) (r : Id) (ids : 
     (hh : heldIn fam h.db r x = false) (hroom : c.asked.size + ids.length ≤ cfg.maxKnown) :
     WantIn ((c.onHold fam cfg r ids : HeldM F Step) h).1.send x := by
   rw [onHold_apply]
-  have hr' : (!has c.rooms r) = false := by simp [has_of_mem hr]
+  have hr' : (!has c.carried r) = false := by simp [Conn.has_carried_eq, has_of_mem hr]
   have hl' : ¬ ids.length > cfg.maxIds := by omega
   simp only [hr', Bool.false_eq_true, ↓reduceIte, hl']
   obtain ⟨hlen, hmem⟩ := wantStep_fold fam h.db c r ids []
@@ -231,6 +231,24 @@ theorem admit_goal (cfg : Config) (A : Std.HashSet Id) (raw : List Id) (q : Op) 
     have h2 := admitAsks_length cfg.maxKnown A raw
     omega
 
+/-- The same of a connection's own answers (`Conn.answer`): a shown
+room's are `answer`'s; a taken room's want nothing (`Conn.answer_blank`). -/
+theorem conn_answer_wants_le (P : Params) (ix : Index) (c : Conn) (r : Id) (f : Out → List Id)
+    (fw : ∀ xs, f (.want xs) = xs) (fh : ∀ xs, f (.hold xs) = []) (fc : ∀ c, f (.claim c) = [])
+    (cs : List Claim) :
+    ((cs.flatMap (Conn.answer P ix c r)).flatMap f).length ≤ (claimIds cs).length := by
+  cases h : has c.rooms r
+  · have hn : (cs.flatMap (Conn.answer P ix c r)).flatMap f = [] := by
+      apply List.eq_nil_iff_forall_not_mem.2
+      intro i hi
+      simp only [List.mem_flatMap] at hi
+      obtain ⟨o, ⟨cl, _, ho⟩, hi⟩ := hi
+      obtain ⟨q, rfl⟩ := Conn.answer_blank h cl o ho
+      rw [fc] at hi; cases hi
+    rw [hn]; exact Nat.zero_le _
+  · rw [Conn.answer_shown h, Index.answer_fun]
+    exact answer_wants_le _ _ _ P _ f fw fh fc cs
+
 /-- **What a round message makes a connection ask**, it wants on the wire
 in the same step; and its asks grow by at most the ids the claims list. -/
 theorem rbsr_asked (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (now : Nat)
@@ -251,7 +269,12 @@ theorem rbsr_asked (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs
           dsimp only
           simp only [e]
           refine admit_goal cfg _ _ _ _ (claimIds cs).length hmax ?_
-          apply answer_wants_le <;> intro _ <;> rfl
+          apply conn_answer_wants_le <;> intro _ <;> rfl
+
+/-- The dialer's rounds change no ask. -/
+theorem start_asked (cfg : Config) (ix : Index) (c : Conn) (now : Nat) :
+    (c.start cfg ix now).conn.asked = c.asked := by
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]; rfl
 
 /-- **What a payload's step asks**, it asked before or wants on the wire
 in the same step; and its asks grow by at most the payload's `asksOf`. -/
@@ -271,15 +294,19 @@ theorem recv_asked (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : 
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · unfold Conn.start; split
-          · exact ⟨fun x hx => Or.inl hx, by simp⟩
-          · exact ⟨fun x hx => Or.inl hx, by simp [Conn.beginRound]⟩
+        · refine ⟨fun x hx => Or.inl ?_, ?_⟩
+          · rw [start_asked] at hx; exact hx
+          · rw [start_asked]; exact Nat.le_add_right _ _
         · exact ⟨fun x hx => Or.inl hx, by simp⟩
       | rbsr r k cs =>
         simp only [HeldM.run_pure]
         exact rbsr_asked cfg ix { c with heard := now } r k cs now hmax
       | hold r ids =>
         simp only [HeldM.run_bind, HeldM.run_pure]
+        split
+        · obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          simp only [HeldM.run_pure, e]
+          exact ⟨fun x hx => Or.inl hx, Nat.le_add_right _ _⟩
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         generalize hc' : ({ c with heard := now } : Conn) = c'
@@ -657,6 +684,8 @@ theorem onSealed_wants (n : Node) (src : ByteArray) (cid : Id) (inner : List Byt
         obtain ⟨-, hd, -⟩ := recv_cases S.fam S.cfg st.1.ix { c.setRooms (S.rooms s cid) with notices := [] }
           (Msg.hold r l).op.bytes now h'
         rw [recv_hold] at hd ⊢
+        have hne : l.isEmpty = false := List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hx)
+        simp only [hne, Bool.false_eq_true, ↓reduceIte] at hd ⊢
         obtain ⟨f1, f2, f3, f4, -⟩ := apply_facts S s st.1 cid _ now h' hd hc'
         refine ⟨by rw [f2]; exact hm', by rw [addr_of_addrs f3]; exact ha', by simp [Acts.append_def, hr', f1], ?_⟩
         obtain ⟨hk1, hk2⟩ := hk c hcs

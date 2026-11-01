@@ -5,10 +5,11 @@ Take rooms (docs/TAKE-ROOM.md), proven of `Conn`'s code:
   shown, however the room is carried; so no step offers, serves or
   streams it (`recv_send`, `serveOwed_send`, `have_shown`).
 - `start_take_blank`, `onRbsr_take_blank`: the rounds of a room the
-  connection does not show are opened and answered from the empty
-  index: every claim they send is an empty id claim (`.ids q []`), no
-  fingerprint, and they send no have. A take room's round says nothing
-  of what this side holds.
+  connection does not show are opened from the empty index and answered
+  blank (`Conn.answer`): every claim they send is an empty id claim
+  (`.ids q []`), no fingerprint, and they send no have and no want. A
+  take room's round says nothing of what this side holds; it wants only
+  from the peer's haves (`onHold`, reading the store).
 - `take_opens`: a take room that is due opens like any other, with one
   empty id claim per window range.
 - `take_round_offers`: the peer that syncs the room answers that opening
@@ -47,27 +48,19 @@ theorem view_opening (ix : Index) (c : Conn) {r : Id} (hr : has c.rooms r = fals
     (w : Range) : (Conn.view ix c r).opening P r w = .ids w [] := by
   simp [Conn.view, hr, Index.opening_eq, opening, within]
 
-/-- What this side answers a claim with in a room it does not show: as
-from the empty index, so no claim back but an empty id claim, and no
-have. -/
-theorem view_answer (ix : Index) (c : Conn) {r : Id} (hr : has c.rooms r = false) (P : Params)
-    (cl : Claim) :
-    ∀ o ∈ (Conn.view ix c r).answer P r cl, (∃ q, o = .claim (.ids q [])) ∨ o = .hold [] ∨ ∃ xs, o = .want xs := by
-  intro o ho
-  simp only [Conn.view, hr, Bool.false_eq_true, ite_false, Index.answer_eq, Index.items_empty] at ho
-  cases cl with
-  | fp q n l =>
-    simp only [answer, within, List.filter_nil, List.length_nil, Nat.zero_le, ite_true,
-      List.map_nil] at ho
-    by_cases hf : fp Prod.fst Prod.snd sha256 ([] : List Item) = (n, l)
-    · rw [ite_eq_left hf] at ho; cases ho
-    · rw [ite_eq_right hf] at ho
-      exact Or.inl ⟨q, List.mem_singleton.1 ho⟩
-  | ids q xs =>
-    simp only [answer, within, List.filter_nil, List.map_nil, List.mem_cons, List.not_mem_nil, or_false] at ho
-    rcases ho with rfl | rfl
-    · exact Or.inr (Or.inl rfl)
-    · exact Or.inr (Or.inr ⟨_, rfl⟩)
+/-- Chunks of ids are sent only if there is an id. -/
+theorem chunks_some {ids : List Id} {mk : List Id → Msg} {o : Op} (h : o ∈ chunks cfg ids mk) :
+    ∃ i, i ∈ ids := by
+  cases ids with
+  | nil => simp [chunks, pieceIds] at h
+  | cons i t => exact ⟨i, List.mem_cons_self ..⟩
+
+/-- Asks are admitted only if there is an id to ask for. -/
+theorem admitAsks_some {cap : Nat} {asked : Std.HashSet Id} {ids : List Id} {i : Id}
+    (h : i ∈ admitAsks cap asked ids) : ∃ j, j ∈ ids := by
+  cases ids with
+  | nil => simp [admitAsks] at h
+  | cons j t => exact ⟨j, List.mem_cons_self ..⟩
 
 /-- A data op's message: none. -/
 theorem ofOp_data {o : Op} (hw : isWire o.kind = false) : Msg.ofOp o = none := by
@@ -111,48 +104,45 @@ theorem start_take_blank (ix : Index) (c : Conn) (now : Nat) {r : Id} (hr : has 
       exact ⟨q, view_opening ix c hr cfg.params q⟩
 
 /-- **A take room's rounds answer blank (`onRbsr_take_blank`).** A round
-message about a room the connection does not show is answered with a
-round message whose every claim is an empty id list, and with wants; no
-have, no fingerprint. -/
+message about a room the connection does not show is answered with one
+round message whose every claim is an empty id list: no fingerprint, no
+have, and no want (a take room wants only from haves, by `onHold`, which
+reads the store). -/
 theorem onRbsr_take_blank (ix : Index) (c : Conn) {r : Id} (k now : Nat) (cs : List Claim)
     (hr : has c.rooms r = false) :
     ∀ o ∈ (c.onRbsr cfg ix r k cs now).send,
-      (∃ cs', o = (Msg.rbsr r k cs').op ∧ ∀ cl ∈ cs', ∃ q, cl = .ids q []) ∨
-        o = (Msg.hold r []).op ∨ ∃ ids, o = (Msg.want ids).op := by
+      ∃ cs', o = (Msg.rbsr r k cs').op ∧ ∀ cl ∈ cs', ∃ q, cl = .ids q [] := by
   intro o ho
   unfold Conn.onRbsr at ho
   split at ho
   · simp only [List.mem_singleton] at ho
-    exact Or.inl ⟨[], ho, by simp⟩
+    exact ⟨[], ho, by simp⟩
   split at ho
   · cases ho
   dsimp only at ho
   split at ho
   · cases ho
-  have hv := view_answer ix c hr cfg.params
+  have hv := Conn.answer_blank (P := cfg.params) (ix := ix) hr
   simp only [List.mem_cons, List.mem_append] at ho
   rcases ho with rfl | ho | ho
-  · refine Or.inl ⟨_, rfl, fun cl hcl => ?_⟩
+  · refine ⟨_, rfl, fun cl hcl => ?_⟩
     simp only [List.mem_filterMap, List.mem_flatMap] at hcl
     obtain ⟨out, ⟨cl', _, hout⟩, e⟩ := hcl
-    rcases hv cl' out hout with ⟨q, rfl⟩ | rfl | ⟨xs, rfl⟩
-    · cases e; exact ⟨q, rfl⟩
-    · cases e
-    · cases e
-  · simp only [chunks, List.mem_map] at ho
-    obtain ⟨l, hl, rfl⟩ := ho
-    refine Or.inr (Or.inl ?_)
-    have : l = [] := by
-      apply List.eq_nil_iff_forall_not_mem.2
-      intro i hi
-      have := mem_pieceIds hl i hi
-      simp only [List.mem_flatMap] at this
-      obtain ⟨out, ⟨cl', _, hout⟩, hi⟩ := this
-      rcases hv cl' out hout with ⟨q, rfl⟩ | rfl | ⟨xs, rfl⟩ <;> simp at hi
-    rw [this]
-  · simp only [chunks, List.mem_map] at ho
-    obtain ⟨l, _, rfl⟩ := ho
-    exact Or.inr (Or.inr ⟨l, rfl⟩)
+    obtain ⟨q, rfl⟩ := hv cl' out hout
+    cases e; exact ⟨q, rfl⟩
+  · exfalso
+    obtain ⟨i, hi⟩ := chunks_some cfg ho
+    simp only [List.mem_flatMap] at hi
+    obtain ⟨out, ⟨cl', _, hout⟩, hi⟩ := hi
+    obtain ⟨q, rfl⟩ := hv cl' out hout
+    simp at hi
+  · exfalso
+    obtain ⟨i, hi⟩ := chunks_some cfg ho
+    obtain ⟨j, hj⟩ := admitAsks_some hi
+    simp only [List.mem_flatMap] at hj
+    obtain ⟨out, ⟨cl', _, hout⟩, hj⟩ := hj
+    obtain ⟨q, rfl⟩ := hv cl' out hout
+    simp at hj
 
 /-- **A take room that is due opens (`take_opens`).** Its round is
 opened like a shown room's, one empty id claim per window range. -/
@@ -211,7 +201,7 @@ theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : Li
     | nil => exact absurd rfl hw
     | cons _ _ => rfl
   simp only [Conn.onRbsr, Conn.has_carried_eq, hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
-    ite_false, fresh, hc, Conn.view_shown hr, Index.answer_fun]
+    ite_false, fresh, hc, Conn.answer_shown hr, Index.answer_fun]
   have e : (Msg.rbsr r k []).op ::
       (chunks cfg (w.flatMap fun q => (within Prod.fst q (ix.items r)).map Prod.snd) (.hold r) ++
         chunks cfg [] .want) =

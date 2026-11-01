@@ -49,7 +49,7 @@ theorem conn_answers_claims (cfg : Config) (ix : Index) (c : Conn)
           chunks cfg (admitAsks cfg.maxKnown c.asked (roundWants outs)) .want) := by
   have hc : cs.isEmpty = false := List.isEmpty_eq_false_iff.mpr hne
   simp only [Conn.onRbsr, Conn.has_carried_eq, has_of_mem hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
-    ite_false, fresh, hc, Conn.view_shown (has_of_mem hr), Index.answer_fun]
+    ite_false, fresh, hc, Conn.answer_shown (has_of_mem hr), Index.answer_fun]
   dsimp only [nextClaims, roundHolds, roundWants]
   split <;> rfl
 
@@ -86,7 +86,7 @@ theorem conn_round_continues (cfg : Config) (ix : Index) (c : Conn)
     have := List.length_pos_of_mem hr; omega
   obtain ⟨n, hn⟩ := Nat.exists_eq_succ_of_ne_zero (Nat.ne_of_gt hp)
   simp only [Conn.onRbsr, Conn.has_carried_eq, has_of_mem hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
-    ite_false, fresh, hc, Conn.view_shown (has_of_mem hr), Index.answer_fun]
+    ite_false, fresh, hc, Conn.answer_shown (has_of_mem hr), Index.answer_fun]
   split
   · rename_i h
     exact False.elim (more (List.isEmpty_iff.mp h))

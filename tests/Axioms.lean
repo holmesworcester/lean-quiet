@@ -769,10 +769,11 @@ end net
 #print axioms Connection.rooms_take
 #print axioms Connection.rooms_complete_take
 #print axioms Connection.linked_unlive
-#print axioms Connection.link_owes_nothing
+#print axioms Connection.linkOnly_unlive
 #print axioms Connection.refused_gets_only_notice
 #print axioms Connection.shipped_roomFor_shows
 #print axioms Engine.Sync.take_unshown
+#print axioms Engine.Sync.Conn.answer_blank
 #print axioms Engine.Sync.start_take_blank
 #print axioms Engine.Sync.onRbsr_take_blank
 #print axioms Engine.Sync.take_opens
