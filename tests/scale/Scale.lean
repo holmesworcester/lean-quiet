@@ -22,9 +22,20 @@ not asserted.
   the proven 2·height and 2·(fan + 1)·height, against the list label's
   2n + 1; and the times. The control is the old list index: an insert
   into a sorted list per item, quadratic (up to 10k only).
+- **capped turns (drain-cap):** on SQLite, the writer's turn
+  (`turnCapped`, one transaction) with a test family whose kind-1 ops
+  are urgent. *Backlog:* n content ops wait on a missing root; the
+  root's turn wakes all n but judges at most `drainCap` of them; the
+  rest are carried by idle turns, ⌈n / drainCap⌉ of them. The control
+  is the uncapped turn (`receive`, which judges all n in one turn).
+  *Behind the backlog:* an urgent op arriving then is decided in its
+  own turn. *Spike:* n urgent ops wait on a missing root; the root's
+  turn decides all n (the urgent closure), within `turn_pot`'s bound.
 -/
 import engine.sync.Treap
 import engine.sync.Conn
+import engine.core.TurnCost
+import engine.core.Held
 import tests.engine.Checks
 
 open Engine Engine.Sync Tests
@@ -113,6 +124,108 @@ def outsEq (a b : List Out) : Bool := a.length == b.length && (a.zip b).all fun 
 
 @[noinline] def keep {α : Type} (_ : Nat) (x : α) : α := x
 
+/-! ## Capped write turns (drain-cap), on SQLite -/
+
+instance scaleSortKey : SortKey Unit := ⟨fun _ => ⟨#[0]⟩⟩
+
+/-- A test family: kind-1 ops are urgent (membership's stand-in), kind 0
+is content; every op is Valid once what it cites is. -/
+def toy : Family Unit :=
+  { validate := fun _ _ => some (), keys := fun _ => [], scope := fun _ => .shared room,
+    urgent := fun o => o.kind == 1 }
+
+def rootOp : Op := Op.make 1 [] "scale root".toUTF8
+def opAt (kind : UInt8) (i : Nat) : Op := Op.make kind [rootOp.id] (Codec.encode i)
+
+def freshDb (dir name : String) : IO Db := do
+  for suffix in ["", "-wal", "-shm"] do
+    let p := dir ++ "/" ++ name ++ suffix
+    if ← System.FilePath.pathExists p then IO.FS.removeFile p
+  Db.openAt (dir ++ "/" ++ name)
+
+/-- One capped turn, in one transaction, as the writer runs it; its
+urgent closure's attempts, and its nanoseconds. -/
+def turnSql (db : Db) (ops : List Op) : IO (Nat × Nat) := do
+  let t0 ← IO.monoNanosNow
+  let a ← (transact (turnCapped (m := SqlM Unit) toy drainCap ops)).run db
+  return (a, (← IO.monoNanosNow) - t0)
+
+/-- The uncapped turn (the control): judges until the queue is empty. -/
+def receiveSql (db : Db) (ops : List Op) : IO Nat := do
+  let t0 ← IO.monoNanosNow
+  (receive (F := Unit) toy ops).run db
+  return (← IO.monoNanosNow) - t0
+
+def tally (db : Db) : IO (Nat × Nat × Nat) := (tallyRows (F := Unit)).run db
+
+def decided (db : Db) (x : Id) : IO Bool := do
+  return (← (Store.getStatus (F := Unit) x : SqlM Unit _).run db).isSome
+
+/-- The capped-turn scenarios at n; their rows. -/
+def turnsAt (t : Checks) (dir : String) (n : Nat) : IO (Array String) := do
+  let mut rows : Array String := #[]
+  let cap := drainCap
+  let content := (List.range n).map (opAt 0)
+  -- backlog: n content ops wait on a missing root, then the root arrives
+  let db ← freshDb dir s!"turns-{n}.db"
+  let (_, tIn) ← turnSql db content
+  let (a, tRoot) ← turnSql db [rootOp]
+  let (q, u, _) ← tally db
+  IO.println s!"turns n={n}: n content ops waiting on a missing root taken in, {ms tIn} ms; the root's turn: {ms tRoot} ms, {a} closure attempts, {q} left queued, {u} undecided"
+  t.ok s!"n={n}: the root's turn judged at most drainCap queued ops ({u} of {n} still undecided)" (u + cap ≥ n)
+  rows := rows.push s!"root turn (capped)\t{n}\tleft undecided\t{u}\t{ms tRoot}"
+  -- an urgent op behind the backlog is decided in its own turn
+  let late := opAt 1 (n + 1)
+  let (_, tLate) ← turnSql db [late]
+  let lateOk ← decided db late.id
+  IO.println s!"turns n={n}: an urgent op arriving behind a backlog of {u}: decided in its own turn ({lateOk}), {ms tLate} ms"
+  t.ok s!"n={n}: an urgent op behind the backlog is decided in its own turn (turn_waiting)" lateOk
+  rows := rows.push s!"urgent behind backlog\t{n}\tdecided\t{if lateOk then 1 else 0}\t{ms tLate}"
+  -- idle turns carry the rest: until nothing is undecided, then until the queue is empty
+  let mut carries := 0
+  let mut times : Array Nat := #[]
+  let mut left := u
+  while left > 0 && carries ≤ n / cap + 2 do
+    let (_, tc) ← turnSql db []
+    carries := carries + 1
+    times := times.push tc
+    left := (← tally db).2.1
+  let mut drained := carries
+  let mut qleft := (← tally db).1
+  while qleft > 0 && drained ≤ 4 * (n / cap + 2) do
+    let (_, tc) ← turnSql db []
+    drained := drained + 1
+    times := times.push tc
+    qleft := (← tally db).1
+  let sorted := times.qsort (· < ·)
+  let med := sorted.getD (sorted.size / 2) 0
+  let mx := sorted.getD (sorted.size - 1) 0
+  IO.println s!"turns n={n}: {carries} idle turns decided the backlog (⌈n / drainCap⌉ = {(n + cap - 1) / cap}), {drained} emptied the queue (it held each op twice: taken in, and woken); a turn's median {ms med} ms, slowest {ms mx} ms"
+  t.ok s!"n={n}: idle turns decide the backlog in ⌈n / drainCap⌉ (carry_bounded)" (left == 0 && carries ≤ (n + cap - 1) / cap)
+  t.ok s!"n={n}: idle turns empty the queue" (qleft == 0)
+  rows := rows.push s!"idle carry\t{n}\tturns to decide\t{carries}\t{ms med}"
+  rows := rows.push s!"idle carry\t{n}\tturns to empty\t{drained}\t{ms mx}"
+  -- the control: the uncapped turn judges all n when the root arrives
+  let db2 ← freshDb dir s!"turns-{n}-control.db"
+  let _ ← receiveSql db2 content
+  let tCtl ← receiveSql db2 [rootOp]
+  let (_, u2, _) ← tally db2
+  IO.println s!"turns n={n}: control (uncapped): the root's turn judged all {n} in {ms tCtl} ms ({u2} undecided)"
+  t.ok s!"n={n}: negative control: the uncapped turn judges every woken op in one turn" (u2 == 0)
+  rows := rows.push s!"root turn (uncapped)\t{n}\tcontrol\t{u2}\t{ms tCtl}"
+  -- the spike: n urgent ops wait on a missing root; the root's turn decides them all
+  let db3 ← freshDb dir s!"turns-{n}-spike.db"
+  let urgent := (List.range n).map (opAt 1)
+  let (_, _) ← turnSql db3 urgent
+  let (q3, _, _) ← tally db3
+  let (a3, tSpike) ← turnSql db3 [rootOp]
+  let (_, u3, _) ← tally db3
+  IO.println s!"turns n={n}: spike: the root of {n} waiting urgent ops: {a3} closure attempts in {ms tSpike} ms, {u3} undecided after"
+  t.ok s!"n={n}: the urgent closure decides every waiting urgent op in the root's turn" (u3 == 0)
+  t.ok s!"n={n}: the spike's attempts ({a3}) are within the potential {q3 + 2 * n + 1} (turn_pot)" (a3 ≤ q3 + 2 * n + 1)
+  rows := rows.push s!"urgent spike\t{n}\tattempts\t{a3}\t{ms tSpike}"
+  return rows
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/scale"
   let sizes := match args.drop 1 with
@@ -182,6 +295,7 @@ def main (args : List String) : IO UInt32 := do
     rows := rows.push s!"treap opening\t{n}\thashes\t{owc.hashes}\t{ms tOpen}"
     rows := rows.push s!"treap answer\t{n}\thashes\t{awc.hashes}\t{ms tAns}"
     rows := rows.push s!"list answer\t{n}\tcontrol\t\t{ms tListAns}"
+    rows := rows ++ (← turnsAt t dir n)
   IO.FS.writeFile s!"{dir}/scale.tsv" (String.intercalate "\n" rows.toList ++ "\n")
   t.finish "scale"
 
