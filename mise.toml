@@ -43,6 +43,11 @@ description = "Real TCP/Noise admitted notice survives transport close/reap; fro
 depends = ["crypto"]
 run = "bash tests/engine/close_ingress.sh"
 
+[tasks."test:sync-full"]
+description = "Negative control: with Sqlite.lean back at synchronous NORMAL, sqlite_build's durability check fails"
+depends = ["crypto"]
+run = "bash tests/engine/sync_full.sh"
+
 [tasks."test:expiry-grace"]
 description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
 depends = ["crypto"]
