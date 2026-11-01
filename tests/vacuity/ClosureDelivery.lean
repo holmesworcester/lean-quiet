@@ -102,12 +102,18 @@ theorem receiver_succ (n : Nat) : receiver (n + 1) =
       ((receiver n).1.put sync (incoming n) false (receiver n).2).2) := rfl
 
 theorem receiver_put (n : Nat) (hi : idleAt n = false) :
-    (receiver (n + 1)).2 = ((receiver n).1.put sync (incoming n) false (receiver n).2).2 := by
-  rw [receiver_succ, hi]; rfl
+    receiver (n + 1) = (((receiver n).1.put sync (incoming n) false (receiver n).2).1.1,
+      ((receiver n).1.put sync (incoming n) false (receiver n).2).2) := by
+  rw [receiver_succ, hi, if_neg Bool.false_ne_true]
 
 theorem receiver_idle (n : Nat) (hi : idleAt n = true) :
-    (receiver (n + 1)).2 = ((Turn.turn fam [] : HeldM Fact Unit) (receiver n).2).2 := by
-  rw [receiver_succ, hi]; rfl
+    receiver (n + 1) = ((receiver n).1, ((Turn.turn fam [] : HeldM Fact Unit) (receiver n).2).2) := by
+  rw [receiver_succ, hi, if_pos rfl]
+
+/-- A receive is a write of what intake takes (`Node.put`). -/
+theorem put_write (n : Nat) :
+    ((receiver n).1.put sync (incoming n) false (receiver n).2) =
+      ((receiver n).1.write sync (intake fam false (incoming n)) (receiver n).2) := rfl
 
 theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
   induction n with
@@ -115,14 +121,17 @@ theorem receiver_log (n : Nat) : (receiver n).2.log ⊆ before := by
   | succ n ih =>
     intro o ho
     cases hi : idleAt n
-    · rw [receiver_put n hi] at ho
+    · have e : (receiver (n + 1)).2 =
+          ((receiver n).1.write sync (intake fam false (incoming n)) (receiver n).2).2 := by
+        rw [receiver_put n hi, put_write n]
+      rw [e] at ho
       have h := write_log_subset sync (receiver n).1 (receiver n).2 (intake fam false (incoming n)) ho
       rcases List.mem_append.mp h with h | h
       · exact ih h
       · exact incoming_source n (intake_sub fam h)
     · rw [receiver_idle n hi] at ho
       have : o ∈ (receiver n).2.log ++ [] := ho
-      exact ih (by simpa using this)
+      exact ih (by rw [List.append_nil] at this; exact this)
 
 def receiving (hd : Distinct before) : ReceiverRun sync := {
   node := fun n => (receiver n).1
@@ -132,8 +141,8 @@ def receiving (hd : Distinct before) : ReceiverRun sync := {
   next := fun n => by
     show (receiver (n + 1)).2 = _
     cases hi : idleAt n
-    · rw [receiver_put n hi]; rfl
-    · rw [receiver_idle n hi]; rfl
+    · rw [receiver_put n hi, if_neg Bool.false_ne_true]
+    · rw [receiver_idle n hi, if_pos rfl]; rfl
   initial := held_empty_reachable fam
   initialWaiting := waiting_empty
   distinct := fun n a ha b hb he =>

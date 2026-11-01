@@ -1,3 +1,4 @@
+import engine.core.TurnCost
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
@@ -1177,6 +1178,34 @@ end cost
 #print axioms Engine.settled_urgent
 #print axioms Engine.urgent_spec
 #print axioms Engine.urgent_valid_iff
+#print axioms Engine.urgent_valid_closed
+#print axioms Engine.urgent_valid_spec
+#print axioms Engine.run_turnCapped
+#print axioms Engine.reach_turnCapped
+#print axioms Engine.turn_waiting
+#print axioms Engine.waiting_empty
+#print axioms Engine.UrgentWaiting.settled
+#print axioms Engine.urgent_agree
+#print axioms Engine.turnCappedS_ops
+#print axioms Engine.inv_turnCapped
+#print axioms Engine.carry_bounded
+#print axioms Engine.run_purgeCapped
+#print axioms Engine.reach_purgeCapped
+#print axioms Engine.but_purge
+#print axioms Engine.purge_waiting
+#print axioms Engine.ready_turn
+#print axioms Engine.ready_decides
+#print axioms Engine.spec_eventually
+#print axioms Engine.turn_pot
+#print axioms Engine.turns_pot
+#print axioms Engine.run_work_capped
+#print axioms Engine.run_urgentClose_count
+#print axioms Engine.run_turnCapped_count
+#print axioms Engine.run_purgeR
+#print axioms Community.check_membership
+#print axioms Community.check_cites
+#print axioms Community.validate_urgent
+#print axioms Community.validate_cites
 #print axioms Engine.Sync.handlers_transition
 #print axioms Engine.Sync.closed_terminal
 #print axioms Engine.Sync.open_session
@@ -1412,13 +1441,17 @@ end cost
 #print axioms Engine.Sync.held_empty_reachable
 #print axioms Engine.Sync.ingest_many_reachable
 #print axioms Engine.Sync.turn_reachable
-#print axioms Engine.Sync.turn_settles
+#print axioms Engine.Sync.turn_waiting_held
+#print axioms Engine.Sync.turn_step
 #print axioms Engine.Sync.write_reachable
 #print axioms Engine.Sync.write_log_subset
-#print axioms Engine.Sync.write_settles
+#print axioms Engine.Sync.write_waiting
+#print axioms Engine.Sync.write_step
 #print axioms Engine.Sync.ReceiverRun.store_reachable
 #print axioms Engine.Sync.ReceiverRun.invariant
-#print axioms Engine.Sync.ReceiverRun.settled
+#print axioms Engine.Sync.ReceiverRun.waiting
+#print axioms Engine.Sync.ReceiverRun.step
+#print axioms Engine.Sync.ReceiverRun.turnsRecur
 #print axioms Engine.Sync.ReceiverRun.keeps
 #print axioms Engine.Sync.ReceiverRun.retains
 #print axioms Engine.Sync.ReceiverRun.receives
@@ -1529,16 +1562,15 @@ end cost
 #print axioms Engine.waits_history_bound
 #print axioms Engine.step_history_budget
 #print axioms Engine.drain_history_budget
-#print axioms Engine.Sync.turn_settles_reachable
 #print axioms Engine.Sync.purge_reachable
-#print axioms Engine.Sync.purge_settles_reachable
+#print axioms Engine.Sync.purge_waiting_held
 #print axioms Engine.Sync.Moves.shared_retained
 #print axioms Engine.Sync.Moves.store_reachable
-#print axioms Engine.Sync.Moves.store_settled
+#print axioms Engine.Sync.Moves.store_waiting
 #print axioms Connection.Execution.production_step_moves
 #print axioms Connection.Execution.production_step_retains
 #print axioms Connection.Execution.production_step_reachable
-#print axioms Connection.Execution.production_step_settled
+#print axioms Connection.Execution.production_step_waiting
 #print axioms Connection.Execution.world_step_moves
 #print axioms Connection.Execution.world_trace_moves
 #print axioms Connection.Execution.empty_trace_store
