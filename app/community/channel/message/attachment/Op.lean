@@ -2,7 +2,8 @@ import app.community.Op
 
 /-
 An attachment: a child of a message, by the message's author. Its header
-is the file's Merkle root and length (`Merkle`); its body,
+is the file's Merkle root and length (`Merkle`) and its message's
+claimed time, so it sorts in sync with its message (`chunks_in_window`); its body,
 sealed under the content key, is the name, kind, size, a preview, and the
 file's own key. The file is sealed once under that key, and the tree is
 over the ciphertext.
@@ -24,14 +25,15 @@ namespace Attach
 structure Body where
   root : ByteArray
   len : Nat
+  time : Nat
   kid : ByteArray
   sealed : ByteArray
   sig : ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Body := Codec.tagged 8 (fun x => (x.root, x.len, x.kid, x.sealed, x.sig)) (fun (p : B × Nat × B × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩) (fun _ => rfl)
+instance : Codec Body := Codec.tagged 8 (fun x => (x.root, x.len, x.time, x.kid, x.sealed, x.sig)) (fun (p : B × Nat × Nat × B × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 8 :: Codec.enc (x.root, x.len, x.kid, x.sealed, x.sig) := rfl
+@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 8 :: Codec.enc (x.root, x.len, x.time, x.kid, x.sealed, x.sig) := rfl
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
@@ -44,13 +46,14 @@ structure Fact where
   u : Id
   root : Id
   len : Nat
+  time : Nat
   kid : ByteArray
   sealed : ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Fact := Codec.tagged 7 (fun x => (x.c, x.msg, x.u, x.root, x.len, x.kid, x.sealed)) (fun (p : B × B × B × B × Nat × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2.1, p.2.2.2.2.2.2⟩) (fun _ => rfl)
+instance : Codec Fact := Codec.tagged 7 (fun x => (x.c, x.msg, x.u, x.root, x.len, x.time, x.kid, x.sealed)) (fun (p : B × B × B × B × Nat × Nat × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2.1, p.2.2.2.2.2.2.1, p.2.2.2.2.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 7 :: Codec.enc (x.c, x.msg, x.u, x.root, x.len, x.kid, x.sealed) := rfl
+@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 7 :: Codec.enc (x.c, x.msg, x.u, x.root, x.len, x.time, x.kid, x.sealed) := rfl
 
 /-! ## The lists its fact is filed in (`attachment.*`) -/
 /-- A message's attachments: what its components list. -/

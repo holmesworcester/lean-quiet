@@ -454,6 +454,8 @@ theorem notice_no_holds (ix : Index) (c : Conn) (rs : List Room) (r : Id) (ids :
   dsimp only
   rw [hm]
   dsimp only
+  split
+  · simp
   unfold Conn.onHold
   have hn' : has ({ c.carry rs with heard := now } : Conn).rooms r = false := hn
   simp [hn']
@@ -489,9 +491,7 @@ theorem tick_drop (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     simp only [Model.run_bind, Model.run_pure, Step.pulse_drop]
     unfold Conn.work
     simp only [Model.run_bind, Model.run_pure]
-    split
-    · unfold Conn.start; split <;> simp [h]
-    · simp [h]
+    split <;> simp [h]
 
 /-- A connection whose `given` alone differs ticks alike as to dropping. -/
 theorem tick_drop_given (ix : Index) (c : Conn) (gs : List Id) (now : Nat) (s : DB F) :
@@ -539,25 +539,6 @@ theorem filed_given (c : Conn) (ids : List Id) (s : DB F) :
         · rw [ite_eq_right h2, ite_eq_right h2]; rfl
     · rw [ite_eq_right h1, ite_eq_right h1]; rfl
 
-theorem walkN_given (s : DB F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    ((c.walkN fam cfg offer k : Model F _).run s).1.1.given = c.given := by
-  intro k
-  induction k with
-  | zero => intros; rfl
-  | succ k ih =>
-    intro c offer
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => rfl
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [Model.run_bind, run_getOp]
-        cases s.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
 theorem tick_given (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     ((c.tick fam cfg ix now : Model F Step).run s).1.conn.given = c.given := by
   unfold Conn.tick
@@ -565,13 +546,8 @@ theorem tick_given (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
   · rfl
   · simp only [Model.run_bind, Model.run_pure, Step.pulse_conn]
     unfold Conn.work
-    simp only [Model.run_bind, Model.run_pure, Conn.walk]
-    have hw := walkN_given fam cfg s cfg.walk c []
-    generalize ((c.walkN fam cfg [] cfg.walk : Model F _).run s).1 = p at hw
-    obtain ⟨c', offer⟩ := p
-    dsimp only at hw ⊢
-    split <;> simp_all [Conn.start, Conn.expireAsks, Conn.beginRound] <;>
-      (try split) <;> simp_all
+    simp only [Model.run_pure]
+    split <;> simp_all [Conn.expireAsks]
 
 /-- **E1, the notice is given (`notice_sent`).** A connection carrying
 notice (r, x) it has not given gives it on its next `filedGive` (the

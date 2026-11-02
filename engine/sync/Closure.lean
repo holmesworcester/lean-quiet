@@ -1,25 +1,12 @@
 /-
-Admission to a window's requirement walk. Each distinct id occupies one
-slot, pending or visited. Overflow keeps the admitted prefix and reports
-it; no discarded id is marked visited. Laws are in ClosureLaws.
+A notice's requirement closure (Notice.lean): the stored ops of its room
+an op leads to through requirements, each visited once. A windowed
+round's closure is the Index's (`Index.over`, engine/sync/Walk.lean).
 -/
 import engine.sync.Memory
 import engine.core.Model
 
 namespace Engine.Sync
-
-/-- Distinct ids, retaining the last occurrence's order. -/
-def closureIds : List Id → List Id
-  | [] => []
-  | i :: ids =>
-    let rest := closureIds ids
-    if rest.contains i then rest else i :: rest
-
-/-- Admit fresh requirements into the remaining closure slots. -/
-def queueClosure (cap : Nat) (closed : Std.HashSet Id) (frontier ids : List Id) : List Id × Bool :=
-  let fresh := closureIds (ids.filter fun i => !closed.contains i && !frontier.contains i)
-  let room := cap - (closed.size + frontier.length)
-  (frontier ++ fresh.take room, Decidable.decide (room < fresh.length))
 
 section
 variable {F : Type} {m : Type → Type} [Monad m] [Store F m] (fam : Family F)

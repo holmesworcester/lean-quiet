@@ -15,7 +15,7 @@ inductive Beat where | done | now | next
 wait: the community's short id (a link carries no name), the rail, and
 Stop waiting; then the footer. -/
 def waiting {α : Type} [BEq α] [Inert α] (onStop : α) (f : Font) (dm : Dim) (W h : Nat) (id8 : String) (beats : Array (String × String × Beat))
-    (doing : Array String) : PageOf α := Id.run do
+    (doing : Array String) (device : Bool := false) : PageOf α := Id.run do
   let px := dm.px
   let f := f.atSize (px 14)
   let hint := f.atSize (px 13)
@@ -39,7 +39,7 @@ def waiting {α : Type} [BEq α] [Inert α] (onStop : α) (f : Font) (dm : Dim) 
   let mut y := y0 + d + dm.px 24
   b := centred title b "Waiting to be let in" y (Palette.color dm.theme .fg) true
   y := y + title.cell + dm.px 12
-  b := centred f b "Someone already inside has to let you in." y (Palette.color dm.theme .muted)
+  b := centred f b (if device then "Your other device has to let this one in." else "Someone already inside has to let you in.") y (Palette.color dm.theme .muted)
   y := y + f.cell + dm.px 24
   -- the (Palette.color dm.theme .panel)
   let cy := y

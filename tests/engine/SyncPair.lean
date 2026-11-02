@@ -66,7 +66,7 @@ def statusOf (db : Db) (x : Id) : IO (Option (Verdict Fact)) := (Store.getStatus
 
 def sameSet (a b : List Id) : Bool := a.all (has b) && b.all (has a)
 
-def cfg : Config := { every := 30000, askTime := 20000 }
+def cfg : Config := { askTime := 20000 }
 
 /-- A side whose store holds these ops, with this floor. -/
 def node (x : Sync Fact (SqlM Fact)) (ops : List Op) (floor : Nat) (addr : String) : IO Side := do

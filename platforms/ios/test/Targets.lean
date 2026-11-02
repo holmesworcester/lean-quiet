@@ -28,5 +28,5 @@ def main (args : List String) : IO Unit := do
   let l := Composer.layout f dm W "" 0
   IO.println s!"composer {l.h} {l.chipsY}"
   let id (n : UInt8) := ByteArray.mk (Array.replicate 32 n)
-  let i : Community.Invite := ⟨id 1, id 2, id 3, [], id 4⟩
+  let i : Community.Invite := ⟨id 1, id 2, id 3, [], id 4, false⟩
   IO.println s!"link {i.text}"
