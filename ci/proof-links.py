@@ -28,7 +28,8 @@ the World laws are in M, and the lead counts them apart ("another K run
 the phone's node code"). It may
 say "nearly every" only while the share is 90% or more.
 
-  ci/proof-links.py           rewrite the block and the section
+  ci/proof-links.py           rewrite the block and the section, and
+                              docs/PROOF-TREE.md (ci/proof-tree.py)
   ci/proof-links.py --prune   delete tests/wiring-models.txt's lines that
                               name no model law (ported, bridged, gone);
                               it never adds one
@@ -58,6 +59,9 @@ OLD`, OLD listed there and gone here). Its negative controls: a model
 law left out of the list, a wired law kept in it, and a line added since
 the merge base must each be caught.
 
+Its run of tests/Wiring.lean also writes the laws' composition graph,
+out/proof-graph.json, which ci/proof-tree.py draws.
+
 Needs the tree built (tests/check.sh builds it).
 """
 import os, re, subprocess, sys
@@ -67,6 +71,7 @@ AUDIT = os.path.join(TOP, "tests", "Axioms.lean")
 README = os.path.join(TOP, "README.md")
 NOTES = os.path.join(TOP, "tests", "wiring.txt")
 MODELS = os.path.join(TOP, "tests", "wiring-models.txt")
+GRAPH = os.path.join(TOP, "out", "proof-graph.json")
 BEGIN = "<!-- proof-links: written by ci/proof-links.py; do not edit -->"
 END = "<!-- /proof-links -->"
 WBEGIN = "<!-- wiring:begin -->"
@@ -186,13 +191,18 @@ def span(path, start, sel, end, whole):
     return a, max(b, sel)
 
 
-def classify(notes_path=None, models_path=None):
-    """tests/Wiring.lean's output: its lines, split, and its problems."""
+def classify(notes_path=None, models_path=None, graph=None):
+    """tests/Wiring.lean's output: its lines, split, and its problems; and
+    with `graph`, the composition graph written there."""
     env = dict(os.environ)
     if notes_path:
         env["WIRING_NOTES"] = notes_path
     if models_path:
         env["WIRING_MODELS"] = models_path
+    if graph:
+        if os.path.exists(graph):
+            os.remove(graph)
+        env["WIRING_GRAPH"] = graph
     r = subprocess.run(["lake", "env", "lean", "--run", "tests/Wiring.lean"], cwd=TOP,
                        capture_output=True, text=True, env=env)
     rows = [l.split("\t") for l in r.stdout.splitlines()
@@ -588,7 +598,7 @@ def main():
     check = "--check" in sys.argv[1:]
     decls = ranges()
     resolve = resolver(decls)
-    rows, problems = classify()
+    rows, problems = classify(graph=GRAPH)
     if not any(f[0] == "law" for f in rows):
         # the walk failed (a moved file, an unbuilt tree): say why, and
         # write nothing, rather than count from nothing
@@ -669,8 +679,10 @@ def main():
     open(README, "w").write(new)
     for p in problems:
         print("proof-links:", p)
-    print(f"proof-links: wrote {len(defs)} links")
-    sys.exit(1 if problems else 0)
+    print(f"proof-links: wrote {len(defs)} links", flush=True)
+    tree = subprocess.run([sys.executable, os.path.join(TOP, "ci", "proof-tree.py"), "--graph", GRAPH], cwd=TOP)
+    sys.exit(1 if problems or tree.returncode else 0)
 
 
-main()
+if __name__ == "__main__":
+    main()
