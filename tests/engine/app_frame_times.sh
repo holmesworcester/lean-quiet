@@ -11,7 +11,7 @@ mkdir -p out/app-frame-times/negative
 source tests/snapshot.sh
 work=$(mktemp -d "$TMPDIR/app-frame-times.XXXXXX")
 trap 'rm -rf "$work"' EXIT
-snapshot "$work" engine/core engine/wire engine/sync engine/renderer app platforms/headless platforms/desktop tests/engine
+snapshot "$work" engine/core engine/wire engine/sync engine/world engine/renderer app platforms/headless platforms/desktop tests/engine
 cp Quiet.lean "$work/"
 mkdir -p "$work/tests/vacuity"
 cp tests/vacuity/FrameTimes.lean "$work/tests/vacuity/"

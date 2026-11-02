@@ -11,7 +11,7 @@ mkdir -p out/app-network-ownership/negative
 source tests/snapshot.sh
 work=$(mktemp -d "$TMPDIR/app-network-ownership.XXXXXX")
 trap 'rm -rf "$work"' EXIT
-snapshot "$work" engine/core engine/wire engine/sync engine/renderer app platforms/headless platforms/desktop tests/engine
+snapshot "$work" engine/core engine/wire engine/sync engine/world engine/renderer app platforms/headless platforms/desktop tests/engine
 cp Quiet.lean "$work/"
 ln -s "$PWD/assets" "$work/assets"
 python3 tests/engine/app_network_ownership_negative.py "$work" "$PWD/out/app-network-ownership/negative"
