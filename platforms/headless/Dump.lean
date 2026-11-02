@@ -24,6 +24,7 @@ def what (o : Op) : String :=
   | some (.secret ..) => "secret(local)" | some (.name ..) => "name" | some .abandon => "abandon(local)"
   | some (.key ..) => "key(local)" | some (.chunk _ _ t i _ _) => s!"chunk t={t} i={i}"
   | some (.endpoint ..) => "endpoint(local)" | some (.receive ..) => "receive"
+  | some (.ofDraft _) => "draft(ephemeral)"
   | none => s!"other type {o.kind}"
 
 def main (args : List String) : IO UInt32 := do

@@ -59,6 +59,19 @@
 #   subject LAW NAMES    LAW's subject is NAMES (its statement must name
 #                        each), where the heuristic takes too much
 #   wired LAW            LAW must be wired
+#   extern SYM KIND TEXT the contract of the C symbol SYM, which an
+#                        `@[extern]` attribute names (Lean cannot see into
+#                        it). KIND is what the proofs take of it:
+#                        prop:NAME   a named Prop in a trust file, which the
+#                                    laws that need it take as a premise;
+#                        none        nothing: an input, and the laws hold
+#                                    for every value it can return;
+#                        effect      an effect on the OS, which Lean cannot
+#                                    state (what it returns, if anything, is
+#                                    an input, taken as it comes);
+#                        test        a test's probe (tests/, platforms/headless/).
+#                        Every symbol needs one, and a note no file needs
+#                        is stale.
 
 ## Weak: no shipping path may reach these
 
@@ -99,6 +112,9 @@ wired Engine.Sync.event_within
 wired Engine.Sync.Tick.cofinal
 wired Connection.wire_kinds
 wired Connection.local_kinds
+# The store's trust file carried through the running write turn and purge
+wired Trust.receive_as_model
+wired Trust.purge_as_model
 # Forensics fixes: back reaches the root; a label is its set's.
 wired Nav.back_stack
 wired Nav.backs_stack
@@ -187,10 +203,14 @@ assume Community.ChunksSound = Merkle.NoCollision
 assume Trust.NativeCrypto The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean).
 assume Trust.X25519 = Trust.NativeCrypto
 assume Trust.Sha256Size = Trust.NativeCrypto
+assume Trust.Ed25519Signs = Trust.NativeCrypto
 assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`).
 assume Community.Seal.Good AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
-assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean).
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
+assume Trust.SqliteStore = Engine.Model.run
+assume Trust.ShowsAt = Engine.Model.run
+assume Trust.budgetM = Engine.Model.run
 assume Engine.Model = Engine.Model.run
 assume Engine.DB = Engine.Model.run
 assume Engine.Sync.HeldM = Engine.Model.run
@@ -237,14 +257,10 @@ instrument Engine.Counted.cost Engine.Counted.cost_run
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
-bridge Engine.stepS Engine.run_step
-bridge Engine.drainS Engine.run_drain
-bridge Engine.ingestS Engine.run_ingest
 bridge Engine.ingestAll Engine.run_ingestEach
-# The purge: the running `purge` on the model's tables is `purgeS`, and
-# what it returns, the ops it deleted, is `purgeSet`.
-bridge Engine.purgeS Engine.run_purge
-bridge Engine.purgeSet Engine.run_purge
+# The model's step, drain, ingest and purge (stepS, drainS, ingestS,
+# purgeS, purgeSet) run themselves since the app's ephemeral log
+# (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 # A want reply's read program: the running interpreter's answer is the
@@ -352,6 +368,7 @@ control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Ttf.Memo.shifted A glyph table one key off: no table of its function has its pages (`shifted_not_exact`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet
 control Connection.roomForShipped `roomFor` as shipped until preadmit: c synced wherever the trust rule takes the peer, its link clause included, so a node not live in c served its history to any key a link it opened named (`shipped_roomFor_shows`); tests/vacuity/IdentityPreadmit.lean reproduces it on real ops.
@@ -377,26 +394,6 @@ control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
-todo Net.Scene.approval Native scene certificates, an infinite fair/ideal model run, and a successful production-node trace with a fair continuation are proved and tested. conn_runs_exchange and closure_delivered now prove handler progress components. Whole-bootstrap convergence for every suitably fair app execution still needs their composition and native store/transport refinement.
-todo Net.Scene.init = Net.Scene.approval
-todo Net.Scene.adm = Net.Scene.approval
-todo Net.Scene.answer = Net.Scene.approval
-todo Net.Scene.c = Net.Scene.approval
-todo Net.Scene.hello = Net.Scene.approval
-todo Net.Scene.inv = Net.Scene.approval
-todo Net.Scene.K = Net.Scene.approval
-todo Net.Scene.link = Net.Scene.approval
-todo Net.Scene.req = Net.Scene.approval
-todo Net.Scene.r = Net.Scene.approval
-todo Net.Scene.S = Net.Scene.approval
-todo Net.Scene.rootMessage = Net.Scene.approval
-todo Net.Scene.invitationMessage = Net.Scene.approval
-todo Net.Scene.requestMessage = Net.Scene.approval
-todo Net.Scene.approvalMessage = Net.Scene.approval
-todo Net.FairExecution.run = Net.Scene.approval
-todo Net.sent = Net.Scene.approval
-todo Net.step = Net.Scene.approval
-todo Net.table = Net.Scene.approval
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
 todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
@@ -418,8 +415,7 @@ todo Engine.Subs.ofList = Screen.Frame.wants
 todo Pics.after Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds.
 todo Pics.costIn = Pics.after
 
-# Noto: measured payload is a specification of the retained running cache.
-spec Ttf.Cache.payload The sum of retained bitmap bytes, measured on the running cache for its payload bound.
+# Noto.
 wired Ttf.byte_in_bounds
 wired Ttf.cmap_entry
 wired Ttf.lookup_singleton
@@ -432,11 +428,9 @@ wired Ttf.checked_valid
 wired Ttf.raster_valid
 wired Ttf.ink_witness
 wired Ttf.raster_pixel
-wired Ttf.Cache.empty_valid
-wired Ttf.Cache.checked_valid
-wired Ttf.Cache.put_bound
-wired Ttf.Cache.payload_le_bytes
-wired Ttf.Cache.put_payload_bound
+wired Ttf.Memo.Table.get_eq
+wired Ttf.Memo.compact_eq
+wired Ttf.Memo.bitmap_eq_fast
 todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
 todo Live.World.afterActs = Live.Board.apply
 todo Live.World.commit = Live.Board.apply
@@ -540,3 +534,80 @@ spec Engine.Sync.RetryOrder.Run.sent Projection of the actual RetryOrder.scan re
 spec Engine.Sync.RetryOrder.Run.opportunities Count of pending-eligible initially vacant scan opportunities, excluding busy ticks; their eventual occurrence is not proved by the rank theorem.
 
 spec Engine.Sync.NodeUnique.Shape Logical projection of the actual Node connection IDs and retry order, used only to state returned-value invariants.
+
+## Externs: what the proofs take of each C function (Lean cannot see into them)
+
+# The crypto (engine/native/crypto.c over the Rust crates): engine/core/Trust.lean
+extern le_sha256 prop:Trust.Sha256Size A SHA-256 digest is 32 bytes. Collisions are `CollisionFree` and `NoCollision`.
+extern le_xchacha_seal prop:Trust.XChaCha XChaCha20-Poly1305 opens what it seals, 16 bytes longer, under a 32-byte key and 24-byte nonce.
+extern le_xchacha_open prop:Trust.XChaCha = le_xchacha_seal
+extern le_chachapoly_seal prop:Trust.ChaCha ChaCha20-Poly1305 (Noise's counter nonce) opens what it seals, 16 bytes longer.
+extern le_chachapoly_open prop:Trust.ChaCha = le_chachapoly_seal
+extern le_x25519 prop:Trust.X25519 X25519 agrees, and a public key is 32 bytes and not the zero point.
+extern le_x25519_base prop:Trust.X25519 = le_x25519
+extern le_ed25519_keypair prop:Trust.Ed25519Signs The key pair a 32-byte seed makes verifies every signature its secret key makes. Unforgeability is `Community.Unforgeable`.
+extern le_ed25519_sign prop:Trust.Ed25519Signs = le_ed25519_keypair
+extern le_ed25519_verify prop:Trust.Ed25519Signs = le_ed25519_keypair
+extern le_ed_sk_to_x none The Ed25519 to X25519 conversion of a secret key: a fixed function to the logic, and no law assumes anything of what it returns.
+extern le_ed_pk_to_x none The same conversion of a public key (empty if not a point): no law assumes anything of what it returns.
+extern le_random none The OS's random bytes, as many as asked, or a failure. The laws hold for whatever bytes come back; sizes are checked where they are read (`Bytes.expect`). That they are unpredictable is a security assumption, not a Lean statement.
+# SQLite (engine/native/glue.c): engine/core/StoreTrust.lean
+extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's (`receive_as_model`, `purge_as_model`).
+extern le_sql_exec prop:Trust.SqliteStore = le_sql_open
+extern le_sql_query prop:Trust.SqliteStore = le_sql_open
+# The runner's TCP seam (engine/native/listener.h)
+extern lq_listener_close effect Closes the runner's listening socket, after its acceptor has joined.
+extern lq_socket_abort_capture none Captures a socket's descriptor for a later abort, or none; the laws hold either way.
+extern lq_socket_abort effect Shuts down both directions of a stalled socket; whether it worked is an input.
+extern lq_socket_finish_write effect Shuts down the sending direction (a FIN after the bytes written); whether it worked is an input.
+extern lq_socket_abort_barrier effect Waits for the TCP library's callback to finish.
+# The OS (engine/renderer/Platform.lean, in each platform's shell): inputs
+extern lq_screen none The window's size, insets, density and system appearance, as the OS reports them.
+extern lq_scroll none A scroll sample from the OS's physics; Lean clamps it before use.
+extern lq_text none The composer's text, selection and composition, as the keyboard left them.
+extern lq_ctl_poll none Control commands (development builds only): lines the app parses (`App.command`).
+extern lq_luma none The newest camera frame's luma plane, or none.
+extern lq_now_us none A monotonic clock, in microseconds.
+extern lq_tz_min none The local timezone's offset from UTC, in minutes.
+extern lq_poll none Raw input and lifecycle events, eight words each (`Input.decode` reads them).
+extern lq_links none URLs the OS delivers (deep links).
+extern lq_photo_result none A finished photo pick: its header and pixels, or none yet.
+# The OS: effects
+extern lq_appearance effect Sets the bar icons and the window fill to Lean's appearance.
+extern lq_bars effect Sets the bar colours and icon styles Lean chose.
+extern lq_scroll_by effect Moves the OS scroll offset by a distance, keeping a fling.
+extern lq_scroll_to effect Sets the OS scroll offset, stopping any fling.
+extern lq_frame effect Publishes Lean's pixel rows and placement for the OS to show; returns raw input records (`Input.decode`).
+extern lq_motion effect Hands the shell the list samples Lean accepted.
+extern lq_ime effect Opens or closes the keyboard.
+extern lq_set_text effect Sets the native text field's text.
+extern lq_editor effect Gives the native editor Lean's text and mode; returns its text and positions.
+extern lq_editor_action effect Settles a native editor action; returns its text and positions.
+extern lq_copy effect Puts text on the clipboard.
+extern lq_ctl_reply effect Answers a control command (development builds only).
+extern lq_scan effect Turns the back camera on or off.
+extern lq_log effect Writes a line to the platform's log.
+extern lq_pick_photo effect Opens or cancels the system photo picker; whether it opened is an input.
+# The desktop shell (platforms/desktop)
+extern lq_desktop_frame effect Shows a desktop frame; returns raw input records.
+extern lq_desktop_cursor effect Sets the mouse cursor's shape.
+extern lq_desktop_select effect Sets the native text selection.
+extern lq_desktop_native_scroll none Whether the desktop shell scrolls natively.
+extern lq_desktop_layers effect Publishes the desktop's list and hold layers with their placement.
+# The iOS network probe (platforms/ios/probe; not the app)
+extern lq_sd_register effect Registers a service with the system's DNS-SD responder.
+extern lq_sd_browse effect Browses for services of a type.
+extern lq_sd_poll none The DNS-SD events since the last call.
+# Test probes
+extern lq_test_listener test A listening socket for a lifecycle test.
+extern lq_test_listener_closed test How many test listeners the native side has closed.
+extern lq_test_desktop_visible test Sets the test window's visibility.
+extern lq_test_desktop_valid_gc test Makes the test window's graphics context valid or not.
+extern lq_test_desktop_unmap_queued test Queues an unmap of the test window.
+extern lq_test_desktop_full_input test Fills the test window's input queue.
+extern lq_stop_probe_arm test Arms a stop probe on a stop flag.
+extern lq_stop_probe_arm_ref test Arms a stop probe on a reference.
+extern lq_stop_probe_wait test Waits for the probe's release.
+extern lq_stop_probe_entered test Reports that the probe's thread entered.
+extern lq_stop_probe_done test Reports that the probe's thread finished.
+extern lq_stop_probe_injected test Whether the probe injected its fault.

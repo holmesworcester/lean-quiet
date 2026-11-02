@@ -15,13 +15,20 @@ def run(cmd):
     p = subprocess.run(cmd, text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
     return p.returncode, p.stdout
 
-def fault(name, path, old, new, cmd, expected, build=False):
+def fault(name, path, old, new, cmd, expected, build=False, proof=False):
     p = ROOT/path
     original = p.read_text()
     assert old in original, name
     try:
         p.write_text(original.replace(old,new,1))
         log = ''
+        if proof:
+            # Caught by a proof: the module itself no longer builds.
+            rc,log = run(['lake','build','engine.renderer.Ttf.Memo'])
+            (OUT/f'{name}.log').write_text(log)
+            assert rc != 0 and expected in log, (name,log[-3000:])
+            print('rejected:',name,flush=True)
+            return
         if build:
             rc,log = run(['lake','build','font_contract'])
             assert rc == 0, (name,log[-3000:])
@@ -46,12 +53,16 @@ fault('eager-startup','engine/renderer/Noto.lean','    out := { out with faces :
 fault('compact-metrics','engine/renderer/Noto.lean','(a*cell+metrics.units/2)/metrics.units',
       '(a*cell+metrics.units/2)/metrics.units+1',
       ['.lake/build/bin/font_contract'], 'running Font metrics',True)
-fault('memo-hit','engine/renderer/Ttf/Memo.lean','if found.isSome then return found',
-      'if found.isSome then return found.map fun b => { b with advance := b.advance+1 }',
-      ['.lake/build/bin/font_contract'], 'every field and byte',True)
-fault('memo-miss','engine/renderer/Ttf/Memo.lean','return { b with pixels }',
-      'return { b with pixels, advance := b.advance+1 }',
-      ['.lake/build/bin/font_contract'], 'every field and byte',True)
+# A kept bitmap that differs from the raster: `compact_eq`, so `bitmap_eq_fast`, fails.
+fault('memo-value','engine/renderer/Ttf/Memo.lean',
+      '{ b with pixels := b.pixels.extract 0 b.pixels.size }',
+      '{ b with pixels := b.pixels.extract 0 b.pixels.size, advance := b.advance+1 }',
+      [], 'error: engine/renderer/Ttf/Memo.lean', proof=True)
+# A table entry one key off: the table's `exact` law fails.
+fault('memo-index','engine/renderer/Ttf/Memo.lean',
+      'Thunk.mk fun _ => f (i.1 * page + j.1)',
+      'Thunk.mk fun _ => f (i.1 * page + j.1 + 1)',
+      [], 'error: engine/renderer/Ttf/Memo.lean', proof=True)
 rc,log = run(['bash','tests/app/font_contract.sh'])
 (OUT/'restored.log').write_text(log)
 assert rc == 0, log[-3000:]

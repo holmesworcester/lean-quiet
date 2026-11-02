@@ -7,6 +7,10 @@ import app.connection.Family
 import app.Family
 import app.settings.appearance.View
 import app.settings.appearance.Commands
+import app.nav.View
+import app.nav.Commands
+import app.community.channel.message.draft.Commands
+import app.community.channel.message.draft.View
 import app.connection.connection.Commands
 import app.connection.eph.Commands
 import app.connection.established.Commands
@@ -66,14 +70,15 @@ def heldV : View F (List B) := do
 
 /-- The notices a connection owes peer key `peer` in community c: each
 removal that cuts a device under the peer's key
-(`Community.removalsAt`) and is not yet given on it (`given`); where
-this node is not live in c, only those that cut this node too
-(`Community.cutBy`: its sibling devices' nodes learn of their removal
-from it, and nobody else learns anything). -/
-def noticesFor (given : List Id) (c peer : B) (live : Bool) : View F (List Room) := do
+(`Community.removalsAt`) and is not yet given on it (`gave`; Lean 4.35
+reserves `given` in a def's binders); where this node is not live in c,
+only those that cut this node too (`Community.cutBy`: its sibling
+devices' nodes learn of their removal from it, and nobody else learns
+anything). -/
+def noticesFor (gave : List Id) (c peer : B) (live : Bool) : View F (List Room) := do
   let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
   let cut ← if live then pure xs else ((Community.cutBy c).liftL : View F (List Id))
-  return (xs.filter fun x => has cut x && !has given x).map (Room.notice c)
+  return (xs.filter fun x => has cut x && !has gave x).map (Room.notice c)
 
 /-- What a connection carries of community c for peer key `peer`: where
 this node is a device of c, the room, synced, if a live device of c is
@@ -85,34 +90,34 @@ hello (docs/TAKE-ROOM.md); else the notices owed to the peer
 (`noticesFor`). Where it is no device of c, the notices of removals that
 cut both it and the peer only: a node not live in c sends nothing else
 of c. -/
-def roomFor (given : List Id) (c peer : B) : View F (List Room) := do
+def roomFor (gave : List Id) (c peer : B) : View F (List Room) := do
   match ← meV c with
   | some me =>
     if ← ((Community.allowPeer c peer).liftL : View F Bool) then return [Room.sync c]
     if ← ((linked c me peer).liftL : View F Bool) then return [Room.take c]
-    noticesFor given c peer (← ((Community.allowPeer c me).liftL : View F Bool))
-  | none => noticesFor given c peer false
+    noticesFor gave c peer (← ((Community.allowPeer c me).liftL : View F Bool))
+  | none => noticesFor gave c peer false
 
 /-- `roomFor` as shipped until preadmit: the room synced wherever the
 trust rule takes the peer, its link clause included, so a node not yet
 let into c (a removed member's, holding c's history) synced all of it to
 whatever key a link it opened named (`shipped_roomFor_shows`). A
 negative control: never run. -/
-def roomForShipped (given : List Id) (c peer : B) : View F (List Room) := do
+def roomForShipped (gave : List Id) (c peer : B) : View F (List Room) := do
   match ← meV c with
   | some me =>
     let ok ← ((trusts c me peer).liftL : View F Bool)
     if ok then return [Room.sync c]
     let xs ← ((Community.removalsAt c peer).liftL : View F (List Id))
-    return (xs.filter fun x => !has given x).map (Room.notice c)
+    return (xs.filter fun x => !has gave x).map (Room.notice c)
   | none => return []
 
 /-- What a connection carries for these (community, peer) pairs. -/
-def roomsOf (given : List Id) : List (B × B) → View F (List Room)
+def roomsOf (gave : List Id) : List (B × B) → View F (List Room)
   | [] => pure []
   | (c, peer) :: rest => do
-    let here ← roomFor given c peer
-    let tail ← roomsOf given rest
+    let here ← roomFor gave c peer
+    let tail ← roomsOf gave rest
     return here ++ tail
 
 /-- What connection cid carries now, as a view read afresh on every
@@ -727,10 +732,43 @@ def Pending.filings (ps : List Pending) : Array Filing :=
 def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
   (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
+/-- This window's place, from the app's ephemeral log: the newest nav op
+(`Nav.current`) and its id; none before any. -/
+def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
+  (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The app's ephemeral log with this window placed at `page` over
+`stack`: the nav op at generation `gen` in place of the log's nav ops,
+the log rebuilt from its live ops (`Held.ofOps`). -/
+def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+
+/-- Entry `acc`'s draft, from the app's ephemeral log: the newest draft
+op for it (`Draft.current`) and its id; none before any. -/
+def draftOf (h : Engine.Sync.Held SF) (acc : Id) : Option (Id × Draft.Fact) :=
+  ((((Draft.current acc).liftL.liftL : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The ops the log is rebuilt from when entry `acc`'s draft is written:
+the log's ops but that entry's drafts, then the new one if it holds
+anything (an empty composer leaves no draft). -/
+def drafted (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) : List Op :=
+  h.log.filter (fun o => !Draft.isFor acc o) ++
+    (if text.isEmpty && pics.isEmpty then [] else [Draft.write acc gen text pics])
+
+/-- The app's ephemeral log with entry `acc`'s draft written, the log
+rebuilt from its live ops (`Held.ofOps`). -/
+def draftIn (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) :
+    Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (drafted h acc gen text pics)
+
+/-- Every draft in the log: its entry, text and photos (the checkpoint's). -/
+def draftsIn (h : Engine.Sync.Held SF) : List (Id × ByteArray × List ByteArray) :=
+  (h.log.filterMap Draft.of).map fun b => (b.acc, b.text, b.pics)
+
 /-- This device's appearance and its revision, from the store: the
 newest appearance op (`Settings.Appearance.current`), System before any. -/
 def appearance (db : Db) : IO (Theme.Setting × Nat) :=
-  (((Settings.Appearance.current.liftR : View SF _).run : SqlM SF _).run db)
+  (((Settings.Appearance.current.liftL.liftR : View SF _).run : SqlM SF _).run db)
 
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans

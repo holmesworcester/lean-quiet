@@ -56,7 +56,7 @@ CASES = [
      '  let cut ← pure xs',
      'app.Proofs', 'app/Proofs.lean', 'mem_noticesFor', ['mem_noticesFor', 'notice_mem_noticesFor']),
     ('cut-entries-silent', 'app/Commands.lean',
-     '  | none => noticesFor given c peer false',
+     '  | none => noticesFor gave c peer false',
      '  | none => return []',
      'app.Proofs', 'app/Proofs.lean', 'cut_notifies', ['cut_notifies', 'eval_roomFor', 'roomFor_law']),
     ('take-room-opens-from-index', 'engine/sync/Conn.lean',

@@ -16,6 +16,8 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "tests/vacuity"))
 from runtime import run_checked
+sys.path.insert(0, str(ROOT / "tests"))
+import mutants
 
 CASES = [
     ("cursor-reset", "engine/wire/Ingress.lean", "--fair-only",
@@ -74,49 +76,42 @@ def main():
     baseline = (out / "baseline.log").read_text()
     reject_unexpected(baseline, 0)
     with tempfile.TemporaryDirectory(prefix="ingress-negative-", dir=os.environ["TMPDIR"]) as temp:
-        scratch = Path(temp)
+        scratch = Path(temp) / "base"
         subprocess.run(["bash", "-c", '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire '
                         'engine/renderer engine/sync app tests/engine',
                         "ingress-snapshot", str(scratch)], cwd=ROOT, check=True)
 
-        def build(name):
+        def build(name, work):
             with (out / f"{name}-build.log").open("w") as log:
                 subprocess.run(["systemd-run", "--user", "--scope", "-p", "MemoryMax=48G",
                                 "-p", "MemorySwapMax=0", "lake", "build", "ingress_tcp"],
-                               cwd=scratch, stdout=log, stderr=subprocess.STDOUT,
+                               cwd=work, stdout=log, stderr=subprocess.STDOUT,
                                timeout=600, check=True)
 
-        for name, source, mode, old, new, count, required in CASES:
-            if name not in selected:
-                continue
-            path = scratch / source
+        def control(case, work):
+            name, source, mode, old, new, count, required = case
+            path = work / source
             original = path.read_text()
             assert original.count(old) == count, f"{name}: mutation anchor missing/ambiguous"
+            path.write_text(original.replace(old, new))
+            build(name, work)
+            env = dict(os.environ, INGRESS_RUN_DIR=str(out / f"{name}-data"))
             try:
-                path.write_text(original.replace(old, new))
-                build(name)
-                os.environ["INGRESS_RUN_DIR"] = str(out / f"{name}-data")
-                try:
-                    result = subprocess.run([str(scratch / ".lake/build/bin/ingress_tcp"), mode],
-                                            cwd=scratch, capture_output=True, text=True, timeout=90)
-                except subprocess.TimeoutExpired as exc:
-                    (out / f"{name}.log").write_text(str(exc) + "\nTIMEOUT\n")
-                    raise
-                transcript = result.stdout + result.stderr
-                (out / f"{name}.log").write_text(transcript)
-                reject_unexpected(transcript, result.returncode)
-                failures = set(re.findall(r"^FAIL: (.*)$", transcript, re.M))
-                assert result.returncode == 1 and "ingress-tcp:" in transcript and required in failures, \
-                    f"{name}: survived or failed for a different reason; see {out}"
-                print(f"refused: {name} (compiled; exact runtime assertion)", flush=True)
-            finally:
-                path.write_text(original)
-        build("restored")
-        os.environ["INGRESS_RUN_DIR"] = str(out / "restored-data")
-        print(run_checked([str(scratch / ".lake/build/bin/ingress_tcp")], scratch,
-                          out / "restored.log", timeout=90), end="", flush=True)
-        reject_unexpected((out / "restored.log").read_text(), 0)
-    print(f"ingress controls: {len(selected)} refused; restored suite passes", flush=True)
+                result = subprocess.run([str(work / ".lake/build/bin/ingress_tcp"), mode], env=env,
+                                        cwd=work, capture_output=True, text=True, timeout=90)
+            except subprocess.TimeoutExpired as exc:
+                (out / f"{name}.log").write_text(str(exc) + "\nTIMEOUT\n")
+                raise
+            transcript = result.stdout + result.stderr
+            (out / f"{name}.log").write_text(transcript)
+            reject_unexpected(transcript, result.returncode)
+            failures = set(re.findall(r"^FAIL: (.*)$", transcript, re.M))
+            assert result.returncode == 1 and "ingress-tcp:" in transcript and required in failures, \
+                f"{name}: survived or failed for a different reason; see {out}"
+            return f"refused: {name} (compiled; exact runtime assertion)"
+
+        mutants.each(scratch, [case for case in CASES if case[0] in selected], control)
+    print(f"ingress controls: {len(selected)} refused, each in its own copy", flush=True)
 
 
 if __name__ == "__main__":

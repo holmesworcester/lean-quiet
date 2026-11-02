@@ -33,3 +33,4 @@ restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine
 preadmit	mise run test:preadmit
 window	mise run test:window
+sync-full	mise run test:sync-full

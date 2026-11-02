@@ -7,6 +7,7 @@ The final build restores the checked artifacts as well as the source files.
 import os
 from pathlib import Path
 import subprocess
+import sys
 
 ROOT = Path(__file__).resolve().parents[2]
 os.chdir(ROOT)
@@ -36,6 +37,28 @@ cases = [
     ("insets-fresh", "App", "window := window, W := safe.w", "window := s.window, W := safe.w"),
 ]
 
+bars = [
+    ("bars-recreation", "window = new WeakReference<>(next);", "choice = null; window = new WeakReference<>(next);"),
+    ("bars-old-window", "if (window.get() == current) apply(current);", "apply(current);"),
+    ("bars-old-choice", "apply(current);\n    });", "current.paintBars(next);\n    });"),
+]
+
+screens = [
+    ("reserved-touch-path", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone && false then return"),
+    ("toast-paint-path", "let r0 := over + (placed.rect.y - g.top) + (if s.page == .chat then g.shift else 0)", "let r0 := over"),
+    ("stale-ime-event", "if sc.size ≥ 9 then input :=", "if false then input :="),
+    ("modal-send", "if !Occlusion.active (← get).sheet.isSome .page then return true", "if false then return true"),
+]
+
+# --list: every mutation, one a line; names given: just those (ci/local.sh
+# --full runs them in slices, each in its own copy of the tree).
+ALL = [c[0] for c in cases] + [c[0] for c in bars] + [c[0] for c in screens] + ["icon-polarity"]
+if sys.argv[1:] == ["--list"]:
+    print("\n".join(ALL))
+    sys.exit(0)
+SELECTED = set(sys.argv[1:]) or set(ALL)
+assert SELECTED <= set(ALL), "unknown mutation"
+
 def run(cmd, log):
     p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
     (OUT / (log + ".log")).write_text(p.stdout)
@@ -44,6 +67,8 @@ def run(cmd, log):
 assert run(["lake", "build", "app.Proofs"], "baseline").returncode == 0
 try:
     for name, module, before, after in cases:
+        if name not in SELECTED:
+            continue
         path = ROOT / ("app/Screen.lean" if module == "App" else "engine/renderer/" + module + ".lean")
         original = path.read_text()
         assert before in original, (name, "mutation anchor missing")
@@ -58,11 +83,9 @@ try:
             path.write_text(original)
     path = ROOT / "platforms/android/twin/java/com/holmes/leanquiet/BarState.java"
     original = path.read_text()
-    for name, before, after in [
-        ("bars-recreation", "window = new WeakReference<>(next);", "choice = null; window = new WeakReference<>(next);"),
-        ("bars-old-window", "if (window.get() == current) apply(current);", "apply(current);"),
-        ("bars-old-choice", "apply(current);\n    });", "current.paintBars(next);\n    });"),
-    ]:
+    for name, before, after in bars:
+        if name not in SELECTED:
+            continue
         try:
             assert before in original
             path.write_text(original.replace(before, after))
@@ -73,12 +96,9 @@ try:
             path.write_text(original)
     path = ROOT / "app/Screen.lean"
     original = path.read_text()
-    for name, before, after in [
-        ("reserved-touch-path", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone then return", "if (Safe.target i ⟨x, sy, 1, 1⟩).isNone && false then return"),
-        ("toast-paint-path", "let r0 := over + (placed.rect.y - g.top) + (if s.page == .chat then g.shift else 0)", "let r0 := over"),
-        ("stale-ime-event", "if sc.size ≥ 9 then input :=", "if false then input :="),
-        ("modal-send", "if !Occlusion.active (← get).sheet.isSome .page then return true", "if false then return true"),
-    ]:
+    for name, before, after in screens:
+        if name not in SELECTED:
+            continue
         try:
             assert before in original
             path.write_text(original.replace(before, after))
@@ -100,6 +120,8 @@ try:
     path = ROOT / "engine/renderer/SafeFrame.lean"
     original = path.read_text()
     try:
+        if "icon-polarity" not in SELECTED:
+            raise StopIteration
         before = "1.05 / (l + 0.05) ≥ (l + 0.05) / 0.05"
         assert before in original
         path.write_text(original.replace(before, "1.05 / (l + 0.05) ≤ (l + 0.05) / 0.05"))
@@ -107,11 +129,15 @@ try:
         result = run([".lake/build/bin/safe", str(OUT / "icon-polarity"), "--no-renders"], "icon-polarity")
         assert result.returncode != 0 and "FAIL" in result.stdout
         print("rejected icon-polarity", flush=True)
+    except StopIteration:
+        pass
     finally:
         path.write_text(original)
 finally:
+  # a thrown-away copy of the tree (CI_LANE=1) needs no restored build
+  if os.environ.get("CI_LANE") != "1":
     assert run(["lake", "build", "safe"], "restored").returncode == 0
     assert run(["tests/app/bar_state.sh"], "bars-restored").returncode == 0
     restored = run([".lake/build/bin/safe", str(OUT / "restored"), "--no-renders"], "restored-suite")
     assert restored.returncode == 0 and " checks, 0 failures; renders in " in restored.stdout
-print(f"{len(cases) + 8} mutations rejected; sources and build restored")
+print(f"{len(SELECTED)} mutations rejected; sources restored")
