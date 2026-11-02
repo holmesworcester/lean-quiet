@@ -2,7 +2,7 @@
 
 `mise run test:native-lifetimes` builds and runs the real TCP runner and its
 socket cleanup helpers. The gate requires Linux x86-64, localhost TCP,
-GDB with permission to trace its own child, the pinned Lean 4.34.0 SDK,
+GDB with permission to trace its own child, the pinned Lean 4.35.0 SDK,
 C/Rust toolchains and a working systemd user manager. Every Lean/Lake build
 runs in a scope with `MemoryMax=48G` and `MemorySwapMax=0`. The named task is
 included in the local bootstrap-progress gate and its checked-in CI workflow
@@ -27,9 +27,9 @@ The 24 runtime assertions and two forced SDK interleavings cover related repairs
   admit TCP and commit a write meanwhile, and separately exercises actual
   `RunState.addSock` wiring.
 - The TCP runner, acceptor and socket readers use `StopFlag`, whose private
-  Boolean is accessed only under a short mutex. The pinned SDK's concurrent
-  `IO.Ref.get` restores an old value after temporarily removing it; a direct
-  `IO.Ref.set true` in that interval can be lost. The native regression
+  Boolean is accessed only under a short mutex. Up to Lean 4.34, the SDK's
+  concurrent `IO.Ref.get` restored an old value after temporarily removing
+  it, so a direct `IO.Ref.set true` in that interval could be lost. The native regression
   pauses that actual SDK getter using GDB and lets a separate Lean task call
   the production stop request. The request survives. The C helper only
   coordinates scheduling and never writes the flag. Repeated stop requests
@@ -39,13 +39,21 @@ The 24 runtime assertions and two forced SDK interleavings cover related repairs
   stop API and the app lifecycle. It publishes with atomic `modify`; the same
   forced SDK interleaving directly exercises this production helper.
 
-Eleven negative controls must compile and fail their intended assertion: early
+Nine negative controls must compile and fail their intended assertion: early
 reservation release, omitted reader stop, omitted production reader join,
 omitted connect abort/deadline/stop, either lost failed-dial reservation,
-unguarded stop read, dropped stop request, and direct app-reader stop
-publication. The debugger checks the pinned getter's instruction layout, actual interleaving and Linux exit status;
+and a dropped stop request. The debugger checks the pinned getter's instruction layout, actual interleaving and Linux exit status;
 wrong breakpoints, debugger errors, signals and build failures never count
 as a rejected mutant. The restored suites must pass.
+
+**Lean 4.35.0 fixed the lost-stop race.** In Lean 4.35.0 (2026-10-12;
+lean4 #14775 and #14585), `IO.Ref.set` waits until an overlapping `get` has
+put its value back, so a set can no longer be lost. Two controls, an
+unguarded stop read and a direct `set` of the app reader's stop, no longer
+fail, so they were dropped. We keep the mutex in `StopFlag` and the atomic
+`modify` publications anyway: they cost little, and they do not depend on
+that fix. The debugger now pauses at either of the 4.35 getter's two
+restore points.
 
 These are runtime regressions at the native boundary, not Lean proofs that
 an OS callback or dedicated thread must run. The reader continuation gate
