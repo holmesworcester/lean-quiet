@@ -1,0 +1,13 @@
+{
+  "challenge_module": "tests.comparator.own.AgreeChallenge",
+  "solution_module": "tests.comparator.own.AgreeSolution",
+  "theorem_names": [
+    "Engine.same_ops_same_verdicts"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

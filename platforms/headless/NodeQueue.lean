@@ -9,10 +9,11 @@ blocking send Runner.write uses waits on the same full channel.
     nodequeue
 -/
 import Quiet
+import engine.core.Exit
 
 open App Engine
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let fails ← IO.mkRef 0
   let check (name : String) (ok : Bool) : IO Unit := do
     IO.println s!"{if ok then "ok  " else "FAIL"} {name}"
@@ -43,3 +44,7 @@ def main : IO UInt32 := do
   let _ ← ch.tryRecv
   let _ ← IO.wait t
   return if (← fails.get) == 0 then 0 else 1
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody

@@ -276,8 +276,7 @@ def Egress (x : Sync F (HeldM F)) (p : HeldM F (Node × Acts)) : Prop :=
 
 theorem tick_reads (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Nat) :
     Reads (c.tick fam cfg ix now : HeldM F Step) := by
-  have hw : ∀ c : Conn, Reads (c.walk fam cfg : HeldM F _) := fun c h => (walk_keeps fam cfg h c).1
-  unfold Conn.tick Conn.work; keeps [hw]
+  unfold Conn.tick Conn.work; keeps []
 
 theorem tickGive_reads (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Nat) :
     Reads (Conn.tickGive fam cfg ix c now : HeldM F Step) := by

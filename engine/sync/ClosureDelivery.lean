@@ -4,7 +4,9 @@ an operation's finite requirement closure. Queue progress permits unbounded
 tail arrivals and zero-budget stalls; service with positive room must recur.
 The transport and store obligations are stated separately from the goal.
 -/
-import engine.sync.ClosureComplete
+import engine.sync.ServeLaws
+import engine.sync.OfferLaws
+import engine.core.Locality
 import engine.sync.ClosureStore
 
 namespace Engine.Sync

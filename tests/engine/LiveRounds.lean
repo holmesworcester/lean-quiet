@@ -115,14 +115,14 @@ def join (joinerDials : Bool) (late : Nat := 2000) : IO (Option Nat × Nat × Na
   return (arrived, quiet, roundsTotal)
 
 /-- The claims a round message carries. -/
-def claimsOf (send : List Op) : List Claim :=
+def sentClaims (send : List Op) : List Claim :=
   match send.head?.bind Msg.ofOp with
   | some (.rbsr _ _ cs) => cs
   | _ => []
 
 /-- A connection's whole footprint: every set and list it keeps. -/
 def footprint (c : Conn) : Nat :=
-  c.known.size + c.asked.size + c.offered.size + c.closed.size + c.frontier.length + c.owed.length +
+  c.known.size + c.asked.size + c.offered.size + c.owed.length +
     c.owing.size + c.askTime.size + c.active.length + c.rounded.length + c.epochs.length + c.short.length +
     c.notices.length + c.given.length + c.rooms.length
 
@@ -141,8 +141,8 @@ def hub (n peers : Nat) : List Conn := Id.run do
     let hubConn : Conn := { dialer := true, floor := 0, rooms := [room], peerFloor := some 0 }
     let peer : Conn := { dialer := false, floor := 0, rooms := [room] }
     let opened := hubConn.start cfg ix 0
-    let reply := peer.onRbsr cfg iy room 1 (claimsOf opened.send) 1
-    let back := opened.conn.onRbsr cfg ix room 1 (claimsOf reply.send) 2
+    let reply := peer.onRbsr cfg iy room 1 (sentClaims opened.send) 1
+    let back := opened.conn.onRbsr cfg ix room 1 (sentClaims reply.send) 2
     out := back.conn :: out
   return out
 

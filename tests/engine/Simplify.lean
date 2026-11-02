@@ -121,17 +121,14 @@ def roundEpochs (t : Checks) : IO Unit := do
     round := 3
     roundFloor := 50
     active := [(slow, 1), (fast, 3)]
-    epochs := [(slow, 1), (fast, 3)]
-    frontier := [x.id]
-    closureCut := true }
+    epochs := [(slow, 1), (fast, 3)] }
   let stale := c.onRbsr cfg {} fast 2 [] 20
   t.ok "stale terminal keeps the newer room round and epoch"
     (stale.conn.active == c.active && stale.conn.epochs == c.epochs &&
-      stale.conn.round == 3 && stale.conn.frontier == [x.id] && stale.send.isEmpty)
+      stale.conn.round == 3 && stale.send.isEmpty)
   let lag := c.onRbsr cfg {} slow 1 [] 21
-  t.ok "older active room completes without rewinding another room's closure"
-    (lag.conn.round == 3 && lag.conn.roundFloor == 50 && lag.conn.closureCut &&
-      lag.conn.frontier == [x.id] && lag.conn.active == [(fast, 3)])
+  t.ok "older active room completes without rewinding another room's round or floor"
+    (lag.conn.round == 3 && lag.conn.roundFloor == 50 && lag.conn.active == [(fast, 3)])
   let replay := lag.conn.onRbsr cfg {} slow 1 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 22
   t.ok "completed epoch cannot be reopened by a replayed claim"
     (replay.send.isEmpty && replay.conn.asked.isEmpty && replay.conn.epochs == lag.conn.epochs)
@@ -156,12 +153,10 @@ def secrecy (t : Checks) : IO Unit := do
   let outside := Op.make 1 ["other".toUTF8] "outside".toUTF8
   let pending := Op.make 1 [r] "not committed".toUTF8
   let ids := [shared.id, outside.id, key1.id, pending.id]
-  let c : Conn := { dialer := false, rooms := [r], floor := 2, roundFloor := 2, frontier := ids }
+  let c : Conn := { dialer := false, rooms := [r], floor := 2, roundFloor := 2 }
   let h : Trace := { ops := [shared, outside, key1] }
   let s := ((c.filed fam {} ids : TM Step).run h).1
   t.ok "filed advertises only stored shared room ops" (offered s.send == [shared.id])
-  let (d, pairs) := ((c.walk fam {} : TM _).run h).1
-  t.ok "closure advertises only stored shared room ops" (pairs.map (·.2) == [shared.id] && d.frontier.isEmpty)
   let cfg : Config := { maxKnown := 0 }
   let s := c.onRbsr cfg {} r 2 [.ids ⟨⟨0, 0⟩, none⟩ [pending.id]] 1
   t.ok "handler itself caps asks without a clamp" (s.conn.asked.isEmpty)

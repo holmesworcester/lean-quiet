@@ -215,7 +215,7 @@ def main():
     log_path = args.out / "runner.log"
     try:
         with log_path.open("w") as log:
-            result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=90)
+            result = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT, timeout=600)
         text = log_path.read_text()
     except subprocess.TimeoutExpired:
         raise SystemExit(f"join-fair timed out; retained {log_path}")

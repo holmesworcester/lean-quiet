@@ -129,7 +129,7 @@ def connection : IO Unit := do
     let e := encode b
     IO.println s!"conn body {n} kind={b.kind} bytes={hex e} back={((decode e : Option Connection.Body).map fun x => hex (encode x)) == some (hex e)}"
     let o := Connection.mkOp [bs "x", bs "r"] b
-    IO.println s!"  op id={hex o.id} scope={match Connection.scopeOf o with | .local => "local" | .shared c => "shared:" ++ hex c | .conn => "conn"} owns={Connection.owns o.kind}"
+    IO.println s!"  op id={hex o.id} scope={match Connection.scopeOf o with | .local => "local" | .shared c => "shared:" ++ hex c | .conn => "conn" | .ephemeral => "ephemeral"} owns={Connection.owns o.kind}"
     let sk := ByteArray.mk (Array.replicate 32 3)
     for (fs, i) in creqs.zipIdx do
       let b' := match b with | .eph _ => Connection.Body.eph sk | .send _ => .send (bs "addr") | b => b
@@ -146,7 +146,7 @@ def main : IO Unit := do
     let e := encode b
     IO.println s!"body {n} tag={b.tag} local={b.isLocal} bytes={hex e} back={decode e == some b}"
     let o := op b [bs "c", bs "r", bs "m"]
-    IO.println s!"  op id={hex o.id} scope={match scopeOf o with | .local => "local" | .shared c => "shared:" ++ hex c | .conn => "conn"} order={orderOf o} signed={hex (signed o b)}"
+    IO.println s!"  op id={hex o.id} scope={match scopeOf o with | .local => "local" | .shared c => "shared:" ++ hex c | .conn => "conn" | .ephemeral => "ephemeral"} order={orderOf o} signed={hex (signed o b)}"
     for (fs, i) in reqs.zipIdx do
       for (cn, C) in [("yes", yes), ("no", no)] do
         let v := check C o b fs

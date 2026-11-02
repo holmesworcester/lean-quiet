@@ -49,6 +49,10 @@ otherwise it is cut into up to `fan` pieces. -/
 structure Params where
   leaf : Nat := 128
   fan : Nat := 16
+  /-- How many requirement steps below a window a windowed round's set
+  reaches (`Index.over`): 4 covers every Valid Community chain
+  (`timed_chain_le`). -/
+  depth : Nat := 4
   leaf_pos : 0 < leaf := by decide
   fan_two : 2 ≤ fan := by decide
 

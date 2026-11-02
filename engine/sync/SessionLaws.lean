@@ -35,32 +35,13 @@ theorem want_session (ix : Index) (c : Conn) (ids : List Id) :
     (c.onWant cfg ix ids).conn.session = c.session := by
   unfold Conn.onWant; split <;> rfl
 
-theorem walk_session (h : Held F) : ∀ fuel (c : Conn) offers,
-    ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1.session = c.session := by
-  intro fuel
-  induction fuel with
-  | zero => intros; rfl
-  | succ fuel ih =>
-    intro c offers
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => rfl
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
 theorem work_session (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     ((c.work fam cfg ix now : HeldM F Step) h).1.conn.session = c.session := by
   unfold Conn.work
-  simp only [HeldM.bind_apply, HeldM.pure_apply]
+  simp only [HeldM.pure_apply]
   split
-  · rw [start_session]; exact walk_session fam cfg h _ _ _
-  · rw [ask_session]; exact walk_session fam cfg h _ _ _
+  · rw [start_session]; rfl
+  · rw [ask_session]; rfl
 
 theorem filed_session (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filed fam cfg ids : HeldM F Step) h).1.conn.session = c.session := by

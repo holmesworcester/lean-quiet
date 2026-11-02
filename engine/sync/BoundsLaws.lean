@@ -76,36 +76,13 @@ theorem onWant_bounded (ix : Index) (c : Conn) (ids : List Id) (hb : c.Bounded c
   unfold Conn.onWant
   split <;> exact hb
 
-/-- Serving changes only bounded hints and closure bookkeeping; asks keep
-both their membership and original timestamps. -/
+/-- Serving changes only bounded hints; asks keep both their membership
+and original timestamps. -/
 theorem serveOwed_bounded (c : Conn) (budget : Nat) (first : List Id) (h : Held F)
     (hb : c.Bounded cfg) : ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.Bounded cfg := by
   rw [serveOwed_eq]
-  simp only [Conn.served, Conn.queue]
-  split <;> exact ⟨remembers_bounded _ Op.id _ _ hb.1, hb.2⟩
-
-theorem walkN_bounded (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    c.Bounded cfg → ((c.walkN fam cfg offer k : HeldM F _) h).1.1.Bounded cfg := by
-  intro k
-  induction k with
-  | zero => intro c offer hb; exact hb
-  | succ k ih =>
-    intro c offer hb
-    rw [Conn.walkN]
-    cases hf : c.frontier with
-    | nil => exact hb
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _ hb
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _ hb
-        | some o =>
-          dsimp only
-          split
-          · exact ih _ _ hb
-          · exact ih _ _ hb
+  simp only [Conn.served]
+  exact ⟨remembers_bounded _ Op.id _ _ hb.1, hb.2⟩
 
 theorem expire_bounded (c : Conn) (now : Nat) (hb : c.Bounded cfg) :
     (c.expireAsks cfg now).Bounded cfg :=
@@ -117,9 +94,7 @@ theorem tick_bounded (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hb : c.Bo
   split
   · exact hb
   · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.pulse_conn]
-    have hw := walkN_bounded fam cfg h cfg.walk c [] hb
-    change ((c.walk fam cfg : HeldM F _) h).1.1.Bounded cfg at hw
-    have hw := expire_bounded cfg _ now hw
+    have hw := expire_bounded cfg _ now hb
     split
     · exact start_bounded cfg _ _ _ hw
     · exact ask_bounded cfg _ _ hw

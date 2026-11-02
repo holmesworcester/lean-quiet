@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # ux's negative controls: each mutant breaks one dogfood fix (or the law
 # beside it), and its law or the ux suite must then fail, for that
-# reason. Runs in a scratch copy, never in this tree; the copy must pass
-# first, on both scroll seams.
+# reason. Each mutant runs in a scratch copy of its own, never in this
+# tree, UX_NC_JOBS (6) at once; the unmutated copy must pass first, on
+# both scroll seams.
 set -euo pipefail
 cd "$(dirname "$0")/../.."
 export ELAN_HOME="${ELAN_HOME:-/mnt/storage/elan}"
@@ -20,29 +21,31 @@ selected() { index=$((index + 1)); (( index > start )); }
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ux-nc.XXXXXX")
 trap 'rm -rf -- "$tmp"' EXIT
 . tests/snapshot.sh
+. tests/slot.sh
 snapshot "$tmp/base" engine/core engine/wire engine/sync engine/renderer app platforms/headless Quiet.lean assets
-build() {  # build ux in $tmp/w; 0 when it builds
+# The copy a control works in is $w (the caller's), its logs beside it.
+build() {  # build ux in $w; 0 when it builds
   local code=0
-  (cd "$tmp/w" && lake build ux >"$tmp/build.log" 2>&1) || code=$?
-  cp "$tmp/build.log" "$logs/$label-build.log"
+  (cd "$w" && lake build ux >"$w.build.log" 2>&1) || code=$?
+  cp "$w.build.log" "$logs/$label-build.log"
   return "$code"
 }
-run() {  # run ux in $tmp/w on a seam ("" or queued); its exit code
+run() {  # run ux in $w on a seam ("" or queued); its exit code
   local code=0
-  (cd "$tmp/w" && .lake/build/bin/ux "$tmp/out" "$1" >"$tmp/run.log" 2>&1) || code=$?
-  cp "$tmp/run.log" "$logs/$label-${1:-immediate}.log"
+  (cd "$w" && .lake/build/bin/ux "$w.out" "$1" >"$w.run.log" 2>&1) || code=$?
+  cp "$w.run.log" "$logs/$label-${1:-immediate}.log"
   return "$code"
 }
-cp -a "$tmp/base" "$tmp/w"
-build || { echo "FAIL: the copy does not build"; tail -20 "$tmp/build.log"; exit 1; }
+w=$tmp/base
+build || { echo "FAIL: the copy does not build"; tail -20 "$w.build.log"; exit 1; }
 for seam in "" queued; do
-  run "$seam" || { echo "FAIL: the unmutated copy fails ux ${seam:-immediate}"; grep -v '^slow frame' "$tmp/run.log"; exit 1; }
+  run "$seam" || { echo "FAIL: the unmutated copy fails ux ${seam:-immediate}"; grep -v '^slow frame' "$w.run.log"; exit 1; }
 done
 
-mutate() {  # file old new, in a fresh copy
-  rm -rf -- "$tmp/w"
-  cp -a "$tmp/base" "$tmp/w"
-  python3 - "$tmp/w/$1" "$2" "$3" <<'PY'
+mutate() {  # file old new, in a fresh copy ($w)
+  rm -rf -- "$w"
+  cp -a "$tmp/base" "$w"
+  python3 - "$w/$1" "$2" "$3" <<'PY'
 import sys
 p, old, new = sys.argv[1:]
 s = open(p).read()
@@ -50,30 +53,32 @@ assert s.count(old) == 1, f"mutant target not found once: {old!r}"
 open(p, 'w').write(s.replace(old, new))
 PY
 }
-law() {  # what file old new: the law beside the code must refuse it
-  selected || return 0
-  label="control-$index"
+# Each control in the background, in its own copy, at most UX_NC_JOBS at once.
+spawn() {  # function args...
   ran=$((ran + 1))
+  while [ "$(jobs -rp | wc -l)" -ge "${UX_NC_JOBS:-6}" ]; do wait -n || true; done
+  (slot_hold; label="control-$index"; w=$tmp/w.$index; "$@"; rm -rf -- "$w") > "$tmp/m.$(printf %03d $index).log" 2>&1 &
+}
+law() { selected || return 0; spawn law_one "$@"; }
+suite() { selected || return 0; spawn suite_one "$@"; }
+law_one() {  # what file old new: the law beside the code must refuse it
   mutate "$2" "$3" "$4"
   if build; then echo "FAIL: mutant survived its law: $1"; exit 1; fi
-  grep -q "error:" "$tmp/build.log" || { echo "FAIL: mutant $1 failed for another reason"; tail -20 "$tmp/build.log"; exit 1; }
+  grep -q "error:" "$w.build.log" || { echo "FAIL: mutant $1 failed for another reason"; tail -20 "$w.build.log"; exit 1; }
   echo "refused by its law: $1"
 }
-suite() {  # what seam expected file old new: ux must fail its check
-  selected || return 0
-  label="control-$index"
-  ran=$((ran + 1))
+suite_one() {  # what seam expected file old new: ux must fail its check
   local what=$1 seam=$2 expected=$3
   mutate "$4" "$5" "$6"
-  build || { echo "FAIL: mutant $what does not build"; tail -20 "$tmp/build.log"; exit 1; }
+  build || { echo "FAIL: mutant $what does not build"; tail -20 "$w.build.log"; exit 1; }
   local status=0
   run "$seam" || status=$?
   [ "$status" -eq 1 ] || { echo "FAIL: mutant $what exited $status instead of an assertion failure"; exit 1; }
-  if grep -qiE 'panic|uncaught exception|segmentation fault|assertion violation' "$tmp/run.log"; then
+  if grep -qiE 'panic|uncaught exception|segmentation fault|assertion violation' "$w.run.log"; then
     echo "FAIL: mutant $what crashed instead of failing its assertion"; exit 1
   fi
-  grep -qF "FAIL $expected" "$tmp/run.log" ||
-    { echo "FAIL: mutant $what failed for another reason"; grep -v '^slow frame' "$tmp/run.log"; exit 1; }
+  grep -qF "FAIL $expected" "$w.run.log" ||
+    { echo "FAIL: mutant $what failed for another reason"; grep -v '^slow frame' "$w.run.log"; exit 1; }
   echo "refused by ux: $what"
 }
 
@@ -110,4 +115,9 @@ suite "the frame paints the offset before its shift lands" queued "pending arriv
 suite "the anchor clump collapses before its new coordinate is known" "" "pending burst preserves the visible anchor" app/Screen.lean \
   "    let near := Raster.near bottom span offset viewport (over + viewport) || heldRoot == some root.2" \
   "    let near := Raster.near bottom span offset viewport (over + viewport)"
-echo "ux negative controls: $ran selected controls refused; logs in $logs"
+wait
+[ "$ran" = 0 ] || cat "$tmp"/m.*.log
+if [ "$ran" -gt 0 ] && grep -q '^FAIL' "$tmp"/m.*.log; then exit 1; fi
+[ "$( (cat "$tmp"/m.*.log 2>/dev/null || true) | grep -c '^refused by')" = "$ran" ] ||
+  { echo "FAIL: $ran controls, not all reported refused"; exit 1; }
+echo "ux negative controls: $ran selected controls refused, each in its own copy; logs in $logs"
