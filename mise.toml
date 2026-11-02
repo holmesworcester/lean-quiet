@@ -133,8 +133,8 @@ description = "The bootstrap model: its laws built, the scene on the real engine
 run = "tests/net/check.sh"
 
 [tasks."readme:links"]
-description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
-run = "python3 ci/proof-links.py --check"
+description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built); the proof tree (docs/PROOF-TREE.md) is drawn from that run's graph (ci/proof-tree.py, its tests first)"
+run = "python3 tests/proof_tree_test.py && python3 ci/proof-links.py --check && python3 ci/proof-tree.py --check --graph out/proof-graph.json"
 
 [tasks."hackathon:refresh"]
 description = "Just before the Vibecheck submission, at main's head: write docs/HACKATHON.md's generated numbers from git (ci/hackathon.py), commit that file alone, then run the self-test and the check"

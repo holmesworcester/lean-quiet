@@ -361,6 +361,9 @@ and tested ([what the proofs assume of SQLite](#what-the-proofs-assume-of-sqlite
 The laws have already caught bugs, in code that had shipped and in
 code being written: [what the proofs caught](docs/CAUGHT.md).
 
+How the laws compose, each guarantee below opening to the laws its proof
+uses, with the uncited laws left over: [the proof tree](docs/PROOF-TREE.md).
+
 ### Towards Proofs for n Clients
 
 Devices that hold the same ops agree, whatever order the ops arrived
