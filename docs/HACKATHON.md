@@ -27,32 +27,33 @@ line. [ci/proof-links.py](../ci/proof-links.py) writes that line from
 the code (`mise run readme:links`).
 
 <!-- hackathon:begin -->
-Computed by `ci/hackathon.py` from git alone, at [`752684fd49db`](https://github.com/holmesworcester/lean-quiet/commit/752684fd49dbadaf578efdfcce79f2b9ccc9577e) (committed 2026-11-01 15:44 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
+Computed by `ci/hackathon.py` from git alone, at [`9fd07c18c164`](https://github.com/holmesworcester/lean-quiet/commit/9fd07c18c1643404f08d7279e520f3c157a876dd) (committed 2026-11-01 18:46 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
 
 | | Base | Head | Change |
 |---|--:|--:|--:|
-| Laws, as the README's lead counts them | 1,016 | 1,409 | +393 |
-| … about running code | 787 (77%) | 1,075 (76%) | +288 |
-| … that run the node's code in a World | 10 | 35 | +25 |
-| … not yet about running code | 219 | 299 | +80 |
-| Negative controls (laws that prove a mutant breaks its law) | 20 | 25 | +5 |
-| README promises proven over running code (✅) | 40 | 51 | +11 |
-| README promises partly proven (🟡) | 31 | 28 | -3 |
+| Laws, as the README's lead counts them | 1,016 | 1,488 | +472 |
+| … about running code | 787 (77%) | 1,345 (90%) | +558 |
+| … that run the node's code in a World | 10 | 68 | +58 |
+| … not yet about running code | 219 | 75 | -144 |
+| Proof steps (lemmas a law about running code uses; counted apart) | — | 63 |  |
+| Negative controls (laws that prove a mutant breaks its law) | 20 | 33 | +13 |
+| README promises proven over running code (✅) | 40 | 62 | +22 |
+| README promises partly proven (🟡) | 31 | 32 | +1 |
 | README promises wanted, not proven (⬜) | 14 | 13 | -1 |
-| `theorem` declarations in .lean files | 2,399 | 4,258 | +1,859 |
-| .lean files | 362 | 650 | +288 |
-| Lines of Lean | 77,516 | 116,356 | +38,840 |
+| `theorem` declarations in .lean files | 2,399 | 4,619 | +2,220 |
+| .lean files | 362 | 684 | +322 |
+| Lines of Lean | 77,516 | 126,463 | +48,947 |
 
-- **Promises that changed mark** (same title at the base and the head): ✅ → 🟡: "A removed member's node stops holding the community, and can rejoin only as a new device"; 🟡 → ✅: "A removal ends a live session's sync", "Peers cannot push ops in", "Judging cannot be hung", "Honest nodes agree", "Purge is safe", "Purge takes exactly what it must"; ⬜ → 🟡: "Everyone converges". 16 promises at the head have a title the base does not have (new or reworded).
+- **Promises that changed mark** (same title at the base and the head): ✅ → 🟡: "A removed member's node stops holding the community, and can rejoin only as a new device"; 🟡 → ✅: "A removal ends a live session's sync", "Peers cannot push ops in", "Judging cannot be hung", "Honest nodes agree", "Purge is safe", "Purge takes exactly what it must"; ⬜ → 🟡: "Everyone converges". 32 promises at the head have a title the base does not have (new or reworded).
 - **Vacuity** at the base: no report (README.md has no "Vacuity check reports").
-- **Vacuity** at the head: of 747 declarations the README links, 517 have a concrete input checked by Lean's kernel and 183 one checked by running the code; 31 are conditional on a named assumption; 16 are pending: `converge`, `offline`, `grows`, `managed_nil`, `owes_queued_start`, `ix_covers_start`, `deliver_wants`, `deliver_queues`, `deliver_takes`, `onSealed_wants`, `onSealed_queues`, `onSealed_takes`, `onHold_wants`, `recv_asked`, `recv_owed`, `node_serve`.
+- **Vacuity** at the head: of 841 declarations the README links, 527 have a concrete input checked by Lean's kernel and 193 one checked by running the code; 31 are conditional on a named assumption; 90 are pending: `oneOpPerId_of`, `notice_local`, `caughtUp_local`, `exec_current`, `responder_opens_none`, `shipped_controls_apply`, `local_within`, `background_within`, `take_vacant`, `converge`, `offline`, `want_reaches`, `drain`, `want_to_op`, `op_hop`, `write_hop`, `step_waits`, `grows`, `deliver_wants`, `deliver_queues`, `deliver_takes`, `onSealed_wants`, `onSealed_queues`, `onSealed_takes`, `onSealed_waits`, `onTick_moves`, `serve_moves`, `onHold_wants`, `recv_asked`, `recv_owed`, `recv_appends`, `node_serve`, `request_again`, `shipped_late`, `bottoms_eq`, `rowAt_iff`, `notifies_iff`, `can_alert`, `once`, `step_quiet`, `target_opens`, `keepSync_keeps`, `keepSync_set`, `unmount_keeps_node`, `acts_shown`, `inv_pass`, `Costs.time`, `list_costs`, `model_fits`, `id_bind`, `run_bind`, `run_fresh`, `fair_loss_delivered`, `empty_log_agrees`, `nodup`, `nodup_full`, `sum_map_add`, `Costs.mono`, `costs_bind`, `costs_bindP`, `within_bind`, `within_bindP`, `cr_erase`, `within_at`, `eval_partition`, `lexCmp_append_zero`, `of_map`, `to_map`, `Reads.mono`, `leftOps_eq_some`, `leftOps_isSome`, `fill_index`, `source_iff`, `tile_phase`, `inserts_size`, `filter_idxOf_le`, `finite_eventually_held`, `keeps`, `retains`, `settled`, `budget_same_ops`, `dedup_nodup`, `ins_sorted`, `mem_inserts`, `Session.closed_terminal`, `same_inputs`, `Symbolic.good`, `eligible_spec`, `RetryOrder.filter_rank`, `SeekCost.seek`.
 - **docs/CAUGHT.md** at the base: absent.
-- **docs/CAUGHT.md** at the head: "Caught by a law": 3 (Back to the switcher lost its backdrop (566e566, 2026-10-31); A replayed handshake retired a live session (found 2026-10-28; fix not on main); A crash kept a session's keys in the store for good (found 2026-10-31)). "Found otherwise, pinned by a law afterwards": 6, of which 3 say they are pinned by a test, not yet a law.
+- **docs/CAUGHT.md** at the head: "Caught by a law": 4 (A user's own write could wait behind the reader's backlog (2026-11-01); Back to the switcher lost its backdrop (566e566, 2026-10-31); A replayed handshake retired a live session (found 2026-10-28; fix not on main); A crash kept a session's keys in the store for good (found 2026-10-31)). "Found otherwise, pinned by a law afterwards": 8, of which 3 say they are pinned by a test, not yet a law.
 - **Lean toolchain** (lean-toolchain): base v4.34.0; head v4.35.0.
 - **Build and judging files** at the base: no Makefile; no comparator.json; no LICENSE file.
-- **Build and judging files** at the head: a Makefile with targets `help`, `install`, `run`, `online`, `demo`, `check`, `assets`, `verify`; comparator.json with 17 theorems, permitted axioms `propext`, `Quot.sound`, `Classical.choice`; a LICENSE file.
-- **Commits** since the base: 417, of which 86 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
-- **Files changed** since the base: 1,198 (+107,129 lines, -21,014 lines).
+- **Build and judging files** at the head: a Makefile with targets `help`, `install`, `run`, `online`, `demo`, `check`, `assets`, `verify`; comparator.json with 18 theorems, permitted axioms `propext`, `Quot.sound`, `Classical.choice`; a LICENSE file.
+- **Commits** since the base: 710, of which 181 are merges. 6 were authored before the start (on 2026-10-28): `63f5317a`, `dbb0ff53`, `df760433`, `a0e735dd`, `d9c6eaaa`, `aa2fb401` (merged in `94e900da`).
+- **Files changed** since the base: 1,281 (+135,629 lines, -24,881 lines).
 <!-- hackathon:end -->
 
 - A law is **about running code** when every definition its statement
