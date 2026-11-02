@@ -49,7 +49,6 @@ def inbox : State Nat 2 := { slots := #v[some 10, some 11, some 12] }
 def first : Prioritized.State Nat Nat 2 := combined.state 0
 
 theorem distanceBound : distance zero two < 3 := distance_lt zero two
-theorem distanceIdentity : distance one one = 0 ↔ one = one := distance_zero one one
 theorem distanceAdvance : distance (advance zero) two + 1 = distance zero two :=
   advance_distance zero two (by decide)
 

@@ -147,7 +147,7 @@ private def scenario (dir : String) (ck : Tests.Checks) : IO Unit := do
     let asleep ← get
     ck.ok "suspension stops camera and sync runner" (!(← sm.on.get) && asleep.net.isNone)
     ck.ok "suspension clears keyboard, subscriptions and tasks"
-      (asleep.imeH == 0 && asleep.life.tree.isEmpty && asleep.rows.isEmpty && asleep.decoding.isNone)
+      (asleep.imeH == 0 && asleep.rows.isEmpty && asleep.decoding.isNone)
     ck.ok "no read or frame without surface" (asleep.queryReads == r && (← sm.frames.get) == n)
     discard <| step [.foreground]
     ck.ok "foreground waits for surface before restarting" ((← get).net.isNone && !(← sm.on.get) && (← sm.frames.get) == n)

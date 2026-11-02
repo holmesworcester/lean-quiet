@@ -15,7 +15,8 @@ output, and local CI fails when it goes stale.
 - **A law's subject** is the data definitions its statement names, its
   conclusion's and its premises', seen through the Prop-valued
   definitions and inductives it names (an op's validity, a reachable
-  state) and the fields of the instances it names: those it projects
+  state), with their compiled auxiliaries (a structural recursion's
+  body, `X._f`) and the fields of the instances it names: those it projects
   (`Turn.purge` on the held store is `purgeS`), and those the code it
   names can reach (`onFrame` on the held store runs its purge), three
   deep, and through the pattern synonyms it names (`Fact.admission` is
@@ -66,6 +67,15 @@ output, and local CI fails when it goes stale.
   Each `waits` mutant (a
   send as it was, waiting) must be caught by the same walk, and must not
   run: the rule's negative control.
+- **Step:** a law that would be a model, but that a wired law's proof
+  uses (through the theorems it uses, as their proof bodies show; a law
+  stated over an instrument uses every instrument's erasing law, the
+  meter's erasure algebra as a whole): a proof
+  step of a law about running code, not a claim of its own. Computed,
+  never noted: drop the wired use and it is a model again. Counted apart,
+  with the wired laws that use it; a README row that cites a step must
+  cite one of them (ci/proof-links.py). Control: the first step, walked
+  from every wired law but those that use it, is not reached.
 - **Instruments:** what the code under test runs in to be measured (the
   cost meter, `CostT`), each erased by an audited equation (`erase_bind`:
   a counted run, its costs dropped, is the plain run). Like an
@@ -85,6 +95,13 @@ output, and local CI fails when it goes stale.
 - **Copies:** a `copy` restates running code instead of naming it: a
   law (a model until it names the code), or a definition (a model,
   until the code calls it). The README lists them.
+- **The ratchet** (AGENTS.md: no proofs over models): tests/wiring-models.txt
+  lists the model laws there were when the rule was made. A model law
+  it does not list fails the check, and so does a name it lists that is
+  no longer a model law, until its line is deleted: the list only
+  shrinks. (ci/proof-links.py --check also fails on a line the merge
+  base did not have, and runs the negative control: a model law left
+  out of the list must be caught.)
 
 It fails (exit 1) if a note is stale or wrong: a name it gives is
 missing; a `spec`, `todo` or mirror runs; no law waits on a `todo`; a
@@ -103,7 +120,9 @@ saying what the proofs take of it; a note no file needs is stale; a
 `test` contract is for a test's probe only (tests/, platforms/headless/);
 a `prop:` contract names a Prop. A source with an extern no note covers
 must be caught (the check's negative control). It fails
-too if an audited law is missing. Controls: the entry points must reach
+too if an audited law is missing, if a model law is not in
+tests/wiring-models.txt, or if that list names a law that is not a model
+law. Controls: the entry points must reach
 `App.step` and the node's `onFrame`, and not the harnesses (`harnesses`);
 the laws `models` names must be models, and `worlds` World laws; no law
 is both wired and World; and with `Engine.Sync.Node` taken out of what
@@ -113,10 +132,11 @@ law, wired).
 
   lake env lean --run tests/Wiring.lean   (needs `lake build` and `lake build +Main`)
 
-`WIRING_NOTES=path` reads other notes. Output, one line each,
-tab-separated: `law NAME STATUS SUBJECT MISSING ASSUMES MODULE PREMISES`
-(STATUS: wired, world, control or model)
-(PREMISES: as above), `stmt NAME STATUS SUBJECT
+`WIRING_NOTES=path` reads other notes, `WIRING_MODELS=path` another
+list of model laws. Output, one line each,
+tab-separated: `law NAME STATUS SUBJECT MISSING ASSUMES MODULE PREMISES USERS`
+(STATUS: wired, world, control, step or model)
+(PREMISES: as above; USERS: a step's wired laws), `stmt NAME STATUS SUBJECT
 MISSING MODULE`, `missing NAME RANK NOTE CALLERS WORLD` (RANK: the note's
 place in tests/wiring.txt), `assume NAME TEXT LAWS` (the `holds` too),
 `copy NAME CODE TEXT`, and a closing `count` line.
@@ -130,13 +150,12 @@ def roots : List Name := [`engine, `app, `Quiet, `Main]
 
 /-- The negative controls: harnesses the entry points must not reach
 (the Worlds' steps among them), laws that must be classified models (one
-over code only qr's harness runs, one
-whose model is in a premise, and a cost law, in the meter, over code
-nothing calls), laws that must be negative controls (a mutant over its
+over a premise's model and a cost law, in the meter, over a door nothing
+runs as it is), laws that must be negative controls (a mutant over its
 budget), and laws that must be World laws (the two-node World's stream). Update them if one becomes real. -/
 def harnesses : List Name := [`Engine.Sync.World.peer, `Pic.render]
 def models : List Name :=
-  [`Pic.render_wellFormed, `ViewLaws.row_marked, `Heights.T.findM_cost]
+  [`Engine.Sync.RoundRun.collisionCheck_sound, `Engine.list_costs]
 /-- Laws that must be negative controls: a mutant over its budget. -/
 def controlLaws : List Name := [`Merkle.slow_over_budget, `Engine.Codec.slow_digits_over_budget]
 /-- Laws that must be World laws: the node's code over a World. -/
@@ -336,6 +355,14 @@ partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (dept
   for c in named env e do
     if !ours env c || props.contains c then continue
     if stop.contains c then props := props.insert c; continue
+    -- a definition's compiled auxiliaries are more of it: a structural
+    -- recursion's body is `X._f`, which X's value names (a spec or a
+    -- Prop seen through would otherwise hide what its body calls)
+    if c.isInternal && !Meta.isMatcherCore env c then
+      if let some (.defnInfo d) := env.find? c then
+        props := props.insert c
+        (subj, props) := about env stop spec run d.value depth inSpec (subj, props)
+        continue
     -- a pattern synonym is notation for what it unfolds to:
     -- `Fact.admission c u d e` is `Fact.ofAdmission ⟨c, u, d, e⟩`
     if hasMatchPatternAttribute env c then
@@ -469,6 +496,64 @@ def readNotes (path : System.FilePath) : IO Notes := do
     | _ => throw <| IO.userError s!"tests/wiring.txt:{i}: not a note: {l}"
   return ns
 
+/-- tests/wiring-models.txt: the laws over models today, with their lines.
+A line's first word is a law; `#` starts a comment. -/
+def readModels (path : System.FilePath) : IO (List (Name × Nat)) := do
+  let mut out := #[]
+  let mut i := 0
+  for l in (← IO.FS.readFile path).splitOn "\n" do
+    i := i + 1
+    let l := ((l.splitOn "#").headD "").trimAscii.toString
+    if l.isEmpty then continue
+    match fields l 1 with
+    | ([n], "") => out := out.push (n.toName, i)
+    | _ => throw <| IO.userError s!"{path}:{i}: not a law name: {l}"
+  return out.toList
+
+/-- The theorems each reached theorem's proof uses, walked from `roots`:
+for each, the theorems that use it directly (the reverse edges), and
+every theorem reached. `extra` adds uses the check itself makes (a law
+over an instrument uses the instrument's erasing law). A use the walk
+cannot see (no proof body loaded) is not made: its lemma stays a model. -/
+def proofUses (env : Environment) (roots : List Name) (extra : Name → List Name) :
+    NameMap (Array Name) × NameSet := Id.run do
+  let mut parents : NameMap (Array Name) := {}
+  let mut seen : NameSet := roots.foldl (·.insert ·) {}
+  let mut todo := roots.toArray
+  while h : todo.size > 0 do
+    let n := todo.back
+    todo := todo.pop
+    let step (c : Name) : Bool := match env.find? c with
+      | some (.thmInfo _) => true
+      | some (.defnInfo _) => c.isInternal
+      | _ => false
+    let uses := match env.find? n with
+      | some (.thmInfo t) => t.value.getUsedConstants.toList.filter step
+      -- a proof's compiled auxiliaries (a recursion's body) are more of it
+      | some (.defnInfo d) => if n.isInternal then d.value.getUsedConstants.toList.filter step else []
+      | _ => []
+    for c in uses ++ extra n do
+      parents := parents.insert c ((parents.getD c #[]).push n)
+      if !seen.contains c then
+        seen := seen.insert c
+        todo := todo.push c
+  return (parents, seen)
+
+/-- The roots among `n`'s users, up the reverse edges. -/
+def usersOf (parents : NameMap (Array Name)) (roots : NameSet) (n : Name) : List Name := Id.run do
+  let mut seen : NameSet := {}
+  let mut out : Array Name := #[]
+  let mut todo := #[n]
+  while h : todo.size > 0 do
+    let x := todo.back
+    todo := todo.pop
+    for p in parents.getD x #[] do
+      if !seen.contains p then
+        seen := seen.insert p
+        if roots.contains p then out := out.push p
+        todo := todo.push p
+  return out.toList
+
 /-! ## The classification -/
 
 structure Law where
@@ -486,10 +571,15 @@ structure Law where
   /-- a negative control: it names a mutant (`control`), meant never to
   run, and proves the mutant breaks its law -/
   control : Bool := false
+  /-- a proof step: a model-class law that a wired law's proof uses
+  (through theorems), with those wired laws -/
+  step : Bool := false
+  users : List Name := []
 
 /-- The class the report prints. -/
 def Law.status (l : Law) : String :=
-  if l.wired then "wired" else if l.control then "control" else if l.world then "world" else "model"
+  if l.wired then "wired" else if l.control then "control" else if l.world then "world"
+  else if l.step then "step" else "model"
 
 def sortNames (ns : List Name) : List Name :=
   ns.eraseDups.toArray.qsort (·.toString < ·.toString) |>.toList
@@ -679,7 +769,8 @@ def writeGraph (env : Environment) (audit : List String) (laws : List Law) (path
     let cls := ((classes.find? n).map (·.status)).getD "lemma"
     nodes := nodes.push (n.toString, Json.mkObj [("name", Json.str n.toString), ("class", Json.str cls),
       ("module", Json.str ((modOf env n).getD .anonymous).toString), ("line", toJson (line n)),
-      ("uses", Json.arr (us.map (Json.str ·.toString)))])
+      ("uses", Json.arr (us.map (Json.str ·.toString))),
+      ("users", Json.arr ((((classes.find? n).map (·.users)).getD []).toArray.map (Json.str ·.toString)))])
   let sorted := nodes.qsort (·.1 < ·.1) |>.map (·.2)
   IO.FS.writeFile path (Json.compress (Json.mkObj [("laws", Json.arr sorted)]) ++ "\n")
 
@@ -826,7 +917,36 @@ unsafe def main : IO UInt32 := do
           if !subj.contains c then problems := problems.push s!"tests/wiring.txt: {law}'s conclusion does not name {c}"
       out := out.push (classify env run ns via law ci.type)
     | none => problems := problems.push s!"{law} is audited but not in the libraries"
+  -- proof steps: model-class laws a wired law's proof uses (through
+  -- theorems; a law over an instrument uses its erasing law), with the
+  -- wired laws that use each
+  let wiredNames := (out.filter (·.wired)).toList.map (·.name)
+  let wiredSet : NameSet := wiredNames.foldl (·.insert ·) {}
+  -- a wired law over the meter rests on its whole erasure algebra (erase
+  -- commutes with pure, bind and each door): naming any instrument, it
+  -- uses every instrument's law
+  let instrumentLaws := ns.instrument.toList.map (·.2)
+  let instrumentUse (n : Name) : List Name :=
+    if !wiredSet.contains n then [] else match env.find? n with
+      | some ci =>
+        let cs := named env ci.type
+        if ns.instrument.toList.any (fun (i, _) => cs.contains i) then instrumentLaws else []
+      | none => []
+  let (parents, usedByWired) := proofUses env wiredNames instrumentUse
+  out := out.map fun l =>
+    if !l.wired && !l.world && !l.control && usedByWired.contains l.name then
+      { l with step := true, users := sortNames (usersOf parents wiredSet l.name) }
+    else l
   let lawList := out.toList
+  -- the step rule's control: without the wired laws that use it, the
+  -- first step is reached by no other wired law, so it would be a model
+  if let some st := lawList.find? (·.step) then
+    if st.users.isEmpty then problems := problems.push s!"control: {st.name}, a step, has no wired user"
+    let rest := wiredNames.filter (!st.users.contains ·)
+    let restSet : NameSet := rest.foldl (·.insert ·) {}
+    let (_, reached) := proofUses env rest fun n => if restSet.contains n then instrumentUse n else []
+    if reached.contains st.name then
+      problems := problems.push s!"control: {st.name} stays a step without the wired laws that use it ({commas st.users})"
   for m in ns.wired do
     if !(lawList.find? (·.name == m)).any (·.wired) then
       problems := problems.push s!"tests/wiring.txt marks {m} wired, but it is not"
@@ -859,7 +979,7 @@ unsafe def main : IO UInt32 := do
   let modName (n : Name) := ((modOf env n).getD .anonymous).toString
   for l in lawList do
     for c in l.missing ++ l.premises do waited := waited.insert c
-    IO.println s!"law\t{l.name}\t{l.status}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}"
+    IO.println s!"law\t{l.name}\t{l.status}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}\t{commas l.users}"
   let mut stated := 0
   for (n, v) in stmts do
     let l := classify env run ns via n v
@@ -890,18 +1010,34 @@ unsafe def main : IO UInt32 := do
   -- negative controls: laws known to be about models, and to be World
   -- laws, must be found so
   for m in models do
-    if (lawList.find? (·.name == m)).any (fun l => l.wired || l.world) then
-      problems := problems.push s!"control: {m}, a model law, is classified wired or World"
+    if (lawList.find? (·.name == m)).any (fun l => l.wired || l.world || l.step) then
+      problems := problems.push s!"control: {m}, a model law, is classified wired, World or a step"
   for m in worlds do
     if !(lawList.find? (·.name == m)).any (·.world) then
       problems := problems.push s!"control: {m}, a World law, is not classified World"
   for m in controlLaws do
     if !(lawList.find? (·.name == m)).any (·.control) then
       problems := problems.push s!"control: {m}, a mutant's law, is not classified a negative control"
+  -- the ratchet (AGENTS.md): no new law over a model, and the list of
+  -- today's only shrinks
+  let base ← readModels ((← IO.getEnv "WIRING_MODELS").getD "tests/wiring-models.txt")
+  let mut listed : NameSet := {}
+  for (n, i) in base do
+    if listed.contains n then problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is listed twice"
+    listed := listed.insert n
+    match lawList.find? (·.name == n) with
+    | some l =>
+      if l.wired || l.world || l.control || l.step then
+        problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is no longer a model law ({if l.wired then "wired" else if l.world then "World" else if l.control then "control" else "a step of a wired law"}): delete the line (ci/proof-links.py --prune)"
+    | none => problems := problems.push s!"tests/wiring-models.txt:{i}: {n} is not an audited law: delete the line (ci/proof-links.py --prune)"
+  for l in lawList do
+    if !l.wired && !l.world && !l.control && !l.step && !listed.contains l.name then
+      problems := problems.push s!"model: {l.name} is a new law over a model (it misses {if l.missing.isEmpty then "every running definition: its subject is empty" else commas l.missing}): state it over the code that runs, or prove its model equal to running code (a bridge); AGENTS.md"
   let nw := (lawList.filter (·.wired)).length
   let nW := (lawList.filter (·.world)).length
   let nc := (lawList.filter (·.control)).length
-  IO.println s!"count\twired {nw}\tworld {nW}\tcontrol {nc}\tmodel {lawList.length - nw - nW - nc}\tstated {stated}\tassumption {assumed}"
+  let ns_ := (lawList.filter (·.step)).length
+  IO.println s!"count\twired {nw}\tworld {nW}\tcontrol {nc}\tstep {ns_}\tmodel {lawList.length - nw - nW - nc - ns_}\tstated {stated}\tassumption {assumed}"
   if let some path ← IO.getEnv "WIRING_GRAPH" then writeGraph env audit lawList path
   for p in problems do IO.eprintln s!"wiring: {p}"
   return if problems.isEmpty then 0 else 1

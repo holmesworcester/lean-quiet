@@ -40,6 +40,14 @@ name. Reads the profiles filed under the look, and each author's newest. -/
 def namesake (c u : Id) (name : String) (deps : Array Q) : m (Bool × Array Q) := do
   let (a, _, deps) ← readList (profile.byLook.query [c, nameLook name]) deps
   others c u (nameLook name) a.rows deps
+
+/-- The author component (the frame's `.author c u` want, for each shown
+message row's author): u's name in c, and whether it has a namesake.
+Law: ViewLaws.row_marked. -/
+def author (c u : Id) : m ((String × Bool) × Array Q) := do
+  let (who, deps) ← read c u #[]
+  let (twin, deps) ← namesake c u who.name deps
+  return ((who.name, twin), deps)
 end Kinds.Profile
 namespace ViewLaws
 open _root_.Engine _root_.Community _root_.Data _root_.Kinds
