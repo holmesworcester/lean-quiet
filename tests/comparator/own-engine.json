@@ -1,7 +1,8 @@
 {
-  "challenge_module": "tests.comparator.own.AgreeChallenge",
-  "solution_module": "tests.comparator.own.AgreeSolution",
+  "challenge_module": "tests.comparator.own.EngineChallenge",
+  "solution_module": "tests.comparator.own.EngineSolution",
   "theorem_names": [
+    "Engine.Sync.recv_send",
     "Engine.same_ops_same_verdicts"
   ],
   "definition_names": [],

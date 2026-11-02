@@ -973,4 +973,16 @@ def Conn.setRooms (c : Conn) (rooms : List Id) (takes : List Id := []) : Conn :=
 
 end
 
+section
+variable {F : Type} (fam : Family F)
+
+/-- What a connection may send: a sync wire op, or an op the peer may see. -/
+def Sendable (c : Conn) (o : Op) : Prop := isWire o.kind = true ∨ c.shows fam o = true
+
+/-- What a connection may hand the writer: a data op of a room it shows
+or takes. -/
+def Takeable (c : Conn) (o : Op) : Prop :=
+  isWire o.kind = false ∧ (c.shows fam o || c.takesOp fam o) = true
+end
+
 end Engine.Sync

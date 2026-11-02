@@ -419,9 +419,11 @@ partial def reaches (imps : NameMap (Array Name)) (a b : Name) : Bool :=
 challenge must import to state it under its own name (those of the
 constants its statement names), or the constants that block that: each
 lives in the law's module, or in a module that imports it. Then, for the
-laws not blocked, the imports of one challenge for all of them, and any
-law those imports reach. Auxiliaries named after the law (a `match`'s
-matcher) are left out: the challenge makes its own. -/
+laws not blocked, the imports of one challenge for all of them, any law
+those imports reach, and the fewest groups first fit finds whose imports
+reach none of their own laws (one challenge each). Auxiliaries named
+after the law (a `match`'s matcher) are left out: the challenge makes
+its own. -/
 elab "#challenge_imports " ids:ident+ : command => do
   let env ← getEnv
   let imps := importsOf env
@@ -452,5 +454,19 @@ elab "#challenge_imports " ids:ident+ : command => do
       if hit.isEmpty then none else some s!"{nameStr other}'s {hit.toList}"
     if by_.isEmpty then none else some s!"{nameStr thm} (its module is imported by {", ".intercalate by_.toList})"
   logInfo m!"challenge all: {free.size} of {ids.size} free\n  imports {allImports}\n  clashes:\n    {"\n    ".intercalate clashes.toList}"
+  -- Group the free laws, first fit, so that no group's imports reach one
+  -- of its own laws: one challenge per group.
+  let mut groups : Array (Array (Name × Name) × List Name) := #[]
+  for (thm, lawMod, ms) in free do
+    let fits := fun (g : Array (Name × Name) × List Name) =>
+      let imports := (g.2 ++ ms.toList).eraseDups
+      let mods := g.1.map (·.2) |>.push lawMod
+      !mods.any fun m => imports.any (reaches imps · m)
+    match groups.findIdx? fits with
+    | some i => groups := groups.modify i fun g => (g.1.push (thm, lawMod), (g.2 ++ ms.toList).eraseDups)
+    | none => groups := groups.push (#[(thm, lawMod)], ms.toList)
+  let lines := groups.toList.map fun g =>
+    s!"{g.1.toList.map (nameStr ·.1)}\n      imports {g.2.mergeSort (·.toString < ·.toString)}"
+  logInfo m!"challenge groups: {groups.size}\n    {"\n    ".intercalate lines}"
 
 end SpecSurface

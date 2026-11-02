@@ -193,6 +193,26 @@ def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
     ∃ x, Owed s cid c x ∧ (LiveAs s c ∨ x ∈ ((Community.cutBy c).liftL : View F (List Id)).eval s) ∧
       ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
 
+/-- Every peer key connection cid names is, for c, one only the link
+clause lets in (`linked`): this node is a device of c and not yet live
+in it, and the peer is the inviter a pending join names, of which this
+node knows no admission. -/
+def LinkOnly (s : DB F) (cid c : B) : Prop :=
+  ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
+    ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
+      ∃ me, (meV c).eval s = some me ∧ ((linked c me peer).liftL : View F Bool).eval s = true
+
+/-- What may go out on session cid at store h, as of community c: if
+`allowPeer` refuses cid's peer (a removed member's node, or a stranger
+a link names), whatever this node's own standing, only a sync wire op,
+an op of another community, or an op in the requirement closure of a
+removal owed to the peer, where this node is live or cut by it too
+(`NoticeOnly`); and if only the link clause lets cid's peers in, only a
+sync wire op or an op of another community. -/
+def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
+  (Refused h.db cid c → NoticeOnly fam h.db cid c o) ∧
+    (LinkOnly h.db cid c → isWire o.kind = true ∨ fam.room o ≠ some c)
+
 theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
     ((rows r args : Model F _).run s) =
       ((Engine.eval s (r.query args)).rights.map fun ((_, x), f) => (x, f), s) := rfl

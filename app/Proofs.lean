@@ -437,15 +437,6 @@ theorem removed_gets_only_notice (fam : Family F) (cfg : Config) (ix : Index) (s
     rw [hl me hme] at hu
     cases hu
 
-/-- Every peer key connection cid names is, for c, one only the link
-clause lets in (`linked`): this node is a device of c and not yet live
-in it, and the peer is the inviter a pending join names, of which this
-node knows no admission. -/
-def LinkOnly (s : DB F) (cid c : B) : Prop :=
-  ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
-    ((Community.allowPeer c peer).liftL : View F Bool).eval s = false ∧
-      ∃ me, (meV c).eval s = some me ∧ ((linked c me peer).liftL : View F Bool).eval s = true
-
 theorem linkOnly_refused {s : DB F} {cid c : B} (h : LinkOnly s cid c) : Refused s cid c :=
   fun peer hp => (h peer hp).1
 
@@ -3316,17 +3307,6 @@ theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F Byt
   subst hx
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := hooks_reads hfr fam K listen
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs⟩
-
-/-- What may go out on session cid at store h, as of community c: if
-`allowPeer` refuses cid's peer (a removed member's node, or a stranger
-a link names), whatever this node's own standing, only a sync wire op,
-an op of another community, or an op in the requirement closure of a
-removal owed to the peer, where this node is live or cut by it too
-(`NoticeOnly`); and if only the link clause lets cid's peers in, only a
-sync wire op or an op of another community. -/
-def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
-  (Refused h.db cid c → NoticeOnly fam h.db cid c o) ∧
-    (LinkOnly h.db cid c → isWire o.kind = true ∨ fam.room o ≠ some c)
 
 /-- Where `allowPeer` refuses cid's peers, a step's send is `NoticeOnly`
 (`refused_gets_only_notice`, and `serveOwed_shown` for the queue). -/
