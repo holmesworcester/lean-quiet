@@ -69,12 +69,12 @@ depends = ["crypto"]
 run = "bash tests/engine/reader_prune.sh"
 
 [tasks."test:ref-publications"]
-description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap"
 depends = ["crypto"]
 run = "bash tests/engine/ref_publications.sh"
 
 [tasks."test:native-lifetimes"]
-description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+description = "Real connect/reader lifetime checks and deterministic SDK stop overlap; nine compiling controls"
 depends = ["crypto"]
 run = "bash tests/engine/native_lifetime.sh"
 
