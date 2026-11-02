@@ -388,7 +388,7 @@ behavior; they do not prove all of these assumptions:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1554 rest on Lean's standard axioms only, and about three quarters of its theorems (1190 of 1526, not counting 28 negative controls) are about the code that runs; another 45 run the
+hypotheses. All 1562 rest on Lean's standard axioms only, and about three quarters of its theorems (1190 of 1534, not counting 28 negative controls) are about the code that runs; another 53 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -531,13 +531,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1190 of 1526 laws are about running code;** another 45 run its node code in a World, and 291 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1190 of 1534 laws are about running code;** another 53 run its node code in a World, and 291 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 216 | 168 |  | 48 |
 | Sync | 330 | 284 |  | 46 |
-| The n-node World | 27 | 4 | 23 |  |
+| The n-node World | 35 | 4 | 31 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 208 | 143 | 16 | 49 |
 | Connections | 32 | 28 |  | 4 |
@@ -554,7 +554,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `Execution.fairRun`, `Execution.dequeued`, `Execution.trace` | 2 World laws; not yet: [`world_trace_moves`], [`empty_trace_store`], [`world_trace_history`], [`empty_trace_history`], [`world_trace_unique`], [`empty_trace_unique`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
 | `Execution.lift` | 4 World laws; not yet: [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`write_store_tape`], [`production_write_receives`], [`production_step_history`] +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
 | `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 32 World laws; not yet: [`secrecy_runs`] | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `World.step`, `Exec.world`, `Plain.setup` +3 | 16 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
+| `World.step`, `Exec.world`, `Plain.setup` +3 | 24 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`]†, [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Sync.keeps` | [`buffer_bounded`]*† | The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s. |
@@ -654,14 +654,14 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 2 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
-| [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 23 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
 | [`NativeCrypto`] | 12 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 462 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 467 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1543,10 +1543,10 @@ opportunities and full native delivery remain open.
 [`op_hop`]: engine/world/Chain.lean#L111-L124
 [`write_hop`]: engine/world/Chain.lean#L181-L193
 [`step_waits`]: engine/world/Drain.lean#L706-L719
-[`managed_nil`]: engine/world/Inv.lean#L148-L151
-[`owes_queued_start`]: engine/world/InvIx.lean#L727-L729
-[`ix_covers_start`]: engine/world/InvIx.lean#L720-L722
-[`owed_bounded_start`]: engine/world/InvOwed.lean#L178-L181
+[`managed_nil`]: engine/world/Inv.lean#L161-L164
+[`owes_queued_start`]: engine/world/PlainGood.lean#L148-L151
+[`ix_covers_start`]: engine/world/PlainGood.lean#L154-L157
+[`owed_bounded_start`]: engine/world/PlainGood.lean#L160-L163
 [`deliver_wants`]: engine/world/Link.lean#L94-L107
 [`deliver_queues`]: engine/world/Link.lean#L116-L130
 [`deliver_takes`]: engine/world/Link.lean#L81-L90
@@ -1561,13 +1561,6 @@ opportunities and full native delivery remain open.
 [`recv_owed`]: engine/world/Owed.lean#L54-L61
 [`recv_appends`]: engine/world/Drain.lean#L45-L47
 [`node_serve`]: engine/world/Owed.lean#L160-L169
-[`Index.answer_eq`]: engine/sync/Conn.lean#L306-L308
-[`Index.opening_eq`]: engine/sync/Conn.lean#L301-L303
-[`answerT_canon`]: engine/sync/TreapAnswer.lean#L410-L412
-[`answerTM_hashes`]: engine/sync/TreapAnswer.lean#L590-L593
-[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L623-L624
-[`insert_hashes`]: engine/sync/Treap.lean#L474-L477
-[`label_canon`]: engine/sync/Treap.lean#L113-L114
 [`Plain.good_keeps`]: engine/world/PlainGood.lean#L110-L112
 [`moves_always`]: engine/world/PlainGood.lean#L134-L138
 [`verdicts_spec`]: engine/world/PlainGood.lean#L168-L173
@@ -1575,6 +1568,13 @@ opportunities and full native delivery remain open.
 [`sent_keeps`]: engine/world/Good.lean#L238-L241
 [`Keeps.always`]: engine/world/Good.lean#L190-L192
 [`Guar.always`]: engine/world/Good.lean#L195-L199
+[`Index.answer_eq`]: engine/sync/Conn.lean#L306-L308
+[`Index.opening_eq`]: engine/sync/Conn.lean#L301-L303
+[`answerT_canon`]: engine/sync/TreapAnswer.lean#L410-L412
+[`answerTM_hashes`]: engine/sync/TreapAnswer.lean#L590-L593
+[`openingTM_hashes`]: engine/sync/TreapAnswer.lean#L623-L624
+[`insert_hashes`]: engine/sync/Treap.lean#L474-L477
+[`label_canon`]: engine/sync/Treap.lean#L113-L114
 [`Demand.owned_iff`]: engine/renderer/Demand.lean#L143-L146
 [`Demand.complete_retired`]: engine/renderer/Demand.lean#L96-L97
 [`Demand.next_visible`]: engine/renderer/Demand.lean#L149-L151
@@ -2009,8 +2009,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 534 kernel witnesses, 175 runtime witnesses,
-25 conditional checks, 0 recorded runtime counterexamples; 30 of 764 linked declarations still pending.**
+**Coverage: 544 kernel witnesses, 177 runtime witnesses,
+25 conditional checks, 0 recorded runtime counterexamples; 26 of 772 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2386,10 +2386,10 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`write_hop`](engine/world/Chain.lean#L181-L193) | Pending: no concrete premise witness audited yet |
 | [`step_waits`](engine/world/Drain.lean#L706-L719) | Pending: no concrete premise witness audited yet |
 | [`grows`](engine/world/Plain.lean#L189-L194) | Pending: no concrete premise witness audited yet |
-| [`managed_nil`](engine/world/Inv.lean#L148-L151) | Pending: no concrete premise witness audited yet |
-| [`owes_queued_start`](engine/world/InvIx.lean#L727-L729) | Pending: no concrete premise witness audited yet |
-| [`ix_covers_start`](engine/world/InvIx.lean#L720-L722) | Pending: no concrete premise witness audited yet |
-| [`owed_bounded_start`](engine/world/InvOwed.lean#L178-L181) | Pending: no concrete premise witness audited yet |
+| [`managed_nil`](engine/world/Inv.lean#L161-L164) | **kernel-witness**: [Vacuity.Good.managed](tests/vacuity/Good.lean). Every node of the run boots managing no session; no node ever manages one. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`owes_queued_start`](engine/world/PlainGood.lean#L148-L151) | **kernel-witness**: [Vacuity.Good.owes](tests/vacuity/Good.lean). Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`ix_covers_start`](engine/world/PlainGood.lean#L154-L157) | **kernel-witness**: [Vacuity.Good.covers](tests/vacuity/Good.lean). Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`owed_bounded_start`](engine/world/PlainGood.lean#L160-L163) | **kernel-witness**: [Vacuity.Good.bounded](tests/vacuity/Good.lean). Applied to the run, a projection of good_always. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
 | [`deliver_wants`](engine/world/Link.lean#L94-L107) | Pending: no concrete premise witness audited yet |
 | [`deliver_queues`](engine/world/Link.lean#L116-L130) | Pending: no concrete premise witness audited yet |
 | [`deliver_takes`](engine/world/Link.lean#L81-L90) | Pending: no concrete premise witness audited yet |
@@ -2404,6 +2404,14 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`recv_owed`](engine/world/Owed.lean#L54-L61) | Pending: no concrete premise witness audited yet |
 | [`recv_appends`](engine/world/Drain.lean#L45-L47) | Pending: no concrete premise witness audited yet |
 | [`node_serve`](engine/world/Owed.lean#L160-L169) | Pending: no concrete premise witness audited yet |
+| [`good_always`](engine/world/PlainGood.lean#L128-L131) | **kernel-witness**: [Vacuity.Good.good](tests/vacuity/Good.lean). The run is a concrete execution; apply good_always at every step. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`Plain.good_keeps`](engine/world/PlainGood.lean#L110-L112) | **kernel-witness**: [Vacuity.Good.good](tests/vacuity/Good.lean). good_always's step: every legal act of the run keeps the world good. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`moves_always`](engine/world/PlainGood.lean#L134-L138) | **kernel-witness**: [Vacuity.Good.writeMoves](tests/vacuity/Good.lean). Alice's write step: her store moves only by turns and purges. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`verdicts_spec`](engine/world/PlainGood.lean#L168-L173) | **runtime-witness**: [Vacuity.Good.replySpec](tests/vacuity/Good.lean). Natively, Alice's store holds a verdict on Bob's reply after her write; verdicts_spec turns it into the spec's verdict over her stored ops. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`Plain.agree`](engine/world/PlainGood.lean#L178-L185) | **runtime-witness**: [Vacuity.Good.agreeing](tests/vacuity/Good.lean). Natively, both logs hold the same two ops in opposite orders and their SHA-256 ids are distinct; agree gives equal verdicts at both nodes. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`sent_keeps`](engine/world/Good.lean#L238-L241) | **kernel-witness**: [Vacuity.Good.good](tests/vacuity/Good.lean). The world-level conjunct of good_always, over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`Keeps.always`](engine/world/Good.lean#L190-L192) | **kernel-witness**: [Vacuity.Good.good](tests/vacuity/Good.lean). Instantiated with the plain World's Good over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
+| [`Guar.always`](engine/world/Good.lean#L195-L199) | **kernel-witness**: [Vacuity.Good.writeMoves](tests/vacuity/Good.lean). Instantiated with the plain World's store moves over the run. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake. |
 | [`Index.answer_eq`](engine/sync/Conn.lean#L306-L308) | **kernel-witness**: [Vacuity.Treap.answerAgrees](tests/vacuity/Treap.lean). A room of three items inserted out of key order (two at time 0, one at time 5); a fingerprint claim it disagrees with. Synthetic ids; SHA-256 symbolic. |
 | [`Index.opening_eq`](engine/sync/Conn.lean#L301-L303) | **kernel-witness**: [Vacuity.Treap.openingAgrees](tests/vacuity/Treap.lean). The same room, opened over every key. Synthetic ids; SHA-256 symbolic. |
 | [`answerT_canon`](engine/sync/TreapAnswer.lean#L410-L412) | **kernel-witness**: [Vacuity.Treap.treapAnswers](tests/vacuity/Treap.lean). Three sorted items (sortedness decided), a claim of count 1 against 3 with leaf 1 and fan 2, so the answer cuts into pieces. |
