@@ -7,7 +7,7 @@
 # meaning (querydiff), ops as wire bytes against a lying peer (wire), two
 # nodes syncing through the driver (syncpair), in the pure world the
 # stream law is proven over (syncworld), and over localhost TCP through
-# the runner (tcppair), the Noise handshake against its published vector,
+# the runner (tcppair), a busy store not stopping it (busy_runner), the Noise handshake against its published vector,
 # the connection family end to end (connection_check), purge (SQLite
 # against the model, and a purged secret searched for in the database's
 # files), attachment chunks against their Merkle root with forgeries and
@@ -26,10 +26,11 @@ export PATH="$ELAN_HOME/bin:$PATH"
 # --tcp: only the suites over localhost TCP (ci/local.sh's engine:tcp; its
 # gate runs the rest with SKIP_TCP=1).
 if [ "${1:-}" = --tcp ]; then
-  lake build poolstarve tcppair jointcp
+  lake build poolstarve tcppair busy_runner jointcp
   mkdir -p out
   .lake/build/bin/poolstarve
   .lake/build/bin/tcppair out/tcppair
+  .lake/build/bin/busy_runner out/busy_runner
   .lake/build/bin/jointcp out/jointcp
   tests/engine/jointcp_busy.sh
   exit 0
@@ -40,7 +41,7 @@ if [ "${1:-}" = --phone-runtime ]; then
   bin=$PWD/out/phone-runtime/bin
   out=out/phone-runtime/tests
 else
-  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check newest window_sync
+  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair busy_runner noise_check connection_check purge jointcp merkle_check costcheck window_check newest window_sync
   bin=$PWD/.lake/build/bin
   out=out
 fi
@@ -62,11 +63,12 @@ if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve
 "$bin"/window_sync
 if [ "${SKIP_TCP:-0}" != 1 ]; then
   "$bin"/tcppair "$out"/tcppair
+  "$bin"/busy_runner "$out"/busy_runner
   "$bin"/jointcp "$out"/jointcp
   # and with its ports already taken, as under parallel CI
   [ "$bin" = "$PWD/.lake/build/bin" ] && tests/engine/jointcp_busy.sh
 else
-  echo "SKIP tcppair jointcp (TCP sandbox; both built)"
+  echo "SKIP tcppair busy_runner jointcp (TCP sandbox; built)"
 fi
 tests/engine/crypto_compat.sh
 mise run test:crypto-failure

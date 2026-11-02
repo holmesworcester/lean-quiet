@@ -37,3 +37,4 @@ restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine
 window	mise run test:window
 sync-full	mise run test:sync-full
+busy-runner	tests/engine/busy_runner_negative.sh

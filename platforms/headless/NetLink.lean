@@ -136,6 +136,11 @@ def main (args : List String) : IO UInt32 := do
   check s!"A2 is admitted, over TCP ({w.a2.me.name})" inA2
   check "into Ann's user" (w.a2.me.user == w.a.me.user && !w.a2.me.user.isEmpty)
   let ((), a2) ← (show M Unit from do
+    -- admitted before Ann's profile synced, A2 reads none: wait for it,
+    -- then there is exactly Ann's (A2 named nobody)
+    for _ in [0:600] do
+      if (← profiles (← get).me.c (← get).me.user) ≥ 1 then break
+      steps 1; IO.sleep 10
     check s!"A2 wrote no profile ({← profiles (← get).me.c (← get).me.user})"
       ((← profiles (← get).me.c (← get).me.user) == 1)
     sa2.cmds.modify (·.push "channel")

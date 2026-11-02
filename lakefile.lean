@@ -216,6 +216,11 @@ lean_exe syncworld where
 lean_exe tcppair where
   root := `tests.engine.TcpPair
 
+-- A busy store never stops the runner: a write lock held past the busy
+-- timeout on one runner's file while the other's post streams to it.
+lean_exe busy_runner where
+  root := `tests.engine.BusyRunner
+
 lean_exe noise_check where
   root := `tests.engine.NoiseCheck
 
