@@ -5,8 +5,13 @@ node: what the per-link laws take of a node's state at a step.
 - **No managed sessions** (`managed_nil`): a plain node's sessions all
   come from the harness's `connect`; the family establishes none, so
   `Node.follow` never adds one and every entry point ends with none.
+- **A plain node's pieces** (`Plain.pieces`): the `Pieces` of
+  engine/world/Pieces.lean for the plain hooks, from the few they reach;
+  every plain node invariant is one of these (`managed_pieces`, and
+  engine/world/InvIx.lean's).
 -/
 import engine.world.Owed
+import engine.world.Pieces
 
 namespace Engine.World
 open Engine Engine.Sync
@@ -49,149 +54,121 @@ theorem apply_managed (n : Node) (cid : Id) (st : Step) (now : Nat) (h : Held F)
     simp only [HeldM.run_pure]
     rw [(store_facts S s _ st.take false h).2.1]; exact hm
 
-theorem finish_managed (n : Node) (out : Acts) (now : Nat) (h : Held F) (hm : n.managed = []) :
-    ((n.finish (S.sync s) out now).run h).1.1.managed = [] := by
-  rw [finish_run S s n out now h hm]; exact hm
-
-theorem onWrite_managed (n : Node) (ops : List Op) (now : Nat) (h : Held F) (hm : n.managed = []) :
-    ((n.onWrite (S.sync s) ops now).run h).1.1.managed = [] := by
-  unfold Node.onWrite
-  simp only [HeldM.run_bind]
-  exact finish_managed S s _ _ now _ (by rw [heat_managed, store_keeps]; exact hm)
-
-theorem onClose_managed (n : Node) (addr : ByteArray) (now : Nat) (h : Held F) (hm : n.managed = []) :
-    ((n.onClose (S.sync s) addr now).run h).1.1.managed = [] := by
-  unfold Node.onClose
-  apply finish_managed
-  have : ∀ (L : List Id) (m : Node), m.managed = [] → (L.foldl Node.drop m).managed = [] := by
-    intro L
-    induction L with
-    | nil => intro m h; exact h
-    | cons a t ih => intro m h; exact ih _ (drop_managed m a h)
-  exact this _ n hm
-
-theorem connect_managed (n : Node) (cid : Id) (a : ByteArray) (dialer : Bool) (now : Nat) (h : Held F)
-    (hm : n.managed = []) : ((n.connect (S.sync s) cid a dialer now).run h).1.1.managed = [] := by
-  unfold Node.connect Node.open
-  simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
-  apply finish_managed
-  simp [Node.close, Node.setAddr, hm]
-
-theorem onSealed_managed (n : Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) (h : Held F)
-    (hm : n.managed = []) : ((n.onSealed (S.sync s) addr opened now).run h).1.1.managed = [] := by
-  unfold Node.onSealed
-  split
-  · exact hm
-  · split
-    · simp only [HeldM.run_bind]
-      generalize hR : HeldM.run (forIn (m := HeldM F) (_ : List ByteArray)
-        ((n.setAddr _ addr, {}) : Node × Acts) _) h = R
-      have pR := forIn_inv hR (fun _ (st : Node × Acts) => st.1.managed = []) hm (fun b _ st h' hst => by
-        split
-        · simp only [HeldM.run_bind, refresh_run, HeldM.run_pure, ForInStep.value]
-          exact apply_managed S s _ _ _ now _ hst
-        · exact hst)
-      exact finish_managed S s _ _ now _ (by rw [serveOwed_managed]; exact pR)
-    · exact hm
-
-theorem onFrame_managed (n : Node) (addr bytes : ByteArray) (now : Nat) (h : Held F) (hm : n.managed = []) :
-    ((n.onFrame (S.sync s) addr bytes now).run h).1.1.managed = [] := by
-  unfold Node.onFrame
-  split
-  · dsimp only
-    split
-    · exact hm
-    · split
-      · exact hm
-      · simp only [HeldM.run_bind]
-        exact finish_managed S s _ _ now _ (by rw [store_keeps, write_keeps]; exact hm)
-  · simp only [HeldM.run_bind]
-    exact onSealed_managed S s _ _ _ now _ hm
-  · exact hm
-
-theorem onTick_managed (n : Node) (now : Nat) (h : Held F) (hm : n.managed = []) :
-    ((n.onTick (S.sync s) now).run h).1.1.managed = [] := by
-  have hd : (S.sync s).deferredRetries = false := rfl
-  unfold Node.onTick
-  rw [hd]
-  unfold Node.onTickDirect
-  simp only [Bool.false_eq_true, ↓reduceIte, HeldM.run_bind]
-  have hA := store_keeps S s n (((S.sync s).hooks.dial now).run h).1 true (((S.sync s).hooks.dial now).run h).2
-  generalize HeldM.run (Node.store (S.sync s) n (((S.sync s).hooks.dial now).run h).1 true)
-    (((S.sync s).hooks.dial now).run h).2 = A at hA ⊢
-  generalize hR : HeldM.run (forIn (m := HeldM F) A.1.1.conns ((A.1.1, A.1.2) : Node × Acts) _) A.2 = R
-  have pR := forIn_inv hR (fun _ (st : Node × Acts) => st.1.managed = []) (by rw [hA]; exact hm)
-    (fun b _ st h' hst => by
-      split
-      · exact hst
-      · simp only [HeldM.run_bind, refresh_run]
-        split
-        · exact hst
-        · simp only [HeldM.run_bind]
-          generalize HeldM.run (Conn.tickGive _ _ _ _ now) h' = S1
-          have g1 := apply_managed S s st.1 b.1 S1.1 now S1.2 hst
-          generalize HeldM.run (Node.apply (S.sync s) st.1 b.1 S1.1 now) S1.2 = B at g1 ⊢
-          rw [sweep_none _ rfl]
-          simp only [HeldM.run_pure]
-          simp only [ForInStep.value]
-          rw [serveOwed_managed]
-          exact g1)
-  exact finish_managed S s _ _ now _ pR
 
 end
 
-/-! ## Over every execution -/
+/-! ## A plain node's pieces -/
 
 namespace Plain
 variable {Q : Plain F}
 
+/-- The plain setup's run is a run. -/
+theorem lawful : Lawful Q.setup.run := ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
+
+/-- A step that reads only is `MetaOnly` in the plain setup: the held
+store is the whole box. -/
+theorem reads_meta {α : Type} {p : HeldM F α} (hp : Reads p) : MetaOnly Q.setup.run Q.setup.held p := hp
+
+/-- The plain hooks' calls, sealing and ending a session read only: no
+secrets, no couriers to purge. -/
+theorem calls_keep {i : Fin Q.n} {α : Type} {p : HeldM F α} (hp : Call (Q.setup.sync i) p) (h : Held F) :
+    (p.run h).2 = h := by
+  cases hp with
+  | sealed n out => exact seal_reads (Q.two i) .a n out h
+  | _ => rfl
+
+/-- Following: the plain family establishes no session, so following
+only drops the managed ones. -/
+theorem follow_ok {i : Fin Q.n} {Φ : Node → Held F → Prop} (hd : ∀ n cid h, Φ n h → Φ (n.drop cid) h)
+    (n : Node) (now : Nat) (h : Held F) (hn : Φ n h) : Ok Q.setup Φ ((n.follow (Q.setup.sync i) now).run h) := by
+  unfold Node.follow
+  simp only [HeldM.run_bind, sync_established, HeldM.run_pure]
+  generalize hR1 : HeldM.run (forIn (m := HeldM F) n.managed ((n, {}) : Node × Acts) _) h = R1
+  have p1 := forIn_inv hR1 (fun h' (st : Node × Acts) => Φ st.1 h') hn (fun a _ st h' hst => by
+    simp only [List.any_nil, Bool.not_false, ↓reduceIte, HeldM.run_pure, ForInStep.value]
+    exact hd _ _ _ hst)
+  simp only [List.forIn_nil, HeldM.run_pure]
+  exact p1
+
+/-- **A plain node's pieces, from those its hooks reach**: following,
+the outbox, the calls and the catalog sweep are the plain hooks' (no
+session established, no outbox, calls that only read, no catalog), so a
+node invariant that drops keep needs only the rest. -/
+theorem pieces {i : Fin Q.n} {Φ : Node → Held F → Prop}
+    (write : ∀ n ops h, Φ n h → Ok Q.setup Φ ((n.write (Q.setup.sync i) ops).run h))
+    (store : ∀ n ops mine h, Φ n h → Ok Q.setup Φ ((n.store (Q.setup.sync i) ops mine).run h))
+    (recv : ∀ n cid c rs b now h, n.conn? cid = some c → Φ n h →
+      Ok Q.setup Φ ((n.apply (Q.setup.sync i) cid
+        ((Conn.recv Q.fam Q.cfg n.ix (c.carry rs) b now : HeldM F Step).run h).1 now).run h))
+    (tick : ∀ n cid c rs now h, n.conn? cid = some c → Φ n h →
+      Ok Q.setup Φ ((n.apply (Q.setup.sync i) cid
+        ((Conn.tickGive Q.fam Q.cfg n.ix (c.carry rs) now : HeldM F Step).run h).1 now).run h))
+    (serve : ∀ (y : Sync F (HeldM F)), y.fam = Q.fam → y.hooks = (Q.setup.sync i).hooks →
+      ∀ n cid now h, Φ n h → Ok Q.setup Φ ((n.serveOwed y cid now).run h))
+    (opens : ∀ n cid a dialer now h, Φ n h → Ok Q.setup Φ ((n.open (Q.setup.sync i) cid a dialer now).run h))
+    (setAddr : ∀ n cid a h, Φ n h → Φ (n.setAddr cid a) h)
+    (heat : ∀ n ids now h, Φ n h → Φ (n.heat (Q.setup.sync i) ids now) h)
+    (drop : ∀ n cid h, Φ n h → Φ (n.drop cid) h)
+    (sent : ∀ n out now h, Φ n h → Φ (n.sent out now) h)
+    (clear : ∀ n h, Φ n h → Φ { n with fresh := [], purged := [] } h)
+    (retries : ∀ n l o h, Φ n h → Φ { n with sweeps := l, retryOrder := o } h) : Pieces Q.setup i Φ where
+  write := write
+  store := store
+  recv n cid c rs b now h hc hn := by
+    show Ok Q.setup Φ ((Conn.recv Q.fam Q.cfg n.ix (c.carry rs) b now >>= fun st =>
+      n.apply (Q.setup.sync i) cid st now).run h)
+    rw [HeldM.run_bind, recv_reads Q.fam Q.cfg n.ix (c.carry rs) b now h]
+    exact recv n cid c rs b now h hc hn
+  tick n cid c rs now h hc hn := by
+    show Ok Q.setup Φ ((Conn.tickGive Q.fam Q.cfg n.ix (c.carry rs) now >>= fun st =>
+      n.apply (Q.setup.sync i) cid st now).run h)
+    rw [HeldM.run_bind, tickGive_reads Q.fam Q.cfg n.ix (c.carry rs) now h]
+    exact tick n cid c rs now h hc hn
+  serve := serve
+  sweep r rr n cid h hn := by
+    show Ok Q.setup Φ ((n.sweep { Q.setup.sync i with room := r, retryRoom := rr } cid).run h)
+    rw [sweep_none _ rfl]; exact hn
+  opens := opens
+  follow n now h hn := follow_ok drop n now h hn
+  flush n out h hn := by
+    show Ok Q.setup Φ ((n.flush (Q.setup.sync i) out).run h)
+    simp only [Node.flush, HeldM.run_bind, sync_outbox, HeldM.run_pure, List.isEmpty_nil, ↓reduceIte]
+    exact hn
+  calls p hp n h hn := by
+    show Φ n (p.run h).2
+    rw [calls_keep hp]; exact hn
+  setAddr := setAddr
+  heat := heat
+  drop := drop
+  sent := sent
+  clear := clear
+  retries := retries
+
+/-- **Every piece of a plain node keeps it managing no session.** -/
+theorem managed_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => n.managed = []) :=
+  pieces (fun n ops h hm => (write_keeps _ n ops h).trans hm)
+    (fun n ops mine h hm => (store_keeps (Q.two i) .a n ops mine h).trans hm)
+    (fun n cid _ _ _ now h _ hm => apply_managed (Q.two i) .a n cid _ now h hm)
+    (fun n cid _ _ now h _ hm => apply_managed (Q.two i) .a n cid _ now h hm)
+    (fun y _ _ n cid now h hm => (serveOwed_managed y n cid now h).trans hm)
+    (fun n cid a dialer now h hm => by
+      show ((n.open ((Q.two i).sync .a) cid a dialer now).run h).1.1.managed = []
+      unfold Node.open
+      simp only [HeldM.run_bind, sync_rooms, HeldM.run_pure]
+      simp [Node.close, Node.setAddr, hm])
+    (fun _ _ _ _ hm => hm) (fun _ _ _ _ hm => hm) (fun n cid _ hm => drop_managed n cid hm)
+    (fun _ _ _ _ hm => hm) (fun _ _ hm => hm) (fun _ _ _ _ hm => hm)
+
+/-- **Everything the World runs at a plain node keeps it managing no
+session**: every entry point, and a restart, which boots with none. -/
+theorem managed_local : Local Q.setup (fun _ n _ => n.managed = []) (fun _ n _ => n.managed = []) :=
+  Pieces.local lawful (Φ := fun _ n _ => n.managed = []) managed_pieces fun _ _ _ _ => rfl
+
 /-- **No plain node ever manages a session**, in any execution against
 any attacker, from nodes that manage none. -/
 theorem managed_nil {adv : World (Held F) Q.n → ByteArray → Prop} {w₀ : World (Held F) Q.n}
-    (E : Exec Q.setup adv w₀) (h0 : ∀ i, (w₀.node i).managed = []) : ∀ k i, ((E.world k).node i).managed = [] := by
-  intro k
-  induction k with
-  | zero => exact h0
-  | succ k ih =>
-    intro l
-    rw [Exec.world_succ]
-    have enter : ∀ (w : World (Held F) Q.n) (i : Fin Q.n) (t : Nat) (f : Node → HeldM F (Node × Effects)),
-        (∀ j, (w.node j).managed = []) → (∀ nd h, nd.managed = [] → ((f nd).run h).1.1.managed = []) →
-        ((w.enter Q.setup i t f).node l).managed = [] := by
-      intro w i t f hw hf
-      simp only [World.enter]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; exact hf _ _ (hw l)
-      · rw [upd_other _ _ e]; exact hw l
-    cases hact : E.act k with
-    | deliver k' t =>
-      simp only [World.step]
-      cases hp : (E.world k).flight[k']? with
-      | none => exact ih l
-      | some p =>
-        dsimp only
-        cases hj : Q.setup.at? p.dst with
-        | none => exact ih l
-        | some j =>
-          dsimp only
-          exact enter _ j t _ ih (fun nd h hm => onFrame_managed (Q.two j) .a nd _ _ t h hm)
-    | dup k' => simp only [World.step]; cases (E.world k).flight[k']? <;> exact ih l
-    | drop k' => exact ih l
-    | tick i t => simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onTick_managed (Q.two i) .a nd t h hm)
-    | write i ops t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onWrite_managed (Q.two i) .a nd ops t h hm)
-    | restart i t =>
-      simp only [World.step]
-      by_cases e : l = i
-      · subst e; simp only [upd_same]; rfl
-      · rw [upd_other _ _ e]; exact ih l
-    | close i a t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onClose_managed (Q.two i) .a nd a t h hm)
-    | connect i j cid dl t =>
-      simp only [World.step]
-      exact enter _ i t _ ih (fun nd h hm => connect_managed (Q.two i) .a nd cid _ dl t h hm)
-    | inject i o b t =>
-      simp only [World.step]; exact enter _ i t _ ih (fun nd h hm => onFrame_managed (Q.two i) .a nd o b t h hm)
+    (E : Exec Q.setup adv w₀) (h0 : ∀ i, (w₀.node i).managed = []) : ∀ k i, ((E.world k).node i).managed = [] :=
+  managed_local.keeps.always h0 E
 
 end Plain
 

@@ -550,6 +550,9 @@ lean_exe vacuity_identity_trust where
 lean_exe vacuity_core where
   root := `tests.vacuity.CoreRuntimeMain
 
+lean_exe vacuity_good where
+  root := `tests.vacuity.GoodMain
+
 lean_exe vacuity_seal_audit where
   root := `tests.vacuity.SealAuditMain
 

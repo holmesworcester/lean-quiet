@@ -346,6 +346,7 @@ world Engine.World.Exec.world = Engine.World.World.step
 world Engine.World.Plain.setup = Engine.World.World.step
 world Engine.World.Setup.at? = Engine.World.World.step
 world Engine.World.Plain.start = Engine.World.World.step
+world Engine.World.World.actAt = Engine.World.World.step
 spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
 spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
@@ -362,6 +363,7 @@ control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Engine.World.dialMutant A node whose dial hook stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
