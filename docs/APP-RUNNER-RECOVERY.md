@@ -13,7 +13,9 @@ journal entries; replay admission alone does not. Replaying an already committed
 operation is idempotent by operation ID, not a claim of exactly-once IO.
 
 The failed runner's retained stop task has a separate handle from normal
-suspension, so it does not suppress active App frames. Lifecycle polling observes
+suspension, so later local writes do not park behind it. (A pending normal
+stop no longer holds App frames either; see [APP-STOP-UI.md](APP-STOP-UI.md).)
+Lifecycle polling observes
 both tasks under the existing shared suspend deadline. Replay failure reports a
 notice and retains the journal for restart. No automatic reconnect is attempted.
 

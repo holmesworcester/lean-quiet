@@ -2721,7 +2721,7 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 
 ## 🟡 The connection's progress steps work.
 
-Rests on: `Engine.Model.run`
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 
 **`Engine.Sync.conn_answers_ids`** (wired)
 
@@ -2761,6 +2761,7 @@ Rests on: `Engine.Model.run`
 | requested | `∀ (o : Engine.Op), o ∈ whole → (recv.store start).db.ops o.id = some o ∨ ∃ j, j ≥ start ∧ o.id ∈ (send.conn j).owed` | [base] |
 | transport | `∀ (j : Nat), j ≥ start → ∀ (o : Engine.Op), o ∈ send.emitted j → ∃ k, k ≥ j ∧ o ∈ recv.input k` | [base] |
 | capped | `∀ (o : Engine.Op), o ∈ whole → o.capped = true` | [discharged] |
+| (stated over) | `Engine.CollisionFree` | [crypto] |
 
 ## 🟡 New ops reach connected members.
 
@@ -2782,6 +2783,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hof | `¬o.id ∈ c.offered` | [discharged] |
 | ha | `(w.peer s).node.addr? cid = some a` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.Sync.stream_delivers`** (world)
@@ -2811,6 +2813,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hcap | `(cb.asked.insert o.id).size ≤ S.cfg.maxKnown` | [discharged] |
 | hix | `Engine.Sync.authorize (Engine.Sync.Index.add S.fam (w.peer s).node.ix o) (ca.setRooms (S.rooms s cid)) [o.id] = [o.id]` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.Sync.stream_delivers_steps`** (world)
@@ -2844,18 +2847,21 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | h2 | `t1 ≤ t2` | [discharged] |
 | h3 | `t2 ≤ t3` | [discharged] |
 | h4 | `t3 ≤ t4` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.Sync.stream_offered_runs`** (world)
 
 | premise | statement | tag |
 |---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.Sync.stream_delivers_runs`** (world)
 
 | premise | statement | tag |
 |---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.Sync.write_offers`** (world)
@@ -2925,19 +2931,29 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 ## 🟡 A joiner connects, and both sides converge.
 
-Rests on: `(a World's network)`
+Rests on: `(a World's network)`, `Engine.Model.run`
 
 **`Connection.Execution.successful_fair_extension`** (world)
 
 | premise | statement | tag |
 |---|---|---|
 | success | `Goal (Connection.Execution.trace S initial actions)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Connection.Execution.fairRun_fair`** (world)
 
 | premise | statement | tag |
 |---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.world_step_unique`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hw | `∀ (side : Connection.Execution.Side), Engine.Sync.NodeUnique.Valid (w.peer side).node` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 ## ✅ Wants retain their order.
@@ -3788,6 +3804,7 @@ Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.World.Keeps.always`** (world)
@@ -3796,6 +3813,7 @@ Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 |---|---|---|
 | hk | `Engine.World.Keeps P adv G G` | [discharged] |
 | h0 | `G w₀` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.World.Guar.always`** (world)
@@ -3805,6 +3823,7 @@ Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 | hk | `Engine.World.Keeps P adv G G` | [discharged] |
 | hR | `Engine.World.Guar P adv G R` | [discharged] |
 | h0 | `G w₀` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 ## 🟡 A node invariant is proven once, for any hooks.
@@ -4842,6 +4861,14 @@ Rests on: `Engine.Model.run`
 | (none) | | |
 
 **`Hold.cachedMessagePlane_reuses`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+## ✅ Frame timing samples stay bounded.
+
+**`FrameTimes.bounded`** (wired)
 
 | premise | statement | tag |
 |---|---|---|

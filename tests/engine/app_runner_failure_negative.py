@@ -69,7 +69,7 @@ entry = 'entry stage detects the finished runner even with an empty parked queue
 replay = 'replay reaches real queue admission off the App thread'
 admission = 'new action parks without a second actual writer admission'
 parked = 'later local action remains parked until replay submission is observed'
-ui = 'failed teardown does not use the flag that suppresses active App frames'
+ui = 'failed teardown does not use the normal-stop slot that parks later writes'
 stopped = 'the retained recovery task actually stops its failed runner'
 unfinished = 'failed teardown retains its actual unfinished task'
 
@@ -84,19 +84,19 @@ controls = [
         '  let deadline := (← IO.monoMsNow) + budget\n  recoverNode\n',
         '  let deadline := (← IO.monoMsNow) + budget\n'), [entry], []),
     ('replay-only-parked', 'flush', lambda s: once(s,
-        '(replayNodeWrites s.wr s.queuedWrites)',
-        '(replayNodeWrites s.wr (s.toNode.toList.flatten.map Op.bytes))'), [replay], []),
+        's.netOwner.retire s.wr s.queuedWrites true',
+        's.netOwner.retire s.wr (s.toNode.toList.flatten.map Op.bytes) true'), [replay], []),
     ('eager-write-during-replay', 'flush', lambda s: once(once(s,
         's.netStop.isSome || s.netReplay.isSome || s.toNode.isEmpty',
         's.netStop.isSome || s.toNode.isEmpty'),
         's.netBoot.isSome || s.netStop.isSome || s.netReplay.isSome then',
         's.netBoot.isSome || s.netStop.isSome then'), [admission, parked], []),
-    ('failed-stop-suppresses-ui', 'flush', lambda s: once(s,
-        'netReplay := some replay, failedNetStop := some stopping,',
-        'netReplay := some replay, netStop := some stopping,'), [ui], []),
+    ('failed-stop-parks-writes', 'flush', lambda s: once(s,
+        'stopping := if failed then n.stopping else some stopping',
+        'stopping := some stopping'), [ui], []),
     ('omit-actual-failed-stop', 'flush', lambda s: once(s,
-        'let stopping ← IO.asTask (prio := .dedicated) (stopNodes none (some r))',
-        'let stopping ← IO.asTask (prio := .dedicated) (pure () : IO Unit)'),
+        'let stopping ← IO.asTask (prio := .dedicated) (stopNodes n.boot n.runner)',
+        'let stopping ← IO.asTask (prio := .dedicated) (if failed then pure () else stopNodes n.boot n.runner)'),
         [stopped], [stopped, unfinished]),
 ]
 
