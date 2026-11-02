@@ -90,7 +90,7 @@ wire (a `Keeps`).
 | `bounded` | node | every queue holds at most `maxKnown` ids | `bounded_pieces` | same | a8 / 71 |
 | `ix` | node | the index covers the store, keyed; the store holds each op under its id, in its log | `ix_pieces`, `boot_ixinv` | production: catalog sweep and purges (purges take only room-less ops, so covering survives) | a8 / 71 |
 | `store` | node | the store is one the engine reaches from its log (`Held.Reachable`), so the store invariant `Inv` holds (`reach_inv`) | `Moves.store_reachable` over `entry_fresh`; production `world_step_moves` | `Runs` for the production setup | 71 |
-| `settled` | node | **urgent status = Spec after every step**: every stored urgent op's status is its Spec verdict over the stored ops (`urgent_spec`, no premise); the rest settle after finitely many idle turns (see "Drain-cap") | `store_settled` (queue = []), until drain-cap lands; then `urgent_spec` | `urgent_spec`; the family obligation `urgent_closed` | 0f |
+| `waiting` | node | **urgent work settled after every step** (`UrgentWaiting`): every undecided urgent op whose closure is all urgent waits on its undecided requirements, so its status is its Spec verdict over the stored ops (`urgent_spec`); the rest settle after finitely many idle turns (see "Drain-cap") | `Moves.store_waiting` (`turn_waiting`, `purge_waiting`); `waiting_empty` at the start | — | done (0f) |
 | secrets purged | node | a closed session's secrets and couriers are gone, after a close and after crash recovery | `purge_gone`, retirement; "each completed close, including crash recovery, leaves no row" | a `Local`: it is about which sessions the node holds open, so it needs its own proof per entry point (a close retires and purges; an open writes secrets only for an open session) and at reboot (recovery) | 71 |
 | `Sent` | world | every packet in flight was sent in the past | `sent_keeps` (any setup) | — | done |
 | provenance | world | a packet with `src = some i` is a frame node i's entry point sent; injected bytes are in `adv w` | per node: `FramesOk`/`FramesBy` (`entry_fresh`, `removal_reaches_session`) | lift to `wire` with `Sent` and `step_touch` | 71 |
@@ -108,10 +108,10 @@ becomes a statement over every execution and every node:
 
 | README law | Corollary | From |
 |---|---|---|
-| Verdicts are the spec's, and final | `Plain.verdicts_spec`, ∀ k i | `store`, `settled` |
-| Honest nodes agree | `Plain.agree`, ∀ k k' i j: the same ops received, in any orders, give the same verdicts (`order_free` at every node) | `store`, `settled` |
+| Verdicts are the spec's, and final | `Plain.verdicts_sound`, ∀ k i: every stored verdict is the spec's; `Plain.verdicts_spec`, ∀ k i: for an op whose closure is all urgent, a verdict is stored iff the spec gives it | `store`; `store`, `waiting` |
+| Honest nodes agree | `Plain.agree_decided`, ∀ k k' i j: the same ops received, in any orders, give the same verdict on every op both decided; `Plain.agree`: and on every op whose closure is all urgent, decided or not (`urgent_agree` at every node) | `store`; `store`, `waiting` |
 | Shared stores only grow; purge is safe | `Plain.grows`, `keeps_op` | step guarantee |
-| The Community laws hold in the running node: admitted, removed, rooms, `connect_iff`, `removal_cuts_off` | the `*_node` laws, ∀ k i | `store` + urgent `settled`, through `status_iff_spec` and `sum_project_node`; lane join's `trace_good` is the production version |
+| The Community laws hold in the running node: admitted, removed, rooms, `connect_iff`, `removal_cuts_off` | the `*_node` laws, ∀ k i | `store` + `waiting`, through `urgent_valid_iff` and `sum_project_node`; lane join's `trace_good` is the production version |
 | Sessions are secret | per-wire secrecy | `secrecy` (71) |
 
 **Not a corollary: liveness.** `Plain.converge`, `offline` and
@@ -175,8 +175,9 @@ World on `Connection.hooks` is the next.
    skeletons, so the drain comes from per-piece facts (holmes-a8).
 3. The production n-node `Setup`, with crash recovery in `restart`
    (holmes-a8 and holmes-71).
-4. Drain-cap's idle turn at the start of `onTick`: a `carry` piece
-   (holmes-0f, on drain-cap's landing).
+4. Done with drain-cap: `onTick` starts with an idle turn, `Turn.turn fam
+   []`, and every `Pieces` has an `idle` arm for it (plain instances keep
+   their conjuncts because the turn changes only the store's tables).
 
 ## Drain-cap: what "settled" means
 
@@ -188,9 +189,10 @@ and the rest settle after finitely many idle turns.
 - **The urgent class** (holmes-0f): own writes; connection ops
   (handshake, established, session); and `Family.urgent`, which for
   Community is root, invite, request, grant, remove, approve and admit.
-- **queue = [] after every entry point stops holding.** A turn makes
-  urgent attempts, then at most 1024 FIFO pops, then urgent attempts
-  again; other content may carry to later turns.
+- **queue = [] after every entry point stops holding.** A turn ingests,
+  judges its job ahead, closes over the urgent waiters each decision
+  wakes, then makes at most 1024 FIFO pops; other content may carry to
+  later turns.
 - **What 0f states:** `urgent_spec`, every stored urgent op's status is
   its Spec verdict over the stored ops, after every step, with no
   premise; `turn_cost`, amortized over the wait-edge potential, with a
@@ -204,12 +206,14 @@ and the rest settle after finitely many idle turns.
   (`urgent_closed`). So `connect_iff`, `removal_cuts_off` and the
   `*_node` laws take "urgent status = Spec" in place of `queue = []`, and
   conclude about the same facts. Reads stay over Valid ops only.
-- **The plain instance today** uses `queue = []` (`NodeGood.settled`),
-  which holds on main and on fd/world-port. When drain-cap lands,
-  `settled` becomes `urgent : UrgentSpec fam h` (a `Local` from
-  `urgent_spec`), `verdicts_spec` is restated over urgent ids, and
-  `agree` over stores whose urgent status is the spec's; the rest
-  settling is a liveness law under fair ticks, not a conjunct of `Good`.
+- **The plain instance** has `waiting : UrgentWaiting fam h.db` in place
+  of `queue = []` (`waiting_local`, from `Moves.store_waiting`).
+  `verdicts_sound` keeps every stored verdict the spec's;
+  `verdicts_spec` is exact for ops whose closure is all urgent;
+  `agree_decided` keeps agreement on every op both nodes decided, and
+  `agree` covers every urgent op, decided or not. The rest settling is a
+  liveness law under fair ticks (`spec_eventually`, `closure_delivered`
+  under `Ticks`), not a conjunct of `Good`.
 
 ## What `Plain.good_always` covers, and what it does not
 
@@ -217,10 +221,12 @@ Covers: every node of the plain World (n nodes running the real
 `Engine.Sync.Node` on held stores, fixed rooms, frames in the clear,
 harness sessions), at every step of every execution from empty stores,
 against any attacker: `managed`, `owes`, `bounded`, `ix`, `store`,
-`settled` (as queue = []), and `Sent`; and each step's store moves.
+`waiting`, and `Sent`; and each step's store moves.
 Witnessed on a concrete run (tests/vacuity/Good.lean): two nodes write
-the same two ops in opposite orders; `agree` and `verdicts_spec` are
-applied natively, with the ops' SHA-256 ids decided by running them.
+the same two ops in opposite orders; `agree_decided` and
+`verdicts_sound` are applied natively, with the ops' SHA-256 ids decided
+by running them, and `agree` and `verdicts_spec` on the same run over a
+family whose every op is urgent.
 
 Does not cover: the production hooks (sealed sessions, the handshake,
 rooms from the store); lifecycle (R1, R2, production `crash` and

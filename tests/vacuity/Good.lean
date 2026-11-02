@@ -8,8 +8,10 @@ order, then the nodes' clocks tick forever. Every act is legal (all at
 time 0), so the run is an execution of `Plain.Run`, and each law below is
 applied to it: in the kernel where its premise is the run, and natively
 where it also takes premises about op ids (SHA-256, decided by running
-it). Synthetic fixture; the running node on a held store, not the
-Community family, sealed frames or the handshake. -/
+it). The urgent laws run on the same World over a family whose every op
+is urgent, as membership is (`urgentWorld`), where their closure premise
+holds of every op. Synthetic fixture; the running node on a held store,
+not the Community family, sealed frames or the handshake. -/
 namespace Vacuity.Good
 open Engine Engine.Sync Engine.World Tests
 
@@ -48,6 +50,27 @@ def run : world.Run where
     | 0 => exact ⟨Nat.le_of_eq h, trivial⟩
     | 1 => exact ⟨Nat.le_of_eq h, trivial⟩
     | _ + 2 => exact Nat.le_of_eq h
+
+/-- The same World on a family whose every op is urgent. -/
+def urgentWorld : Plain Unit := { world with fam := { oneRoom room with urgent := fun _ => true } }
+
+theorem urgent_now_zero : ∀ k, (worlds urgentWorld.setup urgentWorld.start act k).now = 0
+  | 0 => rfl
+  | 1 => rfl
+  | 2 => rfl
+  | _ + 3 => rfl
+
+def urgentRun : urgentWorld.Run where
+  act := act
+  legal k := by
+    have h := urgent_now_zero k
+    match k with
+    | 0 => exact ⟨Nat.le_of_eq h, trivial⟩
+    | 1 => exact ⟨Nat.le_of_eq h, trivial⟩
+    | _ + 2 => exact Nat.le_of_eq h
+
+/-- Every op's closure is all urgent on the urgent family. -/
+theorem all_urgent (s : DB Unit) (x : Id) : UrgentClosed urgentWorld.fam s x := fun _ _ _ _ => rfl
 
 /-! ## Kernel witnesses: laws whose premise is the run -/
 
@@ -115,11 +138,14 @@ theorem same_of_mem {A B : List Op} (h : ∀ o ∈ A ++ B, (o ∈ A ↔ o ∈ B)
     exact ⟨fun h' => absurd h' hm.1, fun h' => absurd h' hm.2⟩
 
 /-- Alice and Bob received the same two ops in opposite orders, with
-distinct ids: they agree on every verdict. -/
-def agreeing : Option (PLift (aliceBox.db.status = bobBox.db.status)) :=
+distinct ids: they agree on every op both decided. -/
+def agreeing : Option (PLift (∃ v w, aliceBox.db.status hello.id = some v ∧
+    bobBox.db.status hello.id = some w ∧ v = w)) :=
   if hd : Distinct (aliceBox.log ++ bobBox.log) then
     if hs : ∀ o ∈ aliceBox.log ++ bobBox.log, (o ∈ aliceBox.log ↔ o ∈ bobBox.log) then
-      some ⟨Plain.agree run 2 2 alice bob hd (same_of_mem hs)⟩
+      match h1 : aliceBox.db.status hello.id, h2 : bobBox.db.status hello.id with
+      | some v, some w => some ⟨v, w, rfl, rfl, Plain.agree_decided run 2 2 alice bob hd (same_of_mem hs) h1 h2⟩
+      | _, _ => none
     else none
   else none
 
@@ -127,7 +153,27 @@ def agreeing : Option (PLift (aliceBox.db.status = bobBox.db.status)) :=
 over her stored ops. -/
 def replySpec : Option (PLift (∃ v, Spec world.fam aliceBox.db.ops reply.id v)) :=
   match h : aliceBox.db.status reply.id with
-  | some v => some ⟨⟨v, (Plain.verdicts_spec run 2 alice reply.id v).1 h⟩⟩
+  | some v => some ⟨⟨v, Plain.verdicts_sound run 2 alice reply.id v h⟩⟩
+  | none => none
+
+def urgentAlice : Held Unit := (urgentRun.world 2).box alice
+def urgentBob : Held Unit := (urgentRun.world 2).box bob
+
+/-- On the urgent family the same two nodes agree on each op's verdict,
+decided or not. -/
+def urgentAgreeing : Option (PLift (urgentAlice.db.status hello.id = urgentBob.db.status hello.id)) :=
+  if hd : Distinct (urgentAlice.log ++ urgentBob.log) then
+    if hs : ∀ o ∈ urgentAlice.log ++ urgentBob.log, (o ∈ urgentAlice.log ↔ o ∈ urgentBob.log) then
+      some ⟨Plain.agree urgentRun 2 2 alice bob hd (same_of_mem hs) (all_urgent _ _)⟩
+    else none
+  else none
+
+/-- On the urgent family, Alice's verdict on Bob's reply is exactly the
+spec's. -/
+def urgentReplySpec : Option (PLift (∃ v, urgentAlice.db.status reply.id = some v ∧
+    Spec urgentWorld.fam urgentAlice.db.ops reply.id v)) :=
+  match h : urgentAlice.db.status reply.id with
+  | some v => some ⟨⟨v, rfl, (Plain.verdicts_spec urgentRun 2 alice (all_urgent _ _) v).1 h⟩⟩
   | none => none
 
 def main : IO UInt32 := do
@@ -135,9 +181,13 @@ def main : IO UInt32 := do
   t.ok "both nodes hold both ops" (aliceBox.log.length == 2 && bobBox.log.length == 2)
   t.ok "the two nodes received them in opposite orders" (aliceBox.log != bobBox.log)
   t.ok "the two ops have distinct ids" (hello.id != reply.id)
-  t.ok "same ops in opposite orders agree on every verdict" agreeing.isSome
+  t.ok "same ops in opposite orders agree on every op both decided" agreeing.isSome
   t.ok "alice's stored verdict on bob's reply is the spec's" replySpec.isSome
   t.ok "both stores decided both ops" ((aliceBox.db.status hello.id).isSome && (bobBox.db.status reply.id).isSome)
+  t.ok "urgent family: same ops in opposite orders agree on an urgent op" urgentAgreeing.isSome
+  t.ok "urgent family: alice's verdict on bob's reply is exactly the spec's" urgentReplySpec.isSome
+  t.ok "urgent family: both stores decided both ops"
+    ((urgentAlice.db.status hello.id).isSome && (urgentBob.db.status reply.id).isSome)
   return ← t.finish "good vacuity"
 
 end Vacuity.Good

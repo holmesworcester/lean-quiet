@@ -4,25 +4,25 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README cites outside its guarantee rows. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1238) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (290) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2158)
+✅ wired: about running code (1273) · 🌐 world: the node's code in a World (70) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (305) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2292)
 
 ## What is proven
 
 <ul>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 565 below</li>
 </ul>
 
 ## Towards Proofs for n Clients
 
 <ul>
-<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.same_ops_same_verdicts">Engine.same_ops_same_verdicts</a> ↪ · 72 below</li>
-<li>🌐 <a href="quality-proofs-sync.md#law-Engine.Sync.stream_delivers">Engine.Sync.stream_delivers</a> ↪ · 134 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.converge">Engine.World.Plain.converge</a> ↪ · 129 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.offline">Engine.World.Plain.offline</a> ↪ · 131 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.good_always">Engine.World.Plain.good_always</a> ↪ · 337 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.grows">Engine.World.Plain.grows</a> ↪ · 120 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.drain">Engine.World.Plain.drain</a> ↪ · 194 below</li>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.same_ops_same_verdicts">Engine.same_ops_same_verdicts</a> ↪ · 74 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.Sync.stream_delivers">Engine.Sync.stream_delivers</a> ↪ · 139 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.converge">Engine.World.Plain.converge</a> ↪ · 136 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.offline">Engine.World.Plain.offline</a> ↪ · 138 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.good_always">Engine.World.Plain.good_always</a> ↪ · 405 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.grows">Engine.World.Plain.grows</a> ↪ · 127 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 565 below</li>
+<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.drain">Engine.World.Plain.drain</a> ↪ · 199 below</li>
 </ul>
 
 ## What is Assumed
@@ -34,11 +34,36 @@
 <li>✅ <a href="security-proofs-confidentiality.md#law-Community.cryptoSeal_good">Community.cryptoSeal_good</a> ↪</li>
 <li>✅ <a href="security-proofs-connections.md#law-Connection.Noise.suite_good">Connection.Noise.suite_good</a> ↪ · 3 below</li>
 <li><a id="law-Community.ofSeed_signs"></a>✅ <a href="../../app/community/Commands.lean#L424">Community.ofSeed_signs</a></li>
-<li><details><summary><a id="law-Trust.receive_as_model"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L242">Trust.receive_as_model</a> · 53 below</summary><ul>
-<li><details><summary><a id="law-Trust.drain_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L187">Trust.drain_sim</a> · 48 below</summary><ul>
-<li><details><summary><a id="law-Trust.step_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L167">Trust.step_sim</a> · 47 below</summary><ul>
-<li><details><summary><a id="law-Trust.decide_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L152">Trust.decide_sim</a> · 43 below</summary><ul>
-<li><details><summary><a id="law-Trust.indexAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L137">Trust.indexAll_sim</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Trust.receive_as_model"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L285">Trust.receive_as_model</a> · 57 below</summary><ul>
+<li><details><summary><a id="law-Trust.turnCapped_sim"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L275">Trust.turnCapped_sim</a> · 54 below</summary><ul>
+<li><details><summary><a id="law-Trust.drain_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L189">Trust.drain_sim</a> · 48 below</summary><ul>
+<li><details><summary><a id="law-Trust.step_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L169">Trust.step_sim</a> · 47 below</summary><ul>
+<li><details><summary><a id="law-Trust.decide_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L154">Trust.decide_sim</a> · 43 below</summary><ul>
+<li>▫️ <a href="#law-Trust.indexAll_sim">Trust.indexAll_sim</a> ↪ · 41 below</li>
+<li>▫️ <a href="#law-Trust.pushAll_sim">Trust.pushAll_sim</a> ↪ · 41 below</li>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Trust.waitOn_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L122">Trust.waitOn_sim</a> · 42 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -61,79 +86,9 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L78">Trust.Sim.ite</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.pushAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L130">Trust.pushAll_sim</a> · 41 below</summary><ul>
-<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
-<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
-<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
-<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
-<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Trust.waitOn_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L120">Trust.waitOn_sim</a> · 42 below</summary><ul>
-<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
-<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
-<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L76">Trust.Sim.ite</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Trust.statuses_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L112">Trust.statuses_sim</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Trust.statuses_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L114">Trust.statuses_sim</a> · 41 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -201,9 +156,84 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L76">Trust.Sim.ite</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L78">Trust.Sim.ite</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.ingest_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L144">Trust.ingest_sim</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Trust.judgeJob_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L258">Trust.judgeJob_sim</a> · 48 below</summary><ul>
+<li><details><summary><a id="law-Trust.judgeAhead_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L240">Trust.judgeAhead_sim</a> · 47 below</summary><ul>
+<li>▫️ <a href="#law-Trust.decide_sim">Trust.decide_sim</a> ↪ · 43 below</li>
+<li>▫️ <a href="#law-Trust.waitOn_sim">Trust.waitOn_sim</a> ↪ · 42 below</li>
+<li>▫️ <a href="#law-Trust.statuses_sim">Trust.statuses_sim</a> ↪ · 41 below</li>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L78">Trust.Sim.ite</a></li>
+</ul></details></li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Trust.urgentClose_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L266">Trust.urgentClose_sim</a> · 48 below</summary><ul>
+<li>▫️ <a href="#law-Trust.judgeAhead_sim">Trust.judgeAhead_sim</a> ↪ · 47 below</li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Trust.ingest_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L146">Trust.ingest_sim</a> · 41 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -227,10 +257,11 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li><details><summary><a id="law-Trust.Sim.forIn"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L90">Trust.Sim.forIn</a> · 5 below</summary><ul>
+<li><details><summary><a id="law-Trust.Sim.forIn"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L92">Trust.Sim.forIn</a> · 5 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
 <li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
 </ul></details></li>
@@ -240,8 +271,30 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
-<li><details><summary><a id="law-Trust.Sim.transact"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L228">Trust.Sim.transact</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L197">Trust.transact_ok</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li><details><summary><a id="law-Trust.Sim.transact"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L230">Trust.Sim.transact</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L199">Trust.transact_ok</a></li>
 </ul></details></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -256,10 +309,12 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.purge_as_model"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L328">Trust.purge_as_model</a> · 59 below</summary><ul>
+<li><details><summary><a id="law-Trust.purge_as_model"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L386">Trust.purge_as_model</a> · 62 below</summary><ul>
+<li><details><summary><a id="law-Trust.purgeCapped_sim"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L370">Trust.purgeCapped_sim</a> · 55 below</summary><ul>
 <li>▫️ <a href="#law-Trust.drain_sim">Trust.drain_sim</a> ↪ · 48 below</li>
-<li><details><summary><a id="law-Trust.purge_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L305">Trust.purge_sim</a> · 46 below</summary><ul>
-<li><details><summary><a id="law-Trust.unsettle_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L287">Trust.unsettle_sim</a> · 42 below</summary><ul>
+<li>▫️ <a href="#law-Trust.urgentClose_sim">Trust.urgentClose_sim</a> ↪ · 48 below</li>
+<li><details><summary><a id="law-Trust.purge_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L351">Trust.purge_sim</a> · 46 below</summary><ul>
+<li><details><summary><a id="law-Trust.unsettle_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L333">Trust.unsettle_sim</a> · 42 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -282,9 +337,9 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L76">Trust.Sim.ite</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L78">Trust.Sim.ite</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.deleteAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L298">Trust.deleteAll_sim</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Trust.deleteAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L344">Trust.deleteAll_sim</a> · 41 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -309,7 +364,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Trust.pushAll_sim">Trust.pushAll_sim</a> ↪ · 41 below</li>
-<li><details><summary><a id="law-Trust.walkDeps_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L277">Trust.walkDeps_sim</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Trust.walkDeps_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L323">Trust.walkDeps_sim</a> · 41 below</summary><ul>
 <li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -356,6 +411,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
@@ -365,8 +421,30 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
-<li><details><summary><a id="law-Trust.Sim.throw"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L272">Trust.Sim.throw</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L47">Trust.sql_throw</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li><details><summary><a id="law-Trust.Sim.throw"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L318">Trust.Sim.throw</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L49">Trust.sql_throw</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Trust.Sim.transact">Trust.Sim.transact</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
@@ -381,10 +459,10 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L84">Trust.Sim.congr</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L317">Trust.scrub_sim</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L86">Trust.Sim.congr</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L363">Trust.scrub_sim</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.receive_refused"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L263">Trust.receive_refused</a> · 35 below</summary><ul>
+<li><details><summary><a id="law-Trust.receive_refused"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L309">Trust.receive_refused</a> · 35 below</summary><ul>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
@@ -423,7 +501,7 @@
 <li>🌐 <a href="quality-proofs-sync.md#law-Connection.Execution.fairRun_fair">Connection.Execution.fairRun_fair</a> ↪ · 6 below</li>
 <li>🌐 <a href="quality-proofs-sync.md#law-Connection.Execution.successful_fair_extension">Connection.Execution.successful_fair_extension</a> ↪ · 9 below</li>
 <li>📐 <a href="quality-proofs-sync.md#law-Engine.Sync.conn_runs_exchange">Engine.Sync.conn_runs_exchange</a> ↪ · 158 below</li>
-<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.closure_delivered">Engine.Sync.closure_delivered</a> ↪ · 156 below</li>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.Sync.closure_delivered">Engine.Sync.closure_delivered</a> ↪ · 184 below</li>
 </ul>
 
 ## Where native code still decides
@@ -629,7 +707,7 @@
 <li>✅ <a href="../../engine/wire/RetryOrderLaws.lean#L74">Engine.Sync.RetryOrder.reconcile_nodup</a></li>
 <li>▫️ <a href="../../engine/core/WindowIndex.lean#L22">Engine.lawfulBEqByteArray</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.NodeUnique.step_valid"></a>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L497">Engine.Sync.NodeUnique.step_valid</a> · 64 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.NodeUnique.step_valid"></a>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L498">Engine.Sync.NodeUnique.step_valid</a> · 64 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.NodeUnique.onFrame_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L389">Engine.Sync.NodeUnique.onFrame_valid</a> · 52 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.NodeUnique.onSealed_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L361">Engine.Sync.NodeUnique.onSealed_valid</a> · 51 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.NodeUnique.apply_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L288">Engine.Sync.NodeUnique.apply_valid</a> · 16 below</summary><ul>
@@ -730,18 +808,19 @@
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L25">Engine.Sync.NodeUnique.Ensures.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L19">Engine.Sync.NodeUnique.Ensures.pure'</a></li>
 </ul></details></li>
+<li>▫️ <a href="#law-Engine.Sync.NodeUnique.Ensures.bind_any">Engine.Sync.NodeUnique.Ensures.bind_any</a> ↪ · 2 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.NodeUnique.onWrite_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L484">Engine.Sync.NodeUnique.onWrite_valid</a> · 20 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.NodeUnique.onWrite_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L485">Engine.Sync.NodeUnique.onWrite_valid</a> · 20 below</summary><ul>
 <li>▫️ <a href="#law-Engine.Sync.NodeUnique.store_valid">Engine.Sync.NodeUnique.store_valid</a> ↪ · 12 below</li>
 <li>▫️ <a href="#law-Engine.Sync.NodeUnique.finish_valid">Engine.Sync.NodeUnique.finish_valid</a> ↪ · 11 below</li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L25">Engine.Sync.NodeUnique.Ensures.bind'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.NodeUnique.onClose_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L491">Engine.Sync.NodeUnique.onClose_valid</a> · 12 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.NodeUnique.onClose_valid"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L492">Engine.Sync.NodeUnique.onClose_valid</a> · 12 below</summary><ul>
 <li>▫️ <a href="#law-Engine.Sync.NodeUnique.finish_valid">Engine.Sync.NodeUnique.finish_valid</a> ↪ · 11 below</li>
 <li>▫️ <a href="#law-Engine.Sync.NodeUnique.fold_drop_valid">Engine.Sync.NodeUnique.fold_drop_valid</a> ↪ · 2 below</li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.NodeUnique.sql_step_valid"></a>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L508">Engine.Sync.NodeUnique.sql_step_valid</a> · 73 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.NodeUnique.sql_step_valid"></a>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L509">Engine.Sync.NodeUnique.sql_step_valid</a> · 73 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.NodeUnique.step_valid">Engine.Sync.NodeUnique.step_valid</a> ↪ · 64 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
@@ -764,22 +843,22 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 <li>▫️ <a href="../../engine/wire/IOLaws.lean#L10">Engine.Sync.io_lawful</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3891">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3926">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.NodeUnique.step_valid">Engine.Sync.NodeUnique.step_valid</a> ↪ · 64 below</li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L76">Engine.Sync.NodeUnique.Ensures.state</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3910">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3945">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.production_step_unique">Connection.Execution.production_step_unique</a> ↪ · 66 below</li>
-<li>▫️ <a href="../../app/Proofs.lean#L3896">Connection.Execution.world_run_unique</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3931">Connection.Execution.world_run_unique</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3951">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3986">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3960">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3995">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
 <li>🌐 <a href="#law-Connection.Execution.world_trace_unique">Connection.Execution.world_trace_unique</a> ↪ · 69 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3968">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L4003">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
@@ -808,7 +887,55 @@
 Subtrees met 5 levels down, drawn whole here once.
 
 <ul>
-<li><details><summary><a id="law-Trust.Sim.op"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L105">Trust.Sim.op</a> · 35 below</summary><ul>
+<li><details><summary><a id="law-Trust.indexAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L139">Trust.indexAll_sim</a> · 41 below</summary><ul>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Trust.pushAll_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L132">Trust.pushAll_sim</a> · 41 below</summary><ul>
+<li>▫️ <a href="#law-Trust.Sim.op">Trust.Sim.op</a> ↪ · 35 below</li>
+<li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Codec.decFromAs_tag">Engine.Codec.decFromAs_tag</a> ↪ · 3 below</li>
+<li>▫️ <a href="#law-Trust.Sim.bind">Trust.Sim.bind</a> ↪ · 2 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
+<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
+<li>▫️ <a href="#law-Trust.Sim.pure">Trust.Sim.pure</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L711">Engine.Codec.decFromAs_at</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L722">Engine.Codec.encInto_tag</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
+<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Trust.Sim.op"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L107">Trust.Sim.op</a> · 35 below</summary><ul>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
@@ -829,12 +956,12 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.Sim.bind"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L64">Trust.Sim.bind</a> · 2 below</summary><ul>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L34">Trust.model_bind</a></li>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L28">Trust.sql_bind</a></li>
+<li><details><summary><a id="law-Trust.Sim.bind"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L66">Trust.Sim.bind</a> · 2 below</summary><ul>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L36">Trust.model_bind</a></li>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L30">Trust.sql_bind</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Trust.Sim.pure"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L58">Trust.Sim.pure</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L31">Trust.sql_pure</a></li>
+<li><details><summary><a id="law-Trust.Sim.pure"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L60">Trust.Sim.pure</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/core/SqliteLaws.lean#L33">Trust.sql_pure</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.NodeUnique.fanout_shape"></a>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L150">Engine.Sync.NodeUnique.fanout_shape</a> · 10 below</summary><ul>
 <li>▫️ <a href="#law-Engine.Sync.NodeUnique.recordGiven_shape">Engine.Sync.NodeUnique.recordGiven_shape</a> ↪ · 6 below</li>

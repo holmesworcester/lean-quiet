@@ -111,7 +111,9 @@ theorem pieces {i : Fin Q.n} {Φ : Node → Held F → Prop}
     (drop : ∀ n cid h, Φ n h → Φ (n.drop cid) h)
     (sent : ∀ n out now h, Φ n h → Φ (n.sent out now) h)
     (clear : ∀ n h, Φ n h → Φ { n with fresh := [], purged := [] } h)
-    (retries : ∀ n l o h, Φ n h → Φ { n with sweeps := l, retryOrder := o } h) : Pieces Q.setup i Φ where
+    (retries : ∀ n l o h, Φ n h → Φ { n with sweeps := l, retryOrder := o } h)
+    (idle : ∀ n h, Φ n h → Φ n ((Turn.turn (Q.setup.sync i).fam [] : HeldM F Unit).run h).2) :
+    Pieces Q.setup i Φ where
   write := write
   store := store
   recv n cid c rs b now h hc hn := by
@@ -143,6 +145,7 @@ theorem pieces {i : Fin Q.n} {Φ : Node → Held F → Prop}
   sent := sent
   clear := clear
   retries := retries
+  idle := idle
 
 /-- **Every piece of a plain node keeps it managing no session.** -/
 theorem managed_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => n.managed = []) :=
@@ -158,6 +161,7 @@ theorem managed_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => n.managed = 
       simp [Node.close, Node.setAddr, hm])
     (fun _ _ _ _ hm => hm) (fun _ _ _ _ hm => hm) (fun n cid _ hm => drop_managed n cid hm)
     (fun _ _ _ _ hm => hm) (fun _ _ hm => hm) (fun _ _ _ _ hm => hm)
+    (fun _ _ hm => hm)
 
 /-- **Everything the World runs at a plain node keeps it managing no
 session**: every entry point, and a restart, which boots with none. -/

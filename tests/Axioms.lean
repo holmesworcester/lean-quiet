@@ -452,8 +452,11 @@ open Engine Community
 #print axioms Engine.World.Plain.good_always
 #print axioms Engine.World.Plain.good_keeps
 #print axioms Engine.World.Plain.moves_always
+#print axioms Engine.World.Plain.verdicts_sound
 #print axioms Engine.World.Plain.verdicts_spec
+#print axioms Engine.World.Plain.agree_decided
 #print axioms Engine.World.Plain.agree
+#print axioms Engine.World.Plain.waiting_local
 #print axioms Engine.World.Keeps.always
 #print axioms Engine.World.Guar.always
 #print axioms Engine.World.sent_keeps

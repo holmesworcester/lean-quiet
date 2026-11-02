@@ -7,7 +7,8 @@ A good plain node (`NodeGood`) manages no session (`managed_local`), its
 sessions owe only what they queue (`oq_pieces`) and queue at most
 `maxKnown` ids (`bounded_pieces`), its index covers its store
 (`ix_pieces`), its store is one the engine reaches from its log
-(`store_reachable`), and judging has settled (`store_settled`): each
+(`store_reachable`), and its urgent work has settled, every undecided
+urgent op waiting on its requirements (`store_waiting`): each
 conjunct is kept by every entry point and restart, given all of them
 before (`good_local`). A good plain world has good nodes and only packets
 sent in the past (`sent_keeps`). Every step moves each store only by
@@ -16,8 +17,11 @@ write turns and purges (`moves_always`).
 The laws that were proven one by one are its projections
 (`owes_queued_start`, `ix_covers_start`, `owed_bounded_start`), and two
 headline laws follow for every node at every step: verdicts are the
-spec's (`verdicts_spec`), and nodes that received the same ops, in any
-orders, agree on every verdict (`agree`).
+spec's (`verdicts_sound`), and so are urgent ops' absences too
+(`verdicts_spec`: a turn drains at most `drainCap` queued ops, so a
+non-urgent op may still wait); nodes that received the same ops, in any
+orders, agree on every op both decided (`agree_decided`) and on every
+urgent op (`agree`).
 
 Not covered here (docs/GOOD.md): the production hooks (sealed sessions,
 the handshake, rooms from the store), lifecycle (suspend, resume, the
@@ -47,8 +51,9 @@ structure NodeGood (Q : Plain F) (n : Node) (h : Held F) : Prop where
   ix : IxInv Q.fam n h
   /-- Its store is one the engine reaches from the ops in its log. -/
   store : h.Reachable Q.fam
-  /-- Judging has settled. -/
-  settled : h.db.queue = []
+  /-- Its urgent work has settled: every undecided urgent op with an
+  all-urgent closure waits on its undecided requirements. -/
+  waiting : UrgentWaiting Q.fam h.db
 
 /-- **A good plain world**: every node good, and every packet in flight
 sent in the past. -/
@@ -78,10 +83,11 @@ theorem store_local : Local Q.setup (fun _ _ h => h.Reachable Q.fam) (fun _ _ h 
   runs _ _ hf nd h hr := (runs_moves hf nd h).store_reachable hr
   boot _ _ _ hr := hr
 
-/-- Judging stays settled, given a reachable store. -/
-theorem settled_local :
-    Local Q.setup (fun _ _ h => h.Reachable Q.fam ∧ h.db.queue = []) (fun _ _ h => h.db.queue = []) where
-  runs _ _ hf nd h g := (runs_moves hf nd h).store_settled g.1 g.2
+/-- Urgent work stays settled, given a reachable store. -/
+theorem waiting_local :
+    Local Q.setup (fun _ _ h => h.Reachable Q.fam ∧ UrgentWaiting Q.fam h.db)
+      (fun _ _ h => UrgentWaiting Q.fam h.db) where
+  runs _ _ hf nd h g := (runs_moves hf nd h).store_waiting g.1 g.2
   boot _ _ _ g := g.2
 
 /-- **Everything the World runs at a plain node keeps it good**: each
@@ -100,8 +106,8 @@ theorem good_local : Local Q.setup (fun _ => Q.NodeGood) (fun _ => Q.NodeGood) :
       (fun _ _ h hi => boot_ixinv Q.fam h 0 hi.2.2)).mono fun _ _ _ g => g.ix
   have r : Local Q.setup (fun _ => Q.NodeGood) (fun _ _ h => h.Reachable Q.fam) :=
     store_local.mono fun _ _ _ g => g.store
-  have q : Local Q.setup (fun _ => Q.NodeGood) (fun _ _ h => h.db.queue = []) :=
-    settled_local.mono fun _ _ _ g => ⟨g.store, g.settled⟩
+  have q : Local Q.setup (fun _ => Q.NodeGood) (fun _ _ h => UrgentWaiting Q.fam h.db) :=
+    waiting_local.mono fun _ _ _ g => ⟨g.store, g.waiting⟩
   exact ⟨fun i f hf nd h g => ⟨m.runs i f hf nd h g, o.runs i f hf nd h g, b.runs i f hf nd h g,
       x.runs i f hf nd h g, r.runs i f hf nd h g, q.runs i f hf nd h g⟩,
     fun i nd h g => ⟨m.boot i nd h g, o.boot i nd h g, b.boot i nd h g, x.boot i nd h g, r.boot i nd h g,
@@ -122,7 +128,7 @@ theorem good_start : Q.Good Q.start :=
         (fun _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items, Index.room?] at ha),
         (fun _ _ hx => by cases hx)⟩
       store := held_empty_reachable Q.fam
-      settled := rfl },
+      waiting := waiting_empty },
    fun _ hp => by cases hp⟩
 
 /-- **Every plain world is good**, at every step of every execution from
@@ -166,34 +172,68 @@ theorem owed_bounded_start {adv : World (Held F) Q.n → ByteArray → Prop} (E 
 /-! ## Corollaries: headline laws at every node, at every step -/
 
 /-- **Every plain node's verdicts are the spec's**, at every step of
-every execution from empty stores, against any attacker: a verdict is
-stored iff the spec gives it over the stored ops. -/
-theorem verdicts_spec {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k : Nat)
+every execution from empty stores, against any attacker: a stored verdict
+is the one the spec gives over the stored ops. -/
+theorem verdicts_sound {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k : Nat)
     (i : Fin Q.n) (x : Id) (v : Verdict F) :
+    ((E.world k).box i).db.status x = some v → Spec Q.fam ((E.world k).box i).db.ops x v := by
+  obtain ⟨_, hr, _⟩ := (good_node E k i).store
+  exact (reach_inv hr).sound x v
+
+/-- **An urgent op's verdict is exactly the spec's** at every plain node,
+at every step of every execution from empty stores, against any
+attacker: for an op whose stored requirement closure is all urgent, a
+verdict is stored iff the spec gives it over the stored ops. -/
+theorem verdicts_spec {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k : Nat)
+    (i : Fin Q.n) {x : Id} (hc : UrgentClosed Q.fam ((E.world k).box i).db x) (v : Verdict F) :
     ((E.world k).box i).db.status x = some v ↔ Spec Q.fam ((E.world k).box i).db.ops x v := by
   have g := good_node E k i
   obtain ⟨_, hr, _⟩ := g.store
-  exact status_iff_spec (reach_inv hr) g.settled x v
+  exact urgent_spec (reach_inv hr) g.waiting.settled hc v
 
-/-- **Honest plain nodes agree**: two nodes that received the same ops,
-in any orders (their logs hold the same ops; no two of them share an
-id), hold the same verdicts, at any steps of any execution from empty
-stores, against any attacker (`order_free` at every node). -/
-theorem agree {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k k' : Nat)
+theorem log_reach {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k k' : Nat)
     (i j : Fin Q.n) (hd : Distinct (((E.world k).box i).log ++ ((E.world k').box j).log))
     (hsame : ∀ o, o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log) :
-    ((E.world k).box i).db.status = ((E.world k').box j).db.status := by
-  have g := good_node E k i
-  have g' := good_node E k' j
-  obtain ⟨L, hL, eL⟩ := g.store
-  obtain ⟨L', hL', eL'⟩ := g'.store
+    ∃ L L', Engine.Reach Q.fam L ((E.world k).box i).db ∧ Engine.Reach Q.fam L' ((E.world k').box j).db ∧
+      Distinct (L ++ L') ∧ ∀ o, o ∈ L ↔ o ∈ L' := by
+  obtain ⟨L, hL, eL⟩ := (good_node E k i).store
+  obtain ⟨L', hL', eL'⟩ := (good_node E k' j).store
   have mem : ∀ o, o ∈ L ++ L' → o ∈ ((E.world k).box i).log ++ ((E.world k').box j).log := by
     intro o ho
     rcases List.mem_append.1 ho with ho | ho
     · exact List.mem_append_left _ ((eL o).1 ho)
     · exact List.mem_append_right _ ((eL' o).1 ho)
-  exact order_free hL hL' (fun a ha b hb => hd a (mem a ha) b (mem b hb))
-    (fun o => (eL o).trans ((hsame o).trans (eL' o).symm)) g.settled g'.settled
+  exact ⟨L, L', hL, hL', fun a ha b hb => hd a (mem a ha) b (mem b hb),
+    fun o => (eL o).trans ((hsame o).trans (eL' o).symm)⟩
+
+/-- **Honest plain nodes agree on every op both decided**: two nodes that
+received the same ops, in any orders (their logs hold the same ops; no
+two of them share an id), hold the same verdict on each op both have
+decided, at any steps of any execution from empty stores, against any
+attacker. -/
+theorem agree_decided {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k k' : Nat)
+    (i j : Fin Q.n) (hd : Distinct (((E.world k).box i).log ++ ((E.world k').box j).log))
+    (hsame : ∀ o, o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log) {x : Id} {v w : Verdict F}
+    (hv : ((E.world k).box i).db.status x = some v) (hw : ((E.world k').box j).db.status x = some w) :
+    v = w := by
+  obtain ⟨L, L', hL, hL', dL, sL⟩ := log_reach E k k' i j hd hsame
+  have hops := ops_eq_of_same hL hL' dL sL
+  have sv := (reach_inv hL).sound x v hv
+  rw [hops] at sv
+  exact spec_det sv ((reach_inv hL').sound x w hw)
+
+/-- **Honest plain nodes agree on every urgent op**: two nodes that
+received the same ops, in any orders, hold the same verdict on each op
+whose stored requirement closure is all urgent, decided or not, at any
+steps of any execution from empty stores, against any attacker
+(`urgent_agree` at every node). -/
+theorem agree {adv : World (Held F) Q.n → ByteArray → Prop} (E : Exec Q.setup adv Q.start) (k k' : Nat)
+    (i j : Fin Q.n) (hd : Distinct (((E.world k).box i).log ++ ((E.world k').box j).log))
+    (hsame : ∀ o, o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log) {x : Id}
+    (hc : UrgentClosed Q.fam ((E.world k).box i).db x) :
+    ((E.world k).box i).db.status x = ((E.world k').box j).db.status x := by
+  obtain ⟨L, L', hL, hL', dL, sL⟩ := log_reach E k k' i j hd hsame
+  exact urgent_agree hL hL' dL sL (good_node E k i).waiting.settled (good_node E k' j).waiting.settled hc
 
 end Plain
 

@@ -130,6 +130,9 @@ structure Pieces (P : Setup F M S) (i : Fin P.n) (Φ : Node → Held F → Prop)
   clear : ∀ n h, Φ n h → Φ { n with fresh := [], purged := [] } h
   /-- Catalog bookkeeping: retry cursors and admission order. -/
   retries : ∀ n l o h, Φ n h → Φ { n with sweeps := l, retryOrder := o } h
+  /-- A tick's idle write turn (`Node.onTick`: a turn of no ops, which
+  carries what a capped turn left queued). -/
+  idle : ∀ n s, Φ n (P.held s) → Φ n (P.held (P.run (Turn.turn (P.sync i).fam [] : M Unit) s).2)
 
 /-! ## The entry points, from the pieces -/
 
@@ -382,9 +385,11 @@ theorem onTickReserved_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) 
 theorem onTick_keeps (L : Lawful P.run) (Pc : Pieces P i Φ) (n : Node) (now : Nat) (s : S)
     (hn : Φ n (P.held s)) : Ok P Φ (P.run (n.onTick (P.sync i) now) s) := by
   unfold Node.onTick
+  rw [L.bind]
+  have h0 := Pc.idle n s hn
   split
-  · exact onTickReserved_keeps L Pc n now s hn
-  · exact onTickDirect_keeps L Pc n now s hn
+  · exact onTickReserved_keeps L Pc n now _ h0
+  · exact onTickDirect_keeps L Pc n now _ h0
 
 end
 

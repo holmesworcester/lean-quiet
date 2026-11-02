@@ -172,6 +172,7 @@ theorem bounded_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => NodeBounded 
     (fun _ _ _ _ hn => bounded_conns rfl hn) (fun _ _ _ _ hn => bounded_conns rfl hn)
     (fun n cid _ hn => bounded_drop n cid hn) (fun n o t _ hn => bounded_sent n o t hn)
     (fun _ _ hn => bounded_conns rfl hn) (fun _ _ _ _ hn => bounded_conns rfl hn)
+    (fun _ _ hn => hn)
 
 end Plain
 

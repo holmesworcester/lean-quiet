@@ -336,31 +336,32 @@ theorem write_ixinv (x : Sync F (HeldM F)) (n : Node) (ops : List Op) (h : Held 
       simp only [HeldM.bind_apply, turn_apply]
       generalize absent.reverse = news
       have hS := fun o (ho : o ∈ news) => foldl_ingestS_isSome news h.db ho
-      generalize hT : List.foldl (fun s o => ingestS o s) h.db news = t at hS ⊢
-      generalize budget (h.log ++ news) t = k
-      have hS' : ∀ o ∈ news, ((drainS x.fam k t).ops o.id).isSome = true := by
-        intro o ho; rw [drainS_ops]; exact hS o ho
-      rw [HeldM.forIn_reads (g := fileStep x.fam (drainS x.fam k t))]
+      have eo := turnCappedS_ops (fam := x.fam) drainCap news h.db
+      generalize turnCappedS x.fam drainCap news h.db = u at eo ⊢
+      generalize hT : List.foldl (fun s o => ingestS o s) h.db news = t at hS eo
+      have hS' : ∀ o ∈ news, (u.ops o.id).isSome = true := by
+        intro o ho; rw [eo]; exact hS o ho
+      rw [HeldM.forIn_reads (g := fileStep x.fam u)]
       · simp only [HeldM.pure_apply]
-        show IxInv x.fam { n with ix := (news.foldl (fileStep x.fam (drainS x.fam k t)) (n.ix, [])).1, fresh := _ }
-          (Held.mk (h.log ++ news) (drainS x.fam k t))
+        show IxInv x.fam { n with ix := (news.foldl (fileStep x.fam u) (n.ix, [])).1, fresh := _ }
+          (Held.mk (h.log ++ news) u)
         rw [foldl_fileStep x.fam _ news _ hS']
         refine ⟨fun r y o hy hr => ?_, keyed_foldl x.fam hk news, fun y o hy => ?_⟩
-        · change (drainS x.fam k t).ops y = some o at hy
-          rw [drainS_ops, ← hT] at hy
+        · change u.ops y = some o at hy
+          rw [eo, ← hT] at hy
           rcases foldl_ingestS_ops news h.db hy with hy | ⟨hm, he⟩
           · obtain ⟨a, ha, ea⟩ := hc r y o hy hr
             exact ⟨a, items_foldl_mono x.fam ha, ea⟩
           · subst he; exact covers_foldl x.fam hk hm hr
-        · change (drainS x.fam k t).ops y = some o at hy
-          rw [drainS_ops, ← hT] at hy
+        · change u.ops y = some o at hy
+          rw [eo, ← hT] at hy
           rcases foldl_ingestS_ops news h.db hy with hy | ⟨hm, he⟩
           · obtain ⟨e, hlog⟩ := hl y o hy; exact ⟨e, List.mem_append_left _ hlog⟩
           · exact ⟨he, List.mem_append_right _ hm⟩
       · intro a b
         rw [HeldM.bind_apply, HeldM.getOp_apply]
         unfold fileStep
-        by_cases h1 : ((drainS x.fam k t).ops a.id).isSome = true
+        by_cases h1 : (u.ops a.id).isSome = true
         · rw [ite_eq_left h1, ite_eq_left h1]; rfl
         · rw [ite_eq_right h1, ite_eq_right h1]; rfl
   · intro a b
@@ -441,6 +442,20 @@ theorem oq_pieces (i : Fin Q.n) : Pieces Q.setup i (fun n _ => NodeOQ n) :=
       · exact hn cid' c (close_conn n cid cid' c hc))
     (fun _ _ _ _ hn => oq_conns rfl hn) (fun _ _ _ _ hn => oq_conns rfl hn) (fun n cid _ hn => oq_drop n cid hn)
     (fun n o t _ hn => oq_sent n o t hn) (fun _ _ hn => oq_conns rfl hn) (fun _ _ _ _ hn => oq_conns rfl hn)
+    (fun _ _ hn => hn)
+
+/-- A tick's idle turn keeps the index covering the store: it adds no op
+and no log entry. -/
+theorem idle_ixinv (fam : Family F) (n : Node) (h : Held F) (hi : IxInv fam n h) :
+    IxInv fam n ((Turn.turn fam [] : HeldM F Unit).run h).2 := by
+  obtain ⟨hc, hk, hl⟩ := hi
+  have e : (((Turn.turn fam [] : HeldM F Unit).run h).2).db.ops = h.db.ops := by
+    show (turnCappedS fam drainCap [] h.db).ops = _
+    rw [turnCappedS_ops]; rfl
+  have el : (((Turn.turn fam [] : HeldM F Unit).run h).2).log = h.log := by
+    show h.log ++ [] = _; simp
+  refine ⟨fun r x o ho hr => hc r x o (by rw [← e]; exact ho) hr, hk, fun x o ho => ?_⟩
+  rw [el]; exact hl x o (by rw [← e]; exact ho)
 
 /-- **Every piece of a plain node keeps its index covering its store.** -/
 theorem ix_pieces (i : Fin Q.n) : Pieces Q.setup i (IxInv Q.fam) :=
@@ -463,6 +478,7 @@ theorem ix_pieces (i : Fin Q.n) : Pieces Q.setup i (IxInv Q.fam) :=
     (fun _ _ _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
     (fun _ _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
     (fun _ _ hi => ixinv_of_ix rfl hi) (fun _ _ _ _ hi => ixinv_of_ix rfl hi)
+    (fun n h hi => idle_ixinv Q.fam n h hi)
 
 /-- **A node invariant that every piece of a plain node keeps, and that
 a restart restores from the store, holds of every node in every
@@ -535,8 +551,8 @@ theorem dial_mutant_unindexed (r : Id) (o : Op) : ¬ Pieces (dialMutant r o) ⟨
     · cases h
     · rw [List.mem_singleton] at hm
       subst hm
-      show (drainS _ _ _).ops o'.id = some o'
-      rw [drainS_ops]
+      show (turnCappedS _ _ _ _).ops o'.id = some o'
+      rw [turnCappedS_ops]
       exact ho'
   obtain ⟨a, ha, -⟩ := h1.1 r o.id o hs rfl
   simp [Node.boot, Index.ofOps, Index.items, Index.room?] at ha

@@ -507,6 +507,13 @@ theorem onTick_moves (n : Node) (now : Nat) (h : Held F) (cid x : Id) (o : Op) (
       ∃ g, o.bytes ∈ g ∧ (a, plainFrame cid g) ∈ ((n.onTick (S.sync s) now).run h).1.2.send := by
   have hd : (S.sync s).deferredRetries = false := rfl
   unfold Node.onTick
+  simp only [HeldM.run_bind]
+  -- The tick's idle turn keeps the ops (`turnCappedS_ops`).
+  have hg' : ((Turn.turn (S.sync s).fam [] : HeldM F Unit).run h).2.db.ops x = some o := by
+    show (turnCappedS _ drainCap [] h.db).ops x = some o
+    rw [turnCappedS_ops]; exact hg
+  generalize ((Turn.turn (S.sync s).fam [] : HeldM F Unit).run h).2 = h at hg' ⊢
+  replace hg := hg'
   rw [hd]
   unfold Node.onTickDirect
   simp only [Bool.false_eq_true, ↓reduceIte, HeldM.run_bind, sync_dial, HeldM.run_pure, store_nil]

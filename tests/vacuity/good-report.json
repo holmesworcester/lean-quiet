@@ -20,19 +20,33 @@
     "module": "tests.vacuity.Good",
     "detail": "Alice's write step: her store moves only by turns and purges. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
   },
+  "verdicts_sound": {
+    "status": "runtime-witness",
+    "theorem": "Engine.World.Plain.verdicts_sound",
+    "witness": "Vacuity.Good.replySpec",
+    "module": "tests.vacuity.Good",
+    "detail": "Natively, Alice's store holds a verdict on Bob's reply after her write; verdicts_sound turns it into the spec's verdict over her stored ops. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
   "verdicts_spec": {
     "status": "runtime-witness",
     "theorem": "Engine.World.Plain.verdicts_spec",
-    "witness": "Vacuity.Good.replySpec",
+    "witness": "Vacuity.Good.urgentReplySpec",
     "module": "tests.vacuity.Good",
-    "detail": "Natively, Alice's store holds a verdict on Bob's reply after her write; verdicts_spec turns it into the spec's verdict over her stored ops. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+    "detail": "Natively, on the urgent family Alice's store holds a verdict on Bob's reply after her write; verdicts_spec, whose closure premise holds of every op there, turns it into the spec's verdict over her stored ops. Synthetic fixture: the same two-node plain World and run on the one-room family with every op urgent (as membership is), so every op's closure is all urgent. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "Plain.agree_decided": {
+    "status": "runtime-witness",
+    "theorem": "Engine.World.Plain.agree_decided",
+    "witness": "Vacuity.Good.agreeing",
+    "module": "tests.vacuity.Good",
+    "detail": "Natively, both logs hold the same two ops in opposite orders, their SHA-256 ids are distinct, and both stores decided Alice's message; agree_decided gives the same verdict at both nodes. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
   },
   "Plain.agree": {
     "status": "runtime-witness",
     "theorem": "Engine.World.Plain.agree",
-    "witness": "Vacuity.Good.agreeing",
+    "witness": "Vacuity.Good.urgentAgreeing",
     "module": "tests.vacuity.Good",
-    "detail": "Natively, both logs hold the same two ops in opposite orders and their SHA-256 ids are distinct; agree gives equal verdicts at both nodes. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
+    "detail": "Natively, on the urgent family both logs hold the same two ops in opposite orders and their SHA-256 ids are distinct; agree, whose closure premise holds of every op there, gives equal verdicts on Alice's message at both nodes. Synthetic fixture: the same two-node plain World and run on the one-room family with every op urgent (as membership is), so every op's closure is all urgent. The running node on held stores, not the Community family, sealed frames or the handshake."
   },
   "sent_keeps": {
     "status": "kernel-witness",
