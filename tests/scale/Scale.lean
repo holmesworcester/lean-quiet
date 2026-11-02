@@ -149,8 +149,9 @@ def freshDb (dir name : String) : IO Db := do
     if ← System.FilePath.pathExists p then IO.FS.removeFile p
   Db.openAt (dir ++ "/" ++ name)
 
-/-- One capped turn, in one transaction, as the writer runs it; its
-urgent closure's attempts, and its nanoseconds. -/
+/-- One capped turn, in one transaction, as the writer runs it; the work
+it reports (urgent-closure attempts and queue steps), and its
+nanoseconds. -/
 def turnSql (db : Db) (ops : List Op) : IO (Nat × Nat) := do
   let t0 ← IO.monoNanosNow
   let a ← (transact (turnCapped (m := SqlM Unit) toy drainCap ops)).run db
@@ -162,7 +163,8 @@ def receiveSql (db : Db) (ops : List Op) : IO Nat := do
   let t0 ← IO.monoNanosNow
   (transact (do
     for o in ops do ingest (F := Unit) (m := SqlM Unit) o
-    drain (m := SqlM Unit) toy (← budgetSql (F := Unit)) : SqlM Unit Unit)).run db
+    let _ ← drain (m := SqlM Unit) toy (← budgetSql (F := Unit))
+    pure () : SqlM Unit Unit)).run db
   return (← IO.monoNanosNow) - t0
 
 def tally (db : Db) : IO (Nat × Nat × Nat) := (tallyRows (F := Unit)).run db
@@ -175,7 +177,8 @@ def turnNoClose (db : Db) (ops : List Op) : IO Unit :=
   (transact (do
     for o in ops do ingest (F := Unit) (m := SqlM Unit) o
     let _ ← judgeJob (m := SqlM Unit) toy (ops.map (·.id))
-    drain (m := SqlM Unit) toy drainCap : SqlM Unit Unit)).run db
+    let _ ← drain (m := SqlM Unit) toy drainCap
+    pure () : SqlM Unit Unit)).run db
 
 /-- A node over this store, ticking: no rooms, no sessions. -/
 def tickSync : Engine.Sync.Sync Unit (SqlM Unit) :=
@@ -191,7 +194,7 @@ def turnsAt (t : Checks) (dir : String) (n : Nat) : IO (Array String) := do
   let (_, tIn) ← turnSql db content
   let (a, tRoot) ← turnSql db [rootOp]
   let (q, u, _) ← tally db
-  IO.println s!"turns n={n}: n content ops waiting on a missing root taken in, {ms tIn} ms; the root's turn: {ms tRoot} ms, {a} closure attempts, {q} left queued, {u} undecided"
+  IO.println s!"turns n={n}: n content ops waiting on a missing root taken in, {ms tIn} ms; the root's turn: {ms tRoot} ms, {a} attempts and queue steps, {q} left queued, {u} undecided"
   t.ok s!"n={n}: the root's turn judged at most drainCap queued ops ({u} of {n} still undecided)" (u + cap ≥ n)
   rows := rows.push s!"root turn (capped)\t{n}\tleft undecided\t{u}\t{ms tRoot}"
   -- an urgent op behind the backlog is decided in its own turn
@@ -240,10 +243,10 @@ def turnsAt (t : Checks) (dir : String) (n : Nat) : IO (Array String) := do
   let (q3, _, _) ← tally db3
   let (a3, tSpike) ← turnSql db3 [rootOp]
   let (_, u3, _) ← tally db3
-  IO.println s!"turns n={n}: spike: the root of {n} waiting urgent ops: {a3} closure attempts in {ms tSpike} ms, {u3} undecided after"
+  IO.println s!"turns n={n}: spike: the root of {n} waiting urgent ops: {a3} attempts and queue steps in {ms tSpike} ms, {u3} undecided after"
   t.ok s!"n={n}: the urgent closure decides every waiting urgent op in the root's turn" (u3 == 0)
-  t.ok s!"n={n}: the spike's attempts ({a3}) are within the potential {q3 + 2 * n + 1} (turn_pot)" (a3 ≤ q3 + 2 * n + 1)
-  rows := rows.push s!"urgent spike\t{n}\tattempts\t{a3}\t{ms tSpike}"
+  t.ok s!"n={n}: the spike's work ({a3}) is within the potential {q3 + 2 * n + 1} (turn_pot)" (a3 ≤ q3 + 2 * n + 1)
+  rows := rows.push s!"urgent spike\t{n}\twork\t{a3}\t{ms tSpike}"
   if n > cap then
     -- control: without the urgent closure, woken urgent ops stay undecided
     let db4 ← freshDb dir s!"turns-{n}-noclose.db"

@@ -454,7 +454,6 @@ open Engine Community
 #print axioms Engine.World.Plain.verdicts_spec
 #print axioms Engine.World.Plain.agree_decided
 #print axioms Engine.World.Plain.agree
-#print axioms Engine.World.Plain.waiting_local
 #print axioms Engine.World.Keeps.always
 #print axioms Engine.World.Guar.always
 #print axioms Engine.World.sent_keeps
@@ -1483,8 +1482,6 @@ end cost
 #print axioms Engine.Sync.absentFold_covers
 #print axioms Engine.Sync.write_preserves_op
 #print axioms Engine.Sync.write_takes
-#print axioms Engine.Sync.dedup_nodup
-#print axioms Engine.Sync.budget_same_ops
 #print axioms Engine.Sync.held_empty_reachable
 #print axioms Engine.Sync.ingest_many_reachable
 #print axioms Engine.Sync.turn_reachable

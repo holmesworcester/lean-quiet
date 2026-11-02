@@ -256,9 +256,11 @@ bridge Engine.Sync.Lanes.take Engine.Sync.Reserved.take_vacant
 bridge Engine.ingestAll Engine.run_ingestEach
 # The capped write turn and purge (engine/core/TurnLaws.lean): the running
 # `turnCapped`, `judgeAhead`, `judgeJob`, `urgentClose` and `purgeCapped`
-# on the model's tables, and what the closure reports, its attempts.
+# on the model's tables, and what they report: the closure its attempts,
+# the drain its queue steps, the turn both.
 bridge Engine.closeAttempts Engine.run_urgentClose_count
-bridge Engine.turnAttempts Engine.run_turnCapped_count
+bridge Engine.drainPops Engine.run_drain
+bridge Engine.turnWork Engine.run_turnCapped_count
 # The model's step, drain, ingest and purge (stepS, drainS, ingestS,
 # purgeS, purgeSet) run themselves since the app's ephemeral log
 # (Held.ofOps) does: no bridge needed for them.
@@ -314,6 +316,13 @@ spec Engine.Sync.Inbox.Priority.Run.selected The running Priority.step's choice 
 spec Engine.Sync.Inbox.Priority.State.append The producers' FIFO appends a run allows: any writes and events after each poll.
 spec Engine.Sync.Inbox.Priority.phaseAfter The phase after n polls: the running `advance`, n times.
 spec Engine.Sync.ExpiryGrace.consumed The grace after n selections: the running `consume` (Tcp's per-turn grace update), n times.
+spec Engine.pot A store's potential: its queue's length plus twice its open wait edges, the measure a write turn's work is bounded in (engine/core/TurnCost.lean).
+spec Engine.credit What a job's ops may add to the potential: 1 + 2·reqs per op, the intake the turn cost laws charge.
+spec Engine.runTurns Turns of these jobs, one after another: the running capped turn (`turnCappedS`, the store's `Turn.turn`), once per job.
+spec Engine.runWork The work those turns report, all together: the running turn's `turnWork` (`run_turnCapped_count`), summed over the jobs.
+spec Engine.carries k idle turns: the running capped turn with no ops (`turnCappedS fam cap []`, what `Node.onTick` opens with), k times.
+spec Community.Fact.membership Which Community facts are membership facts (admissions, invitations, admin grants, removals, requests, approvals): the class urgent ops make, the family's declaration in `Community.urgentCites`.
+spec Connection.nodeCites The node family's declaration that urgent ops cite only urgent ops' facts: Community's membership facts and the connection's own (`UrgentCites`; its proofs are the family obligations).
 spec Engine.Sync.Ingress.Run.selected The running State.poll's choice (Hub.poll's core) at a poll of a run: every transition runs poll, then any producers' offers.
 spec Engine.Sync.Ingress.State.arrivals Producers' offers between polls, each the running State.offer (Hub.offer's core); any number, to any source.
 spec Engine.Sync.Ingress.distance How many slots the cursor is from a source: the progress measure of the running scan.

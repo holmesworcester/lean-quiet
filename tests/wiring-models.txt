@@ -27,7 +27,7 @@ Connection.Execution.production_step_history
 Connection.Execution.production_step_moves
 Connection.Execution.production_step_reachable
 Connection.Execution.production_step_retains
-Connection.Execution.production_step_settled
+Connection.Execution.production_step_waiting  # was Connection.Execution.production_step_settled
 Connection.Execution.production_step_unique
 Connection.Execution.production_write_receives
 Connection.Execution.world_step_history

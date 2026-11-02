@@ -153,14 +153,21 @@ def drainS (fam : Family F) : Nat → DB F → DB F
   | 0, s => s
   | n + 1, s => if s.queue.isEmpty then stepS fam s else drainS fam n (stepS fam s)
 
+/-- The queue steps a drain takes: those with something queued. -/
+def drainPops (fam : Family F) : Nat → DB F → Nat
+  | 0, _ => 0
+  | n + 1, s => if s.queue.isEmpty then 0 else 1 + drainPops fam n (stepS fam s)
+
+/-- **What runs is the drain on the tables**, and it reports its queue
+steps. -/
 theorem run_drain (fam : Family F) (n : Nat) (s : DB F) :
-    (drain (m := Model F) fam n).run s = ((), drainS fam n s) := by
+    (drain (m := Model F) fam n).run s = (drainPops fam n s, drainS fam n s) := by
   induction n generalizing s with
   | zero => rfl
   | succ n ih =>
-    simp only [drain, drainS, Model.run_bind, run_step]
+    simp only [drain, drainS, drainPops, Model.run_bind, run_step]
     cases h : s.queue.isEmpty with
     | true => rfl
-    | false => simp only [Bool.not_false, ite_true, ih, Bool.false_eq_true, ite_false]
+    | false => simp only [Bool.not_false, ite_true, Model.run_bind, ih, Bool.false_eq_true, ite_false]; rfl
 
 end Engine

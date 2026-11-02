@@ -307,10 +307,15 @@ def step (fam : Family F) : m Bool := do
         | none => waitOn (F := F) x o.reqs
         pure true
 
-/-- Judge queued ops until the queue is empty, at most n of them. -/
-def drain (fam : Family F) : Nat → m Unit
-  | 0 => pure ()
-  | n + 1 => do if ← step fam then drain fam n
+/-- Judge queued ops until the queue is empty, at most n of them. The
+queue steps it took (engine/core/TurnCost.lean bounds them). -/
+def drain (fam : Family F) : Nat → m Nat
+  | 0 => pure 0
+  | n + 1 => do
+    if ← step fam then
+      let k ← drain fam n
+      pure (1 + k)
+    else pure 0
 
 /-! ## Judging ahead: the urgent closure (engine/core/Urgent.lean) -/
 
@@ -362,14 +367,15 @@ urgent closure, which it judges first). -/
 once, then the urgent ops their decisions wake, transitively (enough
 attempts for every one of them: `urgentClose`'s fuel), then at most `cap`
 queued ops. What is still queued waits for the next turn. The urgent
-closure's attempts (TurnCost.lean: `run_work_capped`). -/
+closure's attempts and the queue steps it took (TurnCost.lean:
+`run_work_capped`). -/
 def turnCapped (fam : Family F) (cap : Nat) (ops : List Op) : m Nat := do
   for o in ops do ingest (F := F) o
   let woken ← judgeJob fam (ops.map (·.id))
   let n ← countOps (F := F)
   let k ← urgentClose fam (woken.length + n * (n + 1)) woken
-  drain fam cap
-  pure k
+  let d ← drain fam cap
+  pure (k + d)
 
 /-! ## Purging (engine/core/Purge.lean) -/
 
@@ -428,7 +434,7 @@ def purgeCapped (fam : Family F) (cap : Nat) (ids : List Id) : m (Option (List I
   | some (gone, again) =>
     let n ← countOps (F := F)
     let _ ← urgentClose fam (again.length + n * (n + 1)) again
-    drain fam cap
+    let _ ← drain fam cap
     pure (some gone)
 
 end

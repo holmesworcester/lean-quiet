@@ -144,25 +144,6 @@ theorem write_takes (x : Sync F (HeldM F)) (n : Node) (h : Held F) (ops : List O
       (by rw [List.map_reverse]; exact (List.reverse_perm _).nodup_iff.mpr hdistinct)).2.2
       o (List.mem_reverse.mpr hp)
 
-theorem dedup_nodup (ops : List Op) : ops.eraseDups.Nodup := by
-  match ops with
-  | [] => simp
-  | o :: os =>
-    rw [List.eraseDups_cons, List.nodup_cons]
-    exact ⟨by simp, dedup_nodup _⟩
-termination_by ops.length
-decreasing_by have := List.length_filter_le (fun p : Op => !p == o) os; simp; omega
-
-/-- The engine's finite draining budget depends on the set of received
-operations, not the order used to record their history. -/
-theorem budget_same_ops (a b : List Op) (s : DB F)
-    (same : ∀ o, o ∈ a ↔ o ∈ b) : budget a s = budget b s := by
-  have hp : a.eraseDups.Perm b.eraseDups :=
-    (List.perm_ext_iff_of_nodup (dedup_nodup a) (dedup_nodup b)).mpr
-      (fun o => by simpa using same o)
-  have hu := (hp.filter (fun o => (s.status o.id).isNone)).length_eq
-  simp only [budget, undecided, hp.length_eq, hu]
-
 /-- The Held log records the same received operations as an actual engine
 history. Its chronological order may differ from `Engine.Reach`'s list. -/
 def Held.Reachable (fam : Family F) (h : Held F) : Prop :=

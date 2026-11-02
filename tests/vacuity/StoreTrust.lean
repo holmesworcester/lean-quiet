@@ -194,14 +194,14 @@ def main : IO UInt32 := do
   (receive fam (ops.drop 40)).run db
   let turn : Model Fact Unit := do
     for o in ops.drop 40 do ingest (F := Fact) (m := Model Fact) o
-    drain (m := Model Fact) fam (← budgetM)
+    discard <| drain (m := Model Fact) fam (← budgetM)
   let s2 := (turn s).2
   let keys2 := keysOf fam s2 ids
   t.ok "a write turn's rows show the model's write turn" (showsOn (← rows) s2 ids keys2)
   purgeSql fam [x] false |>.run db
   let purged : Model Fact Unit := do
     match ← purge (m := Model Fact) fam [x] with
-    | some _ => drain (m := Model Fact) fam (← budgetM)
+    | some _ => discard <| drain (m := Model Fact) fam (← budgetM)
     | none => pure ()
   let s3 := (purged s2).2
   t.ok "a purge's rows show the model's purge" (showsOn (← rows) s3 ids (keysOf fam s3 ids))

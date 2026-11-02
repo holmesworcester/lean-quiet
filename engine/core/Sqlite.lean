@@ -302,7 +302,7 @@ def reindexOnce [Codec F] [SortKey F] (version : String) (keys : F → List Byte
           Store.push (F := F) id
         after := some id
     if let some fam := retryInvalid then
-      drain (m := SqlM F) fam (← budgetSql (F := F))
+      let _ ← drain (m := SqlM F) fam (← budgetSql (F := F))
     sqlDo "INSERT INTO index_versions (version) VALUES (?)" #[version.toUTF8]
     return true
 

@@ -191,7 +191,8 @@ theorem drain_sim (h : SqliteStore F holds) (fam : Family F) :
   | 0 => by unfold drain; exact Sim.pure
   | n + 1 => by
     unfold drain
-    exact Sim.bind (step_sim h fam) fun b => Sim.ite _ (drain_sim h fam n) Sim.pure
+    exact Sim.bind (step_sim h fam) fun b =>
+      Sim.ite _ (Sim.bind (drain_sim h fam n) fun _ => Sim.pure) Sim.pure
 
 /-! ## Transactions -/
 

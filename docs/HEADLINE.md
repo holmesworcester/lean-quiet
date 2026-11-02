@@ -718,20 +718,20 @@ recommended law, and the details of every other law above, are in
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:121](../app/community/Proofs.lean#L121) | propext, Classical.choice, Quot.sound | 367 | 345 | 6 | 1 | 1 |
-| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 352 | 344 | 8 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:51](../app/community/member/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 352 | 344 | 8 | 0 | 0 |
-| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:10](../app/community/member/remove/Proofs.lean#L10) | propext, Classical.choice, Quot.sound | 351 | 344 | 7 | 0 | 0 |
-| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:838](../app/community/Proofs.lean#L838) | propext, Classical.choice, Quot.sound | 399 | 377 | 10 | 0 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3012](../app/Proofs.lean#L3012) | propext, Classical.choice, Quot.sound | 672 | 636 | 16 | 6 | 1 |
+| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:121](../app/community/Proofs.lean#L121) | propext, Classical.choice, Quot.sound | 369 | 347 | 6 | 1 | 1 |
+| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 354 | 346 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:51](../app/community/member/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 354 | 346 | 8 | 0 | 0 |
+| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:10](../app/community/member/remove/Proofs.lean#L10) | propext, Classical.choice, Quot.sound | 353 | 346 | 7 | 0 | 0 |
+| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:838](../app/community/Proofs.lean#L838) | propext, Classical.choice, Quot.sound | 401 | 379 | 10 | 0 | 1 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3040](../app/Proofs.lean#L3040) | propext, Classical.choice, Quot.sound | 676 | 642 | 16 | 6 | 1 |
 | [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:185](../engine/sync/ConnLaws.lean#L185) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
-| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 371 | 349 | 4 | 5 | 0 |
+| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:162](../app/connection/Proofs.lean#L162) | propext, Classical.choice, Quot.sound | 375 | 355 | 4 | 5 | 0 |
 | [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:510](../engine/wire/NoiseSymbolic.lean#L510) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
 | [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:801](../engine/wire/NoiseSymbolic.lean#L801) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
-| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:198](../app/community/channel/message/Proofs.lean#L198) | propext, Classical.choice, Quot.sound | 361 | 353 | 8 | 0 | 0 |
+| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:198](../app/community/channel/message/Proofs.lean#L198) | propext, Classical.choice, Quot.sound | 363 | 355 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:53](../engine/renderer/Cover.lean#L53) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1320](../app/Proofs.lean#L1320) | propext, Classical.choice, Quot.sound | 756 | 750 | 2 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1320](../app/Proofs.lean#L1320) | propext, Classical.choice, Quot.sound | 762 | 758 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:768](../app/community/Screen.lean#L768) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
 | [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1344](../app/community/Proofs.lean#L1344) | propext, Classical.choice, Quot.sound | 195 | 193 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
@@ -900,24 +900,24 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`id_decode`](HEADLINE-SURFACES.md#engineopid_decode) | [engine/core/Core.lean:94](../engine/core/Core.lean#L94) | propext, Classical.choice, Quot.sound | 35 | 34 | 1 | 0 | 0 |
 | [`writes_only_after_two`](HEADLINE-SURFACES.md#removewrites_only_after_two) | [app/community/member/remove/View.lean:61](../app/community/member/remove/View.lean#L61) | propext, Quot.sound | 4 | 4 | 0 | 0 | 0 |
 | [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 69 | 67 | 2 | 0 | 0 |
-| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 365 | 345 | 6 | 0 | 1 |
-| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:935](../app/community/Proofs.lean#L935) | propext, Classical.choice, Quot.sound | 398 | 377 | 9 | 0 | 1 |
-| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1410](../app/community/Family.lean#L1410) | propext, Classical.choice, Quot.sound | 349 | 344 | 5 | 0 | 0 |
+| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 367 | 347 | 6 | 0 | 1 |
+| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:935](../app/community/Proofs.lean#L935) | propext, Classical.choice, Quot.sound | 400 | 379 | 9 | 0 | 1 |
+| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1429](../app/community/Family.lean#L1429) | propext, Classical.choice, Quot.sound | 351 | 346 | 5 | 0 | 0 |
 | [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:211](../app/Proofs.lean#L211) | propext, Classical.choice, Quot.sound | 331 | 306 | 9 | 5 | 1 |
-| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:963](../engine/wire/EgressLaws.lean#L963) | propext, Classical.choice, Quot.sound | 322 | 299 | 13 | 6 | 0 |
+| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:978](../engine/wire/EgressLaws.lean#L978) | propext, Classical.choice, Quot.sound | 326 | 305 | 13 | 6 | 0 |
 | [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:64](../engine/sync/SecrecyLaws.lean#L64) | propext, Classical.choice, Quot.sound | 89 | 81 | 1 | 5 | 0 |
 | [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:152](../engine/sync/ConnLaws.lean#L152) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
-| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 280 | 267 | 4 | 5 | 0 |
+| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 284 | 273 | 4 | 5 | 0 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
-| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 64 | 2 | 1 | 0 |
+| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:171](../engine/core/Budget.lean#L171) | propext, Classical.choice, Quot.sound | 71 | 63 | 2 | 2 | 0 |
 | [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 42 | 1 | 5 | 0 |
-| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:578](../engine/core/Purge.lean#L578) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
+| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:580](../engine/core/Purge.lean#L580) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
 | [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
 | [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 216 | 206 | 3 | 1 | 0 |
-| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:611](../app/Proofs.lean#L611) | propext, Classical.choice, Quot.sound | 550 | 531 | 2 | 5 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1506](../app/community/Proofs.lean#L1506) | propext, Classical.choice, Quot.sound | 400 | 386 | 5 | 0 | 1 |
-| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:397](../app/community/Screen.lean#L397) | propext, Classical.choice, Quot.sound | 401 | 379 | 10 | 0 | 1 |
-| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:234](../app/community/Screen.lean#L234) | propext, Classical.choice, Quot.sound | 396 | 377 | 9 | 0 | 0 |
+| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:611](../app/Proofs.lean#L611) | propext, Classical.choice, Quot.sound | 552 | 533 | 2 | 5 | 0 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1506](../app/community/Proofs.lean#L1506) | propext, Classical.choice, Quot.sound | 402 | 388 | 5 | 0 | 1 |
+| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:397](../app/community/Screen.lean#L397) | propext, Classical.choice, Quot.sound | 403 | 381 | 10 | 0 | 1 |
+| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:234](../app/community/Screen.lean#L234) | propext, Classical.choice, Quot.sound | 398 | 379 | 9 | 0 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |
 | [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:93](../engine/renderer/Cover.lean#L93) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`newest_visible`](HEADLINE-SURFACES.md#geometrynewest_visible) | [engine/renderer/Geometry.lean:105](../engine/renderer/Geometry.lean#L105) | propext, Classical.choice, Quot.sound | 5 | 3 | 2 | 0 | 0 |
@@ -940,7 +940,7 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:126](../engine/core/IngestCost.lean#L126) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
 | [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 76 | 67 | 1 | 5 | 0 |
 
-**Together** these laws name 68 spec-only definitions, and 12 names of the assumptions they take.
+**Together** these laws name 68 spec-only definitions, and 13 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
@@ -948,7 +948,7 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 - types: `Demand.SelectionRun`, `Engine.Change`, `Engine.Sync.ReadsOnly`, `ViewLaws.Model`
 - definitions: `Community.Fact.admission`, `Community.Fact.chunk`, `Community.Fact.message`, `Community.Fact.profile`, `Community.Fact.removal`, `Connection.Fact.opened`, `Engine.Change.ingests`, `Engine.View.keys`, `Engine.specAt`, `Engine.window`, `Geometry.Seam.home`, `Geometry.Seam.tapRow`, `Merkle.slices`, `Surface.Frame.row`, `Text.ns`, `Translate.position`, `Translate.seen`, `Translate.source`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
-- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
+- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.budget`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
 
 </details>
 
@@ -956,7 +956,7 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 345 | 301 | 35 | 5 | 0 |
+| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 349 | 307 | 35 | 5 | 0 |
 | [`list_costs`](HEADLINE-SURFACES.md#enginelist_costs) | [engine/core/ListCost.lean:34](../engine/core/ListCost.lean#L34) | propext, Classical.choice, Quot.sound | 21 | 8 | 9 | 0 | 4 |
 
 **Together** these laws name 44 spec-only definitions, and 5 names of the assumptions they take.

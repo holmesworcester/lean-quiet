@@ -374,12 +374,6 @@ theorem run_urgentClose_count : ∀ (n : Nat) (xs : List Id) (s : DB F),
     show ((urgentClose (m := Model F) fam n _).run _).1 + 1 = _
     rw [run_urgentClose_count n]; omega
 
-variable (fam) in
-/-- The queue steps a drain takes: those with something queued. -/
-def drainPops : Nat → DB F → Nat
-  | 0, _ => 0
-  | n + 1, s => if s.queue.isEmpty then 0 else 1 + drainPops n (stepS fam s)
-
 theorem drain_pot : ∀ (n : Nat) {s : DB F}, Tidy s →
     pot (drainS fam n s) + drainPops fam n s ≤ pot s ∧ Tidy (drainS fam n s)
   | 0, _, t => ⟨by simp [drainS, drainPops], t⟩
@@ -413,24 +407,13 @@ def turnWork (cap : Nat) (ops : List Op) (s : DB F) : Nat :=
   closeAttempts fam (j.1.length + n * (n + 1)) j.1 j.2 +
     drainPops fam cap (urgentCloseS fam (j.1.length + n * (n + 1)) j.1 j.2)
 
-variable (fam) in
-/-- A turn's urgent-closure attempts. -/
-def turnAttempts (cap : Nat) (ops : List Op) (s : DB F) : Nat :=
-  let s1 := ops.foldl (fun s o => ingestS o s) s
-  let j := judgeJobS fam (ops.map (·.id)) s1
-  let n := j.2.stored.length
-  closeAttempts fam (j.1.length + n * (n + 1)) j.1 j.2
-
-/-- **The running turn reports `turnAttempts`.** -/
+/-- **The running turn reports `turnWork`**: its urgent-closure attempts
+and queue steps. -/
 theorem run_turnCapped_count (cap : Nat) (ops : List Op) (s : DB F) :
-    ((turnCapped (m := Model F) fam cap ops).run s).1 = turnAttempts fam cap ops s := by
-  unfold turnCapped turnAttempts
+    ((turnCapped (m := Model F) fam cap ops).run s).1 = turnWork fam cap ops s := by
+  unfold turnCapped turnWork
   simp only [Model.run_bind, run_ingestEach, run_judgeJob, run_countOps]
-  show ((urgentClose (m := Model F) fam _ _).run _).1 = _
-  rw [run_urgentClose_count]; rfl
-
-theorem turnAttempts_le (cap : Nat) (ops : List Op) (s : DB F) : turnAttempts fam cap ops s ≤ turnWork fam cap ops s := by
-  simp only [turnAttempts, turnWork]; omega
+  rw [run_urgentClose_count, run_urgentClose, run_drain]; rfl
 
 /-- **A turn's urgent-closure attempts and queue steps, plus the potential
 after, are at most the potential before plus 1 + 2·reqs per op taken
