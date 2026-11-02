@@ -1,5 +1,6 @@
 import tests.engine.Lib
 import engine.core.SqliteLaws
+import engine.sync.SweepRun
 
 /-! The store's trust file (engine/core/StoreTrust.lean), from both sides.
 
@@ -14,7 +15,15 @@ import engine.core.SqliteLaws
   It also checks beginning and committing, a refused write turn, the
   budget query, list queries and a purge's rewrite.
 - **What the laws take:** `sqliteConditional` gives the contract to the
-  laws over the running write turn and purge (engine/core/SqliteLaws.lean).
+  laws over the running write turn and purge (engine/core/SqliteLaws.lean),
+  and `sweepConditional` to the law over the running sweep step
+  (`sql_run_step`, engine/sync/SweepRun.lean).
+- **The catalog's reads:** in the kernel, a read of the model keeps the
+  shape (`readKeeps`) and a "read" that pops the queue fails it
+  (`popRefused`); the executable runs the catalog's ceiling and row
+  queries and whole sweep steps on the real file, and checks that the
+  rows still show the same tables and each step is the cursor transition
+  at the ceiling and row the catalog returns.
 
 tests/engine/Differential.lean, QueryDiff.lean and Purge.lean test the
 same contract on long random workloads. -/
@@ -58,6 +67,30 @@ theorem queuedNotEmpty : ¬ (⟨[], [], [], [anOp.id], []⟩ : Rows Unit).Show D
   have := h.2.2.2.2.1
   simp [DB.empty] at this
 
+/-! ## The catalog's reads: consistent, and with content -/
+
+/-- A read of the model's tables changes no table. -/
+theorem readKeeps : ReadOnly (F := Unit) (fun s : DB Unit => some (s.ops anOp.id, s)) Eq := by
+  intro t s hs v t' h
+  simp only [Option.some.injEq, Prod.mk.injEq] at h
+  rw [← h.2]
+  exact hs
+
+def queued : DB Unit := { DB.empty with queue := [anOp.id] }
+
+/-- A "read" that pops the queue. -/
+def popRead (s : DB Unit) : Option (Option Id × DB Unit) := some ((Store.pop (F := Unit) : Model Unit _) s)
+
+theorem popRefused : ¬ ReadOnly (F := Unit) popRead Eq := by
+  intro h
+  have := congrArg DB.queue (h queued queued rfl _ _ rfl)
+  simp [popRead, Store.pop, Model.pop, queued] at this
+
+/-- The contract, bridged to the law over the running sweep step. -/
+def sweepConditional := some (PLift.up
+  (fun (holds : Db → Void IO.RealWorld → DB Fact → Prop) (t : SqliteStore Fact holds) =>
+    Engine.Sync.Sweep.sql_run_step t DB.empty {} (fun _ => true) Engine.Sync.maxFrame))
+
 /-- The contract, bridged to the laws over the running write turn and
 purge: what each of them takes. -/
 def sqliteConditional := some (PLift.up
@@ -93,6 +126,7 @@ def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "the contract is what the running write turn and purge need" sqliteConditional.isSome
   t.ok "the contract is what the refused-turn law needs" refusedConditional.isSome
+  t.ok "the contract is what the sweep step's law needs" sweepConditional.isSome
   let dir := "out/vacuity"
   IO.FS.createDirAll dir
   let path := s!"{dir}/store-trust.db"
@@ -186,6 +220,39 @@ def main : IO UInt32 := do
       let a ← (listSql (F := Fact) q).run db
       t.ok s!"a list of {hex k'} answers as eval" (a == eval s q)
   t.ok "list queries change no table" (showsOn (← rows) s ids keys)
+  -- The catalog's reads change no table, and a sweep step on SQLite is the
+  -- cursor transition at the ceiling and row the catalog returns.
+  let cat := Engine.Sync.Catalog.sql (F := Fact)
+  let ceiling ← cat.ceiling.run db
+  t.ok s!"the catalog has positions ({ceiling})" (ceiling > 0)
+  t.ok "the catalog's ceiling query changes no table" (showsOn (← rows) s ids keys)
+  for seq in [0, 1, ceiling / 2, ceiling, ceiling + 1] do
+    let _ ← (cat.read seq).run db
+  t.ok "the catalog's row queries change no table" (showsOn (← rows) s ids keys)
+  let cursors : List Engine.Sync.Sweep :=
+    [{}, ⟨0, ceiling, true⟩, ⟨ceiling / 2, ceiling, true⟩, ⟨ceiling - 1, ceiling, true⟩, ⟨ceiling, ceiling, true⟩]
+  let mut offered := false
+  for c in cursors do
+    for room in [0, Engine.Sync.maxFrame] do
+      let got ← (c.run cat (fun _ => true) room).run db
+      let ceil := if c.active then 0 else ceiling
+      let p := c.begin ceil
+      let row ← if p.high ≤ p.after then pure none else (cat.read (p.after + 1)).run db
+      t.ok s!"sweep ({c.after}, {c.high}, {c.active}) room {room}: the step on SQLite is the cursor transition"
+        (got == c.step ceil (row.bind s.ops) (fun _ => true) room)
+      offered := offered || got.2.isSome
+  t.ok "a sweep step on SQLite offered a stored op" offered
+  t.ok "sweep steps change no table" (showsOn (← rows) s ids keys)
+  -- The check has content: a sweep step that pops the queue as it reads
+  -- leaves rows that do not show the tables before.
+  db.exec "BEGIN IMMEDIATE"
+  let popping : SqlM Fact (Engine.Sync.Sweep × Option Op) := do
+    let r ← ({} : Engine.Sync.Sweep).run cat (fun _ => true) Engine.Sync.maxFrame
+    let _ ← Store.pop (F := Fact) (m := SqlM Fact)
+    pure r
+  let _ ← popping.run db
+  t.ok "the check has content: a sweep step that pops the queue is caught" (!showsOn (← rows) s ids keys)
+  db.exec "ROLLBACK"
   -- A purge's rewrite changes no table.
   for vacuum in [false, true] do
     let _ ← ((scrubSql (F := Fact) vacuum).run db).toBaseIO

@@ -39,7 +39,7 @@ def main : IO UInt32 := do
   let dir := "out/vacuity/notify-runtime"
   IO.FS.createDirAll dir
   let sm ← Sim.new
-  let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
+  let s ← App.start sm.ioWithService #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
   t.ok "the twin has the service" s.canKeep
   let on := App.keepSyncSt s true
   t.ok "syncs_kept: a real app with Sync in the background on" (kept { on with active := false }).isSome

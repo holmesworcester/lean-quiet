@@ -1,0 +1,6 @@
+# Forensics statement smells allowed today (ci/forensics_check.py); may only shrink.
+emptyPredicate	Engine.World.noAdv	False
+unusedHypothesis	Engine.World.Plain.want_delivers	hs0
+unusedHypothesis	Engine.World.recv_ok	L
+unusedHypothesis	Engine.World.serve_moves	hcfg
+unusedHypothesis	Engine.World.tick_ok	L

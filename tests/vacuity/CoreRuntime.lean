@@ -3,6 +3,7 @@ import tests.vacuity.Identity
 import engine.core.IdemLaws
 import engine.core.Termination
 import engine.core.Budget
+import engine.core.WindowLaws
 
 namespace Vacuity.CoreRuntime
 open Engine Community Tests Vacuity.Identity Vacuity.IdentityTrust
@@ -63,6 +64,11 @@ instance collisionDec (ops : List Op) : Decidable (CollisionFree ops) := by
 
 def collisionFree := if h : CollisionFree before then some (PLift.up h) else none
 def distinctFromHash := applyLaw collisionFree distinct_of_collisionFree
+
+/-- One op per id: the store the loaded history reaches, and the same
+message arriving again, over the measured collision-free history. -/
+def oneOpPerId := if hc : CollisionFree (before ++ Change.ingests [.ingest message]) then
+  some (PLift.up (oneOpPerId_of (loadReach before) hc)) else none
 
 def terminates := if hd : Distinct before then
   some (PLift.up (drain_terminates hd (load before) (loadReach before))) else none
@@ -189,6 +195,7 @@ def main : IO UInt32 := do
   t.ok "replaying message does not duplicate queue" ((ingestS message (load before)).queue == (load before).queue)
   t.ok "finite collision-free signed history" collisionFree.isSome
   t.ok "distinct ids follow from measured hash premise" distinctFromHash.isSome
+  t.ok "one op per id over the reached store and a replayed message" oneOpPerId.isSome
   t.ok "nonempty queue termination" terminates.isSome
   t.ok "a real queued step decreases budget" budgetDecreases.isSome
   t.ok "local secret is purged" purgeGone.isSome

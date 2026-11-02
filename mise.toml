@@ -153,6 +153,19 @@ run = "python3 ci/hackathon.py --self-test && python3 ci/hackathon.py --check"
 description = "ci/hackathon.py's self-test alone: git only, a few seconds"
 run = "python3 ci/hackathon.py --self-test"
 
+[tasks."forensics:check"]
+description = "The proofslop forensics tool's deterministic pass (for-all-dev/forensics, pinned, with ci/forensics-local.patch): build, extract, lint, duplicates; fail on a nonstandard axiom, sorry, native_decide, a kernel escape hatch, or a statement smell outside ci/forensics-baseline.txt (degenerate witnesses, unused or contradictory hypotheses, trivial conclusions). Needs bun. Output: out/forensics/model.json"
+depends = ["crypto"]
+run = "bash ci/forensics.sh"
+
+[tasks."forensics:judge"]
+description = "The nightly forensics judge: a small seeded Sonnet sample of vacuity-and-misstatement and unnecessary-hypotheses over the deterministic dump, per-call budget caps (about $1 a night), rates appended to /mnt/storage/holmes-tmp/forensics-nightly/history.tsv. Run nightly by ci/nightly.sh after the release run"
+run = "bash ci/forensics-judge.sh"
+
+[tasks."premises:check"]
+description = "Every cited law's premises tagged ([discharged]/[env]/[crypto]/[base]/[trusted]/[model]), the README's ✅/🟡 as they allow, every assumption with both sides or in the shrinking baseline (ci/premises.py; needs the tree built)"
+run = "python3 ci/premises.py --check"
+
 [tasks."layout:check"]
 description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
 run = "python3 ci/layout.py --self-test"
@@ -789,3 +802,23 @@ run = "bash tests/engine/runner_ownership.sh"
 description = "Actual Node ID/retry invariants, kernel witnesses and native mutation controls"
 depends = ["crypto"]
 run = "tests/engine/node_uniqueness.sh"
+
+[tasks."test:app-network-ownership"]
+description = "Actual Runner/listener and stop/replay ownership survive App StateT rollback; five compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_network_ownership.sh"
+
+[tasks."test:app-stop-ui"]
+description = "Actual App frames, mounting, typing and threaded Reader answers while native network cleanup is held; three compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_stop_ui.sh"
+
+[tasks."test:app-frame-times"]
+description = "Actual non-chat and chat frames keep at most 600 timing samples; two compiling controls and a kernel capacity control"
+depends = ["crypto"]
+run = "bash tests/engine/app_frame_times.sh"
+
+[tasks."test:app-reader-ownership"]
+description = "Actual threaded Reader/SQLite ownership survives frame and reap rollback; six compiling controls"
+depends = ["crypto"]
+run = "bash tests/engine/app_reader_ownership.sh"

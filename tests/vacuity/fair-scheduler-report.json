@@ -1,11 +1,4 @@
 {
-  "Sync.event_within": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.event_within",
-    "witness": "Vacuity.FairScheduler.eventDeadline",
-    "module": "tests.vacuity.FairScheduler",
-    "detail": "An explicit infinite execution starts with two writes and two incoming frames; both producers append work every iteration forever. The second original frame is selected before iteration 4. Exact-prefix and fallback checks reject the old write-starvation behavior. Bound counts completed chooser iterations; native thread/channel operation and I/O completion remain outside this theorem."
-  },
   "Tick.cofinal": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.Tick.cofinal",

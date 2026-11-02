@@ -64,7 +64,8 @@ def run (dir : String) (ck : Checks) : IO Unit := do
     let task ← IO.asTask (prio := .dedicated) do
       while !(← boot.get) do IO.sleep 1
       node path consume
-    modify fun s => { s with netCfg := some (0, true), netBoot := some task }
+    modify fun s => { s with netCfg := some (0, true) }
+    attachNetwork (some task) none
     sm.cmds.modify (·.push "chaos 30")
     let parked ← advance 5000 fun s => pure (s.chaos.isNone && !s.toNode.isEmpty)
     ck.ok "chaos parks while netBoot is pending" parked
@@ -108,12 +109,19 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let consume ← IO.mkRef false
     let old ← node path consume
     discard <| old.writes.trySend []
-    modify fun s => { s with net := some old }
+    attachNetwork none (some old)
     let release ← IO.asTask (prio := .dedicated) do IO.sleep 400; consume.modify (fun _ => true)
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "suspend returns within its deadline with a full stop channel" ((← IO.monoMsNow) ≤ begin + 150)
     ck.ok "timed-out runner remains owned" (← pure (← get).netStop.isSome)
+    -- A missing owner is already an assertion failure. Release the real
+    -- consumer gate and stop this case before attempting replacement work.
+    if (← get).netStop.isNone then
+      discard <| IO.wait release
+      unless ← waitFor ((← IO.monoMsNow) + 2000) (IO.hasFinished old.done) do
+        throw (IO.userError "failed-owner fixture did not finish its original runner")
+      return
     modify fun s => { s with active := false }
     let first := Community.react before.me.c before.me.adm message before.me.dev "1".toUTF8 1
     let second := Community.react before.me.c before.me.adm message before.me.dev "2".toUTF8 2
@@ -126,7 +134,10 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     discard <| step [.foreground]
     ck.ok "resume does not join the stopping runner" ((← IO.monoMsNow) < begin + 100)
     ck.ok "resume neither starts a second runner nor offers parked writes early"
-      ((← get).net.isNone && (← get).netBoot.isNone && (← get).toNode.size == 2 && (← sm.frames.get) == frames)
+      ((← get).net.isNone && (← get).netBoot.isNone && (← get).toNode.size == 2)
+    -- Pending native cleanup no longer holds the foreground frame
+    -- (docs/APP-STOP-UI.md); only network work waits for it.
+    ck.ok "resume publishes its frame while teardown is pending" ((← sm.frames.get) == frames + 1)
     let third := Community.react before.me.c before.me.adm message before.me.dev "4".toUTF8 4
     submit ⟨[third], true⟩
     flushNode
@@ -134,9 +145,11 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
       ((← get).toNode.toList.flatten.map (·.id) == [first.id, second.id, third.id] && (← Data.status before.rd third.id).isNone)
     discard <| IO.wait release
     if let some t := (← get).netStop then discard <| IO.wait t
+    if let some t := (← get).netReplay then discard <| IO.wait t
     reap
     let next ← node path (← IO.mkRef true)
-    modify fun s => { s with active := false, netCfg := some (0, true), netBoot := some (Task.pure (.ok next)) }
+    modify fun s => { s with active := false, netCfg := some (0, true) }
+    attachNetwork (some (Task.pure (.ok next))) none
     discard <| step [.foreground]
     let arrived ← advance 3000 fun s => do
       let valid (o : Op) : IO Bool := do
@@ -171,16 +184,23 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
       let r ← node path (← IO.mkRef true)
       late.set (some r)
       return r
-    modify fun s => { s with active := true, netBoot := some boot }
+    modify fun s => { s with active := true }
+    attachNetwork (some boot) none
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "late boot cannot extend the suspend deadline" ((← IO.monoMsNow) ≤ begin + 150)
     ck.ok "late boot teardown remains owned" (← pure (← get).netStop.isSome)
     discard <| IO.wait boot
     if let some t := (← get).netStop then discard <| IO.wait t
+    let lateStopped ← match ← late.get with
+      | some r => r.stopped.get | none => pure false
+    ck.ok "a runner born after timeout is stopped" lateStopped
+    -- Replay waits for that runner's loop to end. A runner left running is
+    -- already a failure above; stop it here only so the later cases run.
+    unless lateStopped do
+      if let some r ← late.get then r.stop
+    if let some t := (← get).netReplay then discard <| IO.wait t
     reap
-    ck.ok "a runner born after timeout is stopped" (← match ← late.get with
-      | some r => r.stopped.get | none => pure false)
     -- A reader scheduled before unmount, and a producer/decoder that
     -- finish afterwards. No future can publish into the detached page.
     modify fun s => { s with active := true, netCfg := none }
@@ -198,9 +218,10 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     let decoding ← IO.asTask (prio := .dedicated) do IO.sleep 400; return (none : Option String)
     (← get).wr.busy.modify (· + 1)
     modify fun s => { s with
-      active := true, netCfg := none, reader := some ⟨stopped, reader⟩, rst := none,
+      active := true, netCfg := none,
       chaos := some (producer.map fun r => r.toOption.getD #[]),
       decoding := some (decoding.map fun r => r.toOption.getD none) }
+    attachReader ⟨stopped, reader⟩
     let begin ← IO.monoMsNow
     suspend 150
     ck.ok "reader, decoder and producer share one suspend deadline" ((← IO.monoMsNow) ≤ begin + 150)
@@ -224,7 +245,8 @@ def bounded (dir : String) (ck : Checks) : IO Unit := do
     ck.ok "late tasks cannot repopulate the unmounted page" ((← get).rows.isEmpty &&
       (← get).decoding.isNone && (← (← get).sh.wants).isEmpty)
     let last ← node path (← IO.mkRef true)
-    modify fun s => { s with active := false, netCfg := some (0, true), netBoot := some (Task.pure (.ok last)) }
+    modify fun s => { s with active := false, netCfg := some (0, true) }
+    attachNetwork (some (Task.pure (.ok last))) none
     discard <| step [.foreground]
     let delivered ← advance 3000 fun s => pure (s.toNode.isEmpty && s.queuedWrites.isEmpty)
     ck.ok "late producer is delivered after resume" delivered

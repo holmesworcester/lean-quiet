@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Security proofs › Confidentiality**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1345) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2126)
+✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2125)
 
 <ul>
 <li><details><summary><a id="law-Engine.Sync.recv_send"></a>✅ <a href="../../engine/sync/ConnLaws.lean#L185">Engine.Sync.recv_send</a> · 10 below</summary><ul>
@@ -253,6 +253,37 @@
 <li>▫️ <a href="#law-Community.mem_live_all">Community.mem_live_all</a> ↪ · 68 below</li>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
+<li><details><summary><a id="law-Connection.recipients_iff_node"></a>📐 <a href="../../app/connection/Proofs.lean#L485">Connection.recipients_iff_node</a> · 116 below</summary><ul>
+<li><details><summary><a id="law-Connection.community_inv"></a>✅ <a href="../../app/connection/Family.lean#L632">Connection.community_inv</a> · 81 below</summary><ul>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Connection.sum_project_node">Connection.sum_project_node</a> ↪ · 80 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Connection.view_node"></a>✅ <a href="../../app/connection/Family.lean#L636">Connection.view_node</a> · 81 below</summary><ul>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Connection.sum_project_node">Connection.sum_project_node</a> ↪ · 80 below</li>
+</ul></details></li>
+<li>📐 <a href="#law-Community.recipients_iff">Community.recipients_iff</a> ↪ · 69 below</li>
+<li><details><summary><a id="law-Community.reads_recipients"></a>📐 <a href="../../app/connection/Family.lean#L598">Community.reads_recipients</a> · 5 below</summary><ul>
+<li><details><summary><a id="law-Community.reads_live"></a>✅ <a href="../../app/connection/Family.lean#L576">Community.reads_live</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Community.reads_deviceLive"></a>✅ <a href="../../app/connection/Family.lean#L569">Community.reads_deviceLive</a> · 3 below</summary><ul>
+<li>✅ <a href="../../app/connection/Family.lean#L551">Community.reads_unremoved</a></li>
+<li>✅ <a href="../../engine/core/Project.lean#L280">Engine.View.Reads.bind</a></li>
+<li>✅ <a href="../../engine/core/Project.lean#L286">Engine.View.Reads.read</a></li>
+</ul></details></li>
+<li>✅ <a href="../../engine/core/Project.lean#L280">Engine.View.Reads.bind</a></li>
+</ul></details></li>
+<li>✅ <a href="../../engine/core/Project.lean#L280">Engine.View.Reads.bind</a></li>
+<li>✅ <a href="../../engine/core/Project.lean#L286">Engine.View.Reads.read</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Connection.members_iff_node"></a>📐 <a href="../../app/connection/Proofs.lean#L477">Connection.members_iff_node</a> · 116 below</summary><ul>
+<li>✅ <a href="#law-Connection.community_inv">Connection.community_inv</a> ↪ · 81 below</li>
+<li>✅ <a href="#law-Connection.view_node">Connection.view_node</a> ↪ · 81 below</li>
+<li>📐 <a href="#law-Community.members_iff">Community.members_iff</a> ↪ · 69 below</li>
+<li><details><summary><a id="law-Community.reads_members"></a>📐 <a href="../../app/connection/Family.lean#L594">Community.reads_members</a> · 5 below</summary><ul>
+<li>✅ <a href="#law-Community.reads_live">Community.reads_live</a> ↪ · 4 below</li>
+<li>✅ <a href="../../engine/core/Project.lean#L280">Engine.View.Reads.bind</a></li>
+<li>✅ <a href="../../engine/core/Project.lean#L286">Engine.View.Reads.read</a></li>
+</ul></details></li>
+</ul></details></li>
 <li><details><summary><a id="law-Community.member_reads"></a>✅ <a href="../../app/community/Proofs.lean#L331">Community.member_reads</a> · 52 below</summary><ul>
 <li>✅ <a href="#law-Community.sealedPost_opens">Community.sealedPost_opens</a> ↪ · 48 below</li>
 <li>✅ <a href="#law-Community.wrapKey_opens">Community.wrapKey_opens</a> ↪ · 46 below</li>
@@ -383,7 +414,7 @@
 </ul></details></li>
 <li>▫️ <a href="../../app/community/Family.lean#L1424">Community.local_of_body</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1360">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
+<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1351">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/community/key/wrap/Proofs.lean#L11">Engine.View.always_bind</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L510">Connection.Noise.Symbolic.kk_secret</a> · 29 below</summary><ul>

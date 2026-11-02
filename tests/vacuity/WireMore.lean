@@ -41,7 +41,7 @@ theorem servingBlind : ((queued.serveOwed fam cfg 1024 [msg.id] : HeldM Unit _) 
 
 def openPremises := have_shown_premises fam 0
 
-def secrecyRun := secrecy_runs room
+def secrecyRun := SyncWitnesses.secrecy_runs room
 
 -- Fresh urgent frame arrives while a prior nonempty write is in flight.
 def initialPushes : List (Lane × ByteArray) :=

@@ -107,8 +107,8 @@ wired Engine.Codec.encode_decode
 wired Engine.Op.id_decode
 wired Engine.Sync.recv_send
 wired Engine.Sync.hold_reply_local
-wired Engine.Sync.write_within
-wired Engine.Sync.event_within
+wired Engine.Sync.Inbox.Priority.write_within
+wired Engine.Sync.Inbox.Priority.event_within
 wired Engine.Sync.Tick.cofinal
 wired Connection.wire_kinds
 wired Connection.local_kinds
@@ -181,6 +181,7 @@ wired Connection.reconnect_dials
 ## Assumptions
 
 assume Community.Unforgeable Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean.
+assume Community.Body.sigs = Community.Unforgeable
 assume Engine.CollisionFree SHA-256 has no collision among the ops a node received.
 assume Engine.Distinct = Engine.CollisionFree
 assume NodeOffer.offerM The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`.
@@ -195,7 +196,7 @@ assume Trust.Ed25519Signs = Trust.NativeCrypto
 assume Connection.Noise.Suite.Good X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`).
 assume Community.Seal.Good AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`).
 assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, over which the running handshake runs.
-assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
+assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) and the catalog's reads change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn, purge and sweep take (`receive_as_model`, `purge_as_model`, `sql_run_step`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
 assume Trust.SqliteStore = Engine.Model.run
 assume Trust.ShowsAt = Engine.Model.run
 assume Trust.budgetM = Engine.Model.run
@@ -303,8 +304,6 @@ spec Merkle.subInputs A subtree's Merkle inputs, for the no-collision hypothesis
 spec Merkle.verifyInputs What checking a chunk hashes, for the no-collision hypothesis.
 spec Merkle.climbInputs What a Merkle climb hashes, for the no-collision hypothesis.
 spec Merkle.slices A file's chunks, as the tree cuts it.
-spec Engine.Sync.Inbox.Run.selected The result of the actual Inbox.next chooser on a queue trace; every transition runs that chooser with arbitrary FIFO producer appends. Native channel linearization and completion remain assumptions.
-spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue operations and retain its returned preference; this is a harness around the running chooser, not a second selection algorithm.
 spec Engine.Sync.Inbox.Priority.Run.selected The running Priority.step's choice at a poll of a run: every transition of a run runs that step, with arbitrary FIFO producer appends (the loop's channels as queues: Sync.popW).
 spec Engine.Sync.Inbox.Priority.State.append The producers' FIFO appends a run allows: any writes and events after each poll.
 spec Engine.Sync.Inbox.Priority.phaseAfter The phase after n polls: the running `advance`, n times.
@@ -379,12 +378,14 @@ world Engine.World.Exec.world = Engine.World.World.step
 world Engine.World.Plain.setup = Engine.World.World.step
 world Engine.World.Setup.at? = Engine.World.World.step
 world Engine.World.Plain.start = Engine.World.World.step
+world Engine.World.worlds = Engine.World.World.step
 world Engine.World.World.actAt = Engine.World.World.step
 spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
 spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
+world Connection.Execution.step = Connection.Execution.fairRun
 world Connection.Execution.World.peer = Connection.Execution.fairRun
 world Connection.Execution.empty = Connection.Execution.fairRun
 
@@ -524,6 +525,9 @@ spec Engine.Sync.RetryOrder.Run.sent Projection of the actual RetryOrder.scan re
 spec Engine.Sync.RetryOrder.Run.opportunities Count of pending-eligible initially vacant scan opportunities, excluding busy ticks; their eventual occurrence is not proved by the rank theorem.
 
 spec Engine.Sync.NodeUnique.Shape Logical projection of the actual Node connection IDs and retry order, used only to state returned-value invariants.
+spec Hold.messagePlane The original placeholder generator: the cache is proven to give its pixels exactly.
+spec App.PageId.all Every page there is: the back stack's bound counts them.
+spec Community.Fact.isLocal Which facts are a device's own state (secrets, acceptances, joins, keys, endpoints, receipts, drafts): a classifier for statements; scope runs Body.isLocal, which check_local ties to it.
 
 ## Externs: what the proofs take of each C function (Lean cannot see into them)
 
@@ -542,7 +546,7 @@ extern le_ed_sk_to_x none The Ed25519 to X25519 conversion of a secret key: a fi
 extern le_ed_pk_to_x none The same conversion of a public key (empty if not a point): no law assumes anything of what it returns.
 extern le_random none The OS's random bytes, as many as asked, or a failure. The laws hold for whatever bytes come back; sizes are checked where they are read (`Bytes.expect`). That they are unpredictable is a security assumption, not a Lean statement.
 # SQLite (engine/native/glue.c): engine/core/StoreTrust.lean
-extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's (`receive_as_model`, `purge_as_model`).
+extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's, and the catalog's reads change no table (`receive_as_model`, `purge_as_model`, `sql_run_step`).
 extern le_sql_exec prop:Trust.SqliteStore = le_sql_open
 extern le_sql_query prop:Trust.SqliteStore = le_sql_open
 # The runner's TCP seam (engine/native/listener.h)

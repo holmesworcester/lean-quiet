@@ -20,7 +20,10 @@ output, and local CI fails when it goes stale.
   (`Turn.purge` on the held store is `purgeS`), and those the code it
   names can reach (`onFrame` on the held store runs its purge), three
   deep, and through the pattern synonyms it names (`Fact.admission` is
-  `Fact.ofAdmission` of an admission). Left out: instances, projections,
+  `Fact.ofAdmission` of an admission), and through the fields of each
+  structure or inductive of data the running code never names (a `World`
+  record, a `Run` of steps: a `Run` whose `next` field steps a harness
+  names that step). Left out: instances, projections,
   matchers, the assumptions (`assume` in tests/wiring.txt), and the
   specifications the law states running code against (`spec`), which
   are seen through too, keeping only what runs of what they name.
@@ -346,11 +349,13 @@ def fieldsUsed (env : Environment) (ty : Expr) : Array Expr := Id.run do
 
 /-- The data definitions a statement names, through the Prop-valued
 definitions and inductives it names, `depth` deep, stopping at `stop`;
-and the constants met on the way. A specification (`spec`) is seen
+and the constants met on the way; and through the fields of the
+structures and inductives of data no running code names (not in
+`kinds`). A specification (`spec`) is seen
 through too, but of what its value names only what runs (`run`) is a
 subject: the rest is more specification. -/
-partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (depth : Nat)
-    (inSpec : Bool) (acc : NameSet × NameSet) : NameSet × NameSet := Id.run do
+partial def about (env : Environment) (stop spec run : NameSet) (kinds : Option NameSet) (e : Expr)
+    (depth : Nat) (inSpec : Bool) (acc : NameSet × NameSet) : NameSet × NameSet := Id.run do
   let mut (subj, props) := acc
   for c in named env e do
     if !ours env c || props.contains c then continue
@@ -361,15 +366,28 @@ partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (dept
     if c.isInternal && !Meta.isMatcherCore env c then
       if let some (.defnInfo d) := env.find? c then
         props := props.insert c
-        (subj, props) := about env stop spec run d.value depth inSpec (subj, props)
+        (subj, props) := about env stop spec run kinds d.value depth inSpec (subj, props)
         continue
     -- a pattern synonym is notation for what it unfolds to:
     -- `Fact.admission c u d e` is `Fact.ofAdmission ⟨c, u, d, e⟩`
     if hasMatchPatternAttribute env c then
       if let some (.defnInfo d) := env.find? c then
         props := props.insert c
-        (subj, props) := about env stop spec run d.value depth inSpec (subj, props)
+        (subj, props) := about env stop spec run kinds d.value depth inSpec (subj, props)
         continue
+    -- a structure or inductive of data the running code never names
+    -- (`kinds`) stands for a world or a run: its fields are more of the
+    -- statement, seen through like a Prop's (a `Run` whose `next` field
+    -- steps a harness would hide that step otherwise); `none` is the
+    -- check blind to structures, for the negative control
+    if let some ks := kinds then
+      if !ks.contains c && !isProp env c then
+        if let some (.inductInfo i) := env.find? c then
+          props := props.insert c
+          for k in i.ctors do
+            if let some ci := env.find? k then
+              (subj, props) := about env stop spec run kinds ci.type depth inSpec (subj, props)
+          continue
     if isData env c && !spec.contains c then
       if !inSpec || run.contains c then subj := subj.insert c
       continue
@@ -378,11 +396,11 @@ partial def about (env : Environment) (stop spec run : NameSet) (e : Expr) (dept
     if depth == 0 then continue
     let inSpec := inSpec || spec.contains c
     match env.find? c with
-    | some (.defnInfo d) => (subj, props) := about env stop spec run d.value (depth - 1) inSpec (subj, props)
+    | some (.defnInfo d) => (subj, props) := about env stop spec run kinds d.value (depth - 1) inSpec (subj, props)
     | some (.inductInfo i) =>
       for k in i.ctors do
         if let some ci := env.find? k then
-          (subj, props) := about env stop spec run ci.type (depth - 1) inSpec (subj, props)
+          (subj, props) := about env stop spec run kinds ci.type (depth - 1) inSpec (subj, props)
     | _ => pure ()
   return (subj, props)
 
@@ -590,12 +608,12 @@ def nodeCode (run : NameSet) (c : Name) : Bool := (`Engine.Sync.Node).isPrefixOf
 /-- A law's subject and status, from its conclusion; and the models
 anywhere in its statement. A mirror in its subject brings its bridge's
 assumptions and what its bridge misses (`via`). -/
-def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (List Name × List Name))
-    (law : Name) (ty : Expr) : Law := Id.run do
-  let (subj, props) := about env ns.stop ns.through run (concl ty) 3 false ({}, {})
+def classify (env : Environment) (run : NameSet) (kinds : Option NameSet) (ns : Notes)
+    (via : NameMap (List Name × List Name)) (law : Name) (ty : Expr) : Law := Id.run do
+  let (subj, props) := about env ns.stop ns.through run kinds (concl ty) 3 false ({}, {})
   let (whole, wprops) := (fieldsUsed env ty).foldl
-    (fun acc f => about env ns.stop ns.through run f 3 false acc)
-    (about env ns.stop ns.through run ty 3 false ({}, {}))
+    (fun acc f => about env ns.stop ns.through run kinds f 3 false acc)
+    (about env ns.stop ns.through run kinds ty 3 false ({}, {}))
   let notRunning (c : Name) := !run.contains c && !ns.bridge.contains c
   let subject := sortNames <| match ns.subject.find? law with
     | some s => s
@@ -790,6 +808,15 @@ unsafe def main : IO UInt32 := do
   let env ← importModules (mods.map ({ module := · })) {} (loadExts := true)
   let mut problems : Array String := #[]
   let run := running env ([`main, `Engine.Sync.Runner.start] ++ ns.entry)
+  -- the types the running code names, in its definitions' types and
+  -- values (a constructor names its type): a law's record of any other
+  -- type is seen through
+  let mut kinds : NameSet := {}
+  for n in run do
+    if let some ci := env.find? n then
+      for c in ci.type.getUsedConstants ++ ((ci.value? (allowOpaque := true)).map (·.getUsedConstants)).getD #[] do
+        kinds := kinds.insert c
+        if let some (.ctorInfo k) := env.find? c then kinds := kinds.insert k.induct
   for (n, why) in [(`App.step, "the app's frame"), (`Engine.Sync.Node.onFrame, "the node's frames")] do
     if !run.contains n then problems := problems.push s!"control: the entry points do not reach {n} ({why})"
   for n in harnesses do
@@ -904,7 +931,7 @@ unsafe def main : IO UInt32 := do
   let mut via : NameMap (List Name × List Name) := {}
   for (m, law) in ns.bridge do
     if let some ci := env.find? law then
-      let b := classify env run ns {} law ci.type
+      let b := classify env run (some kinds) ns {} law ci.type
       via := via.insert m (b.assumes, b.missing.filter (!ns.bridge.contains ·))
   let mut out : Array Law := #[]
   for law in laws do
@@ -912,10 +939,10 @@ unsafe def main : IO UInt32 := do
     | some (.defnInfo _) => pure ()  -- an audited statement (`…_stmt`), not a law
     | some ci =>
       if let some s := ns.subject.find? law then
-        let (subj, _) := about env {} ns.through run (concl ci.type) 3 false ({}, {})
+        let (subj, _) := about env {} ns.through run (some kinds) (concl ci.type) 3 false ({}, {})
         for c in s do
           if !subj.contains c then problems := problems.push s!"tests/wiring.txt: {law}'s conclusion does not name {c}"
-      out := out.push (classify env run ns via law ci.type)
+      out := out.push (classify env run (some kinds) ns via law ci.type)
     | none => problems := problems.push s!"{law} is audited but not in the libraries"
   -- proof steps: model-class laws a wired law's proof uses (through
   -- theorems; a law over an instrument uses its erasing law), with the
@@ -958,8 +985,23 @@ unsafe def main : IO UInt32 := do
     if l.wired && l.world then problems := problems.push s!"{l.name} is counted wired and World"
     if l.world then
       if let some ci := env.find? l.name then
-        if (classify env noNode ns via l.name ci.type).world then
+        if (classify env noNode (some kinds) ns via l.name ci.type).world then
           problems := problems.push s!"control: {l.name} stays a World law with mirrored node code"
+  -- a law over a `Run` whose `next` field runs a harness: with the
+  -- producers' append's `spec` note taken away, the law is a model, and
+  -- only through the record (its statement does not name the append);
+  -- blind to structures, as the check was, it passed as wired (so did
+  -- the alternating inbox's write_within and event_within, until this
+  -- check: their append had no note)
+  let (cLaw, cStep) := (`Engine.Sync.Inbox.Priority.write_within, `Engine.Sync.Inbox.Priority.State.append)
+  match env.find? cLaw with
+  | some ci =>
+    let bare := { ns with spec := ns.spec.erase cStep }
+    let seen := classify env run (some kinds) bare via cLaw ci.type
+    let blind := classify env run none bare via cLaw ci.type
+    if seen.wired || !seen.missing.contains cStep || !blind.wired then
+      problems := problems.push s!"control: {cLaw}, over a Run whose next field runs {cStep} (its spec note taken away), must be a model through the record alone (seen through: wired {seen.wired}, missing {commas seen.missing}; blind: wired {blind.wired}, missing {commas blind.missing})"
+  | none => problems := problems.push s!"control: no {cLaw}"
   -- the statements: every `…_stmt`, and the audited law that concludes it
   let mut stmts : Array (Name × Expr) := #[]
   let mut proof : NameMap Name := {}
@@ -982,7 +1024,7 @@ unsafe def main : IO UInt32 := do
     IO.println s!"law\t{l.name}\t{l.status}\t{commas l.subject}\t{commas l.missing}\t{commas l.assumes}\t{modName l.name}\t{commas l.premises}\t{commas l.users}"
   let mut stated := 0
   for (n, v) in stmts do
-    let l := classify env run ns via n v
+    let l := classify env run (some kinds) ns via n v
     for c in l.missing do waited := waited.insert c
     match proof.find? n with
     | some p => IO.println s!"stmt\t{n}\tproven by {p}\t{commas l.subject}\t{commas l.missing}\t{modName n}"

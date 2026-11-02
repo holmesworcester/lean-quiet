@@ -1,3 +1,4 @@
+import engine.renderer.FrameTimes
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
@@ -32,7 +33,6 @@ import engine.sync.ServeLaws
 import engine.sync.TimeLaws
 import engine.sync.SessionLaws
 import engine.sync.SecrecyLaws
-import engine.sync.Witnesses
 import engine.sync.RetryLaws
 import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
@@ -197,7 +197,6 @@ open Engine Community
 #print axioms Community.joinOps_link_unnamed
 #print axioms Community.introduce_named
 #print axioms Community.shipped_introduce_unnamed
-#print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
 #print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
@@ -502,8 +501,6 @@ open Engine Community
 #print axioms Engine.Sync.honest_no_drop_runs
 #print axioms Engine.Sync.asks_expire
 #print axioms Engine.Sync.write_first
-#print axioms Engine.Sync.write_within
-#print axioms Engine.Sync.event_within
 #print axioms Engine.Sync.Tick.cofinal
 #print axioms Connection.Execution.fairRun_fair
 #print axioms Connection.Execution.successful_fair_extension
@@ -771,7 +768,6 @@ end net
 #print axioms Community.cut_consented
 #print axioms Community.signed_eq
 #print axioms Community.endpoint_derives
-#print axioms Community.new_device_trusted
 #print axioms Community.removals_at
 #print axioms Community.mine_not_removed
 #print axioms Community.rejoin_fresh
@@ -1219,8 +1215,6 @@ end cost
 #print axioms Engine.Sync.work_send
 #print axioms Engine.Sync.ask_send
 #print axioms Engine.Sync.due_send
-#print axioms Engine.Sync.secrecy_runs
-#print axioms Engine.Sync.live_runs
 #print axioms Engine.Sync.Session.hello_allowed
 #print axioms Engine.Sync.Session.closed_terminal
 #print axioms Engine.Sync.filed_origin
@@ -1583,9 +1577,7 @@ end cost
 #print axioms Engine.Sync.Sweep.step_nonincrease
 #print axioms Engine.Sync.Sweep.retried
 #print axioms Engine.Sync.Sweep.retried_fair
-#print axioms Engine.Sync.Sweep.fair_loss_delivered
-#print axioms Engine.Sync.Sweep.run_observed
-#print axioms Engine.Sync.Sweep.held_run_observed
+#print axioms Engine.Sync.Sweep.sql_run_step
 #print axioms Engine.Sync.empty_log_agrees
 #print axioms Engine.Sync.shared_log_turn
 #print axioms Engine.Sync.shared_log_purge
@@ -1754,6 +1746,8 @@ end cost
 #print axioms Connection.Execution.world_trace_unique
 #print axioms Connection.Execution.empty_trace_unique
 #print axioms Connection.Execution.Run.unique
+
+#print axioms FrameTimes.bounded
 
 -- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
 #print axioms Community.notice_signed

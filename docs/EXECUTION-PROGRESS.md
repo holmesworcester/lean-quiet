@@ -107,10 +107,11 @@ with a fixed high-water mark during each pass. Its cursor persists under an
 authenticated peer key, so replacing a session does not restart progress.
 [SweepLaws](../engine/sync/SweepLaws.lean) proves repeated emission of a retained,
 authorized, fitting row under recurring output reservation, despite arbitrary
-later inserts and intervening zero-room stalls. `Sweep.FairLoss` names the
-external semantic-payload delivery contract; fresh encryption nonces need
-not reproduce identical ciphertext. [SweepRun](../engine/sync/SweepRun.lean)
-exposes the exact runtime cursor inputs. [CatalogEvolution](../app/Proofs.lean)
+later inserts and intervening zero-room stalls. Delivering those emissions
+is the link's part (fair loss over semantic payloads, not identical
+ciphertexts: fresh nonces change every frame), and no law states it yet.
+[SweepRun](../engine/sync/SweepRun.lean) proves that one running sweep step
+over SQLite's catalog is that cursor transition (`sql_run_step`). [CatalogEvolution](../app/Proofs.lean)
 derives stable Held catalog positions through every actual handler and
 arbitrary execution suffix, including local-secret purge.
 
@@ -173,6 +174,26 @@ controls/kernel control, and uniqueness's ten native checks/two runtime
 controls/three kernel controls, with restoration. The earlier transport counts
 above describe their earlier integration. Full app/platform validation remains
 open. See [RUNNER-OWNERSHIP.md](RUNNER-OWNERSHIP.md).
+
+App network boot, adopted Runner and retiring stop/replay tasks now have fixed
+shared ownership slots outside the frame's StateT. A throwing logger or later
+frame callback cannot lose those handles. On the merged source, 52 real
+Runner/TCP/SQLite assertions pass with five compiling controls and
+restoration, and the failed-runner, suspend, boot-admission and lifecycle
+suites pass with their controls. See
+[APP-NETWORK-OWNERSHIP.md](APP-NETWORK-OWNERSHIP.md).
+
+The threaded Reader worker now has the same kind of shared owner: the active
+worker, one retiring worker, its replacement board and the reaped connection
+survive a later frame callback error (26 actual checks, six compiling
+controls; [APP-READER-OWNERSHIP.md](APP-READER-OWNERSHIP.md)). A pending
+normal network stop no longer holds foreground frames, mounting or Reader
+startup; write ordering still waits for it (12 checks, three controls;
+[APP-STOP-UI.md](APP-STOP-UI.md)). Both frame paths keep at most 600 timing
+samples ([`FrameTimes.bounded`](FRAME-TIMES.md); nine checks, two runtime
+controls and a kernel control). Every audited law and the evidence
+inventory pass on this source. One-shot notices and other partial
+effects across rollback remain separate.
 
 ## Obstructions found by the stronger target
 
