@@ -189,15 +189,13 @@ end Community
     ("a wrap to the approver's own key", """import app.community.Proofs
 namespace Community
 open Engine
-def wrapKeyBad (c : Id) (k esk : Key32) (_to : ByteArray) : Op :=
-  let kid := kidOf cryptoSeal k
-  wrap c kid _to (box cryptoSeal esk (cryptoSeal.pub esk) kid k)
-theorem wrapKeyBad_opens (t : Trust.NativeCrypto) (c : Id) (k esk rsk : Key32) :
-    ∃ kid bx, (Codec.decode (wrapKeyBad c k esk (cryptoSeal.pub rsk)).body : Option Body) =
-      some (.wrap kid (cryptoSeal.pub rsk) bx) ∧ kid = kidOf cryptoSeal k ∧
-      unbox cryptoSeal rsk kid bx = some k := by
+def wrapKeyBad (c myAdm toAdm : Id) (d : Device) (k esk : Key32) (_to : ByteArray) : Op :=
+  wrap c myAdm toAdm d (box cryptoSeal esk (cryptoSeal.pub esk) (kidOf cryptoSeal k) k)
+theorem wrapKeyBad_opens (t : Trust.NativeCrypto) (c myAdm toAdm : Id) (d : Device) (k esk rsk : Key32) :
+    ∃ bx sg, (Codec.decode (wrapKeyBad c myAdm toAdm d k esk (cryptoSeal.pub rsk)).body : Option Body) =
+      some (.wrap bx sg) ∧ unbox cryptoSeal rsk (kidOf cryptoSeal k) bx = some k := by
   have G := cryptoSeal_good t
-  refine ⟨_, _, body_mkOp _ _, rfl, unbox_box G rsk esk k _ ?_⟩
+  refine ⟨_, _, body_mkOp _ _, unbox_box G rsk esk k _ ?_⟩
   rw [show (kidOf cryptoSeal k).size = 32 from G.hash_size _]; decide
 end Community
 """, 'wrapKeyBad_opens'),

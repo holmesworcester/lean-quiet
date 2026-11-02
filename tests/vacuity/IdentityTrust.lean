@@ -156,7 +156,7 @@ def connectAdmitted := do
     else none
   else none
 
-def later := post c c alice "content-key-1".toUTF8 "A later signed op".toUTF8 2 29880002
+def later := post c c alice keyId "A later signed op".toUTF8 2 29880002
 
 theorem ingestExtends (s : DB Fact) (o : Op) : Extends s.ops (ingestS o s).ops := by
   intro i p hp

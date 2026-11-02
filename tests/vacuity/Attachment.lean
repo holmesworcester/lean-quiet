@@ -9,7 +9,8 @@ namespace Vacuity.Attachment
 open Engine Community Codec Tests Vacuity.Identity Vacuity.IdentityTrust
 set_option linter.defProp false
 
-def contentKey : Key32 := Bytes.digest "vacuity/attachment/content-key".toUTF8
+/-- The community's key, whose id the fixture's root names. -/
+def contentKey : Key32 := communityKey
 def file : NewFile := {
   info := { name := "meeting-notes.bin".toUTF8, kind := "application/octet-stream".toUTF8, w := 0, h := 0, preview := .empty }
   bytes := ⟨((List.range 70000).map fun i => (i % 251).toUInt8).toArray⟩
