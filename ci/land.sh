@@ -53,7 +53,10 @@ fetch_main() {
 }
 fetch_main
 if ! git merge-base --is-ancestor origin/main HEAD; then
-  if ! git merge --no-edit origin/main; then
+  # no rerere: a recorded resolution (anyone's, of running code too) would be
+  # replayed into the tree without markers; land.sh resolves only generated
+  # lines itself and stops on anything else for a person to see
+  if ! git -c rerere.enabled=false merge --no-edit origin/main; then
     # README's generated lines (links, table rows) conflict on most merges:
     # main's are taken, and written again below; anything else stops here
     if [ "$(git diff --name-only --diff-filter=U)" = README.md ] && python3 ci/readme-merge.py; then
