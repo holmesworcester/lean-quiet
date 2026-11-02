@@ -267,9 +267,7 @@ theorem settled (n : Nat) : (r.store n).db.queue = [] := by
     rw [r.next]
     apply write_settles x _ _ _ (r.store_reachable n) ih
     intro a ha b hb he
-    have sub : intake x.fam false (r.input n) ⊆ r.input n := by
-      intro o ho
-      exact (List.mem_filter.mp ho).1
+    have sub : intake x.fam false (r.input n) ⊆ r.input n := fun _ ho => intake_sub x.fam ho
     exact r.distinct n a (List.mem_append.mp ha |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h)))
       b (List.mem_append.mp hb |>.elim (List.mem_append_left _) (fun h => List.mem_append_right _ (sub h))) he
 
@@ -284,15 +282,17 @@ theorem retains {n k : Nat} {i : Id} {o : Op} (hnk : n ≤ k)
   | refl => exact ho
   | step _ ih => exact r.keeps ih
 
-/-- Actual receive intake stores every shared input; duplicate and
-out-of-order receipt do not weaken this guarantee. -/
-theorem receives {n : Nat} {o : Op} (ho : o ∈ r.input n) (hs : x.fam.shared o = true) :
+/-- Actual receive intake stores every shared input within the
+requirement cap; duplicate and out-of-order receipt do not weaken this
+guarantee. -/
+theorem receives {n : Nat} {o : Op} (ho : o ∈ r.input n) (hs : x.fam.shared o = true)
+    (hc : o.capped = true) :
     (r.store (n + 1)).db.ops o.id = some o := by
   rw [r.next]
   apply write_takes x _ _ _ (r.invariant n)
-  · exact List.mem_filter.mpr ⟨ho, hs⟩
+  · exact mem_intake_shared x.fam ho hs hc
   · intro p hp he
-    exact r.distinct n p (List.mem_append_right _ (List.mem_filter.mp hp).1)
+    exact r.distinct n p (List.mem_append_right _ (intake_sub x.fam hp))
       o (List.mem_append_right _ ho) he
   · intro p hp
     obtain ⟨history, hr, same⟩ := r.store_reachable n

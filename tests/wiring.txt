@@ -122,6 +122,14 @@ wired Nav.depth
 wired NavLaws.backs_nav
 wired Engine.Sync.top_perm
 wired Engine.Sync.lbl_perm
+spec Engine.Sync.lows The items below a key: what a split's left half holds.
+spec Engine.Sync.pres The byte strings a label hashes, for stating collision freedom.
+spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
+spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
+spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
+spec Engine.Sync.delta The items on one side only.
+spec Engine.Sync.Treap.height A tree's height: the measure its cost bounds are in.
+spec Engine.Sync.height The height of a list's canonical treap: the measure the depth hypothesis is about (tests/scale measures it).
 ## Component demand: these laws must keep naming running decisions.
 bridge Demand.Plan.held Demand.heldIndex_agrees
 wired Demand.heldIndex_agrees
@@ -240,6 +248,7 @@ instrument Engine.CostT.lift Engine.CostT.erase_lift
 instrument Engine.Counted.val Engine.Counted.val_erase
 instrument Engine.Counted.cost Engine.Counted.cost_run
 instrument Engine.CostT.instTick Engine.CostT.erase_tick
+instrument Engine.cr Engine.cr_erase
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
@@ -250,6 +259,11 @@ bridge Engine.ingestAll Engine.run_ingestEach
 # (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+bridge Engine.Sync.answerT Engine.Sync.val_answerTM
+bridge Engine.Sync.openingT Engine.Sync.val_openingTM
+bridge Engine.Sync.rangeT Engine.Sync.val_rangeTM
+bridge Engine.Sync.Treap.insert Engine.Sync.val_insertM
+bridge Engine.Sync.Treap.split Engine.Sync.val_splitM
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
@@ -281,6 +295,7 @@ spec Engine.Sync.roundWants The ids a batch's answers want.
 spec Engine.Sync.roundHolds The ids a batch's answers offer.
 spec Engine.Sync.RoundRun.outputs A batch's answers, as `answer` gives them over a list of items.
 spec Engine.Sync.RoundRun.rankIn A claim's rank over a bounding list of items, for a round's bound.
+spec Engine.Sync.Claim.fpBit One for a fingerprint claim, which still has its conversion to ids ahead: a claim's share of a quiet round's budget.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
@@ -342,7 +357,7 @@ spec Engine.Win.has Whether a window holds a row filed under a key at a position
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
-subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.named Engine.Sync.chunks
 
 ## The World: the running node's code, two nodes (engine/wire/World.lean),
 ## over a modelled network and plain transport
@@ -363,12 +378,15 @@ world Engine.World.Plain.setup = Engine.World.World.step
 world Engine.World.Setup.at? = Engine.World.World.step
 world Engine.World.Plain.start = Engine.World.World.step
 world Engine.World.worlds = Engine.World.World.step
+world Engine.World.World.actAt = Engine.World.World.step
 spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
 spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
 world Connection.Execution.step = Connection.Execution.fairRun
+world Connection.Execution.World.peer = Connection.Execution.fairRun
+world Connection.Execution.empty = Connection.Execution.fairRun
 
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.
@@ -379,6 +397,7 @@ control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before t
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Demand.reconcileShipped The reader's queue as it shipped: reconcile alone, so work queued in earlier passes stays ahead of a user's act (shipped_late).
+control Engine.World.dialMutant A node whose dial hook stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
@@ -552,6 +571,8 @@ extern lq_frame effect Publishes Lean's pixel rows and placement for the OS to s
 extern lq_motion effect Hands the shell the list samples Lean accepted.
 extern lq_ime effect Opens or closes the keyboard.
 extern lq_set_text effect Sets the native text field's text.
+extern lq_notify effect Posts or cancels one conversation's notification card (Notify.packet's JSON), queued for the shell's own thread; Lean decides what alerts (Notify.step's laws).
+extern lq_service effect Turns Sync in the background (Android's foreground service) on or off; whether the platform has it is an input.
 extern lq_editor effect Gives the native editor Lean's text and mode; returns its text and positions.
 extern lq_editor_action effect Settles a native editor action; returns its text and positions.
 extern lq_copy effect Puts text on the clipboard.

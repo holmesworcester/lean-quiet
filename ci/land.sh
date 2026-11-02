@@ -12,8 +12,8 @@
 #    generated lines, ci/readme-merge.py, and the model-law list,
 #    ci/proof-links.py --merge-models: resolve, commit, run it again),
 #    build, prune the model-law list of laws no longer models, and refresh
-#    the README's links and the vacuity inventory if the merge moved them
-#    (a commit of their own).
+#    the README's links, the proof tree and the vacuity inventory if the
+#    merge moved them (a commit of their own).
 # 3. The gate (ci/local.sh). A failure stops here, nothing pushed.
 # 4. Push HEAD to main, fast-forward only: LAND_PUSH (default
 #    `git push origin HEAD:main`; set it to push with your credentials).
@@ -56,15 +56,17 @@ fetch_main() {
 fetch_main
 if ! git merge-base --is-ancestor origin/main HEAD; then
   if ! git merge --no-edit origin/main; then
-    # README's generated lines (links, table rows) conflict on most merges:
-    # main's are taken, and written again below; the model-law list
-    # (tests/wiring-models.txt) only shrinks, so a law stays only if both
-    # sides kept it; anything else stops here
-    conflicted=$(git diff --name-only --diff-filter=U)
-    if [ -z "$(grep -vx -e README.md -e tests/wiring-models.txt <<<"$conflicted")" ] &&
-       { ! grep -qx README.md <<<"$conflicted" || python3 ci/readme-merge.py; } &&
-       { ! grep -qx tests/wiring-models.txt <<<"$conflicted" || python3 ci/proof-links.py --merge-models; }; then
-      git add README.md tests/wiring-models.txt && git commit -q --no-edit
+    # generated lines conflict on most merges, README's (links, table rows)
+    # and the proof tree's: main's are taken, and written again below; the
+    # model-law list (tests/wiring-models.txt) only shrinks, so a law stays
+    # only if both sides kept it; anything else stops here
+    left=$(git diff --name-only --diff-filter=U)
+    gen=$(printf '%s\n' "$left" | grep -x 'README.md\|docs/PROOF-TREE.md\|docs/proof-tree/.*\.md' || true)
+    if [ -n "$left" ] &&
+       [ -z "$(printf '%s\n' "$left" | grep -vx 'README.md\|docs/PROOF-TREE.md\|docs/proof-tree/.*\.md\|tests/wiring-models.txt')" ] &&
+       { [ -z "$gen" ] || python3 ci/readme-merge.py $gen; } &&
+       { ! grep -qx tests/wiring-models.txt <<<"$left" || python3 ci/proof-links.py --merge-models; }; then
+      git add -A -- $left && git commit -q --no-edit
     else
       echo "land: the merge conflicts: resolve, commit, and run ci/land.sh again" >&2; exit 1
     fi
@@ -85,8 +87,11 @@ ci/local.sh build
 # (it only shrinks; a new model law still fails the gate)
 python3 ci/proof-links.py --prune >/dev/null
 python3 ci/proof-links.py >/dev/null && python3 ci/vacuity.py --write >/dev/null
+# ci/proof-links.py draws the proof tree too; a new README group is a new
+# file (guarded: a missing tree is the gate's to report, not set -e's)
+[ -e docs/PROOF-TREE.md ] && git add -A -- docs/PROOF-TREE.md docs/proof-tree
 if [ -n "$(git status --porcelain --untracked-files=no)" ]; then
-  git commit -qam "README links and vacuity inventory after merging main"
+  git commit -qam "README links, proof tree and vacuity inventory after merging main"
 fi
 ci/local.sh
 fetch_main

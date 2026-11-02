@@ -251,6 +251,7 @@ theorem rbsr_asked (cfg : Config) (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs
           dsimp only
           simp only [e]
           refine admit_goal cfg _ _ _ _ (claimIds cs).length hmax ?_
+          simp only [Index.answer_fun]
           apply answer_wants_le <;> intro _ <;> rfl
 
 /-- **What a payload's step asks**, it asked before or wants on the wire

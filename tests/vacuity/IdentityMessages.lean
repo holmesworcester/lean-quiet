@@ -88,7 +88,8 @@ theorem mySecretDurable : (family ed25519).durable mySecret = true := by
 
 def intakeLocal := if hl : (family ed25519).room mySecret = none then
   some (PLift.up (intake_local (family ed25519) (mine := true) (ops := [mySecret])
-    (List.mem_filter.2 ⟨List.mem_singleton.2 rfl, mySecretDurable⟩) hl)) else none
+    (List.mem_filter.2 ⟨List.mem_filter.2 ⟨List.mem_singleton.2 rfl, mySecretDurable⟩,
+      by simp [Op.capped, mySecret, secret, maxReqs]⟩) hl)) else none
 
 def storedLocal := if hx : fedStore.ops mySecret.id = some mySecret then
   if hl : (family ed25519).room mySecret = none then

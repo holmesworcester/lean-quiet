@@ -72,6 +72,13 @@ def scaleCrop (s : Src) (x0 y0 cw ch tw th : Nat) (bg : Color) : Bitmap := Id.ru
     rows := rows.push row
   return { w := tw, rows := rows }
 
+/-- The whole image fitted into at most mw x mh, its aspect kept. -/
+def fit (s : Src) (mw mh : Nat) : Nat × Nat :=
+  let w := max s.w 1
+  let h := max s.h 1
+  if w * mh ≤ h * mw then (max 1 (w * mh / h), mh) |>.map (min mw ·) id
+  else (mw, max 1 (h * mw / w))
+
 def scaled (s : Src) (tw th : Nat) (bg : Color) : Bitmap := scaleCrop s 0 0 s.w s.h tw th bg
 
 /-- A centred square crop, at d x d: an avatar. -/

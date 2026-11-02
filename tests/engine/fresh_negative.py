@@ -53,7 +53,7 @@ finally:
 # (name, source, unique original, mutant, target, expected failure text, runtime?)
 cases = [
     ("discard-retired", "engine/wire/Tcp.lean",
-     "    if drain then s.drain else s.stop", "    s.stop",
+     "    if drain then s.drain linger else s.stop", "    s.stop",
      "fresh_tcp", "FAIL: retired final notice arrives first, before ordinary backlog and EOF", True),
     ("event-starves-write", "engine/wire/Lanes.lean",
      "  let selected ← if writeFirst then do",
@@ -116,8 +116,8 @@ cases = [
      "fresh_tcp", "FAIL: S is closed within stallMs", True),
     # The slot is released at close, while the writer still waits.
     ("slot-at-close", "engine/wire/Tcp.lean",
-     ("  finally\n    cleanupReader\n    slots.release addr", "    if drain then s.drain else s.stop\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
-     ("  finally\n    cleanupReader\n    pure ()", "    if drain then s.drain else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
+     ("  finally\n    cleanupReader\n    slots.release addr", "    if drain then s.drain linger else s.stop\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
+     ("  finally\n    cleanupReader\n    pure ()", "    if drain then s.drain linger else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
      "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=true)", True),
 ]
 if sys.platform != "win32":

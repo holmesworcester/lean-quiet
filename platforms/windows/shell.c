@@ -244,6 +244,11 @@ lean_obj_res lq_now_us(void) { LARGE_INTEGER n,f;QueryPerformanceCounter(&n);Que
 lean_obj_res lq_tz_min(void) { TIME_ZONE_INFORMATION t; DWORD state=GetTimeZoneInformation(&t); LONG bias=t.Bias+(state==TIME_ZONE_ID_DAYLIGHT?t.DaylightBias:state==TIME_ZONE_ID_STANDARD?t.StandardBias:0);return lean_io_result_mk_ok(lean_box_uint32((uint32_t)-bias)); }
 lean_obj_res lq_log(b_lean_obj_arg s) { fprintf(stderr,"%s\n",lean_string_cstr(s));return unit(); }
 lean_obj_res lq_poll(void) { return words(NULL,0); }
+// Notifications and background sync are Android's (docs/NOTIFICATIONS.md):
+// this shell has neither.
+lean_obj_res lq_notify(b_lean_obj_arg json) { (void)json; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_service(uint8_t on) { (void)on; return lean_io_result_mk_ok(lean_box(0)); }
+
 lean_obj_res lq_links(void) { return words(NULL,0); }
 lean_obj_res lq_appearance(uint8_t dark,uint32_t bg) { (void)dark;(void)bg;return unit(); }
 lean_obj_res lq_bars(uint32_t t,uint32_t b,uint8_t lt,uint8_t lb) { (void)t;(void)b;(void)lt;(void)lb;return unit(); }
