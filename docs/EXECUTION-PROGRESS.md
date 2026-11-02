@@ -256,10 +256,11 @@ controls and nonempty infinite selector witnesses.
 
 The running TCP code now retains reader task ownership, cancels supported
 pending connects on deadline/stop and uses synchronized one-way stop flags.
-The app reader publishes cancellation with atomic `modify`; direct `set` can
-be lost to an overlapping getter in the pinned SDK. The named native gate
-checks 24 runtime assertions and 11 compiling controls, including this exact
-SDK interleaving. These repairs establish regression coverage, not universal
+The app reader publishes cancellation with atomic `modify`; up to Lean 4.34,
+a direct `set` could be lost to an overlapping getter (Lean 4.35.0 fixed
+that in its runtime). The named native gate checks 24 runtime assertions and
+9 compiling controls, including this exact SDK interleaving. These repairs
+establish regression coverage, not universal
 OS progress. [NATIVE-LIFETIMES.md](NATIVE-LIFETIMES.md) records precise limits.
 
 ## Composer presentation milestone
