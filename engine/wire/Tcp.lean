@@ -764,6 +764,8 @@ def RunState.loopBackend (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (
     st.apply x ch notify cfg e now
   event := fun st ev now => st.selected.handle x ch notify cfg ev now
   tick := fun st now => do
+    -- a scrub a reader blocked (a session's purged bytes in the WAL)
+    st.store (scrubDue (F := F))
     let (st, deferred) ← st.prepareExpiry x cfg now
     st.ackRetries x
     let x' := { x with

@@ -4,6 +4,7 @@
 #include <lean/lean.h>
 #include <sqlite3.h>
 #include <string.h>
+#include <stdio.h>
 
 static lean_obj_res bytes(const void* p, size_t n) {
   lean_object* b = lean_alloc_sarray(1, n, n);
@@ -47,9 +48,31 @@ LEAN_EXPORT lean_obj_res le_sql_open(b_lean_obj_arg path) {
   return lean_io_result_mk_ok(lean_alloc_external(db_class, db));
 }
 
+// A statement SQLite refuses as busy outside a transaction changed
+// nothing (a single statement is atomic; BEGIN only takes the lock), so
+// it is tried again, after SQLite's own busy wait and a pause, for as long
+// as another connection holds the lock. Inside a transaction a busy
+// statement is not retried here: the caller's transaction rolls back.
+static int busy_again(int rc, int outside, int* tries) {
+  if (!outside || (rc & 0xff) != SQLITE_BUSY) return 0;
+  int t = (*tries)++;
+  if (t % 20 == 19) fprintf(stderr, "sqlite busy: %d tries, still trying\n", t + 1);
+  sqlite3_sleep(t < 6 ? 10 << t : 500);
+  return 1;
+}
+
 LEAN_EXPORT lean_obj_res le_sql_exec(b_lean_obj_arg o, b_lean_obj_arg sql) {
   char* err = NULL;
-  int rc = sqlite3_exec(db_of(o), lean_string_cstr(sql), NULL, NULL, &err);
+  const char* text = lean_string_cstr(sql);
+  // Only a BEGIN is retried: a script of several statements may have run
+  // some of them before one was refused.
+  int begin = strncmp(text, "BEGIN", 5) == 0 && sqlite3_get_autocommit(db_of(o));
+  int tries = 0;
+  int rc;
+  while ((rc = sqlite3_exec(db_of(o), text, NULL, NULL, &err)) != SQLITE_OK && busy_again(rc, begin, &tries)) {
+    sqlite3_free(err);
+    err = NULL;
+  }
   if (rc != SQLITE_OK) {
     lean_obj_res e = sql_error(rc, err ? err : "sqlite exec failed");
     sqlite3_free(err);
@@ -63,8 +86,12 @@ LEAN_EXPORT lean_obj_res le_sql_exec(b_lean_obj_arg o, b_lean_obj_arg sql) {
 LEAN_EXPORT lean_obj_res le_sql_query(b_lean_obj_arg o, b_lean_obj_arg sql, b_lean_obj_arg args) {
   sqlite3*      db = db_of(o);
   sqlite3_stmt* st;
+  int outside = sqlite3_get_autocommit(db);
+  int tries = 0;
+again:;
   int prc = sqlite3_prepare_v2(db, lean_string_cstr(sql), -1, &st, NULL);
   if (prc != SQLITE_OK) {
+    if (busy_again(prc, outside, &tries)) goto again;
     return sql_error(prc, sqlite3_errmsg(db));
   }
   size_t n = lean_array_size(args);
@@ -83,6 +110,11 @@ LEAN_EXPORT lean_obj_res le_sql_query(b_lean_obj_arg o, b_lean_obj_arg sql, b_le
       row = lean_array_push(row, bytes(p, p ? (size_t)len : 0));
     }
     rows = lean_array_push(rows, row);
+  }
+  if (rc != SQLITE_DONE && busy_again(rc, outside, &tries)) {
+    sqlite3_finalize(st);
+    lean_dec(rows);
+    goto again;
   }
   if (rc != SQLITE_DONE) {
     lean_obj_res e = sql_error(rc, sqlite3_errmsg(db));

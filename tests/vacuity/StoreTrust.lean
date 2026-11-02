@@ -294,6 +294,39 @@ def main : IO UInt32 := do
   t.ok "the write is made once" (rows == #[#["1".toUTF8]])
   let notSql ← (Store.attempt (db.exec "NOT SQL")).toBaseIO
   t.ok "a failure that is not busy is thrown as it was" (notSql matches .error _)
+  -- The glue's own retry, where a refused statement changed nothing: a
+  -- BEGIN, and a single statement outside a transaction, under another
+  -- connection's lock, both get through once it is released.
+  other.exec "BEGIN IMMEDIATE"
+  let free ← IO.asTask do
+    IO.sleep 6000
+    other.exec "COMMIT"
+  let began ← (db.exec "BEGIN IMMEDIATE").toBaseIO
+  t.ok "a BEGIN under another connection's lock gets through once it is released" (began matches .ok ())
+  if began matches .ok () then db.exec "COMMIT"
+  discard <| IO.wait free
+  other.exec "BEGIN IMMEDIATE"
+  let free ← IO.asTask do
+    IO.sleep 6000
+    other.exec "COMMIT"
+  let wrote ← (db.query "INSERT INTO busy_probe VALUES (2)" #[]).toBaseIO
+  discard <| IO.wait free
+  let rows ← db.query "SELECT COUNT(*) FROM busy_probe" #[]
+  t.ok "a single write outside a transaction gets through once the lock is released, once" ((wrote matches .ok _) && rows == #[#["2".toUTF8]])
+  -- A checkpoint a reader blocks: a scrubbing purge under another
+  -- connection's open read does not fail; the scrub is due, and runs once
+  -- the reader is gone.
+  let reader ← Db.openAt path
+  reader.exec "BEGIN"
+  let _ ← reader.query "SELECT count(*) FROM ops" #[]
+  let blocked ← ((purgeSql (F := Fact) fam [fresh.id] true).run db).toBaseIO
+  t.ok "a purge whose checkpoint a reader blocks does not fail" (blocked matches .ok ())
+  let due ← db.query "SELECT one FROM scrub_due" #[]
+  t.ok "the blocked scrub is due" (due.size == 1)
+  reader.exec "COMMIT"
+  (scrubDue (F := Fact)).run db
+  let after ← db.query "SELECT one FROM scrub_due" #[]
+  t.ok "with the reader gone, the due scrub runs and is no longer due" after.isEmpty
   t.finish "store trust file: satisfied by SQLite, operation by operation"
 
 end Vacuity.StoreTrust

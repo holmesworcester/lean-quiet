@@ -26,12 +26,5 @@
     "witness": "Vacuity.Busy.thrownNotBusy",
     "module": "tests.vacuity.Busy",
     "detail": "Applied to the error an attempt does throw (an I/O error): it is not busy. On a real file, retrying gets through once the second connection releases its lock, and the write is made once."
-  },
-  "shipped_busy_escapes": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Store.shipped_busy_escapes",
-    "witness": "Vacuity.Busy.shippedEscapes",
-    "module": "tests.vacuity.Busy",
-    "detail": "The control: the shipped runner's run-as-is call, on the same locked call, fails busy, which reached Tcp.runLoop's catch and ended networking (net_link under load, holmes-80's A/B)."
   }
 }
