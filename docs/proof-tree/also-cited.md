@@ -4,12 +4,12 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README cites outside its guarantee rows. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1238) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (290) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2158)
+✅ wired: about running code (1345) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2126)
 
 ## What is proven
 
 <ul>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
 </ul>
 
 ## Towards Proofs for n Clients
@@ -17,12 +17,12 @@
 <ul>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.same_ops_same_verdicts">Engine.same_ops_same_verdicts</a> ↪ · 72 below</li>
 <li>🌐 <a href="quality-proofs-sync.md#law-Engine.Sync.stream_delivers">Engine.Sync.stream_delivers</a> ↪ · 134 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.converge">Engine.World.Plain.converge</a> ↪ · 129 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.offline">Engine.World.Plain.offline</a> ↪ · 131 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.good_always">Engine.World.Plain.good_always</a> ↪ · 337 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.grows">Engine.World.Plain.grows</a> ↪ · 120 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
-<li>🌐 <a href="quality-proofs.md#law-Engine.World.Plain.drain">Engine.World.Plain.drain</a> ↪ · 194 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.converge">Engine.World.Plain.converge</a> ↪ · 129 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.offline">Engine.World.Plain.offline</a> ↪ · 131 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.good_always">Engine.World.Plain.good_always</a> ↪ · 337 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.grows">Engine.World.Plain.grows</a> ↪ · 120 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.want_reaches">Engine.World.Plain.want_reaches</a> ↪ · 494 below</li>
+<li>🌐 <a href="quality-proofs-sync.md#law-Engine.World.Plain.drain">Engine.World.Plain.drain</a> ↪ · 194 below</li>
 </ul>
 
 ## What is Assumed
@@ -418,7 +418,7 @@
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.ext-">Engine.Op.ext'</a> ↪ · 30 below</li>
 <li><details><summary><a id="law-Engine.Sync.ServiceRun.pending_until"></a>✅ <a href="../../engine/sync/ClosureDelivery.lean#L150">Engine.Sync.ServiceRun.pending_until</a> · 14 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.ServiceRun.pending"></a>✅ <a href="../../engine/sync/ClosureDelivery.lean#L135">Engine.Sync.ServiceRun.pending</a> · 13 below</summary><ul>
-<li>✅ <a href="quality-proofs.md#law-Engine.Sync.serveOwed_pending">Engine.Sync.serveOwed_pending</a> ↪ · 12 below</li>
+<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.serveOwed_pending">Engine.Sync.serveOwed_pending</a> ↪ · 12 below</li>
 <li>▫️ <a href="../../engine/sync/TimeLaws.lean#L9">Engine.Sync.instLawfulBEqByteArray_engine_1</a></li>
 </ul></details></li>
 </ul></details></li>
@@ -802,19 +802,6 @@
 Subtrees met 5 levels down, drawn whole here once.
 
 <ul>
-<li><details><summary><a id="law-Engine.World.move_keeps"></a>▫️ <a href="../../engine/world/Plain.lean#L77">Engine.World.move_keeps</a> · 13 below</summary><ul>
-<li><details><summary><a id="law-Engine.World.turn_keeps"></a>▫️ <a href="../../engine/world/Plain.lean#L55">Engine.World.turn_keeps</a> · 10 below</summary><ul>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.drainS_ops">Engine.drainS_ops</a> ↪ · 7 below</li>
-<li><details><summary><a id="law-Engine.World.foldl_ingestS_some"></a>▫️ <a href="../../engine/world/Plain.lean#L48">Engine.World.foldl_ingestS_some</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/world/Plain.lean#L39">Engine.World.ingestS_some</a></li>
-</ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.World.purge_keeps"></a>▫️ <a href="../../engine/world/Plain.lean#L63">Engine.World.purge_keeps</a> · 9 below</summary><ul>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.drainS_ops">Engine.drainS_ops</a> ↪ · 7 below</li>
-<li>▫️ <a href="../../engine/core/Model.lean#L30">Engine.has_iff</a></li>
-<li>▫️ <a href="../../engine/core/Purge.lean#L362">Engine.mem_purgeSet_iff</a></li>
-</ul></details></li>
-</ul></details></li>
 <li><details><summary><a id="law-Trust.Sim.op"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L105">Trust.Sim.op</a> · 35 below</summary><ul>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.make_eta">Engine.Op.make_eta</a> ↪ · 31 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
