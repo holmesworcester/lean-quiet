@@ -1,6 +1,6 @@
 import engine.wire.NodeUniqueLaws
 import app.Proofs
-import engine.sync.Witnesses
+import tests.vacuity.SyncWitnesses
 
 /- Synthetic Unit-family session labels make kernel computation possible.
 These witnesses exercise the actual Node handlers, not Noise correctness.

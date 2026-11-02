@@ -210,7 +210,7 @@ Laws (each in the folder of the deepest ops it names: `channel/message/Proofs.le
 | Are all messages by admitted users? | `message_authorized` |
 | Is impersonation impossible? | `no_impersonation` (given unforgeable signatures), `admission_consented` |
 | Can outsiders join? | `admission_needs_approval` (every admission but the founder's cites exactly one approval, by a member's device other than the requester's), `admission_approved`, `request_invited`, `approval_signed`, `invitation_issued` |
-| Are requests with an approval admitted? | `request_valid`, `approve_valid`, `admit_admits`; `removed_approver_admits` (a removed member's approval counts, whenever made) |
+| Are requests with an approval admitted? | `request_valid`, `approve_valid`, `admit_admits` (it takes no removal premise: a removed member's approval counts, whenever made) |
 | Who may remove whom? | `removal_authorized`, `admin_removal_stands`, `mutual_removal`, `admin_granted` |
 | Can a removal be undone, or rewrite history? | `removed_stays`, `valid_stays` |
 | Which nodes do we connect to? | `connect_iff` (a node key, while a live device is admitted under it), `deviceLive_iff`, `refuse_nonmember` |
@@ -218,7 +218,7 @@ Laws (each in the folder of the deepest ops it names: `channel/message/Proofs.le
 | Do we connect to approved devices' nodes, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
 | Which key is a post sealed under, and who gets it? | `post_community_key`, `currentKey_community`, `send_community_key` (the one key whose id the root names); `wrap_signed` (a Valid wrap: an admitted device's, to an admitted node), `unwrap_community` (no other key is taken), `approveReq_wrap_admits` (an approval wraps it to the device it admits); `recipients_iff` names exactly the keys `allowPeer` lets in, but no wrap writer reads it yet |
 | What does a removal cut off? | `removal_cuts_off`, `cut_stays`, `cut_consented`, `connect_agree`: every device of the removed user, for good, at every node that has received the removal |
-| How is a node's key tied to its devices? | `endpoint_signed`, `endpoint_derives`, `new_device_trusted` |
+| How is a node's key tied to its devices? | `endpoint_signed`, `endpoint_derives`, `connect_iff` |
 | Does a removed node keep the community? Can it rejoin? | `mine_not_removed`, `rejoin_fresh`, `join_new_device`, `removed_stays_removed` |
 
 The connection, dialing and sealing laws are about the views

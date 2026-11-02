@@ -107,10 +107,11 @@ with a fixed high-water mark during each pass. Its cursor persists under an
 authenticated peer key, so replacing a session does not restart progress.
 [SweepLaws](../engine/sync/SweepLaws.lean) proves repeated emission of a retained,
 authorized, fitting row under recurring output reservation, despite arbitrary
-later inserts and intervening zero-room stalls. `Sweep.FairLoss` names the
-external semantic-payload delivery contract; fresh encryption nonces need
-not reproduce identical ciphertext. [SweepRun](../engine/sync/SweepRun.lean)
-exposes the exact runtime cursor inputs. [CatalogEvolution](../app/Proofs.lean)
+later inserts and intervening zero-room stalls. Delivering those emissions
+is the link's part (fair loss over semantic payloads, not identical
+ciphertexts: fresh nonces change every frame), and no law states it yet.
+[SweepRun](../engine/sync/SweepRun.lean) proves that one running sweep step
+over SQLite's catalog is that cursor transition (`sql_run_step`). [CatalogEvolution](../app/Proofs.lean)
 derives stable Held catalog positions through every actual handler and
 arbitrary execution suffix, including local-secret purge.
 

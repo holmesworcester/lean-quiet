@@ -308,7 +308,8 @@ changed with it:
 - `removal_authorized`: the removal takes its cut (implicit); the
   conclusion is the same.
 - `connect_iff`: the stricter trust rule, `Trusted ∧ Live` instead of
-  `Admitted ∧ Live`. Trusted implies admitted, so acceptance says more;
+  `Admitted ∧ Live`. Trusted implies admitted
+  ([`Trusted.admitted`](../app/community/Proofs.lean#L1557)), so acceptance says more;
   the converse is narrower on purpose: an admission approved outside a
   removal's cut no longer lets a node in.
 

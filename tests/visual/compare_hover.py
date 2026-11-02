@@ -39,6 +39,7 @@ def compare(reference, actual, out, budgets=None):
             if name not in budgets: failures.append(f'{name}: unreviewed case')
             else:
                 for key,limit in budgets[name].items():
+                    if key.startswith('_'): continue  # a note, such as a ceiling's reason
                     bad = score[key]<limit if key in ['recall','precision'] else score[key]>limit
                     if bad: failures.append(f'{name}: {key} {score[key]:.5f} outside {limit:.5f}')
         for label,im in [('reference',expected),('actual',observed),('rest',before)]: im.save(out/f'{name}-{label}.png')

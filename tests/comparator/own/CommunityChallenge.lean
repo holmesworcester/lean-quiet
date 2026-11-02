@@ -75,7 +75,7 @@ open Engine Engine.Codec Community in
 /-- **The node connects to exactly the live members.** At rest, the trust
 rule, read from the node's tables, accepts node key e for community c
 exactly when a live device has a trusted admission under e: the root's,
-or one an approval that counts admitted. -/
+or one admitted by an approval that counts. -/
 theorem Community.connect_iff {s : DB Community.Fact} {C : Community.Crypto} (h : Inv (family C) s)
     (hq : s.queue = []) (c : Id) (e : Community.Key) :
     (allowPeer c e).eval s = true ↔ ∃ u d, Trusted C s.ops c u d e ∧ Live C s.ops c d := by

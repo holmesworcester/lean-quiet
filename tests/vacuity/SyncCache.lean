@@ -119,6 +119,12 @@ theorem responderAsks : (Msg.hold room []).op ∈ ((responderConn.tick fam cfg i
   responder_asks fam cfg ix responderConn room 100 0 held rfl rfl (by simp [responderConn, conn, Conn.open])
     (by simp [responderConn, conn, Conn.open, cfg]) (by simp [Conn.roundedAt, responderConn, conn, Conn.open])
 
+/-- The same responder, the same tick: it asks (responderAsks) but opens
+no round, even in the room it shows with none yet. -/
+theorem responderOpensNone :
+    (Msg.rbsr room (responderConn.round + 1) []).op ∉ ((responderConn.tick fam cfg ix 100 : HeldM Unit Step) held).1.send :=
+  responder_opens_none fam cfg ix responderConn 100 held rfl room _ []
+
 def askMakesDue :=
   ask_due fam cfg ix dialerConn room 100 200 held rfl (by simp [dialerConn, conn, Conn.open])
     (by simp [dialerConn, conn, Conn.open])

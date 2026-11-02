@@ -108,6 +108,8 @@ def compare(reference, actual, out, budgets=None):
                 failures.append(f'{name}: no reviewed budget')
             else:
                 for metric, limit in budgets[name].items():
+                    if metric.startswith('_'):  # a note, such as a ceiling's reason
+                        continue
                     if scores[metric] > limit:
                         failures.append(f'{name}: {metric} {scores[metric]:.5f} > {limit:.5f}')
         component = 'composer' if name.startswith('composer-') else 'popup' if name.startswith(('switcher-', 'mobile-switcher-')) else None

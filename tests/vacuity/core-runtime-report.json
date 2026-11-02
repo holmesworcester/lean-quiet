@@ -230,5 +230,12 @@
     "witness": "Vacuity.CoreRuntime.runPurge",
     "module": "tests.vacuity.CoreRuntime",
     "detail": "The engine's purge run on a real signed store, purging a local secret that a shared message cites: it equals purgeS and returns purgeSet and rejudgeSet. The runtime checks beside it (purgeGone, purgeShared, purgeUndecides) exercise the same nonempty purge."
+  },
+  "oneOpPerId_of": {
+    "status": "runtime-witness",
+    "theorem": "Engine.oneOpPerId_of",
+    "witness": "Vacuity.CoreRuntime.oneOpPerId",
+    "module": "tests.vacuity.CoreRuntime",
+    "detail": "The store the signed fixture's history reaches (loadReach, a real Reach derivation), with the message arriving again as a change: the history is checked collision-free on real SHA-256 at run time, and oneOpPerId_of applies. Synthetic signed fixture."
   }
 }

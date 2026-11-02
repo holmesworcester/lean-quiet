@@ -7,6 +7,12 @@
 #
 #   ci/nightly.sh        (cron: 30 3 * * *; `mise run ci:nightly`)
 #
+# Then the forensics judge (ci/forensics-judge.sh, `mise run
+# forensics:judge`): a small seeded Sonnet sample over the run's
+# deterministic dump, about $1, its rates appended to
+# $TMPDIR/forensics-nightly/history.tsv; its log in the night's directory.
+# NIGHTLY_JUDGE=0 skips it.
+#
 # NIGHTLY_TREE (default /mnt/storage/holmes-wt/lq-nightly) is a worktree
 # kept for this run alone: it is reset to main each night.
 set -uo pipefail
@@ -29,14 +35,22 @@ git checkout -q --detach origin/main && git reset -q --hard origin/main
 # start from the last landing's build (ci/land.sh saves it)
 cache=$TMPDIR/lean-quiet-main-build
 if [ -d "$cache/build" ]; then mkdir -p .lake/build && rsync -a --update "$cache/build/" .lake/build/; fi
-rm -rf out/ci
+rm -rf out/ci out/forensics
 start=$(date +%s)
 systemd-run --user --scope -q -p MemoryMax=48G -p MemorySwapMax=0 \
   env MISE_TRUSTED_CONFIG_PATHS="$tree" ci/local.sh --full -j "${NIGHTLY_JOBS:-4}" > "$night/run.log" 2>&1
 code=$?
+judged=skipped
+if [ "${NIGHTLY_JUDGE:-1}" != 0 ]; then
+  systemd-run --user --scope -q -p MemoryMax=48G -p MemorySwapMax=0 \
+    env FORENSICS_HISTORY="$TMPDIR/forensics-nightly" bash ci/forensics-judge.sh > "$night/judge.log" 2>&1
+  j=$?; judged="exit $j"
+  [ "$code" = 0 ] && code=$j
+fi
 {
   echo "nightly $(date +%F) on main $(git rev-parse --short HEAD): exit $code in $(( $(date +%s) - start )) s"
   grep -E '^FAIL' "$night/run.log" || echo "all parts pass"
+  echo "forensics judge: $judged (rates: $TMPDIR/forensics-nightly/history.tsv)"
 } > "$night/summary"
 rm -rf "$night/ci" && cp -r out/ci "$night/ci"
 ln -sfn "$night" "$TMPDIR/lean-quiet-nightly/latest"

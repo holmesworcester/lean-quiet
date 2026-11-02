@@ -217,3 +217,26 @@ end Connection
     if code == 0 or not errs or not (lo <= errs[0] <= hi):
         raise SystemExit(f'mutation control did not fail at {target}: {label}\n{out[:3000]}')
     print(f'rejected mutation: {label} (fails {target})')
+
+# The running sweep step (engine/sync/SweepRun.lean, `sql_run_step`) over a
+# copy of Sweep.run that pops the queue as it reads a row: the law's own
+# proof must fail inside it. The copy is engine/sync/Sweep.lean with the
+# law appended; the unmutated copy compiles first.
+SWEEP = (ROOT / 'engine/sync/Sweep.lean').read_text()
+RUN = (ROOT / 'engine/sync/SweepRun.lean').read_text()
+LAW = RUN[RUN.index('namespace Engine.Sync.Sweep'):]
+def sweep_copy(text):
+    return 'import engine.core.SqliteLaws\n' + text + '\n' + LAW
+old = '    | some id => Store.getOp (F := F) id\n'
+new = '    | some id => do let _ ← Store.pop (F := F) (m := m); Store.getOp (F := F) id\n'
+assert SWEEP.count(old) == 1, 'sweep anchor must occur once'
+code, out = lean(sweep_copy(SWEEP), 'quiet-mutation-base-')
+if code != 0:
+    raise SystemExit(f'mutation control base does not compile: the sweep step\n{out[:3000]}')
+bad = sweep_copy(SWEEP.replace(old, new, 1))
+code, out = lean(bad, 'quiet-mutation-')
+errs = [int(m.group(1)) for m in re.finditer(r'Control\.lean:(\d+):\d+: error', out)]
+lo, hi = span(bad, 'sql_run_step')
+if code == 0 or not errs or not (lo <= errs[0] <= hi):
+    raise SystemExit(f'mutation control did not fail at sql_run_step: a sweep that pops the queue\n{out[:3000]}')
+print('rejected mutation: a sweep that pops the queue as it reads (fails sql_run_step)')
