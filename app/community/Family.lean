@@ -1221,8 +1221,8 @@ def Fact.membership : Fact → Bool
 
 /-- Membership ops, judged ahead of a backlog in the turn they can be
 decided: who is in and who is out counts at once (engine/core/Urgent.lean).
-Each Valid one cites only membership facts (`validate_cites`), but a
-self-removal's authority slot, which takes any shared fact. -/
+Each Valid one cites only membership facts (`validate_cites`, `urgentCites`).
+-/
 def urgentKind (o : Op) : Bool :=
   match (decode o.body : Option Body) with
   | some b => b.urgent

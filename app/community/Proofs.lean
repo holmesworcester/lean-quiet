@@ -2013,7 +2013,8 @@ drain-cap's job closure judges membership ops ahead of the backlog
 (`Family.urgent`), so they must not wait on anything behind it
 (engine/core/Urgent.lean `UrgentCites`): only membership ops make
 membership facts (`validate_urgent`), and a Valid one cites only them
-(`validate_cites`), but a self-removal's authority slot. -/
+(`validate_cites`): a removal's authority is its author's own admission
+or an admin's fact (the self-removal rule). -/
 
 open Codec
 
@@ -2037,9 +2038,22 @@ theorem grant_admin {C : Crypto} {o : Op} {b : Grant.Body} {r a t : Root.Fact} {
     · rename_i hc; exact hc.2.2.2.2.1
     · cases h
 
-/-- A Valid membership op, but a removal, cites only membership facts. -/
+/-- A removal's authority is the author's own admission, or shows the
+author admin (the self-removal rule). -/
+theorem remove_auth {C : Crypto} {o : Op} {b : Remove.Body} {r a t : Root.Fact} {own admin : Bool}
+    {x : Remove.Fact} (h : Remove.check C o b r a own admin t = some x) : own = true ∨ admin = true := by
+  unfold Remove.check at h
+  split at h
+  · split at h
+    · rename_i hc
+      rcases hc.2.2.2.2.1 with ⟨-, ho⟩ | ha
+      · exact Or.inl ho
+      · exact Or.inr ha
+    · cases h
+
+/-- **A Valid membership op cites only membership facts.** -/
 theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
-    (hb : b.urgent = true) (hself : ∀ r, b ≠ .ofRemove r) (h : check C o b fs = some f) :
+    (hb : b.urgent = true) (h : check C o b fs = some f) :
     ∀ g ∈ fs, g.membership = true := by
   intro g hg
   unfold check at h
@@ -2048,7 +2062,6 @@ theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     | (simp at hg; done)
     | (simp at h; done)
     | (simp [Body.urgent] at hb; done)
-    | (exact absurd rfl (hself _))
     | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
        rcases hg with rfl | rfl | rfl | rfl <;> rfl)
     | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
@@ -2057,6 +2070,16 @@ theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
        · rfl
        · rfl
        · exact isAdmin_membership (grant_admin h')
+       · rfl)
+    | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
+       obtain ⟨_, h', _⟩ := Option.map_eq_some_iff.1 h
+       rcases hg with rfl | rfl | rfl | rfl
+       · rfl
+       · rfl
+       · rcases remove_auth h' with ho | ha
+         · simp only [Bool.and_eq_true, decide_eq_true_eq] at ho
+           rw [ho.1]; rfl
+         · exact isAdmin_membership ha
        · rfl)
 
 theorem validate_urgent {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
@@ -2071,16 +2094,24 @@ theorem validate_urgent {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
     · cases h
 
 theorem validate_cites {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
-    (hu : urgentKind o = true) (hself : ∀ b r, (decode o.body : Option Body) = some b → b ≠ .ofRemove r)
-    (h : validate C o fs = some f) : ∀ g ∈ fs, g.membership = true := by
+    (hu : urgentKind o = true) (h : validate C o fs = some f) : ∀ g ∈ fs, g.membership = true := by
   unfold validate at h; unfold urgentKind at hu
   cases hb : (decode o.body : Option Body) with
   | none => rw [hb] at h; cases h
   | some b =>
     simp only [hb] at h hu
     split at h
-    · exact check_cites hu (fun r => hself b r hb) h
+    · exact check_cites hu h
     · cases h
+
+/-- **Community's membership ops cite only membership ops**: the family's
+`UrgentCites`, so an urgent op's Valid verdict is the spec's after every
+turn, with no premise on its closure (engine/core/Urgent.lean,
+`urgent_valid_spec`). -/
+def urgentCites (C : Crypto) : UrgentCites (family C) where
+  uf := Fact.membership
+  fact _ _ _ hv hm := validate_urgent hv hm
+  cites _ _ _ hu hv := validate_cites hu hv
 
 end Community
 

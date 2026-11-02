@@ -3009,10 +3009,16 @@ theorem Run.shared_retained {S initial} (r : Run S initial) (target : Side)
 
 The node-level community laws (`connect_iff_node`, `removal_cuts_off_node`,
 …) hold of any store with the engine's invariant and an empty queue.
-`trace_good` says every production trace leaves each peer's store so; each
-`…_trace` law below is one node law applied to it. Covered: both peers run
-the actual `Node.onTick/onFrame/onWrite/onClose` with `Connection.hooks`,
-native crypto, the Held store and any entropy, under any order of ticks,
+`trace_good` says every production trace leaves each peer's store with
+the invariant and its urgent work settled (drain-cap: a capped turn
+judges membership ops ahead of any backlog). `trace_rest` drains that
+store to rest: the trust rule's views answer there as on the store
+(they read only membership facts, each final after every turn:
+engine/core/UrgentViews.lean), and its membership verdicts are the same.
+So each `…_trace` law below is one node law applied at rest and carried
+back. Covered: both peers run the actual
+`Node.onTick/onFrame/onWrite/onClose` with `Connection.hooks`, native
+crypto, the Held store and any entropy, under any order of ticks,
 arbitrary local writes, FIFO deliveries, drops and two-sided closes. Not
 covered: more than two peers, reordering, restarts, an attacker on the
 wire, and SQLite (the Held store stands in for it). -/
@@ -3024,26 +3030,35 @@ set_option hygiene false in
 local notation "store" => ((trace S (empty ea eb) actions).peer side).memory.held.db
 
 /-- **Every production trace leaves each peer's store good:** the engine's
-invariant holds and the validation queue is empty, the two premises of
-every node-level community law, stated over the running family
-(`family` is its alias here). This is the join's single point of truth;
-the `…_trace` laws rest on it alone. Under drain-cap (holmes-0f), a turn
-settles only urgent facts (removals, admissions, connection and session
-facts), so this becomes "urgent facts settled", and the corollaries rest
-on that through engine/core/Locality.lean: a membership op's verdict
-depends only on the ops it cites, and those are all urgent. Only this law
-changes then. -/
-theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧ (store).queue = [] := by
-  obtain ⟨⟨_, hr, _⟩, hq⟩ := empty_trace_store S ea eb actions side
-  exact ⟨reach_inv hr, hq⟩
+invariant holds and its urgent work is settled (every urgent op whose
+closure is all urgent has its spec verdict, whatever is still queued),
+stated over the running family (`family` is its alias here). -/
+theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧
+    UrgentWaiting (Connection.node ed25519 sodium) store := by
+  obtain ⟨⟨_, hr, _⟩, hw⟩ := empty_trace_store S ea eb actions side
+  exact ⟨reach_inv hr, hw⟩
+
+/-- **Each peer's store, at rest:** drained to an empty queue, it keeps
+the invariant and the ops, answers every view of the node's urgent keys
+(the trust rule's) as the store does, and holds the same membership
+verdicts. -/
+theorem trace_rest : ∃ t : DB F, Inv (Connection.node ed25519 sodium) t ∧ t.queue = [] ∧ t.ops = (store).ops ∧
+    (∀ {α : Type} (v : View F α), v.Reads (UrgentKey (Connection.node ed25519 sodium)
+      (Connection.nodeCites ed25519 sodium)) → v.eval store = v.eval t) ∧
+    (∀ y g, (Connection.nodeCites ed25519 sodium).uf g = true →
+      ((store).status y = some (.valid g) ↔ t.status y = some (.valid g))) := by
+  obtain ⟨⟨_, hr, _⟩, hw⟩ := empty_trace_store S ea eb actions side
+  exact node_rest hr hw.settled
 
 /-- **The trust rule at every peer, after every production trace:** it
 takes a node key exactly when a live device is admitted under it. -/
 theorem connect_iff_trace (c : Id) (e : Community.Key) :
     ((allowPeer c e).liftL : View F Bool).eval store = true ↔
       ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d e ∧
-        Live ed25519 (community ed25519 store).ops c d :=
-  connect_iff_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e
+        Live ed25519 (community ed25519 store).ops c d := by
+  obtain ⟨t, hi, hq, hops, hv, -⟩ := trace_rest S ea eb actions side
+  rw [hv _ (reads_allowPeer_urgent c e), ← community_ops (C := ed25519) hops]
+  exact connect_iff_node hi hq c e
 
 /-- **A removal the peer holds cuts the removed user's node out of its
 trust rule,** after every production trace. -/
@@ -3051,30 +3066,40 @@ theorem removal_cuts_off_trace {c u : Id} {e : Community.Key}
     (hr : Removed ed25519 (community ed25519 store).ops c u)
     (only : ∀ u' d, Admitted ed25519 (community ed25519 store).ops c u' d e →
       ∃ e', Admitted ed25519 (community ed25519 store).ops c u d e') :
-    ((allowPeer c e).liftL : View F Bool).eval store = false :=
-  removal_cuts_off_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 hr only
+    ((allowPeer c e).liftL : View F Bool).eval store = false := by
+  obtain ⟨t, hi, hq, hops, hv, -⟩ := trace_rest S ea eb actions side
+  rw [← community_ops (C := ed25519) hops] at hr only
+  rw [hv _ (reads_allowPeer_urgent c e)]
+  exact removal_cuts_off_node hi hq hr only
 
 /-- **A node key every admission of which is cut is refused,** at every
 peer after every production trace. -/
 theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
     (hd : ∀ u d, Admitted ed25519 (community ed25519 store).ops c u d e →
       Community.Cut ed25519 (community ed25519 store).ops c d) :
-    ((allowPeer c e).liftL : View F Bool).eval store = false :=
-  refuse_nonmember_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e hd
+    ((allowPeer c e).liftL : View F Bool).eval store = false := by
+  obtain ⟨t, hi, hq, hops, hv, -⟩ := trace_rest S ea eb actions side
+  rw [← community_ops (C := ed25519) hops] at hd
+  rw [hv _ (reads_allowPeer_urgent c e)]
+  exact refuse_nonmember_node hi hq c e hd
 
 /-- Admitted, at every peer after every production trace: by a Valid
 admission among the peer's own verdicts. -/
 theorem admitted_trace {c u : Id} {d e : Community.Key} :
     Admitted ed25519 (community ed25519 store).ops c u d e ↔
-      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) :=
-  admitted_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) := by
+  obtain ⟨t, hi, hq, hops, -, hst⟩ := trace_rest S ea eb actions side
+  rw [← community_ops (C := ed25519) hops, admitted_node hi hq]
+  exact exists_congr fun x => (hst x _ rfl).symm
 
 /-- Removed, at every peer after every production trace: by a Valid
 removal among the peer's own verdicts. -/
 theorem removed_trace {c u : Id} :
     Removed ed25519 (community ed25519 store).ops c u ↔
-      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
-  removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) := by
+  obtain ⟨t, hi, hq, hops, -, hst⟩ := trace_rest S ea eb actions side
+  rw [← community_ops (C := ed25519) hops, removed_node hi hq]
+  exact exists_congr fun x => exists_congr fun r => (hst x _ rfl).symm
 
 end
 
@@ -3093,7 +3118,7 @@ theorem Run.state_trace {S initial} (r : Run S initial) (n : Nat) :
 /-- `trace_good` at every state of every run from `empty`, fair or not. -/
 theorem Run.good {S ea eb} (r : Run S (empty ea eb)) (n : Nat) (side : Side) :
     Inv (Connection.node Community.ed25519 sodium) ((r.state n).peer side).memory.held.db ∧
-      ((r.state n).peer side).memory.held.db.queue = [] := by
+      UrgentWaiting (Connection.node Community.ed25519 sodium) ((r.state n).peer side).memory.held.db := by
   rw [r.state_trace]
   exact trace_good S ea eb _ side
 

@@ -548,6 +548,60 @@ end Connection
 namespace Community
 open Engine
 
+/-! The trust rule's views read only admissions and removals: for any
+property of keys those relations' keys have (`reads_allowPeer_of`). -/
+section
+variable {P : ByteArray → Prop} (hR : ∀ as, P (removal.byUser.key as))
+  (hD : ∀ as, P (admission.byDevice.key as)) (hK : ∀ as, P (admission.byKey.key as))
+include hR
+
+theorem reads_unremoved_of (c : Id) (rows : List (Pos × Fact)) : (unremoved c rows).Reads P := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact .list (hR [c, u]) fun a => by
+          show View.Reads _ (if a.total = 0 then _ else _)
+          split
+          · exact ih
+          · exact .pure _
+      · exact ih
+    | _ => exact ih
+
+include hD in
+theorem reads_deviceLive_of (c : Id) (d : Key) : (deviceLive c d).Reads P :=
+  (View.Reads.read (hD [c, d])).bind fun a => by
+    show View.Reads _ (if a.rows.isEmpty then _ else _)
+    split
+    · exact .pure _
+    · exact reads_unremoved_of hR c a.rows
+
+include hD in
+theorem reads_live_of (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads P := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact (reads_deviceLive_of hR hD c d).bind fun _ => ih.bind fun _ => .pure _
+      · exact ih
+    | _ => exact ih
+
+include hD hK in
+theorem reads_allowPeer_of (c : Id) (e : Key) : (allowPeer c e).Reads P :=
+  (View.Reads.read (hK [c, e])).bind fun a => (reads_live_of hR hD c a.rows).bind fun _ => .pure _
+
+end
+
 theorem reads_unremoved (c : Id) (rows : List (Pos × Fact)) : (unremoved c rows).Reads (RelKey rels) := by
   induction rows with
   | nil => exact .pure _

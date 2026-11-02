@@ -34,6 +34,8 @@ import app.connection.send.Validate
 import engine.wire.Noise
 import engine.wire.NoiseSymbolic
 import app.community.Proofs
+import engine.core.UrgentViews
+import engine.sync.StoreEvolution
 
 namespace Connection
 open Engine Codec
@@ -637,6 +639,146 @@ theorem removal_cuts_off_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : 
     ((Community.allowPeer c e).liftL : View F Bool).eval s = false := by
   rw [view_node h hq (Community.reads_allowPeer c e)]
   exact Community.removal_cuts_off (community_inv h hq) hq hr only
+
+end
+
+/-! ## The running node's membership facts are final after every turn
+
+The node's family is Community's beside Connection's (`node`). Its urgent
+ops cite only urgent facts (`nodeCites`): Community's membership ops cite
+only membership facts (`Community.urgentCites`), and Connection's ops
+make no urgent fact. A Community relation that files only membership
+facts is an urgent key of the node (`urgentKey_rel`): no op key is one
+of its keys, and no Connection relation shares its names. So a view of
+such relations answers after every capped turn as at rest
+(engine/core/UrgentViews.lean, `view_rest`). -/
+
+section
+open Engine
+variable {C : Community.Crypto} {K : Keys}
+
+theorem lefts_mem {A B : Type} {fs : List (A ⊕ B)} {xs : List A} (h : lefts fs = some xs) {g : A ⊕ B}
+    (hg : g ∈ fs) : ∃ y ∈ xs, g = .inl y := by
+  rw [lefts_some h] at hg
+  obtain ⟨y, hy, rfl⟩ := List.mem_map.1 hg
+  exact ⟨y, hy, rfl⟩
+
+variable (C K) in
+/-- **The running node's urgent ops cite only urgent facts.** -/
+def nodeCites : UrgentCites (node C K) where
+  uf | .inl f => f.membership | .inr _ => false
+  fact o fs g hv hm := by
+    show (if (family K).owns o.kind then false else Community.urgentKind o) = true
+    have hv' : (if (family K).owns o.kind then ((family K).validate o fs).map Sum.inr
+        else (lefts fs).bind fun xs => ((Community.validate C) o xs).map Sum.inl) = some g := hv
+    split at hv'
+    · obtain ⟨_, _, rfl⟩ := Option.map_eq_some_iff.1 hv'; cases hm
+    · rename_i hown
+      rw [if_neg hown]
+      obtain ⟨xs, -, hx⟩ := Option.bind_eq_some_iff.1 hv'
+      obtain ⟨f, hf, rfl⟩ := Option.map_eq_some_iff.1 hx
+      exact Community.validate_urgent hf hm
+  cites o fs g hu hv := by
+    have hu' : (if (family K).owns o.kind then false else Community.urgentKind o) = true := hu
+    have hv' : (if (family K).owns o.kind then ((family K).validate o fs).map Sum.inr
+        else (lefts fs).bind fun xs => ((Community.validate C) o xs).map Sum.inl) = some g := hv
+    split at hu'
+    · cases hu'
+    · rename_i hown
+      rw [if_neg hown] at hv'
+      obtain ⟨xs, hxs, hx⟩ := Option.bind_eq_some_iff.1 hv'
+      obtain ⟨f, hf, rfl⟩ := Option.map_eq_some_iff.1 hx
+      intro g' hg'
+      obtain ⟨y, hy, rfl⟩ := lefts_mem hxs hg'
+      exact Community.validate_cites hu' hf y hy
+
+/-- **A Community relation that files only membership facts is an urgent
+key of the running node.** -/
+theorem urgentKey_rel {r : Rel Community.Fact} (hr : r ∈ Community.rels)
+    (hm : ∀ r' ∈ Community.rels, r'.kind = r.kind ∧ r'.name = r.name →
+      ∀ f as, r'.args f = some as → f.membership = true)
+    (as : List ByteArray) : UrgentKey (node C K) (nodeCites C K) (r.key as) := by
+  intro x g hk
+  rcases List.mem_cons.1 hk with h | h
+  · exact absurd h (r.key_ne_opKey (Community.rels_short r hr) as x)
+  · cases g with
+    | inl f =>
+      show f.membership = true
+      have h' : r.key as ∈ keysOf Community.rels f := h
+      rw [keysOf, List.mem_filterMap] at h'
+      obtain ⟨r', hr', he⟩ := h'
+      cases ha : r'.args f with
+      | none => rw [ha] at he; cases he
+      | some as' =>
+        rw [ha] at he
+        exact hm r' hr' (Rel.key_names (Option.some.inj he)) f as' ha
+    | inr c =>
+      have h' : r.key as ∈ keysOf rels c := h
+      rw [keysOf, List.mem_filterMap] at h'
+      obtain ⟨r', hr', he⟩ := h'
+      cases ha : r'.args c with
+      | none => rw [ha] at he; cases he
+      | some as' =>
+        rw [ha] at he
+        exact absurd (Rel.key_names (Option.some.inj he)) (rels_apart r hr r' hr')
+
+theorem nodup_map_inj {α β : Type} {g : α → β} : ∀ {l : List α}, (l.map g).Nodup →
+    ∀ {a b : α}, a ∈ l → b ∈ l → g a = g b → a = b
+  | [], _, _, _, ha, _, _ => by cases ha
+  | x :: t, hn, a, b, ha, hb, he => by
+    rw [List.map_cons, List.nodup_cons] at hn
+    rcases List.mem_cons.1 ha with rfl | ha' <;> rcases List.mem_cons.1 hb with rfl | hb'
+    · rfl
+    · exact absurd (by rw [he]; exact List.mem_map_of_mem hb') hn.1
+    · exact absurd (by rw [← he]; exact List.mem_map_of_mem ha') hn.1
+    · exact nodup_map_inj hn.2 ha' hb' he
+
+theorem rel_names_eq {r r' : Rel Community.Fact} (hr : r ∈ Community.rels) (hr' : r' ∈ Community.rels)
+    (h : r'.kind = r.kind ∧ r'.name = r.name) : r' = r := by
+  have hd := Community.rels_distinct
+  unfold Rel.Distinct at hd
+  exact nodup_map_inj hd hr' hr (by rw [h.1, h.2])
+
+/-- A Community relation holding only membership facts gives urgent keys. -/
+theorem urgentKey_member {r : Rel Community.Fact} (hr : r ∈ Community.rels)
+    (hone : ∀ f as, r.args f = some as → f.membership = true) (as : List ByteArray) :
+    UrgentKey (node C K) (nodeCites C K) (r.key as) :=
+  urgentKey_rel hr (fun r' hr' hn => by rw [rel_names_eq hr hr' hn]; exact hone) as
+
+theorem admission_only {r : Rel Community.Root.Fact} {f : Community.Fact} {as : List ByteArray}
+    (h : (r.comap Community.Fact.admission?).args f = some as) : f.membership = true := by
+  cases f <;> simp [Rel.comap, Community.Fact.admission?, Community.Fact.membership] at h ⊢
+
+theorem removal_only {r : Rel Community.Remove.Fact} {f : Community.Fact} {as : List ByteArray}
+    (h : (r.comap Community.Fact.removal?).args f = some as) : f.membership = true := by
+  cases f <;> simp [Rel.comap, Community.Fact.removal?, Community.Fact.membership] at h ⊢
+
+/-- **The trust rule reads only the node's urgent keys.** -/
+theorem reads_allowPeer_urgent (c : Id) (e : Community.Key) :
+    ((Community.allowPeer c e).liftL : View F Bool).Reads (UrgentKey (node C K) (nodeCites C K)) :=
+  (Community.reads_allowPeer_of
+    (fun as => urgentKey_member (r := Community.removal.byUser) (by simp [Community.rels])
+      (fun _ _ h => removal_only h) as)
+    (fun as => urgentKey_member (r := Community.admission.byDevice) (by simp [Community.rels])
+      (fun _ _ h => admission_only h) as)
+    (fun as => urgentKey_member (r := Community.admission.byKey) (by simp [Community.rels])
+      (fun _ _ h => admission_only h) as) c e).liftL
+
+theorem community_ops {s t : DB F} (h : t.ops = s.ops) : (community C t).ops = (community C s).ops := by
+  show leftOps _ t.ops = leftOps _ s.ops
+  rw [h]
+
+/-- **A reachable node store whose urgent work is settled answers the
+trust rule's views, and holds its membership verdicts, as the same store
+at rest does**: drained to an empty queue, where the node laws apply. -/
+theorem node_rest {L : List Op} {s : DB F} (hr : Engine.Reach (node C K) L s) (hu : UrgentSettled (node C K) s) :
+    ∃ t : DB F, Inv (node C K) t ∧ t.queue = [] ∧ t.ops = s.ops ∧
+      (∀ {α : Type} (v : View F α), v.Reads (UrgentKey (node C K) (nodeCites C K)) → v.eval s = v.eval t) ∧
+      (∀ y g, (nodeCites C K).uf g = true → (s.status y = some (.valid g) ↔ t.status y = some (.valid g))) := by
+  have hi := reach_inv hr
+  exact ⟨drainS (node C K) (budget L s) s, reach_inv (reach_drain hr _),
+    drain_history_budget _ _ hr (Nat.le_refl _), drainS_ops _ _,
+    fun v hv => view_rest (nodeCites C K) hi hu _ hv, fun y g hg => status_rest (nodeCites C K) hi hu _ hg⟩
 
 end
 end Connection
