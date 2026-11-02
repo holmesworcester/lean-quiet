@@ -4,7 +4,7 @@
   },
   "member": {
     "selector": ".sb-row[data-kind=\"person\"]",
-    "nth": 4
+    "nth": 7
   },
   "add-channel": {
     "selector": "button[aria-label=\"New channel\"]"

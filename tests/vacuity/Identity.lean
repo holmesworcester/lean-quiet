@@ -18,14 +18,14 @@ theorem table_append_extends (xs ys : List Op) : Extends (table xs) (table (xs +
   rw [List.find?_append, h]
   rfl
 
-def adminRemoval : Option (PLift (V ed25519 (table after) removeB.id (.removal c requestB.id c))) := do
+def adminRemoval : Option (PLift (V ed25519 (table after) removeB.id removeBFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
   let ⟨hb⟩ ← certify after admission bobFact
   if hx : table after removeB.id = some removeB then
     if hs : ed25519.verify alice.pk (signed removeB (.remove (sig alice.sk [c,c,c,admission.id] (.remove .empty))))
         (sig alice.sk [c,c,c,admission.id] (.remove .empty)) = true then
-      return ⟨admin_removal_stands hx (decode_encode _) rfl rfl hc hc hc
-        (by simp [rootFact, isAdmin]) hb hs⟩
+      return ⟨admin_removal_stands (ys := []) (ps := []) hx (decode_encode _) rfl rfl hc hc hc
+        (by simp [rootFact, isAdmin]) hb .nil rfl hs⟩
     else none
   else none
 
@@ -33,10 +33,10 @@ def adminRemoval : Option (PLift (V ed25519 (table after) removeB.id (.removal c
 def removedApprover : Option (PLift (V ed25519 (table after) admission.id bobFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
   let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
-  let ⟨ha⟩ ← certify after approval (.approval c requestB.id c)
-  let ⟨hm⟩ ← certify after removeA (.removal c c requestB.id)
+  let ⟨ha⟩ ← certify after approval approvalFact
+  let ⟨hm⟩ ← certify after removeA removeAFact
   if hy : table after admission.id = some admission then
-    return ⟨removed_approver_admits hy (decode_encode _) rfl rfl hc hr ha ⟨removeA.id, requestB.id, hm⟩⟩
+    return ⟨removed_approver_admits hy (decode_encode _) rfl rfl hc hr ha rfl rfl ⟨removeA.id, requestB.id, [], hm⟩⟩
   else none
 
 def requestValid : Option (PLift (V ed25519 (table after) requestB.id
@@ -52,22 +52,23 @@ def requestValid : Option (PLift (V ed25519 (table after) requestB.id
     else none
   else none
 
-def approveValid : Option (PLift (V ed25519 (table after) approval.id (.approval c requestB.id c))) := do
+def approveValid : Option (PLift (V ed25519 (table after) approval.id approvalFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
   let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
   let sg := sig alice.sk [c, requestB.id, c] (.approve .empty)
   if hx : table after approval.id = some approval then
     if hs : ed25519.verify alice.pk (signed approval (.approve sg)) sg = true ∧ alice.pk ≠ bob.pk then
-      return ⟨approve_valid hx (decode_encode _) rfl rfl hc hr hc (by simp) hs.2 hs.1⟩
+      return ⟨approve_valid (ys := []) (ps := []) (t := (.empty, 0, .empty, 0)) hx (decode_encode _) rfl rfl
+        hc hr hc .nil (by simp [Approve.links]) (by simp) hs.2 hs.1⟩
     else none
   else none
 
 def admitAdmits : Option (PLift (V ed25519 (table after) admission.id bobFact)) := do
   let ⟨hc⟩ ← certify after r rootFact
   let ⟨hr⟩ ← certify after requestB (.request c requestB.id bob.pk (keyOf bob) false)
-  let ⟨ha⟩ ← certify after approval (.approval c requestB.id c)
+  let ⟨ha⟩ ← certify after approval approvalFact
   if hx : table after admission.id = some admission then
-    return ⟨admit_admits hx (decode_encode _) rfl rfl hc hr ha⟩
+    return ⟨admit_admits hx (decode_encode _) rfl rfl hc hr ha rfl rfl⟩
   else none
 
 -- Named certificates make the README's evidence traceable one law at a time.
@@ -84,10 +85,10 @@ def requestInvited := applyLaw
   (certify after requestB (.request c requestB.id bob.pk (keyOf bob) false))
   (request_invited (keyed after))
 def removalAuthorized := applyLaw
-  (certify after removeB (.removal c requestB.id c)) removal_authorized
+  (certify after removeB removeBFact) removal_authorized
 def adminGranted := applyLaw (certify after grantB (.admin c requestB.id)) admin_granted
 def approvalSigned := applyLaw
-  (certify after approval (.approval c requestB.id c)) approval_signed
+  (certify after approval approvalFact) approval_signed
 def invitationIssued := applyLaw
   (certify after invitation (.invitation c c bearer.pk false)) invitation_issued
 def admissionConsented := applyLaw (certify after admission bobFact) admission_consented
@@ -107,9 +108,9 @@ def mutualRemoval := do
     if hy : table after removeA.id = some removeA then
       if hs : ed25519.verify alice.pk (signed removeB (.remove sa)) sa = true ∧
           ed25519.verify bob.pk (signed removeA (.remove sb)) sb = true then
-        return PLift.up (mutual_removal hc hx (decode_encode _) rfl rfl hc hc
-          (by simp [rootFact, isAdmin, c]) hb hs.1
-          hy (decode_encode _) rfl rfl hb hg (by simp [isAdmin, c]) hc hs.2)
+        return PLift.up (mutual_removal (hsx := []) (hsy := []) (psx := []) (psy := []) hc hx
+          (decode_encode _) rfl rfl hc hc (by simp [rootFact, isAdmin, c]) hb .nil rfl hs.1
+          hy (decode_encode _) rfl rfl hb hg (by simp [isAdmin, c]) hc .nil rfl hs.2)
       else none
     else none
   else none
@@ -117,20 +118,34 @@ def mutualRemoval := do
 def validStays := applyLaw (certify before message messageFact)
   (valid_stays (table_append_extends before [removeB,removeA]))
 
-def laterMessage := post c c alice "content-key-1".toUTF8 "A later signed op".toUTF8 2 29880002
+def laterMessage := post c c alice keyId "A later signed op".toUTF8 2 29880002
 
-def removedStays := applyLaw (certify after removeB (.removal c requestB.id c))
+def removedStays := applyLaw (certify after removeB removeBFact)
   (fun h => removed_stays (table_append_extends after [laterMessage])
-    (show Removed ed25519 (table after) c requestB.id from ⟨removeB.id,c,h⟩))
+    (show Removed ed25519 (table after) c requestB.id from ⟨removeB.id, c, [], h⟩))
 
 -- Alice's second device: her own approval of its device link's request,
 -- and its admission into her user (the founder's, c).
-def linkApproved := do
-  let ⟨hx⟩ ← certify linked linkApproval (.approval c requestA2.id c)
-  let ⟨hr⟩ ← certify linked requestA2 (.request c c alice2.pk (keyOf alice2) true)
-  return PLift.up (link_approved_by_issuer (keyed linked) hx hr)
+/-- Alice's approval of the link request, as the store judges it. -/
+def linkApprovalFact : Option Approve.Fact :=
+  match specAt (family ed25519) (table linked) 8 linkApproval.id with
+  | some (.valid (.ofApproval g)) => some g
+  | _ => none
 
-def linkAdmits := applyLaw (certify linked linkAdmission (.admission c c alice2.pk (keyOf alice2)))
+def linkApproved : Option (PLift (∃ g : Approve.Fact, g.u = c ∧
+    (∃ o i k, table linked requestA2.id = some o ∧ o.reqs = [c, i] ∧
+      V ed25519 (table linked) i (Fact.invitation c g.u k true)) ∧
+    ∃ ra ea ka, V ed25519 (table linked) ra (Fact.admission c g.u g.dev ea ka) ∧ g.dev ≠ alice2.pk)) := do
+  let g ← linkApprovalFact
+  let ⟨hx⟩ ← certify linked linkApproval (.ofApproval g)
+  let ⟨hr⟩ ← certify linked requestA2 (.request c c alice2.pk (keyOf alice2) true)
+  if hgc : g.c = c then
+    if hgr : g.req = requestA2.id then
+      return PLift.up ⟨g, link_approved_by_issuer (g := g) (keyed linked) hx hgc hgr hr⟩
+    else none
+  else none
+
+def linkAdmits := applyLaw (certify linked linkAdmission (.admission c c alice2.pk (keyOf alice2) keyId))
   (link_admits_issuer (keyed linked))
 
 def main : IO UInt32 := do
@@ -160,7 +175,7 @@ def main : IO UInt32 := do
   t.ok "removals do not erase Bob's history" (certify after message messageFact).isSome
   t.ok "actual extension has a new op" (table after laterMessage.id == none)
   t.ok "real content and counter" (!message.body.isEmpty && messageFact != rootFact)
-  let forged := post c admission.id mallory "content-key-1".toUTF8 "I am Bob".toUTF8 2 29880001
+  let forged := post c admission.id mallory keyId "I am Bob".toUTF8 2 29880001
   let bare := mkOp [c, requestB.id] .admit
   let selfApproval := approve c requestB.id admission.id bob
   let duplicateAdmission := mkOp [c, requestB.id, approval.id, approval.id] .admit

@@ -145,6 +145,9 @@ wired Demand.remount_rejects
 holds Demand.Plan.BeforeNext Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile.
 wired Community.connect_iff
 wired Community.removal_cuts_off
+wired Community.no_self_readmission
+wired Community.outside_cut_admits_none
+wired Community.trust_agree
 wired Connection.Noise.Symbolic.kk_secret
 wired Connection.Noise.Symbolic.kk_forward_secret
 wired Connection.Noise.Symbolic.kk_authentic
@@ -441,7 +444,7 @@ control Connection.Noise.Symbolic.read1Slip `read1` with `ss` from the initiator
 ## What would make each model real, most valuable first (the README's order)
 
 todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows.
-todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
+todo Community.recipients A wrap's recipient is now an admission's node key (`wrap_signed`), but no wrap writer reads `recipients`: an approval wraps to the one device it admits, not yet among them. A catch-up that wraps the community key to each live recipient holding no wrap would read it, and give a key to a member whose approver held none.
 todo Community.members = Community.recipients
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.

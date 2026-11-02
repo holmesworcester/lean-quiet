@@ -4,7 +4,7 @@ import { harness, turnedFrom } from './design/harness'
 import { channels, people } from './design/fixtures'
 // The signed founder/user identity made by Visual.fixture. The same identities
 // give both renderers the same avatar colours; only storage is substituted.
-const community = 'c40af42a697cdcf30451f2d97ab8d6046d91fcc8c74830392fb433da90ee0a07'
+const community = 'abb2d01c939f363dbe79b6767c412dcc0ca3857e9abb7917958b9ec7ac00816c'
 const base = { community, communities: [community], communityNames: { [community]: 'Rowing club' }, ownUser: community,
   members: [{ ...people[0]!, user: community }], membership: { users: 1, devices: 1 }, channels: channels.slice(0, 1), channel: channels[0]!.id, unread: {}, messages: [], more: false, peers: 0, connectivity: { links: [], txBytes: 0, rxBytes: 0, ops: 4, dbBytes: 20_480, up: 0, down: 0 } }
 const meta = { title: 'Parity/App', component: Window, parameters: { layout: 'fullscreen' } } satisfies Meta<typeof Window>
@@ -40,58 +40,58 @@ export const Conversation: Story = { args: harness({ ...base, viewing: 'channel'
 // Deterministic signed identities emitted by Visual.sidebarPeople.
 const sidebarMembers = [
   {
-    "device": "c40af42a697cdcf30451f2d97ab8d6046d91fcc8c74830392fb433da90ee0a07",
-    "user": "c40af42a697cdcf30451f2d97ab8d6046d91fcc8c74830392fb433da90ee0a07",
+    "device": "abb2d01c939f363dbe79b6767c412dcc0ca3857e9abb7917958b9ec7ac00816c",
+    "user": "abb2d01c939f363dbe79b6767c412dcc0ca3857e9abb7917958b9ec7ac00816c",
     "name": "Alice Nakamura",
     "kind": "person",
     "foundingDevice": false
   },
   {
-    "device": "3377061a86f826bb4bc7665bd8406e3e503a2f1070131076caaa9fbdbbd51cf1",
-    "user": "3377061a86f826bb4bc7665bd8406e3e503a2f1070131076caaa9fbdbbd51cf1",
-    "name": "Γιώργος",
-    "kind": "person",
-    "foundingDevice": false
-  },
-  {
-    "device": "4b2e561ae545b30ffd2ae25d8883fd2e057bd602d7b01746f191a09d41d3cc7e",
-    "user": "4b2e561ae545b30ffd2ae25d8883fd2e057bd602d7b01746f191a09d41d3cc7e",
-    "name": "Zoë",
-    "kind": "person",
-    "foundingDevice": false
-  },
-  {
-    "device": "08b5ff454b9312853ac56398888c09830eb1ddf9a97158edceb4ab1ef95bec55",
-    "user": "08b5ff454b9312853ac56398888c09830eb1ddf9a97158edceb4ab1ef95bec55",
-    "name": "Анна",
-    "kind": "person",
-    "foundingDevice": false
-  },
-  {
-    "device": "1810fc0823eb98903ff73229f5ac979394b6cd93a7ff33bde436237a47f03d76",
-    "user": "1810fc0823eb98903ff73229f5ac979394b6cd93a7ff33bde436237a47f03d76",
-    "name": "Bo Andersen",
-    "kind": "person",
-    "foundingDevice": false
-  },
-  {
-    "device": "75b417858d4eb3f82ee43e1518ccababcaa00617c73b4e605a7f528759df8d43",
-    "user": "75b417858d4eb3f82ee43e1518ccababcaa00617c73b4e605a7f528759df8d43",
+    "device": "eb9085dfaec84f152c0be85f075c13ce02f24b46389b749811130958a2194057",
+    "user": "eb9085dfaec84f152c0be85f075c13ce02f24b46389b749811130958a2194057",
     "name": "Alexandria Montgomery-Worcester",
     "kind": "person",
     "foundingDevice": false
   },
   {
-    "device": "c75c782b142a82523af57356c4d3323c78ad26a7e676a724f72f419964e42e5e",
-    "user": "c75c782b142a82523af57356c4d3323c78ad26a7e676a724f72f419964e42e5e",
+    "device": "41ecc1eaa798208b6153220c725c530617456274028ed4cd0310c48c782e3fb3",
+    "user": "41ecc1eaa798208b6153220c725c530617456274028ed4cd0310c48c782e3fb3",
+    "name": "Анна",
+    "kind": "person",
+    "foundingDevice": false
+  },
+  {
+    "device": "e19d70b70cd808fff6cff5d1e5b87c8400ecbe7b5f8cd39b8bde73ebfd781321",
+    "user": "e19d70b70cd808fff6cff5d1e5b87c8400ecbe7b5f8cd39b8bde73ebfd781321",
+    "name": "Zoë",
+    "kind": "person",
+    "foundingDevice": false
+  },
+  {
+    "device": "08667d27101305a9a6dc534657353bbbb04300c16f9849eec89763dd3bc15c46",
+    "user": "08667d27101305a9a6dc534657353bbbb04300c16f9849eec89763dd3bc15c46",
     "name": "Søren",
     "kind": "person",
     "foundingDevice": false
   },
   {
-    "device": "8e1510e913caf3de59e9d574ad8f5b0116c5a7bc127d1e9da2c96824fa0b8019",
-    "user": "8e1510e913caf3de59e9d574ad8f5b0116c5a7bc127d1e9da2c96824fa0b8019",
+    "device": "cc1ee9e053ade2e760cf38200c572d0cae0bfc8360cfea4a8258b48b7784088b",
+    "user": "cc1ee9e053ade2e760cf38200c572d0cae0bfc8360cfea4a8258b48b7784088b",
     "name": "Cassie Oyelaran",
+    "kind": "person",
+    "foundingDevice": false
+  },
+  {
+    "device": "032485dd324f397f7aa096303f77ad72861b978b2056036b1374d4eab617dd1b",
+    "user": "032485dd324f397f7aa096303f77ad72861b978b2056036b1374d4eab617dd1b",
+    "name": "Γιώργος",
+    "kind": "person",
+    "foundingDevice": false
+  },
+  {
+    "device": "2cb2ecc8eeec39adfe046cd8b8284cb82a5e4c0c5b08e18c340082fdd009c153",
+    "user": "2cb2ecc8eeec39adfe046cd8b8284cb82a5e4c0c5b08e18c340082fdd009c153",
+    "name": "Bo Andersen",
     "kind": "person",
     "foundingDevice": false
   }
@@ -101,71 +101,71 @@ export const Sidebar: Story = { args: harness({ ...base, viewing: 'channel', mem
 // Actual accepted identities emitted by Visual.switcherCommunities.
 const switcherCommunities = [
   [
-    "4ff2db540dfb34156b87d992c15639bd65734d8fd86be0a808c41cebff25aa52",
+    "3669574cf1e123df1523c507c17c8b11d0e9061764d5b22873cc72405f63225e",
     "Alexandria's community with a long name"
   ],
   [
-    "953ab69261ec0785bd2df28a122be1b391170cf4d5698ffb60a173c53f0c694e",
+    "ade8d01cdb4aedb6be5e0ce49be3de29622d41bacd19a211d967b1536d7fd7cc",
     "Community 10"
   ],
   [
-    "043e2295d06b71722d1f50001eb1932501c86fa1c62eee1c6caa68f887993a38",
+    "5f29de294fd87f3ab422ee305186d0799785b163cbc76820c10ca688e051479a",
     "Community 11"
   ],
   [
-    "849b36bbfdb2728194f01943413edf9af2768df5822bc32152ff2526e2127cd7",
+    "b6554823c07d9e365c40507cef9d534c8e1a4f78ab1e4b8e377be477a2607d80",
     "Community 12"
   ],
   [
-    "2b0ba90aa6cb19ee29d82b36d25dbe5c428e8776b7beeb8388b5124d09587ad5",
+    "485cb2331220d05404a24080b5053d46dc37ce873c1294006841fbf2a96c82b0",
     "Community 13"
   ],
   [
-    "ef43cdfda9f20320961f67bc3b0a21372ddb43229b47e7e331b5c799d49c49ab",
+    "29ffe100c7ae7ddadfbc9489cd11c1aac95861019203e4bc1bc86a670fd5828e",
     "Community 14"
   ],
   [
-    "361dbe6f7fcbed85a3e3c352b0bbf1d552afd039582519431055a41caa1f6f97",
+    "abe39edfbc469756aadeb432bb564b82ecf0d53811cfcd0a5ef2ab0f369afab4",
     "Community 15"
   ],
   [
-    "1767134701873d8b435f1ad30f85d1a23ea56c2753776ab709b9c5a02c413bce",
+    "99b07455ad07c0fb6e673962d5843c377b1bf29a5f44ad86ab886f13196e0566",
     "Community 16"
   ],
   [
-    "ff98d3c5d56d11853b2f7ac858e6895aba655a68e522bf299423af55b37786e4",
+    "feaef25bd00d7b39147cb594c9bfd397bafb99012539edfab4600951c1a95508",
     "Community 3"
   ],
   [
-    "b2320ed52da8c217624ec7da8cfa4b9c22d9fdee76a16f8904499d94b48a6add",
+    "844c272c9a604ff6b4bc4ec0d692e77368f56cdb2d299dcf3f8cd6c81bf95216",
     "Community 4"
   ],
   [
-    "380c80cc1b314d6555394e53d5863474cdf11718648ec53be799ef475f01fa21",
+    "f9694fe01cccd578ece2796bc392d7b4c2320ca42fd65152e1af30b28347b825",
     "Community 5"
   ],
   [
-    "959c6b8de2bf45c1ae7564ca8c9dd66c68f2720366fe313ad376b018b61cf7b7",
+    "652160637f42f0d2e111caffc3f61ed2e424317b3a5397af5c886875e2a5b55c",
     "Community 6"
   ],
   [
-    "469cd07f3a866a94f56938e9ef3f1a5a9dac43bac0296296031f0bad100e3a6a",
+    "a6ea27b67fdff5e0381b0397a27b9d21f3f7f8f6c7ba5569fdfccbdfe93641a9",
     "Community 7"
   ],
   [
-    "f60514cde5f6fa119f78865ee939c27906b9eeb1087a190b6a2c3432c4ee8a8b",
+    "1416333e7e5c5d4589350bf1186d708e34e499994fe8ae6d2629c9e2b90a5f0b",
     "Community 8"
   ],
   [
-    "2bf3dabe436f1817739b4ab3c3dc613f2d79aafe65e13328af8ce7398bbc8a24",
+    "2385c55dfbf1b734a24003b26c2c32e83333c7111cae5511b88ba612cc450092",
     "Community 9"
   ],
   [
-    "c40af42a697cdcf30451f2d97ab8d6046d91fcc8c74830392fb433da90ee0a07",
+    "abb2d01c939f363dbe79b6767c412dcc0ca3857e9abb7917958b9ec7ac00816c",
     "Rowing club"
   ],
   [
-    "5ccd09cacb7a5d2f5987def416b8755f8020f6d1d2382f5bcca5cda365060071",
+    "64844ab4c4a3d86c53722dd428457675aa392b8d982db10a333bca252aed2c4a",
     "Zoë & Søren"
   ]
 ] as const

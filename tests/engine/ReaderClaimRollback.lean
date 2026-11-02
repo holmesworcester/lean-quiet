@@ -124,7 +124,7 @@ def noteRollback (ck : Checks) : IO Unit := do
   let (w, _) ← founding.run { rd }
   let some pending ← Reader.judgeWrite rd #[] w | throw (IO.userError "founding unexpectedly refused")
   let some c := pending.findSome? (fun p => match p.fact with
-    | .admission c _ _ _ => some c
+    | .admission c _ _ _ _ => some c
     | _ => none) | throw (IO.userError "founding has no admission")
   let sh ← Reader.Shared.new (← IO.mkRef 0)
   let want := Reader.Want.people c

@@ -19,7 +19,7 @@ example : ¬ 41 + 8 ≤ (40 : Nat) := by decide +kernel
 
 -- Actual inhabited signed DB from the identity message fixture.
 def db := run Vacuity.IdentityMessages.scene
-def nextOp := post c admission.id bob "content-key-1".toUTF8 "A pending later message".toUTF8 3 29880002
+def nextOp := post c admission.id bob keyId "A pending later message".toUTF8 3 29880002
 private theorem later : Later (family ed25519) db (ingestS nextOp db) :=
   .ingest nextOp (.refl db)
 private theorem sameIndex (k : ByteArray) : (ingestS nextOp db).idx k = db.idx k := by
@@ -142,7 +142,7 @@ def displayAgreement := do
         (Or.inl ⟨_, _, _, _, 1, 29880000, none, hxv', by decide +kernel, rfl⟩)
         (Or.inl ⟨_, _, _, _, 2, 1, none, hyv', by decide +kernel, rfl⟩)
         (Or.inl ⟨1, 29880000, (by
-          obtain ⟨o, sig, _, _, ho, hb, _⟩ := message_authorized hxv
+          obtain ⟨o, sig, _, _, _, ho, hb, _⟩ := message_authorized hxv
           exact ⟨o, _, _, sig, ho, hb⟩), by decide +kernel⟩))
     else none
   else none
@@ -153,8 +153,9 @@ def main : IO UInt32 := do
   t.ok "actual nonempty hints are private, Wi-Fi first, with loopback/public excluded"
     (actualHints == ["192.168.1.12:47100", "10.0.0.4:47100"])
   t.ok "actual message relation is filed" filedRelation.isSome
-  t.ok "nonempty relation still has two actual sealed messages"
-    ((matching db (message.byKey.query [c, Vacuity.IdentityMessages.kid])).length == 2)
+  -- the fixture's own post and Bob's two, all under the community key
+  t.ok "nonempty relation still has three actual sealed messages"
+    ((matching db (message.byKey.query [c, Vacuity.IdentityMessages.kid])).length == 3)
   t.ok "a new unjudged op is actually queued"
     ((ingestS nextOp db).queue.contains nextOp.id && db.ops nextOp.id == none)
   t.ok "pending intake leaves the actual message query equal"

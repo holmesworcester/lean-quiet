@@ -13,6 +13,16 @@ theorem always_bind {P : β → Prop} : ∀ {v : View F α} {f : α → View F �
   | .pure _, _, h => h
   | .list _ k, f, h => fun a => always_bind (v := k a) (f := f) (h a)
 
+/-- Every view's answers have a property every value has. -/
+theorem always_true {P : α → Prop} (hP : ∀ a, P a) : ∀ {v : View F α}, Always P v
+  | .pure a => hP a
+  | .list _ k => fun a => always_true hP (v := k a)
+
+/-- What every answer has, weakened. -/
+theorem always_imp {P Q : α → Prop} (h : ∀ a, P a → Q a) : ∀ {v : View F α}, Always P v → Always Q v
+  | .pure a, hp => h a hp
+  | .list _ k, hp => fun a => always_imp h (v := k a) (hp a)
+
 theorem always_eval [SortKey F] {P : α → Prop} (s : DB F) : ∀ {v : View F α}, Always P v → P (v.eval s)
   | .pure _, h => h
   | .list q k, h => always_eval s (v := k (Engine.eval s q)) (h _)
@@ -46,3 +56,30 @@ theorem bind_eq (v : View F α) (f : α → View F β) : v >>= f = v.bind f := r
 theorem pure_eq (a : α) : (Pure.pure a : View F α) = View.pure a := rfl
 
 end Engine.View
+
+namespace Community
+open Engine Codec
+
+/-- What a Valid wrap's validator saw: its body; the root, whose key id
+the wrap carries; its author's admission, whose device signed it; and
+its recipient's admission, whose node key it goes to. -/
+theorem check_wrap {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c : Id} {kid e bx : ByteArray}
+    (h : check C o b fs = some (.wrap c kid e bx)) :
+    ∃ s d0 e0 ua da ea ka ut dt kt, b = .wrap bx s ∧
+      fs = [.admission c c d0 e0 kid, .admission c ua da ea ka, .admission c ut dt e kt] ∧
+      o.reqs.head? = some c ∧ C.verify da (signed o b) s = true := by
+  unfold check at h
+  split at h <;> (try (simp at h; done))
+  rename_i b r a t
+  rcases b with ⟨bx', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, ua, da, ea, ka⟩
+  rcases t with ⟨c2, ut, dt, et, kt⟩
+  simp only [Wrap.check] at h
+  split at h
+  · rename_i hc
+    simp only [Option.map_some, Option.some.injEq, Fact.ofWrap.injEq, Wrap.Fact.mk.injEq] at h
+    obtain ⟨rfl, rfl, rfl, rfl⟩ := h
+    obtain ⟨h1, rfl, rfl, rfl, h5⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, h5⟩
+  · simp at h
+
+end Community

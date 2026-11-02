@@ -22,7 +22,7 @@ def add (db : Db) (c : Id) (n : Nat) (oneUser := false) : IO Unit := do
   try
     for i in [0:n] do
       let u := if oneUser then bytes "one-user" else bytes s!"user-{i}"
-      file db s!"{String.fromUTF8! c}-admission-{i}" (.admission c u (bytes s!"device-{i}") (bytes s!"node-{i}"))
+      file db s!"{String.fromUTF8! c}-admission-{i}" (.admission c u (bytes s!"device-{i}") (bytes s!"node-{i}") .empty)
     db.exec "COMMIT"
   catch e =>
     db.exec "ROLLBACK"
@@ -37,7 +37,7 @@ def run (ck : Checks) : IO Unit := do
   db.filings
   let small := bytes "small"
   add db small 2
-  file db "small-another-device" (.admission small (bytes "user-0") (bytes "extra-device") (bytes "extra-node"))
+  file db "small-another-device" (.admission small (bytes "user-0") (bytes "extra-device") (bytes "extra-node") .empty)
   let (v, _, _) ← people db small
   ck.ok "small header is exact and deduplicates users across devices" (v == .people 2 true)
   let commits ← IO.mkRef 1
@@ -45,7 +45,7 @@ def run (ck : Checks) : IO Unit := do
   sh.setWants #[.people small]
   let (_, s) ← (Reader.pass sh).run { rd := db }
   ck.ok "reader publishes the exact initial count" (((← sh.board.get).get? (.people small)).map (·.1) == some (.people 2 true))
-  file db "remove-user-0" (.removal small (bytes "user-0") small)
+  file db "remove-user-0" (.removal small (bytes "user-0") small [])
   commits.modify (· + 1)
   let (_, s) ← (Reader.pass sh).run s
   ck.ok "removal commit invalidates cached header and cuts all user devices"

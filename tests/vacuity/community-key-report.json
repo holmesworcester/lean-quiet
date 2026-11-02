@@ -1,0 +1,79 @@
+{
+  "rootKid_unique": {
+    "status": "runtime-witness",
+    "theorem": "Community.rootKid_unique",
+    "witness": "Vacuity.CommunityKey.rootKidUnique",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's actual signed root, certified in a Reach-built store, names the community's key id; the law applies to it. Real Ed25519."
+  },
+  "post_community_key": {
+    "status": "runtime-witness",
+    "theorem": "Community.post_community_key",
+    "witness": "Vacuity.CommunityKey.postKey",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Bob's actual signed post, Valid in a Reach-built store, is under the key id Alice's root names. Control: the same author's post under another key id is Invalid in the same store (the executable checks both)."
+  },
+  "attach_community_key": {
+    "status": "runtime-witness",
+    "theorem": "Community.attach_community_key",
+    "witness": "Vacuity.CommunityKey.attachKey",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Bob's actual attachment (the app's attach, sealed under the community key) of his Valid post: the law applies to its Valid fact."
+  },
+  "key_kid": {
+    "status": "runtime-witness",
+    "theorem": "Community.key_kid",
+    "witness": "Vacuity.CommunityKey.keyKid",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's local copy of the community key (the contentKey op found writes), Valid in a Reach-built store, is filed under its own SHA-256 id."
+  },
+  "communityKid_root": {
+    "status": "runtime-witness",
+    "theorem": "Community.communityKid_root",
+    "witness": "Vacuity.CommunityKey.communityKidRoot",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "The running communityKid over a Reach-built store holding Alice's community reads her root's key id; the law ties it to the root's Valid fact."
+  },
+  "currentKey_community": {
+    "status": "runtime-witness",
+    "theorem": "Community.currentKey_community",
+    "witness": "Vacuity.CommunityKey.currentKeyCommunity",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's running currentKey over a store holding her copy of the key answers the community key; the law ties its id to the root. Control: before the key is held it answers nothing."
+  },
+  "unwrap_community": {
+    "status": "runtime-witness",
+    "theorem": "Community.unwrap_community",
+    "witness": "Vacuity.CommunityKey.unwrapCommunity",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Bob's node (his endpoint) holds a member's plant (a Valid signed wrap whose box opens under the community's key id to another key) and Alice's wrap: the running unwrap writes exactly the community key, the law's second case. Controls: with the plant alone it writes nothing; the shipped unwrap (kept in the runner) took the planted key."
+  },
+  "send_community_key": {
+    "status": "runtime-witness",
+    "theorem": "Community.send_community_key",
+    "witness": "Vacuity.CommunityKey.sendCommunity",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's running send, with the key her currentKey answers, over a Reach-built store: the first op it writes is a post under the root's key id."
+  },
+  "wrap_signed": {
+    "status": "runtime-witness",
+    "theorem": "Community.wrap_signed",
+    "witness": "Vacuity.CommunityKey.wrapSigned",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's actual wrapKey of the community key to Bob's node, citing his admission, is Valid in a Reach-built store; the law gives the root's key id, her admitted signing device and Bob's admission. Controls: the same wrap with its signature blanked, and one signed by Mallory while citing Alice's admission, are Invalid."
+  },
+  "no_wrap_forgery": {
+    "status": "conditional",
+    "theorem": "Community.no_wrap_forgery",
+    "witness": "Vacuity.CommunityKey.noWrapForgery",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's actual Valid wrap is witnessed. Attribution to the key holder assumes Unforgeable ed25519 over this store: no forged signature among the ones it holds (Ed25519 unforgeability, a computational assumption). The premise is satisfiable with an informative Signed (Vacuity.Contracts.unforgeableScoped)."
+  },
+  "post_sealed_current": {
+    "status": "runtime-witness",
+    "theorem": "Community.post_sealed_current",
+    "witness": "Vacuity.CommunityKey.postSealedCurrent",
+    "module": "tests.vacuity.CommunityKey",
+    "detail": "Alice's store, Reach-built, holds her copy of the key and Bob's Valid signed post: her running currentKey answers the community key, and the law gives the post's key id as its id."
+  }
+}

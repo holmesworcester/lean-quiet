@@ -56,6 +56,20 @@
     "padding": "12px 16px"
   },
   {
+    "selector": "panel sw-phone only-narrow svelte-19gr7h",
+    "x": 0,
+    "y": 0,
+    "w": 0,
+    "h": 0,
+    "scrollTop": 0,
+    "scrollHeight": 0,
+    "clientHeight": 0,
+    "scale": 1,
+    "display": "none",
+    "font": "15px / 22.5px \"Quiet Noto Sans\", system-ui, sans-serif",
+    "padding": "0px"
+  },
+  {
     "selector": "panel-head svelte-19gr7h",
     "x": 0,
     "y": 0,

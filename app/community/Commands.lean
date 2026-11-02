@@ -21,26 +21,27 @@ namespace Community
 open Engine Codec
 
 /-- The root of a community founded by device d on the node with key
-`key`: the founder's admission names both, signed by d. -/
-def root (d : Device) (key : Key) : Op :=
-  mkOp [] (.root d.pk key (sig d.sk [] (.root d.pk key .empty)))
+`key`, its content key's id `kid`: the founder's admission names all
+three, signed by d. -/
+def root (d : Device) (key : Key) (kid : ByteArray) : Op :=
+  mkOp [] (.root d.pk key kid (sig d.sk [] (.root d.pk key kid .empty)))
 open Engine
 
 /-- Found a community named `name` from this device's seed, the founder
 known as `myName`: this node's key if it has none (from `fresh`), the
-device's secret (local), the root (naming the device and the node's
-key), the device's acceptance (local), the first name, the founder's
-first profile (the root is the founder's admission), and the
-community's first content key `k` (local), wrapped to the node's key
-with ephemeral secret `esk` (fresh random bytes from the caller, as
-`fresh` and `k` are). -/
+device's secret (local), the root (naming the device, the node's key
+and the id of the community's content key `k`), the device's acceptance
+(local), the first name, the founder's first profile (the root is the
+founder's admission), and `k` itself (local), wrapped by the device to
+its own node's key with ephemeral secret `esk` (fresh random bytes from
+the caller, as `fresh` and `k` are). -/
 def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : Key32) :
     View Fact Write := do
   let (key, pre) ← nodeKeyOr fresh
   let d := Device.ofSeed seed
-  let r := root d key
+  let r := root d key (kidOf cryptoSeal k)
   pure ⟨pre ++ [secret seed, r, accept r.id d.pk, setName r.id r.id r.id [] 1 d name,
-    profile r.id r.id d myName time, contentKey r.id k.1, wrapKey r.id k esk key]⟩
+    profile r.id r.id d myName time, contentKey r.id k.1, wrapKey r.id r.id r.id d k esk key]⟩
 
 /-- Invite to c from device d (admitted as `myAdm`): the invitation,
 and its link, naming this node's key, with the bearer seed and dial
@@ -62,11 +63,101 @@ def joinOps (i : Invite) (seed name : ByteArray) (key : Key) : Write :=
   -- a device link joins its issuer's user, whose profile it syncs: no name
   ⟨[secret seed, req, accept i.community d.pk, joining i req.id (if i.link then .empty else name) d.pk]⟩
 
+/-! ## The causal cut, read (`Behind`, `Kept`, `Counts`, `Trusted`)
+
+Every list these read is a relation's, so the trust rule answers on the
+node's composed store as on its Community part (`reads_allowPeer`). An
+approval's fact is found by its id among a list's rows: its device's
+chain (`approval.byDev`) or its approver's admitting approvals
+(`approval.byRequester`). -/
+
+/-- Approval x's fact among these rows, if one is x's. -/
+def factIn (x : Id) : List (Pos × Fact) → Option Approve.Fact
+  | [] => none
+  | ((_, y), .ofApproval f) :: t => if y = x then some f else factIn x t
+  | _ :: t => factIn x t
+
+/-- Whether approval x is h, k previous links back from h, through these
+rows (h's device's chain). -/
+def behindIn (rows : List (Pos × Fact)) (x : Id) : Nat → Id → Bool
+  | 0, h => decide (h = x)
+  | k + 1, h => match factIn h rows with
+    | some f => f.n != 0 && behindIn rows x k f.prev
+    | none => false
+
+/-- Whether approval x (fact f) is inside cut k: behind a head k names for
+its device, its device's chain being these rows. -/
+def inCut (rows : List (Pos × Fact)) (x : Id) (f : Approve.Fact) : List (Key × Id × Nat) → Bool
+  | [] => false
+  | (d, h, m) :: t => (decide (d = f.dev ∧ f.n ≤ m) && behindIn rows x (m - f.n) h) || inCut rows x f t
+
+/-- Whether every removal among these rows keeps approval x (fact f),
+its device's chain being `chain`. -/
+def cutsKeep (chain : List (Pos × Fact)) (x : Id) (f : Approve.Fact) : List (Pos × Fact) → Bool
+  | [] => true
+  | (_, .ofRemoval r) :: t => inCut chain x f r.cut && cutsKeep chain x f t
+  | _ :: t => cutsKeep chain x f t
+
+/-- Whether every removal of every user of c among these admission rows
+keeps approval x (fact f). Its device's chain is read only for a user
+with a removal. -/
+def usersKeep (c x : Id) (f : Approve.Fact) : List (Pos × Fact) → View Fact Bool
+  | [] => .pure true
+  | (_, .admission c' u _ _ _) :: t =>
+    if c' = c then
+      .list (removal.byUser.query [c, u]) fun a =>
+        if a.rows.isEmpty then usersKeep c x f t
+        else .list (approval.byDev.query [c, f.dev]) fun ch =>
+          if cutsKeep ch.rows x f a.rows then usersKeep c x f t else .pure false
+    else usersKeep c x f t
+  | _ :: t => usersKeep c x f t
+
+/-- Whether approval x (fact f) is kept: every removal of every user its
+device is admitted into keeps it (`kept_iff`). -/
+def kept (c x : Id) (f : Approve.Fact) : View Fact Bool :=
+  .list (admission.byDevice.query [c, f.dev]) fun a => usersKeep c x f a.rows
+
+/-- Whether approval x (fact f) counts in c, following `up` at most k
+times: kept, and the founder's device's, or its `up` counts. Read with
+k = its depth + 1, which reaches the founder's (`counts_iff`). -/
+def counts (c : Id) : Nat → Id → Approve.Fact → View Fact Bool
+  | 0, _, _ => .pure false
+  | k + 1, x, f => (kept c x f).bind fun ok =>
+    if !ok then .pure false
+    else if f.depth = 0 then .pure true
+    else .list (approval.byRequester.query [c, f.dev]) fun a =>
+      match factIn f.up a.rows with
+      | some g => counts c k f.up g
+      | none => .pure false
+
+/-- Whether an approval among these rows approves a request for an
+admission into user u with key e, and counts. -/
+def approvedBy (c u : Id) (e : Key) : List (Pos × Fact) → View Fact Bool
+  | [] => .pure false
+  | ((_, x), .ofApproval f) :: t =>
+    if f.ru = u ∧ f.re = e then
+      (counts c (f.depth + 1) x f).bind fun b => if b then .pure true else approvedBy c u e t
+    else approvedBy c u e t
+  | _ :: t => approvedBy c u e t
+
+/-- Whether fact g is an admission into user u of c of device d with key
+e, under any key id (the root's: `root_of_admission`). -/
+def isAdmission (c u : Id) (d e : Key) : Fact → Bool
+  | .admission c' u' d' e' _ => decide (c' = c ∧ u' = u ∧ d' = d ∧ e' = e)
+  | _ => false
+
+/-- Whether admission (c, u, d, e) is trusted: the root's, or an approval
+of a request for it counts (`trusted_iff`). -/
+def trusted (c u : Id) (d e : Key) : View Fact Bool :=
+  .list (admission.byDevice.query [c, d]) fun r =>
+    if r.rows.any (fun ((_, y), g) => decide (y = c) && isAdmission c u d e g) then .pure true
+    else .list (approval.byRequester.query [c, d]) fun a => approvedBy c u e a.rows
+
 /-- Whether every admission into c among these rows is into a user with
 no removal. -/
 def unremoved (c : Id) : List (Pos × Fact) → View Fact Bool
   | [] => .pure true
-  | (_, .admission c' u _ _) :: t =>
+  | (_, .admission c' u _ _ _) :: t =>
     if c' = c then
       .list (removals c u) fun a => if a.total = 0 then unremoved c t else .pure false
     else unremoved c t
@@ -167,7 +258,7 @@ nothing otherwise. -/
 def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
   let adms ← admission.byDevice.read [c, d.pk]
   match adms.rows.head? with
-  | some ((_, adm), .admission _ u _ _) =>
+  | some ((_, adm), .admission _ u _ _ _) =>
     let prof ← profile.byUser.read [c, u] (limit := some 0)
     let joins ← joining.all.read []
     let name := joins.rows.findSome? fun (_, f) => match f with
@@ -178,27 +269,76 @@ def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
     | none => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 
+/-- c's content key id, as its root names it; none until the root is
+Valid here. -/
+def communityKid (c : Id) : View Fact (Option ByteArray) := do
+  let a ← View.read { key := opKey c, limit := some 1 }
+  pure (match a.rows.head? with
+    | some (_, .admission c' _ _ _ kid) => if c' = c then some kid else none
+    | _ => none)
+
+/-- c's content key, if this device holds it: the key filed under the id
+c's root names (`key_kid`: a key is filed under its own hash). Keys do
+not rotate yet, so it is the one key every post of c is sealed under. -/
+def currentKey (c : Id) : View Fact (Option Key32) := do
+  let some kid ← communityKid c | pure none
+  let ks ← key.byId.read [kid] (limit := some 1)
+  pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => Bytes.of? k | _ => none)
+
+/-- Of these rows (approvals of my requests), the first approving
+admission (u, e) that counts, else the first approving it. -/
+def upIn (c u : Id) (e : Key) : List (Pos × Fact) → View Fact (Option Id)
+  | [] => .pure none
+  | ((_, x), .ofApproval f) :: t =>
+    if f.ru = u ∧ f.re = e then
+      (counts c (f.depth + 1) x f).bind fun b =>
+        if b then .pure (some x) else (upIn c u e t).bind fun r => .pure (r.orElse fun _ => some x)
+    else upIn c u e t
+  | _ :: t => upIn c u e t
+
+/-- The approval to cite as the one that admitted me, a device whose
+admission is `me` (none when `me` is the root's own, the founder's
+device): of the approvals of my requests for that admission, the first
+that counts, else the first (`upIn`). -/
+def upFor (c : Id) (me root : Fact) : View Fact (Option Id) :=
+  match me with
+  | .admission _ u d e _ =>
+    if me = root then .pure none
+    else .list (approval.byRequester.query [c, d]) fun a => upIn c u e a.rows
+  | _ => .pure none
+
+/-- `upFor`, from the reads of my admission and of the root. -/
+def upOf (c : Id) (me root : Answer Fact) : View Fact (Option Id) :=
+  match me.rows.head?, root.rows.head? with
+  | some (_, m), some (_, r) => upFor c m r
+  | _, _ => .pure none
+
 /-- Approve request req of c as device d (admitted as `myAdm`): my
 approval and the admission it gives (one approval admits), with the
-community's key wrapped to the requester's node; only the approval if
-it does not hold the request or my admission. Reads the request, my
-admission and this device's content key. -/
+community's key wrapped by d to the requester's node, citing that
+admission; only the approval if it does not hold the request or my
+admission. The approval cites the approval that admitted me (`upFor`)
+and my newest approval (the head of my chain, `approval.byDev`), so my
+approvals form one chain. Reads the request, my admission, the root, my
+approvals and c's key. -/
 def approveReq (c req myAdm : Id) (d : Device) (esk : ByteArray := .empty) :
     View Fact Write := do
-  let ok := approve c req myAdm d
   let rq ← View.read { key := opKey req, limit := some 1 }
   let me ← View.read { key := opKey myAdm, limit := some 1 }
-  -- The requester's device gets this device's content key for c,
-  -- wrapped to its encryption key: the approval is where key material
-  -- hangs (the user's decision, 2026-10-27).
-  let ks ← key.byCommunity.read [c] (limit := some 1)
-  let wrapTo (e : ByteArray) : List Op := match ks.rows.head? with
-    | some (_, .key _ _ k) => match Bytes.of? k, Bytes.of? esk with
-      | some k, some esk => [wrapKey c k esk e]
-      | _, _ => []
-    | _ => []
+  let rt ← View.read { key := opKey c, limit := some 1 }
+  let up ← upOf c me rt
+  let head ← approval.byDev.read [c, d.pk] (limit := some 1)
+  -- The requester's device gets the community's key, wrapped to its
+  -- encryption key: the approval is where key material hangs (the
+  -- user's decision, 2026-10-27).
+  let k? ← currentKey c
+  let ok := approve c req myAdm d up (head.rows.head?.map (·.1.2))
   match rq.rows.head?, me.rows.head? with
-  | some (_, .request _ _ _ e _), some (_, .admission ..) => pure ⟨[ok, admit c req ok.id] ++ wrapTo e⟩
+  | some (_, .request _ _ _ e _), some (_, .admission ..) =>
+    let adm := admit c req ok.id
+    pure ⟨[ok, adm] ++ (match k?, Bytes.of? esk with
+      | some k, some esk => [wrapKey c myAdm adm.id d k esk e]
+      | _, _ => [])⟩
   | _, _ => pure ⟨[ok]⟩
 
 /-- The ids of the content keys of c this device holds. -/
@@ -239,26 +379,37 @@ def readableClumps (c : Id) (root : Option Id) (limit : Option Nat := some 50)
     receipts.query (args ++ [kid]) limit desc (after.map afterRec) (before.map beforeRec))
   return unionAnswers desc limit (ms ++ rs.map fun a => { a with rows := a.rows.map asMsg })
 
-/-- This device's newest content key for c, if it holds one. -/
-def currentKey (c : Id) : View Fact (Option Key32) := do
-  let ks ← key.byCommunity.read [c] (limit := some 1)
-  pure (ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => Bytes.of? k | _ => none)
-
-/-- The content keys of c wrapped to this node's key that it does not
-hold yet, opened with the key's secret: each becomes a local `key`. -/
+/-- c's content key, from the wraps to this node's key, once c's root is
+Valid here and this device does not hold the key yet: the first wrap
+that opens with the node's secret to a key whose id is the root's
+becomes a local `key`. A wrap holding any other key (a member's plant)
+is passed over (`unwrap_community`). -/
 def unwrap (c : Id) : View Fact Write := do
   let some (pk, sk) ← nodeKey | pure ⟨[]⟩
+  let some kid ← communityKid c | pure ⟨[]⟩
+  let held ← key.byId.read [kid] (limit := some 0)
+  if held.total ≠ 0 then return ⟨[]⟩
   let ws ← wrap.byRecipient.read [c, pk]
-  let mut out : List Op := []
-  for (_, f) in ws.rows do
-    let .wrap _ kid _ bx := f | continue
-    let held ← key.byId.read [kid] (limit := some 0)
-    if held.total ≠ 0 then continue
-    match unbox cryptoSeal sk kid bx with
-    | some k => if !out.any (fun o => o.body == (contentKey c k.1).body) then
-        out := out ++ [contentKey c k.1]
-    | none => pure ()
-  pure ⟨out⟩
+  let ks := ws.rows.filterMap fun (_, f) => match f with
+    | .wrap _ _ _ bx => (unbox cryptoSeal sk kid bx).filter fun k => decide (kidOf cryptoSeal k = kid)
+    | _ => none
+  pure ⟨(ks.head?.map fun k => contentKey c k.1).toList⟩
+
+/-- The most heads a removal cites: the intake caps an op at 64
+requirements, and a removal's first four are fixed. -/
+def maxHeads : Nat := 60
+
+/-- The heads of the approval chains of these admissions' devices, each
+device once (`seen`): its newest approval, the last of its chain
+(`approval.byDev`, by place). -/
+def headsOf (c : Id) : List Key → List (Pos × Fact) → View Fact (List Id)
+  | _, [] => .pure []
+  | seen, (_, .admission _ _ d _ _) :: t =>
+    if seen.any (fun k => decide (k = d)) then headsOf c seen t
+    else .list (approval.byDev.query [c, d] (limit := some 1)) fun a =>
+      (headsOf c (d :: seen) t).bind fun rest =>
+        .pure (match a.rows.head? with | some ((_, h), _) => h :: rest | none => rest)
+  | seen, _ :: t => headsOf c seen t
 
 /-! ## Notifications: a user's private state, in notice ops -/
 
@@ -319,7 +470,7 @@ among `rows` (the user's own: `admission.byUser [c, u]`), each once;
 for reads (`all` false), not this node's own key. -/
 def noticeRecipients (pk : Key) (all : Bool) : List (Pos × Fact) → List Key
   | [] => []
-  | (_, .admission _ _ _ enc) :: rest =>
+  | (_, .admission _ _ _ enc _) :: rest =>
     let r := noticeRecipients pk all rest
     if Engine.has r enc || (!all && decide (enc = pk)) then r else enc :: r
   | _ :: rest => noticeRecipients pk all rest
@@ -395,20 +546,23 @@ def Target.parse (s : String) : Option Target :=
 
 /-- Remove user t from c (libquiet's remover flow), as this device's
 user u: the removal cites the root, this device's admission, what makes
-u an admin (its own admission for the founder, else a grant), and an
-admission of t. Nothing when u is not an admin, t is u, or t is already
-removed (`removeMember_valid`). -/
+u an admin (its own admission for the founder, else a grant), an
+admission of t, and the head of each of t's devices' approval chains
+this store holds: its cut, so t's approvals seen here keep admitting
+(`removeMember_keeps`). Nothing when u is not an admin, t is u, or t is
+already removed (`removeMember_valid`). -/
 def removeMember (c t : Id) (d : Device) : View Fact Write := do
   let me ← admission.byDevice.read [c, d.pk] (limit := some 1)
   let gone ← removal.byUser.read [c, t] (limit := some 0)
-  let tgt ← admission.byUser.read [c, t] (limit := some 1)
+  let tgt ← admission.byUser.read [c, t]
   match me.rows.head? with
-  | some ((_, myAdm), .admission _ u _ _) =>
+  | some ((_, myAdm), .admission _ u _ _ _) =>
     let grant ← admin.byUser.read [c, u] (limit := some 1)
     let auth := if u = c then some myAdm else grant.rows.head?.map (·.1.2)
     match auth, tgt.rows.head? with
     | some a, some ((_, ta), _) =>
-      pure ⟨if u = t ∨ gone.total ≠ 0 then [] else [remove c myAdm a ta d]⟩
+      let hs ← headsOf c [] tgt.rows
+      pure ⟨if u = t ∨ gone.total ≠ 0 then [] else [remove c myAdm a ta d (hs.take maxHeads)]⟩
     | _, _ => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 open Engine Codec
@@ -446,40 +600,53 @@ def openFile (slices : List ByteArray) (fileKey fileNonce : ByteArray) : Option 
 open Engine
 
 /-- The admissions into c among these rows whose device is live: each
-one's user, device and key. -/
+one's user, device and key. The people list reads it. -/
 def live (c : Id) : List (Pos × Fact) → View Fact (List (Id × Key × Key))
   | [] => .pure []
-  | (_, .admission c' u d e) :: t =>
+  | (_, .admission c' u d e _) :: t =>
     if c' = c then
       (deviceLive c d).bind fun ok =>
         (live c t).bind fun rest => .pure (if ok then (u, d, e) :: rest else rest)
     else live c t
   | _ :: t => live c t
 
+/-- The admissions into c among these rows the trust rule lets in: each
+trusted (`trusted`) and its device live. Each one's user, device and
+key. -/
+def letIn (c : Id) : List (Pos × Fact) → View Fact (List (Id × Key × Key))
+  | [] => .pure []
+  | (_, .admission c' u d e _) :: t =>
+    if c' = c then
+      (trusted c u d e).bind fun tr => (deviceLive c d).bind fun ok =>
+        (letIn c t).bind fun rest => .pure (if tr && ok then (u, d, e) :: rest else rest)
+    else letIn c t
+  | _ :: t => letIn c t
+
 /-- Whether to sync community c with the node whose key is e: the
-admissions under e, and whether each one's device is live. -/
+admissions under e, whether each is trusted, and whether its device is
+live. -/
 def allowPeer (c : Id) (e : Key) : View Fact Bool := do
   let a ← admission.byKey.read [c, e]
-  let ls ← live c a.rows
+  let ls ← letIn c a.rows
   pure (ls.any fun l => decide (l.2.2 = e))
 
-/-- The device keys of c's live devices. -/
+/-- The device keys of c's live devices with a trusted admission. -/
 def members (c : Id) : View Fact (List Key) := do
   let a ← admission.all.read [c]
-  let ls ← live c a.rows
+  let ls ← letIn c a.rows
   pure (ls.map (·.2.1))
 
 /-- The node keys a new content key of c is wrapped to: those with a
-live device, the keys `allowPeer` lets in. -/
+trusted admission of a live device, the keys `allowPeer` lets in. -/
 def recipients (c : Id) : View Fact (List Key) := do
   let a ← admission.all.read [c]
-  let ls ← live c a.rows
+  let ls ← letIn c a.rows
   pure (ls.map (·.2.2))
 
 /-- Of these rows, each admission's user's removals in c, as op ids. -/
 def removalsOf (c : Id) : List (Pos × Fact) → View Fact (List Id)
   | [] => .pure []
-  | (_, .admission _ u _ _) :: t =>
+  | (_, .admission _ u _ _ _) :: t =>
     .list (removal.byUser.query [c, u]) fun a =>
       (removalsOf c t).bind fun rest => .pure (a.rows.map (·.1.2) ++ rest)
   | _ :: t => removalsOf c t
@@ -488,7 +655,7 @@ def removalsOf (c : Id) : List (Pos × Fact) → View Fact (List Id)
 device is admitted into, under any key. -/
 def deviceRemovals (c : Id) : List (Pos × Fact) → View Fact (List Id)
   | [] => .pure []
-  | (_, .admission _ _ d _) :: t =>
+  | (_, .admission _ _ d _ _) :: t =>
     .list (admission.byDevice.query [c, d]) fun a =>
       (removalsOf c a.rows).bind fun xs =>
         (deviceRemovals c t).bind fun rest => .pure (xs ++ rest)

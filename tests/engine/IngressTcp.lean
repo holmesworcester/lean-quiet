@@ -13,7 +13,7 @@ open Engine Engine.Sync Community Tests Std.Async Std.Net
 
 def fam : Family Fact := family ed25519
 def author := Device.named "ingress-author"
-def rootOp := root author (keyOf author)
+def rootOp := root author (keyOf author) "mailbox".toUTF8
 def post (n : Nat) := Community.post rootOp.id rootOp.id author "mailbox".toUTF8
   s!"signed ingress message {n}".toUTF8 n (1000 + n)
 def session (n : Nat) := sha256 s!"ingress-session-{n}".toUTF8

@@ -180,6 +180,9 @@ def receiptsOf (p : Peer) (x : Id) : IO (List Community.Fact) := do
   let a ← ((Community.received.byMsg.read [x]).liftL.run : SqlM F (Answer Community.Fact)).run p.db
   return a.rows.map (·.2)
 
+/-- The id of A's community's content key, as `found` names it. -/
+def kidA : ByteArray := kidOf cryptoSeal (Bytes.digest "key".toUTF8)
+
 /-- A founds Acme and invites at its address; B joins from the link.
 `old` and `quiet` mutate both nodes' hooks (`mkPeer`). -/
 def setup (loss : Nat) (old quiet : Bool := false) : IO (World × Id × Op) := do
@@ -188,7 +191,7 @@ def setup (loss : Nat) (old quiet : Bool := false) : IO (World × Id × Op) := d
   let mut w : World := { a, b, loss }
   w ← writeA w (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
     (Bytes.digest "esk".toUTF8) a.nk)).ops
-  let c := (root (Device.ofSeed a.seed) a.key).id
+  let c := (root (Device.ofSeed a.seed) a.key kidA).id
   let some (wi, link) ← viewOn w.a (inviteTo c c (Device.ofSeed a.seed) (sha256 "bearer".toUTF8) [a.addr])
     | throw (IO.userError "no invite")
   w ← writeA w wi.ops
@@ -315,28 +318,28 @@ def mainBody : IO UInt32 := do
   let w ← w.run 40
   t.ok "B is admitted by its own ops" (← allowedOn w.b c w.b.key)
   t.ok "B lets A in" (← allowedOn w.b c w.a.key)
-  let p := post c c dA "k".toUTF8 "hello B".toUTF8 1 5
+  let p := post c c dA kidA "hello B".toUTF8 1 5
   let w ← writeA w [p]
   let w ← w.run 10
   t.ok "a later post reaches B" (← stored w.b p.id)
   -- Posts claiming the counter cap or more: the node writes its receipt
   -- of each as it arrives (`onArrival`), numbered in arrival order.
-  let s1 := post c c dA "k".toUTF8 "saturating".toUTF8 (2 ^ 100) 6
+  let s1 := post c c dA kidA "saturating".toUTF8 (2 ^ 100) 6
   let w ← writeA w [s1]
   let w ← w.run 10
-  let s2 := post c c dA "k".toUTF8 "past the cap".toUTF8 countCap 7
+  let s2 := post c c dA kidA "past the cap".toUTF8 countCap 7
   let w ← writeA w [s2]
   let w ← w.run 10
   t.ok "B receives two saturated posts, and writes a receipt of each, in arrival order"
-    ((← receiptsOf w.b s1.id) == [.received c "k".toUTF8 s1.id 1] &&
-      (← receiptsOf w.b s2.id) == [.received c "k".toUTF8 s2.id 2])
+    ((← receiptsOf w.b s1.id) == [.received c kidA s1.id 1] &&
+      (← receiptsOf w.b s2.id) == [.received c kidA s2.id 2])
   t.ok "a post below the cap gets no receipt" ((← receiptsOf w.b p.id).isEmpty)
   t.ok "receipts stay on the device that wrote them" ((← receiptsOf w.a s1.id).isEmpty)
   t.ok "A's index is the index of its store" (← cacheOk w.a)
   t.ok "B's index is the index of its store" (← cacheOk w.b)
   -- A forged session frame: A seals a post for B; B gets it with one
   -- byte changed, in the ciphertext, and then in the header.
-  let p2 := post c c dA "k".toUTF8 "sealed for B".toUTF8 3 8
+  let p2 := post c c dA kidA "sealed for B".toUTF8 3 8
   let (a, wa) ← run w.a fun n => n.onWrite w.a.x [p2] w.now
   let w := { w with a }
   let sealed := wa.send.filter fun (_, b) => b[0]? == some 1
@@ -380,7 +383,7 @@ def mainBody : IO UInt32 := do
   let seedA2 := sha256 "seed A, second community".toUTF8
   let w ← writeA w (← viewOn w.a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key Z".toUTF8)
     (Bytes.digest "esk Z".toUTF8) (Bytes.digest "unused".toUTF8))).ops
-  let c' := (root (Device.ofSeed seedA2) w.a.key).id
+  let c' := (root (Device.ofSeed seedA2) w.a.key (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8))).id
   let some (wiZ, linkZ) ← viewOn w.a (inviteTo c' c' (Device.ofSeed seedA2) (sha256 "bearer Z".toUTF8) [w.a.addr])
     | t.ok "A invites to its second community" false; return 1
   t.ok "the second link names the same node key" (linkZ.inviter == w.a.key)
@@ -398,14 +401,14 @@ def mainBody : IO UInt32 := do
   let w ← w.run 30
   t.ok "approved, B's new device is admitted in the second community, by B's own ops"
     (← allowedOn w.b c' w.b.key)
-  let pZ := post c' c' (Device.ofSeed seedA2) "k".toUTF8 "hello B, in Zed".toUTF8 1 7
+  let pZ := post c' c' (Device.ofSeed seedA2) (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8)) "hello B, in Zed".toUTF8 1 7
   let w ← writeA w [pZ]
   let w ← w.run 10
   t.ok "a post of the second community reaches B" (← stored w.b pZ.id)
   let sa2 ← (sessions : SqlM F _).run w.a.db
   let sb2 ← (sessions : SqlM F _).run w.b.db
   t.ok "still one session at each end, carrying both" (sa2.length == 1 && sb2.length == 1 && sa2.map (·.1) == sb2.map (·.1))
-  let pA := post c c dA "k".toUTF8 "and in Acme".toUTF8 4 8
+  let pA := post c c dA kidA "and in Acme".toUTF8 4 8
   let w ← writeA w [pA]
   let w ← w.run 10
   t.ok "and a post of the first community still reaches B" (← stored w.b pA.id)
@@ -430,11 +433,11 @@ def mainBody : IO UInt32 := do
   let mut w3 : World := { a := a3, b := b3 }
   w3 ← writeA w3 (← viewOn a3 (found a3.seed "Acme3".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key3".toUTF8)
     (Bytes.digest "esk3".toUTF8) a3.nk)).ops
-  let c3 := (root (Device.ofSeed a3.seed) a3.key).id
+  let c3 := (root (Device.ofSeed a3.seed) a3.key (kidOf cryptoSeal (Bytes.digest "key3".toUTF8))).id
   -- A pending join to a community that is not here, as another device.
   let ghost := sha256 "ghost".toUTF8
   let ghostKey := cryptoSeal.pub (Bytes.digest "ghost node".toUTF8)
-  let gr := root (Device.ofSeed ghost) ghostKey
+  let gr := root (Device.ofSeed ghost) ghostKey .empty
   let (_, deadLink) := issue gr.id gr.id (Device.ofSeed ghost) ghostKey (sha256 "ghost bearer".toUTF8) ["Z:7001".toUTF8]
   let wd ← viewOn b3 (join deadLink (sha256 "old device".toUTF8) "Old".toUTF8 b3.nk)
   w3 ← writeB w3 wd.ops

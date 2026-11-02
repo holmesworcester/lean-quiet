@@ -1,18 +1,18 @@
 {
   "target": {
     "selector": ".sb-row[data-kind=\"person\"]",
-    "nth": 4
+    "nth": 7
   },
   "region": [
     0,
-    306,
+    396,
     220,
-    336
+    426
   ],
   "pointer": [
     [
       110,
-      321
+      411
     ]
   ],
   "cursor": "pointer"

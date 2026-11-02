@@ -44,7 +44,7 @@ def room (n : Nat) : Room := Id.run do
   let k := Bytes.digest "newest content key".toUTF8
   let nk := Bytes.digest "newest node key".toUTF8
   let w := (found seed "Newest".toUTF8 "Ann".toUTF8 1 k (Bytes.digest "newest esk".toUTF8) nk).eval DB.empty
-  let c := (root d (cryptoSeal.pub nk)).id
+  let c := (root d (cryptoSeal.pub nk) (kidOf cryptoSeal k)).id
   let me : Kinds.Accepted.Me := { dev := d, seed, dev_ok := rfl, c, adm := c, user := c, name := "Ann" }
   let jobs := Chaos.make me k #[src] 6 n 0 (Chaos.epoch + 100000)
   return { c, base := w.ops, ops := jobs.toList.flatMap (·.ops) }

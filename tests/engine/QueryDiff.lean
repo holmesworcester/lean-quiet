@@ -23,7 +23,12 @@ structure World where
 
 def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Array (Id × Id × Device) := Id.run do
   let f := Device.named s!"founder-{seed}"
-  let r := root f (keyOf f)
+  -- Two content keys held here (local key ops), a third not. The root
+  -- names the first: posts under the others are Invalid
+  -- (`post_community_key`), and refused alike by both readers.
+  let keys := [Bytes.digest s!"key-{seed}-0".toUTF8, Bytes.digest s!"key-{seed}-1".toUTF8]
+  let kids := keys.map (kidOf cryptoSeal) ++ ["unheld".toUTF8]
+  let r := root f (keyOf f) kids[0]!
   let c := r.id
   let mut ops := #[r]
   -- Each user: the op admitting it (what its ops cite), its user id
@@ -38,10 +43,6 @@ def build (seed : Nat) (nUsers nPosts : Nat) : Array Op × Id × Array Id × Arr
     let j := admit c rq.id ok.id
     ops := ops.push inv |>.push rq |>.push ok |>.push j
     users := users.push (j.id, rq.id, d)
-  -- Two content keys held here (local key ops), a third not: `readable`
-  -- lists the posts under the first two.
-  let keys := [Bytes.digest s!"key-{seed}-0".toUTF8, Bytes.digest s!"key-{seed}-1".toUTF8]
-  let kids := keys.map (kidOf cryptoSeal) ++ ["unheld".toUTF8]
   ops := ops ++ (keys.map (contentKey c ·.1)).toArray
   let mut g : Rng := ⟨seed.toUInt64⟩
   let mut posts : Array Id := #[]

@@ -12,7 +12,7 @@ namespace CatalogRetry
 
 def fam : Family Fact := family ed25519
 def author := Device.named "catalog-retry-author"
-def rootOp := root author (keyOf author)
+def rootOp := root author (keyOf author) "catalog".toUTF8
 def message (n : Nat) := post rootOp.id rootOp.id author "catalog".toUTF8
   s!"retained message {n}".toUTF8 n (1000 + n)
 def cid := sha256 "catalog-retry-session".toUTF8

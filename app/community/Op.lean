@@ -210,32 +210,37 @@ def signedBy {β} [Codec β] (o : Op) (b : β) : ByteArray :=
 and the founder's user is the community id. The founder is admin. -/
 namespace Root
 
-/-- What its author writes and signs. -/
+/-- What its author writes and signs: the founding device, its node's
+key, and the id of the community's content key (`kidOf` of the key the
+founder made), which every post is sealed under. -/
 structure Body where
   device : ByteArray
   enc : ByteArray
+  kid : ByteArray
   sig : ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Body := Codec.tagged 0 (fun x => (x.device, x.enc, x.sig)) (fun (p : B × B × B) => ⟨p.1, p.2.1, p.2.2⟩) (fun _ => rfl)
+instance : Codec Body := Codec.tagged 0 (fun x => (x.device, x.enc, x.kid, x.sig)) (fun (p : B × B × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 0 :: Codec.enc (x.device, x.enc, x.sig) := rfl
+@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 0 :: Codec.enc (x.device, x.enc, x.kid, x.sig) := rfl
 
 /-- The body with its signatures blanked: what the signatures cover. -/
 def Body.unsigned (b : Body) : Body := { b with sig := .empty }
 
 
-/-- Its fact, `admission`. -/
+/-- Its fact, `admission`, with the community's content key id (the
+root's; an admission copies its root's). -/
 structure Fact where
   c : Id
   u : Id
   device : Key
   enc : Key
+  kid : ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Fact := Codec.tagged 0 (fun x => (x.c, x.u, x.device, x.enc)) (fun (p : B × B × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2⟩) (fun _ => rfl)
+instance : Codec Fact := Codec.tagged 0 (fun x => (x.c, x.u, x.device, x.enc, x.kid)) (fun (p : B × B × B × B × B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 0 :: Codec.enc (x.c, x.u, x.device, x.enc) := rfl
+@[simp] theorem Fact.enc_tag (x : Fact) : Codec.enc x = 0 :: Codec.enc (x.c, x.u, x.device, x.enc, x.kid) := rfl
 
 /-! ## The lists its fact is filed in (`admission.*`) -/
 /-- A device's admissions: whom `allowPeer` asks about. -/

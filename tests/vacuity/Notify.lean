@@ -72,13 +72,13 @@ theorem markLe : (c, 7).2 ≤ 7 := marks_le 7 [first] (c, 7) firstMark
 /-- **noticeRecipients_own**: a read is sealed to the user's other device,
 the node key of one of its admissions. -/
 def other : ByteArray := ⟨#[7]⟩
-def rows : List (Pos × Fact) := [((.empty, x), Fact.admission c u theirs other)]
+def rows : List (Pos × Fact) := [((.empty, x), Fact.admission c u theirs other .empty)]
 
 theorem sealedTo : other ∈ noticeRecipients mine false rows := by
   show other ∈ [other]
   exact List.mem_singleton_self _
 
-theorem recipient : (∃ p c' u' d, (p, Fact.admission c' u' d other) ∈ rows) ∧ (false = true ∨ other ≠ mine) :=
+theorem recipient : (∃ p c' u' d k, (p, Fact.admission c' u' d other k) ∈ rows) ∧ (false = true ∨ other ≠ mine) :=
   noticeRecipients_own mine false rows other sealedTo
 
 /-- **target_roundtrip**: a link to a message, with 32-byte ids. -/

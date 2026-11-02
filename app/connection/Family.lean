@@ -627,6 +627,71 @@ theorem reads_deviceLive (c : Id) (d : Key) : (deviceLive c d).Reads (RelKey rel
     · exact .pure _
     · exact reads_unremoved c a.rows
 
+theorem reads_usersKeep (c x : Id) (f : Approve.Fact) (rows : List (Pos × Fact)) :
+    (usersKeep c x f rows).Reads (RelKey rels) := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, g⟩ := pf
+    cases g with
+    | ofAdmission y =>
+      obtain ⟨c', u, d, e⟩ := y
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact .list ⟨removal.byUser, by simp [rels], [c, u], rfl⟩ fun a => by
+          show View.Reads _ (if a.rows.isEmpty then _ else _)
+          split
+          · exact ih
+          · exact .list ⟨approval.byDev, by simp [rels], [c, f.dev], rfl⟩ fun ch => by
+              show View.Reads _ (if cutsKeep ch.rows x f a.rows then _ else _)
+              split
+              · exact ih
+              · exact .pure _
+      · exact ih
+    | _ => exact ih
+
+theorem reads_kept (c x : Id) (f : Approve.Fact) : (kept c x f).Reads (RelKey rels) :=
+  .list ⟨admission.byDevice, by simp [rels], [c, f.dev], rfl⟩ fun a => reads_usersKeep c x f a.rows
+
+theorem reads_counts (c : Id) : ∀ (k : Nat) (x : Id) (f : Approve.Fact), (counts c k x f).Reads (RelKey rels)
+  | 0, _, _ => .pure _
+  | k + 1, x, f => (reads_kept c x f).bind fun ok => by
+    show View.Reads _ (if !ok then _ else if f.depth = 0 then _ else _)
+    split
+    · exact .pure _
+    · split
+      · exact .pure _
+      · exact .list ⟨approval.byRequester, by simp [rels], [c, f.dev], rfl⟩ fun a => by
+          show View.Reads _ (match factIn f.up a.rows with | some g => _ | none => _)
+          split
+          · exact reads_counts c k _ _
+          · exact .pure _
+
+theorem reads_approvedBy (c u : Id) (e : Key) (rows : List (Pos × Fact)) :
+    (approvedBy c u e rows).Reads (RelKey rels) := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨⟨_, x⟩, g⟩ := pf
+    cases g with
+    | ofApproval f =>
+      show View.Reads _ (if f.ru = u ∧ f.re = e then _ else _)
+      split
+      · exact (reads_counts c _ x f).bind fun b => by
+          show View.Reads _ (if b then _ else _)
+          split
+          · exact .pure _
+          · exact ih
+      · exact ih
+    | _ => exact ih
+
+theorem reads_trusted (c u : Id) (d e : Key) : (trusted c u d e).Reads (RelKey rels) :=
+  .list ⟨admission.byDevice, by simp [rels], [c, d], rfl⟩ fun r => by
+    show View.Reads _ (if _ then _ else _)
+    split
+    · exact .pure _
+    · exact .list ⟨approval.byRequester, by simp [rels], [c, d], rfl⟩ fun a => reads_approvedBy c u e a.rows
+
 theorem reads_live (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads (RelKey rels) := by
   induction rows with
   | nil => exact .pure _
@@ -641,17 +706,32 @@ theorem reads_live (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads (R
       · exact ih
     | _ => exact ih
 
+theorem reads_letIn (c : Id) (rows : List (Pos × Fact)) : (letIn c rows).Reads (RelKey rels) := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact (reads_trusted c u d e).bind fun _ => (reads_deviceLive c d).bind fun _ =>
+          ih.bind fun _ => .pure _
+      · exact ih
+    | _ => exact ih
+
 theorem reads_allowPeer (c : Id) (e : Key) : (allowPeer c e).Reads (RelKey rels) :=
   (View.Reads.read ⟨admission.byKey, by simp [rels], [c, e], rfl⟩).bind fun a =>
-    (reads_live c a.rows).bind fun _ => .pure _
+    (reads_letIn c a.rows).bind fun _ => .pure _
 
 theorem reads_members (c : Id) : (members c).Reads (RelKey rels) :=
   (View.Reads.read ⟨admission.all, by simp [rels], [c], rfl⟩).bind fun a =>
-    (reads_live c a.rows).bind fun _ => .pure _
+    (reads_letIn c a.rows).bind fun _ => .pure _
 
 theorem reads_recipients (c : Id) : (recipients c).Reads (RelKey rels) :=
   (View.Reads.read ⟨admission.all, by simp [rels], [c], rfl⟩).bind fun a =>
-    (reads_live c a.rows).bind fun _ => .pure _
+    (reads_letIn c a.rows).bind fun _ => .pure _
 end Community
 namespace Connection
 open Engine

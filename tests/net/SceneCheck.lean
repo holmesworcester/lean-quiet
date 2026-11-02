@@ -26,7 +26,7 @@ structure Scene where
 
 namespace Scene
 variable (x : Scene)
-def r : Op := root x.A x.kA
+def r : Op := root x.A x.kA .empty  -- the scene posts nothing: no content key id
 def c : Id := x.r.id
 def issued : Op × Invite := issue x.c x.c x.A x.kA x.secret []
 def inv : Op := x.issued.1

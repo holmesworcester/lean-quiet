@@ -103,7 +103,7 @@ def setup (dir : String) (live : Nat := silenceMs) (idle : Nat := 600000) : IO (
   let remote := (addrText (← server.getPeerName)).toUTF8
   let mut a ← attach (← make dir "A" address live idle) server remote
   let mut b ← attach (← make dir "B" remote live idle) client address
-  let c := (root (JoinFair.device "A") (JoinFair.nodeKey "A")).id
+  let c := (root (JoinFair.device "A") (JoinFair.nodeKey "A") (kidOf cryptoSeal JoinFair.key)).id
   submit a (← view a (found (JoinFair.seed "A") "Epoch probe".toUTF8 "Alice".toUTF8 1 JoinFair.key
     (Bytes.digest "epoch-wrap".toUTF8) (JoinFair.nk "A"))).ops
   a ← tick a

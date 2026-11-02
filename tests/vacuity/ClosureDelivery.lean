@@ -207,9 +207,9 @@ def certificate : Option (PLift Result) :=
 
 /-- The helper checks use the already populated signed community and a
 new signed message, with old operations and retransmissions mixed in. -/
-def extra := post c admission.id bob "content-key-1".toUTF8
+def extra := post c admission.id bob keyId
   "The closure is complete; this message is new.".toUTF8 2 29880001
-def extraFact := Fact.message c requestB.id bob.pk "content-key-1".toUTF8
+def extraFact := Fact.message c requestB.id bob.pk keyId
   "The closure is complete; this message is new.".toUTF8 2 29880001
 def jobs := [r, extra, message, extra]
 def staged := [message]

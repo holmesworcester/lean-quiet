@@ -1093,14 +1093,15 @@ open Community (Admitted Removed)
 /-- Admitted among the node's Community ops: by a Valid admission in the
 node's own verdicts. -/
 theorem admitted_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} {d e : Community.Key} :
-    Admitted C (community C s).ops c u d e ↔ ∃ x, s.status x = some (.valid (.inl (.admission c u d e))) :=
-  exists_congr fun x => (sum_project_node h hq).2.2.2.1 x _
+    Admitted C (community C s).ops c u d e ↔
+      ∃ x k, s.status x = some (.valid (.inl (.admission c u d e k))) :=
+  exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
 
 /-- Removed among the node's Community ops: by a Valid removal in the
 node's own verdicts. -/
 theorem removed_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} :
-    Removed C (community C s).ops c u ↔ ∃ x r, s.status x = some (.valid (.inl (.removal c u r))) :=
-  exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
+    Removed C (community C s).ops c u ↔ ∃ x r k, s.status x = some (.valid (.inl (.removal c u r k))) :=
+  exists_congr fun x => exists_congr fun _ => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
 open Engine Engine.Sync
 
 /-- **A room is carried synced only if trusted.** If connection cid
@@ -1144,14 +1145,14 @@ variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
 
 /-- **A removal ends a live session's sync, in the running node.** At
-rest, if this node is let into c (a device admitted under its key is
-live), and each peer connection cid's established facts name in c has
+rest, if this node is let into c (a live device has a trusted admission
+under its key), and each peer connection cid's established facts name in c has
 only devices admitted into a removed user u, then cid carries no sync
 room of c: no step of it sends an op of c or takes one (`recv_send`,
 `recv_take`). -/
 theorem rooms_cut_node (h : Inv (node C K) s) (hq : s.queue = []) {cid c : Id}
     (hme : ∀ me, (meV c).eval s = some me →
-      ∃ u d, Admitted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
+      ∃ u d, Community.Trusted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
     (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
       ∃ u, Removed C (community C s).ops c u ∧
         ∀ u' d, Admitted C (community C s).ops c u' d peer → ∃ e', Admitted C (community C s).ops c u d e') :
@@ -2880,10 +2881,11 @@ theorem trace_rest : ∃ t : DB F, Inv (Connection.node ed25519 sodium) t ∧ t.
   exact node_rest hr hw.settled
 
 /-- **The trust rule at every peer, after every production trace:** it
-takes a node key exactly when a live device is admitted under it. -/
+takes a node key exactly when a live device has a trusted admission
+under it. -/
 theorem connect_iff_trace (c : Id) (e : Community.Key) :
     ((allowPeer c e).liftL : View F Bool).eval store = true ↔
-      ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d e ∧
+      ∃ u d, Community.Trusted ed25519 (community ed25519 store).ops c u d e ∧
         Live ed25519 (community ed25519 store).ops c d := by
   obtain ⟨t, hi, hq, hops, hv, -⟩ := trace_rest S ea eb actions side
   rw [hv _ (reads_allowPeer_urgent c e), ← community_ops (C := ed25519) hops]
@@ -2916,19 +2918,19 @@ theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
 admission among the peer's own verdicts. -/
 theorem admitted_trace {c u : Id} {d e : Community.Key} :
     Admitted ed25519 (community ed25519 store).ops c u d e ↔
-      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) := by
+      ∃ x k, (store).status x = some (.valid (.inl (.admission c u d e k))) := by
   obtain ⟨t, hi, hq, hops, -, hst⟩ := trace_rest S ea eb actions side
   rw [← community_ops (C := ed25519) hops, admitted_node hi hq]
-  exact exists_congr fun x => (hst x _ rfl).symm
+  exact exists_congr fun x => exists_congr fun k => (hst x _ rfl).symm
 
 /-- Removed, at every peer after every production trace: by a Valid
 removal among the peer's own verdicts. -/
 theorem removed_trace {c u : Id} :
     Removed ed25519 (community ed25519 store).ops c u ↔
-      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) := by
+      ∃ x r k, (store).status x = some (.valid (.inl (.removal c u r k))) := by
   obtain ⟨t, hi, hq, hops, -, hst⟩ := trace_rest S ea eb actions side
   rw [← community_ops (C := ed25519) hops, removed_node hi hq]
-  exact exists_congr fun x => exists_congr fun r => (hst x _ rfl).symm
+  exact exists_congr fun x => exists_congr fun r => exists_congr fun k => (hst x _ rfl).symm
 
 end
 

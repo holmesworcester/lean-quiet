@@ -82,7 +82,7 @@ def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
 
 def history (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named "tcp-founder"
-  let r := root f (keyOf f)
+  let r := root f (keyOf f) "k".toUTF8
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut adms : Array (Id × Device) := #[(c, f)]

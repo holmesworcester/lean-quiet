@@ -50,7 +50,7 @@ def room : Room := Id.run do
   let k := Bytes.digest "window content key".toUTF8
   let nk := Bytes.digest "window node key".toUTF8
   let w := (found seed "Window".toUTF8 "Ann".toUTF8 1 k (Bytes.digest "window esk".toUTF8) nk).eval DB.empty
-  let c := (root d (cryptoSeal.pub nk)).id
+  let c := (root d (cryptoSeal.pub nk) (kidOf cryptoSeal k)).id
   let nonce (s : String) := Bytes.fit 24 (sha256 s.toUTF8)
   let p (i t : Nat) (clump : Option Id := none) := sealedPost c c d k (nonce s!"post {i}") s!"message {i}".toUTF8 i t clump
   -- old: a clump (root and child) five days ago, an old root post, and filler
