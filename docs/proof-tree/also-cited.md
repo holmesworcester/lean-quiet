@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README cites outside its guarantee rows. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1345) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2126)
+✅ wired: about running code (1348) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
 
 ## What is proven
 
@@ -465,14 +465,6 @@
 <li><a id="law-App.WriteAdmission.admitted_count"></a>✅ <a href="../../engine/wire/WriteAdmission.lean#L45">App.WriteAdmission.admitted_count</a></li>
 <li><a id="law-App.WriteAdmission.admitted_bytes"></a>✅ <a href="../../engine/wire/WriteAdmission.lean#L57">App.WriteAdmission.admitted_bytes</a></li>
 <li><a id="law-Engine.Sync.write_first"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L256">Engine.Sync.write_first</a></li>
-<li><details><summary><a id="law-Engine.Sync.write_within"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L410">Engine.Sync.write_within</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Inbox.served"></a>▫️ <a href="../../engine/wire/LaneLaws.lean#L393">Engine.Sync.Inbox.served</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/LaneLaws.lean#L292">Engine.Sync.Inbox.waiting_step</a></li>
-</ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.event_within"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L419">Engine.Sync.event_within</a> · 2 below</summary><ul>
-<li>▫️ <a href="#law-Engine.Sync.Inbox.served">Engine.Sync.Inbox.served</a> ↪ · 1 below</li>
-</ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.Outbox.native_batch_bounded"></a>✅ <a href="../../engine/wire/OutboxLaws.lean#L66">Engine.Sync.Outbox.native_batch_bounded</a> · 10 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.Reserved.native_batch_bytes"></a>▫️ <a href="../../engine/wire/Reserved.lean#L228">Engine.Sync.Reserved.native_batch_bytes</a> · 8 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.Reserved.take_batch_bytes"></a>▫️ <a href="../../engine/wire/Reserved.lean#L190">Engine.Sync.Reserved.take_batch_bytes</a> · 5 below</summary><ul>
@@ -762,19 +754,19 @@
 <li>✅ <a href="#law-Engine.Sync.NodeUnique.step_valid">Engine.Sync.NodeUnique.step_valid</a> ↪ · 64 below</li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L76">Engine.Sync.NodeUnique.Ensures.state</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3910">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>🌐 <a href="../../app/Proofs.lean#L3910">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.production_step_unique">Connection.Execution.production_step_unique</a> ↪ · 66 below</li>
 <li>▫️ <a href="../../app/Proofs.lean#L3896">Connection.Execution.world_run_unique</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3951">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
-<li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
+<li>🌐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3960">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
 <li>🌐 <a href="#law-Connection.Execution.world_trace_unique">Connection.Execution.world_trace_unique</a> ↪ · 69 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3968">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
-<li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
+<li>🌐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
 </ul>
@@ -793,8 +785,6 @@
 <li>✅ <a href="#law-App.WriteAdmission.admitted_count">App.WriteAdmission.admitted_count</a> ↪</li>
 <li>✅ <a href="#law-App.WriteAdmission.admitted_bytes">App.WriteAdmission.admitted_bytes</a> ↪</li>
 <li>✅ <a href="#law-Engine.Sync.write_first">Engine.Sync.write_first</a> ↪</li>
-<li>✅ <a href="#law-Engine.Sync.write_within">Engine.Sync.write_within</a> ↪ · 2 below</li>
-<li>✅ <a href="#law-Engine.Sync.event_within">Engine.Sync.event_within</a> ↪ · 2 below</li>
 </ul>
 
 ## Deeper
