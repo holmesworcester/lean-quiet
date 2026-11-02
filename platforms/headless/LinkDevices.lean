@@ -40,12 +40,19 @@ def carry (src dst : St) : IO Nat := do
   dst.wr.submit ⟨ops, false⟩
   return ops.length
 
+/-- Tap action a's box on the current page, as a finger would. A page
+taller than the view scrolls natively, and its input is measured from
+the page's own bottom (as MobileSwitcher taps the switcher), so a tall
+page (the You page with more rows) is tapped through its scroll. -/
 def tapAct (sm : Sim) (a : Pages.Act) : M Bool := do
   let s ← get
   let some pg := s.pageNow | return false
   match pg.taps.find? (·.2 == a) with
   | some (b, _) =>
-    sm.cmds.modify (·.push s!"page {b.x + b.w / 2} {b.y + b.h / 2}")
+    if pg.bmp.h > viewH s then
+      onTap .list (b.x + b.w / 2) (pg.bmp.h - 1 - (b.y + b.h / 2)) false
+    else
+      sm.cmds.modify (·.push s!"page {b.x + b.w / 2} {b.y + b.h / 2}")
     steps 3
     return true
   | none => return false
