@@ -69,13 +69,15 @@ cases = [
         ("app/Screen.lean", "if s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then",
          "if published && s.page == .chat && s.sheet.isNone then\n    if let some e := s.ownSends.head then"),
     ], "FAIL: a refused new publication consumes the exact prior native completion in one presentation step"),
+    # a composer send is a reader act: the reader's pass judges it
+    # against its outbox (stage 3b), not the frame's writeAll
     ("presentation-loses-ancestors", "component_demand", [
-        ("app/Screen.lean", "Reader.judgeWrite s.rd s.out w", "Reader.judgeWrite s.rd #[] w"),
+        ("app/Screen.lean", "judgeWrite rd (← get).out w", "judgeWrite rd #[] w"),
     ], "FAIL: eight sequential signed sends enter a bounded FIFO while their first ancestor is uncommitted"),
+    # sendNow refuses at capacity, counting the sends in flight
     ("presentation-replaces-full", "component_demand", [
-        ("app/Screen.lean", "if present && s.ownSends.entries.length ≥ Presentation.capacity then return ← presentationRefusal", "if present && s.ownSends.entries.length ≥ Presentation.capacity then modify fun s => { s with ownSends := s.ownSends.pop }"),
-        ("app/Screen.lean", "let mut ownSends := s.ownSends", "let mut ownSends := (← get).ownSends"),
-        ("app/Screen.lean", "if ownSends.entries.length == s.ownSends.entries.length then return ← presentationRefusal", "if false then return ← presentationRefusal"),
+        ("app/Screen.lean", "    if s.ownSends.entries.length + inFlight ≥ Presentation.capacity then\n      discard <| presentationRefusal\n      return\n",
+         "    if s.ownSends.entries.length + inFlight ≥ Presentation.capacity then\n      modify fun s => { s with ownSends := s.ownSends.pop }\n"),
     ], "FAIL: full presentation capacity refuses the ninth send without replacing an obligation or draft"),
 
     ("frame-pauses-worker", "component_demand", [
