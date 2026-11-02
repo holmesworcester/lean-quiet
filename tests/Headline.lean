@@ -77,6 +77,7 @@ import engine.world.Plain
   Switch.select_tapped_dedupe
   Community.approveReq_ops
   Engine.ingest_costs
+  PeopleLaws.deviceCut_removal
 
 /-! ## Also considered: about running code, but left out of the top list -/
 
@@ -101,7 +102,6 @@ import engine.world.Plain
   Connection.bare_takes_only_join
   Community.order_total
   PeopleLaws.present_iff
-  PeopleLaws.deviceCut_removal
   ViewLaws.namesake_iff
   Translate.covered
   Cover.line_painted
