@@ -112,7 +112,14 @@ an `@[export]` whose symbol a shipping platform's source names; a
 its law is not an audited equation naming it; a `copy`
 law names the code it copies, a copied definition runs, or the code
 does not run; a `subject` names what its law's conclusion does not; an
-`assume` or `holds` no law takes; a law marked `wired` is not. It fails
+`assume` or `holds` no law takes; a law marked `wired` is not. And
+every extern must have a contract: each C symbol an `@[extern]`
+attribute names, in any Lean file of the repository (the app, the node,
+the platforms and the tests), needs an `extern` note of tests/wiring.txt
+saying what the proofs take of it; a note no file needs is stale; a
+`test` contract is for a test's probe only (tests/, platforms/headless/);
+a `prop:` contract names a Prop. A source with an extern no note covers
+must be caught (the check's negative control). It fails
 too if an audited law is missing, if a model law is not in
 tests/wiring-models.txt, or if that list names a law that is not a model
 law. Controls: the entry points must reach
@@ -419,6 +426,8 @@ structure Notes where
   /-- the `todo` names and the copied code, in the file's order -/
   order : Array Name := #[]
   subject : NameMap (List Name) := {}
+  /-- each extern's C symbol ↦ its contract's kind and text -/
+  extern : List (String × String × String) := []
   wired : List Name := []
   entry : List Name := []
   /-- every name given, with its line, for the existence check -/
@@ -475,6 +484,12 @@ def readNotes (path : System.FilePath) : IO Notes := do
         | _ => (.anonymous, t)
       let ns' := { ns with copy := ns.copy.insert n.toName (d, t), order := (ns.order.push n.toName).push d }
       ns := at_ (at_ ns' n.toName) d
+    | (["extern", sym], t) =>
+      let (k, txt) := match fields t 1 with
+        | ([k], txt) => (k, txt)
+        | _ => ("", t)
+      let ns' := { ns with extern := (sym, k, txt) :: ns.extern }
+      ns := if k.startsWith "prop:" then at_ ns' (k.drop 5).toString.toName else ns'
     | (["subject", n], t) =>
       let s := (t.splitOn " ").filter (· ≠ "") |>.map String.toName
       ns := s.foldl at_ (at_ { ns with subject := ns.subject.insert n.toName s } n.toName)
@@ -600,6 +615,60 @@ def classify (env : Environment) (run : NameSet) (ns : Notes) (via : NameMap (Li
 
 def commas (ns : List Name) : String := ", ".intercalate (ns.map toString)
 
+/-! ## Externs: each has a stated contract -/
+
+/-- The C symbols of the extern attributes in a file's text. -/
+def externSyms (src : String) : List String :=
+  ((src.splitOn "@[extern \"").drop 1).filterMap fun rest =>
+    match rest.splitOn "\"" with
+    | sym :: _ => if sym.isEmpty then none else some sym
+    | [] => none
+
+/-- Where a test's probe may be declared: never in shipped code. -/
+def testOnly (path : String) : Bool :=
+  path.startsWith "tests/" || path.startsWith "platforms/headless/"
+
+/-- What is wrong with the extern notes for these files (path, text): an
+extern with no contract, a test contract in shipped code, a stale note,
+an unknown kind, a `prop:` naming no Prop, a contract with no text. -/
+def externProblems (env : Environment) (srcs : Array (String × String))
+    (notes : List (String × String × String)) : Array String := Id.run do
+  let mut out := #[]
+  let mut seen : List String := []
+  for (path, src) in srcs do
+    for sym in externSyms src do
+      seen := sym :: seen
+      match notes.find? (·.1 == sym) with
+      | none => out := out.push s!"extern {sym} ({path}) has no contract: give it an `extern {sym} none|effect|test|prop:NAME TEXT` note"
+      | some (_, k, _) =>
+        if k == "test" && !testOnly path then
+          out := out.push s!"extern {sym} ({path}) is shipped code, so its contract cannot be `test`"
+  for (sym, k, txt) in notes do
+    if !seen.contains sym then out := out.push s!"tests/wiring.txt: extern {sym}: no Lean file declares it; drop the note"
+    if txt.isEmpty then out := out.push s!"tests/wiring.txt: extern {sym}: the contract has no text"
+    if k.startsWith "prop:" then
+      let n := (k.drop 5).toString.toName
+      match env.find? n with
+      | some ci => if endSort ci.type != some .zero then
+          out := out.push s!"tests/wiring.txt: extern {sym}: {n} is not a Prop"
+      | none => pure ()
+    else if !["none", "effect", "test"].contains k then
+      out := out.push s!"tests/wiring.txt: extern {sym}: unknown contract kind {k}"
+  return out
+
+/-- Every Lean file of the repository, with its text, but the build's. -/
+def leanSources : IO (Array (String × String)) := do
+  let mut out := #[]
+  for e in ← System.FilePath.readDir "." do
+    if e.path.extension == some "lean" then
+      out := out.push (e.fileName, ← IO.FS.readFile e.path)
+  for dir in ["engine", "app", "ops", "ui", "platforms", "tests"] do
+    if ← System.FilePath.isDir dir then
+      for f in ← System.FilePath.walkDir dir do
+        if f.extension == some "lean" then
+          out := out.push (f.toString, ← IO.FS.readFile f)
+  return out
+
 /-- The source of the shipping platforms (not qr's harness, nor the
 probes and tests). -/
 def shipping : IO (Array String) := do
@@ -687,6 +756,16 @@ unsafe def main : IO UInt32 := do
   -- the notes name what exists, and are not stale
   for (n, i) in ns.names do
     if !env.contains n then problems := problems.push s!"tests/wiring.txt:{i}: no {n}"
+  -- every extern has a stated contract; a source with an extern no note
+  -- covers, and a test probe in shipped code, must be caught
+  problems := problems ++ externProblems env (← leanSources) ns.extern
+  let fake := "@[extern \"lq_uncontracted\"] opaque f : IO Unit"
+  if !(externProblems env #[("tests/Fake.lean", fake)] ns.extern).any (·.startsWith "extern lq_uncontracted") then
+    problems := problems.push "negative control: an extern with no contract was not caught"
+  if let some (sym, _, _) := ns.extern.find? (·.2.1 == "test") then
+    let shipped := s!"@[extern \"{sym}\"] opaque g : IO Unit"
+    if !(externProblems env #[("engine/Fake.lean", shipped)] ns.extern).any (·.startsWith s!"extern {sym} (engine/Fake.lean)") then
+      problems := problems.push s!"negative control: the test probe {sym} in shipped code was not caught"
   for (n, _) in ns.spec do
     if run.contains n then problems := problems.push s!"tests/wiring.txt: spec {n} runs; drop the note"
   for (n, _) in ns.todo do
