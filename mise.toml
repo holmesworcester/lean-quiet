@@ -43,6 +43,11 @@ description = "Real TCP/Noise admitted notice survives transport close/reap; fro
 depends = ["crypto"]
 run = "bash tests/engine/close_ingress.sh"
 
+[tasks."test:sync-full"]
+description = "Negative control: with Sqlite.lean back at synchronous NORMAL, sqlite_build's durability check fails"
+depends = ["crypto"]
+run = "bash tests/engine/sync_full.sh"
+
 [tasks."test:expiry-grace"]
 description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
 depends = ["crypto"]
@@ -131,6 +136,18 @@ run = "tests/net/check.sh"
 description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
 run = "python3 ci/proof-links.py --check"
 
+[tasks."hackathon:refresh"]
+description = "Just before the Vibecheck submission, at main's head: write docs/HACKATHON.md's generated numbers from git (ci/hackathon.py), commit that file alone, then run the self-test and the check"
+run = "python3 ci/hackathon.py --refresh"
+
+[tasks."hackathon:check"]
+description = "ci/hackathon.py's self-test (the base reads 787 of 1016 laws and 20 controls; malformed lead lines, a stale block and an edited number are refused), then docs/HACKATHON.md's block is current for HEAD: nothing but that file changed since the commit it names. Not in the per-push gate: every landing makes the block stale"
+run = "python3 ci/hackathon.py --self-test && python3 ci/hackathon.py --check"
+
+[tasks."hackathon:test"]
+description = "ci/hackathon.py's self-test alone: git only, a few seconds"
+run = "python3 ci/hackathon.py --self-test"
+
 [tasks."layout:check"]
 description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
 run = "python3 ci/layout.py --self-test"
@@ -207,6 +224,28 @@ run = "platforms/linux/links.sh"
 [tasks."linux:links-negative"]
 description = "The links e2e's negative controls: the old empty lq_links, one socket for every database, a window never raised; each must fail linux:links"
 run = "python3 platforms/linux/negative_links.py"
+
+[tasks."make:assets-test"]
+description = "make install's assets step on made-up tarballs (file://): download, sha256 and per-file checks, repair, deterministic packing; controls: a flipped bit, files not matching the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail. No network"
+run = "tests/make/assets_test.sh"
+
+[tasks."make:verify-test"]
+description = "make verify: refused with its reason on this repository while it builds with Lean below 4.35; on a small Lean 4.35 project made here, lake check and lake comparator pass, and a solution proving a different statement, one resting on a new axiom, and a missing comparator.json each fail. Needs the Lean 4.35.0 toolchain and bubblewrap"
+run = "tests/make/verify_test.sh"
+
+[tasks."make:clean-room"]
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail), then make demo's e2e from the clone (tests/make/demo_e2e.py). Needs Docker and network; see tests/make/clean_room.sh"
+run = "tests/make/clean_room.sh"
+
+[tasks."make:demo-e2e"]
+description = "make demo under Xvfb (1920x1080), as a judge runs it: Alice's laptop and Bob's side by side, the join done by X input (Bob's name, Agree & Join; Waiting to join and Approve in Alice's window), Alice's message on Bob's screen (his QUIET_STATE, and his conversation's pixels against Alice's), Bob's reply on Alice's, both windows closed and make demo exiting 0; then make demo ARGS=--auto. Needs Xvfb, xdotool, ImageMagick, PIL; screenshots in out/make/demo-e2e"
+depends = ["linux:build"]
+run = "python3 tests/make/demo_e2e.py"
+
+[tasks."make:demo-negative"]
+description = "The make demo e2e's negative control: once Bob is in, his app restarts with --offline; Alice's message must then fail both checks that it reached him (state and screen), and nothing before them"
+depends = ["linux:build"]
+run = "tests/make/demo_negative.sh"
 
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them), two X11 resize mechanisms (gravity, the sync request) and five Get started/shell mutants; each must fail"
@@ -531,6 +570,10 @@ run = "tests/app/skeleton.sh"
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
 
+[tasks."test:headline"]
+description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"
+run = "tests/headline.sh"
+
 [tasks."test:vacuity"]
 depends = ["crypto"]
 description = "Build production laws, kernel-check concrete premise witnesses, reject broken fixtures and check the complete README inventory"
@@ -649,6 +692,10 @@ run = "tests/app/desktop_presentation_native.sh"
 description = "The app's programs on the headless twin, each in one process: session, two apps by link, chunked photo arrival, picture retry, scroll seams, node queue, inkless frame"
 depends = ["crypto"]
 run = "tests/app/headless.sh"
+
+[tasks."ci:nightly"]
+description = "The nightly release run: main's head in its own worktree, ci/local.sh --full -j 4; summary and logs in $TMPDIR/lean-quiet-nightly/<date> (cron 30 3 * * *)"
+run = "ci/nightly.sh"
 
 [tasks."ci:full"]
 description = "The gate, then every other part: mutants, TCP, X, qr, mdns, net, zoom, site, workspace (nightly, and before a release)"

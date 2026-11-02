@@ -1,0 +1,37 @@
+{
+  "withNav_cache": {
+    "status": "conditional",
+    "theorem": "App.withNav_cache",
+    "witness": "Vacuity.Nav.cache",
+    "module": "tests.vacuity.Nav",
+    "detail": "Its premise, distinct ids among the ops the log is rebuilt from, holds of every log holding only nav ops, as the app's does before any draft is written: the log starts empty, so each change of page rebuilds it from the new nav op alone (Vacuity.Nav.placed_navOnly); with drafts beside it, it holds when SHA-256 has no collision on the log's ops (distinct_of_collisionFree). App.St holds IO handles, so no concrete St is built in the kernel; the headless host program checks the conclusion on the running app after a switch, a back and a channel open (platforms/headless/Host.lean: the page shown is the log's newest nav op)."
+  },
+  "placeIn_newest": {
+    "status": "kernel-witness",
+    "theorem": "Data.placeIn_newest",
+    "witness": "Vacuity.Nav.first",
+    "module": "tests.vacuity.Nav",
+    "detail": "The app's first change of page on its empty ephemeral log: Home (page 0) with nothing under it, generation 1, through the running node family. The log is rebuilt from that one op, and the window's place read from it is exactly that op's."
+  },
+  "node_nav_ephemeral": {
+    "status": "kernel-witness",
+    "theorem": "Quiet.node_nav_ephemeral",
+    "witness": "Vacuity.Nav.ephemeral",
+    "module": "tests.vacuity.Nav",
+    "detail": "A concrete nav op (generation 1, Home) in the node's running family (Data.C, Connection.sodium): ownership decided on its kind, 48."
+  },
+  "intake_durable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.intake_durable",
+    "witness": "Vacuity.Nav.takenDurable",
+    "module": "tests.vacuity.Nav",
+    "detail": "This node's own job of one appearance choice (Dark, revision 1) in the running family: intake keeps it, and a nav op in the same position is dropped (Vacuity.Nav.dropped)."
+  },
+  "stored_durable": {
+    "status": "kernel-witness",
+    "theorem": "Engine.stored_durable",
+    "witness": "Vacuity.Nav.storedDurable",
+    "module": "tests.vacuity.Nav",
+    "detail": "An empty store fed that job holds the appearance choice under its id, and the law says it is not ephemeral. The headless host program checks the running SQLite store holds no nav op after real navigation."
+  }
+}

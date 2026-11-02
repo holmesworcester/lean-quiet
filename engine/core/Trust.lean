@@ -43,6 +43,14 @@ def Agree (dh : Key32 → ByteArray → ByteArray) (pub : Key32 → ByteArray) :
 /-- A hash's digests are 32 bytes. -/
 def DigestSize (h : ByteArray → ByteArray) : Prop := ∀ b : ByteArray, (h b).size = 32
 
+/-- A signature scheme verifies what it signed: for the key pair a
+32-byte seed makes (the public key, then the secret key), the public key
+verifies the secret key's signature of every message. -/
+def SignsVerify (keypair : ByteArray → ByteArray) (sign : ByteArray → ByteArray → ByteArray)
+    (verify : ByteArray → ByteArray → ByteArray → Bool) : Prop :=
+  ∀ (seed : Key32) (m : ByteArray),
+    verify ((keypair seed.1).extract 0 32) m (sign ((keypair seed.1).extract 32 96) m) = true
+
 /-! ## The running crates' -/
 
 /-- **XChaCha20-Poly1305 opens what it seals** (chacha20poly1305 0.11,
@@ -59,11 +67,17 @@ def X25519 : Prop := Agree (fun a b => x25519 a.1 b) (fun a => x25519Base a.1)
 /-- **A SHA-256 digest is 32 bytes** (sha2). -/
 def Sha256Size : Prop := DigestSize sha256
 
-/-- All four: what a suite built on the native crates needs. -/
+/-- **Ed25519 verifies what it signed** (ed25519-dalek): a device's key
+pair, made from a 32-byte seed, verifies every signature it makes. That
+no one else can make one is `Community.Unforgeable`, not this. -/
+def Ed25519Signs : Prop := SignsVerify edKeypair edSign edVerify
+
+/-- All five: what a suite built on the native crates needs. -/
 structure NativeCrypto : Prop where
   xchacha : XChaCha
   chacha : ChaCha
   x25519 : X25519
   sha256 : Sha256Size
+  ed25519 : Ed25519Signs
 
 end Trust

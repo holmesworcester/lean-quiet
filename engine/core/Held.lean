@@ -80,4 +80,11 @@ instance {F} : Turn F (HeldM F) where
     let s := purgeS fam ids h.db
     ((), { log, db := drainS fam (budget log s) s })
 
+/-- A store holding exactly these ops, judged: one write turn from empty.
+The app's ephemeral log is rebuilt this way from its live ops whenever
+one changes, so it holds only them however long the app runs
+(engine/sync/ClosureStore.lean: `turn_reachable`, `turn_settles`). -/
+def Held.ofOps {F : Type} (fam : Family F) (ops : List Op) : Held F :=
+  ((Turn.turn fam ops : HeldM F Unit) {}).2
+
 end Engine.Sync

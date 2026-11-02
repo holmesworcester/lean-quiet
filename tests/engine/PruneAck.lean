@@ -2,9 +2,10 @@
 refs. Signed roots generate real SQLite journal rows, then the first stale
 snapshot and a second prune show whether acknowledgement survived. -/
 import tests.engine.PublicationFixture
+import engine.core.Exit
 open Engine Data PublicationFixture
 
-def main (args : List String) : IO UInt32 := do
+def mainBody (args : List String) : IO UInt32 := do
   let readerMode := args.contains "--reader"
   let dir := args.headD "out/ref-publications/prune"
   let (path, db) ← database dir
@@ -60,3 +61,7 @@ def main (args : List String) : IO UInt32 := do
     IO.eprintln "FAIL: journal pruning preserves the underlying valid op"
     return 1
   return 0
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main (args : List String) : IO UInt32 := Engine.exitAfter (mainBody args)

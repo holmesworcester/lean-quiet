@@ -1,11 +1,12 @@
-"""Execute Daybreak negative controls in an isolated, restored snapshot."""
-import pathlib, subprocess, sys
+"""Execute Daybreak negative controls: the snapshot built and passing,
+then each mutant in a copy of its own, HARDEN_NC_JOBS (6) at once."""
+import concurrent.futures, os, pathlib, shutil, subprocess, sys
 root, logs = map(pathlib.Path, sys.argv[1:])
 logs.mkdir(parents=True, exist_ok=True)
 
-def run(args, name):
+def run(args, name, cwd=root):
     with (logs / (name + ".log")).open("w") as out:
-        return subprocess.run(args, cwd=root, stdout=out, stderr=subprocess.STDOUT, timeout=300).returncode
+        return subprocess.run(args, cwd=cwd, stdout=out, stderr=subprocess.STDOUT, timeout=600).returncode
 
 assert run(["lake", "build", "harden", "engine.sync.TimeLaws", "engine.sync.BoundsLaws", "engine.sync.RetryLaws", "engine.sync.ServeLaws", "engine.wire.CloseLaws", "engine.wire.Slots"], "baseline-build") == 0
 assert run([".lake/build/bin/harden"], "baseline-run") == 0
@@ -36,24 +37,28 @@ cases = [
     ("v6-one-quota", "engine/wire/Slots.lean", "  match String.fromUTF8? addr with\n  | none => \"?\"\n  | some s =>\n    if s.startsWith \"[\" then (s.splitOn \"]\").headD s ++ \"]\"\n    else match s.splitOn \":\" with\n      | [host, _] => host\n      | _ => s\n", "  ((String.fromUTF8! addr).splitOn \":\").headD \"?\"\n", "harden", "IPv6 peers have separate quotas", True),
     ("v6-placeholder", "engine/wire/Tcp.lean", "| .v6 a => s!\"[{a.addr}]:{a.port}\"", "| .v6 a => s!\"[v6]:{a.port}\"", "harden", "an IPv6 address's text names its host", True),
 ]
-for name, source, old, new, target, expected, runtime in cases:
-    path = root / source
-    original = path.read_text()
-    assert original.count(old) == 1, (name, "mutation target missing")
+def control(case):
+    name, source, old, new, target, expected, runtime = case
+    work = root.parent / ("mutant-" + name)
+    shutil.copytree(root, work, symlinks=True)
     try:
+        path = work / source
+        original = path.read_text()
+        assert original.count(old) == 1, (name, "mutation target missing")
         path.write_text(original.replace(old, new))
-        code = run(["lake", "build", target], name + "-build")
+        code = run(["lake", "build", target], name + "-build", work)
         if runtime:
             assert code == 0, (name, "mutant must compile before runtime control")
-            code = run([".lake/build/bin/harden"], name)
+            code = run([str(work / ".lake/build/bin/harden")], name, work)
             text = (logs / (name + ".log")).read_text()
         else:
             text = (logs / (name + "-build.log")).read_text()
         assert code != 0 and expected in text, (name, "survived or failed for a different reason")
-        print("refused:", name, flush=True)
+        return name
     finally:
-        path.write_text(original)
-    assert run(["lake", "build", target], name + "-restored") == 0, (name, "restored source did not build")
-assert run(["lake", "build", "harden"], "restored-build") == 0
-assert run([".lake/build/bin/harden"], "restored-run") == 0
-print(f"harden negative controls: {len(cases)} refused; restored suite passes")
+        shutil.rmtree(work)
+
+with concurrent.futures.ThreadPoolExecutor(int(os.environ.get("HARDEN_NC_JOBS", "6"))) as pool:
+    for name in pool.map(control, cases):
+        print("refused:", name, flush=True)
+print(f"harden negative controls: {len(cases)} refused, each in its own copy")

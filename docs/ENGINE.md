@@ -388,7 +388,7 @@ session keys are not clean.
   can be replayed.
 - `derivable_clean`, `derivable_sealed` (every ciphertext under a secret
   key that the attacker can take apart was sealed by an honest party,
-  in a call `O` allows), `exposed_parts`.
+  in a call `O` allows).
 
 What the symbolic model does not cover: computational security (no
 reduction to X25519's gap-DH, ChaCha20-Poly1305's IND-CPA and INT-CTXT,

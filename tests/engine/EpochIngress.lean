@@ -158,14 +158,22 @@ def removalCase (t : Checks) (dir : String) : IO Unit := do
 
 end EpochIngress
 
+/-- Exit directly, never by returning: a fixture that throws leaves its
+peers' socket writers waiting, and the runtime waits for every task before an
+ordinary return, so a thrown error hung instead of failing. -/
 def main (args : List String) : IO UInt32 := do
-  let dir := args.headD "out/epoch-ingress"
-  let t ← Tests.Checks.new
-  EpochIngress.runCase t (dir ++ "/local") true
-  EpochIngress.runCase t (dir ++ "/peer") false
-  EpochIngress.runCase t (dir ++ "/socket-idle") true true
-  EpochIngress.junkCase t (dir ++ "/junk")
-  EpochIngress.removalCase t (dir ++ "/removal")
-  let result ← t.finish "epoch-ingress"
-  (← IO.getStdout).flush
-  IO.Process.exit result.toUInt8
+  try
+    let dir := args.headD "out/epoch-ingress"
+    let t ← Tests.Checks.new
+    EpochIngress.runCase t (dir ++ "/local") true
+    EpochIngress.runCase t (dir ++ "/peer") false
+    EpochIngress.runCase t (dir ++ "/socket-idle") true true
+    EpochIngress.junkCase t (dir ++ "/junk")
+    EpochIngress.removalCase t (dir ++ "/removal")
+    let result ← t.finish "epoch-ingress"
+    (← IO.getStdout).flush
+    IO.Process.exit result.toUInt8
+  catch e =>
+    IO.eprintln s!"epoch-ingress fixture threw: {e}"
+    (← IO.getStderr).flush
+    IO.Process.exit 2
