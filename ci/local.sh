@@ -10,7 +10,8 @@
 #   ci/local.sh --list [--full]   the parts, in the order they would run
 #
 # 1. The proofs, in this tree, one after another; the first failure stops CI:
-#    driver  this dispatcher's own checks (ci/local-test.py)
+#    driver  this dispatcher's own checks (ci/local-test.py), and the
+#            negative controls' snapshot (tests/snapshot_test.sh)
 #    build   every library and executable, so every law; the native
 #            crypto; the assets
 #    check   every law of tests/Axioms.lean rests on standard axioms only
@@ -129,7 +130,7 @@ build_all() {
 
 gate() {
   case $1 in
-    driver) mise run ci:driver-test && python3 ci/readme-merge.py --self-test ;;
+    driver) mise run ci:driver-test && python3 ci/readme-merge.py --self-test && mise run test:snapshot ;;
     build) build_all ;;
     check) mise run check ;;
     engine) mise run test:engine ;;
