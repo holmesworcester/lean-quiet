@@ -54,6 +54,105 @@ theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
     simp only [Verdict.valid.injEq, Fact.request.injEq] at this
     obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
     exact Or.inr ⟨o, r, x, a, l, da, ea, ra, hy, hreq, hr, hx, hra, hd, hl⟩
+/-- **Only the issuer's user approves a device link's request**
+(`link_approved_by_issuer`). A Valid approval by user a of a Valid
+request that redeems a device link is by the request's own user, which
+is the issuer of the device link it redeems: a Valid invitation of c,
+with `link`, issued by a. The approval was signed by a device admitted
+into a, not the requesting one. -/
+theorem link_approved_by_issuer (hk : Keyed ops) {x r c a u : Id} {d e : Key}
+    (hx : V C ops x (.approval c r a)) (hr : V C ops r (.request c u d e true)) :
+    a = u ∧ (∃ o i k, ops r = some o ∧ o.reqs = [c, i] ∧ V C ops i (.invitation c a k true)) ∧
+      ∃ ra da ea, V C ops ra (.admission c a da ea) ∧ da ≠ d := by
+  obtain ⟨_, _, ra, u', d', e', l', da, ea, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+  have := spec_det hr hr'
+  simp only [Verdict.valid.injEq, Fact.request.injEq] at this
+  obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
+  have hau := hl rfl
+  subst hau
+  obtain ⟨o, _, i, issuer, k, _, _, ho, _, hreq, hi, hu, _, _⟩ := request_invited hk hr
+  rw [if_pos rfl] at hu
+  subst hu
+  exact ⟨rfl, ⟨o, i, k, ho, hreq, hi⟩, ra, da, ea, hra, hd⟩
+
+/-- **A linked device joins its issuer's user** (`link_admits_issuer`).
+Every admission is the founder's, or cites a Valid request and one Valid
+approval of it (`admission_needs_approval`); when that request redeems a
+device link, the admission is into the link's issuer, and the approval
+is that same user's, signed by another of its devices. -/
+theorem link_admits_issuer (hk : Keyed ops) {y c u : Id} {d e : Key}
+    (h : V C ops y (.admission c u d e)) :
+    (y = c ∧ u = c) ∨
+    ∃ o r x l, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
+      (l = true → (∃ or i k, ops r = some or ∧ or.reqs = [c, i] ∧ V C ops i (.invitation c u k true)) ∧
+        V C ops x (.approval c r u) ∧ ∃ ra da ea, V C ops ra (.admission c u da ea) ∧ da ≠ d) := by
+  rcases admission_needs_approval hk h with h | ⟨o, r, x, a, l, _, _, _, hy, hreq, hr, hx, _, _, _⟩
+  · exact Or.inl h
+  · refine Or.inr ⟨o, r, x, l, hy, hreq, hr, fun hl => ?_⟩
+    subst hl
+    obtain ⟨rfl, hi, ra', da', ea', hra', hd'⟩ := link_approved_by_issuer hk hx hr
+    exact ⟨hi, hx, ra', da', ea', hra', hd'⟩
+
+/-- **A device link is a link of its own kind, and carries no secret but
+its invitation's bearer seed** (`issue_link`). What `issue` writes for a
+device link is an invitation with `link`, whose bearer key is the seed's;
+the link names that invitation, says it is a device link, and holds the
+seed as its only secret. The seed signs a request; it approves nothing
+(`link_approved_by_issuer`: only a device admitted into the issuer's user
+does). -/
+theorem issue_link (c issuerAdm : Id) (by_ : Device) (key secret : ByteArray)
+    (hints : List ByteArray) (link : Bool) :
+    let w := issue c issuerAdm by_ key secret hints link
+    (∃ s, w.1 = mkOp [c, issuerAdm] (.invite (Device.ofSeed secret).pk link s)) ∧
+      w.2 = ⟨c, w.1.id, key, hints, secret, link⟩ ∧ w.2.bearer.pk = (Device.ofSeed secret).pk :=
+  ⟨⟨_, rfl⟩, rfl, rfl⟩
+
+/-! ### Negative controls: the two clauses the link laws rest on, dropped -/
+
+/-- `Approve.check` without its link clause (`l = true → a = u`): any
+member may approve a device link's request. A negative control: never
+run. -/
+def Approve.checkAnyUser (C : Crypto) (o : Op) :
+    Approve.Body → Root.Fact → Request.Fact → Root.Fact → Option Approve.Fact
+  | ⟨s⟩, ⟨c, u0, _, _⟩, ⟨c1, _, d, _, _⟩, ⟨c2, a, da, _⟩ =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ da ≠ d ∧
+      C.verify da (signedBy o (Approve.Body.unsigned ⟨s⟩)) s
+    then some ⟨c, o.reqs.getD 1 .empty, a⟩ else none
+
+/-- **Without the link clause, another user approves a device link**
+(`anyUser_approves_link`): where the mutant takes user a's signed yes to
+user u's device link request, the running check refuses it. So
+`link_approved_by_issuer` rests on that clause. -/
+theorem anyUser_approves_link (C : Crypto) (o : Op) (s : ByteArray) {c a u : Id} {d e d0 e0 da ea : Key}
+    (hc : o.reqs.head? = some c) (hau : a ≠ u) (hd : da ≠ d)
+    (hv : C.verify da (signed o (.approve s)) s = true) :
+    Approve.checkAnyUser C o ⟨s⟩ ⟨c, c, d0, e0⟩ ⟨c, u, d, e, true⟩ ⟨c, a, da, ea⟩ =
+      some ⟨c, o.reqs.getD 1 .empty, a⟩ ∧
+    Approve.check C o ⟨s⟩ ⟨c, c, d0, e0⟩ ⟨c, u, d, e, true⟩ ⟨c, a, da, ea⟩ = none := by
+  simp [Approve.checkAnyUser, Approve.check, hc, hau, hd, hv]
+
+/-- `Request.check` naming a new user for every request, a device link's
+too. A negative control: never run. -/
+def Request.checkNewUser (C : Crypto) (o : Op) :
+    Request.Body → Root.Fact → Invitation.Fact → Option Request.Fact
+  | ⟨d, e, cs, bs⟩, ⟨c, u0, _, _⟩, ⟨c', _, k, l⟩ =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ C.verify d (signedBy o (Request.Body.unsigned ⟨d, e, cs, bs⟩)) cs ∧
+      C.verify k (signedBy o (Request.Body.unsigned ⟨d, e, cs, bs⟩)) bs
+    then some ⟨c, o.id, d, e, l⟩ else none
+
+/-- **Without it, a linked device would be a new user** (`newUser_links`):
+on the same device link, the running check names the issuer's user and
+the mutant the request's own new one. So `link_admits_issuer` rests on
+`Request.check`'s `if l then issuer`. -/
+theorem newUser_links (C : Crypto) (o : Op) {d e cs bs : ByteArray} {c issuer : Id} {d0 e0 k : Key}
+    (hc : o.reqs.head? = some c) (hi : issuer ≠ o.id)
+    (hd : C.verify d (signed o (.request d e cs bs)) cs = true)
+    (hk : C.verify k (signed o (.request d e cs bs)) bs = true) :
+    Request.check C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, issuer, d, e, true⟩ ∧
+    Request.checkNewUser C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, o.id, d, e, true⟩ ∧
+    issuer ≠ o.id := by
+  simp [Request.check, Request.checkNewUser, hc, hd, hk, hi]
+
 open Engine Codec
 namespace Base62
 
@@ -137,28 +236,71 @@ theorem web_not_ws : ∀ c ∈ web, c.isWhitespace = false := by decide
 
 theorem scheme_not_ws : ∀ c ∈ scheme, c.isWhitespace = false := by decide
 
+theorem webLink_not_ws : ∀ c ∈ webLink, c.isWhitespace = false := by decide
+
+theorem schemeLink_not_ws : ∀ c ∈ schemeLink, c.isWhitespace = false := by decide
+
 theorem isPrefixOf_self_append (l x : List Char) : l.isPrefixOf (l ++ x) = true := by
   induction l with
   | nil => rfl
   | cons a t ih => simp [List.isPrefixOf, ih]
 
-/-- The page and the scheme differ in their first character, so a
-scheme URI is never read as the page. -/
+/-- Whether l begins m ++ x is whether it begins m, when m is no shorter. -/
+theorem isPrefixOf_append_long : ∀ (l m x : List Char), l.length ≤ m.length →
+    l.isPrefixOf (m ++ x) = l.isPrefixOf m
+  | [], _, _, _ => rfl
+  | _ :: _, [], _, h => absurd h (by simp)
+  | a :: l, b :: m, x, h => by
+    simp only [List.cons_append, List.isPrefixOf]
+    rw [isPrefixOf_append_long l m x (by simpa using h)]
+
+/-! The four prefixes differ (the pages from the schemes in their first
+character, a member's from a device link's in the word after the
+site), so no one is read as another. -/
+
 theorem web_not_prefix_scheme (x : List Char) : web.isPrefixOf (scheme ++ x) = false := by
   rw [show web = 'h' :: web.tail by decide, show scheme = 'l' :: scheme.tail by decide]
   rfl
 
-theorem unprefix_web (x : List Char) : unprefix (web ++ x) = x := by
+theorem web_not_prefix_webLink (x : List Char) : web.isPrefixOf (webLink ++ x) = false := by
+  rw [isPrefixOf_append_long _ _ _ (by decide)]; decide
+
+theorem web_not_prefix_schemeLink (x : List Char) : web.isPrefixOf (schemeLink ++ x) = false := by
+  rw [show web = 'h' :: web.tail by decide, show schemeLink = 'l' :: schemeLink.tail by decide]
+  rfl
+
+theorem scheme_not_prefix_webLink (x : List Char) : scheme.isPrefixOf (webLink ++ x) = false := by
+  rw [show scheme = 'l' :: scheme.tail by decide, show webLink = 'h' :: webLink.tail by decide]
+  rfl
+
+theorem scheme_not_prefix_schemeLink (x : List Char) : scheme.isPrefixOf (schemeLink ++ x) = false := by
+  rw [isPrefixOf_append_long _ _ _ (by decide)]; decide
+
+theorem webLink_not_prefix_schemeLink (x : List Char) : webLink.isPrefixOf (schemeLink ++ x) = false := by
+  rw [show webLink = 'h' :: webLink.tail by decide, show schemeLink = 'l' :: schemeLink.tail by decide]
+  rfl
+
+theorem unprefix_web (x : List Char) : unprefix (web ++ x) = (some false, x) := by
   simp [unprefix, isPrefixOf_self_append]
 
-theorem unprefix_scheme (x : List Char) : unprefix (scheme ++ x) = x := by
+theorem unprefix_scheme (x : List Char) : unprefix (scheme ++ x) = (some false, x) := by
   simp [unprefix, web_not_prefix_scheme, isPrefixOf_self_append]
 
-/-- A prefix with no whitespace that `unprefix` drops: the fields behind
-it parse back to the invite. -/
-theorem parse_code {i : Invite} (hv : i.Valid) (p : List Char)
-    (hp : ∀ c ∈ p, c.isWhitespace = false) (hu : unprefix (p ++ i.code) = i.code) :
-    Invite.parse (String.ofList (p ++ i.code)) = some i := by
+theorem unprefix_webLink (x : List Char) : unprefix (webLink ++ x) = (some true, x) := by
+  simp [unprefix, web_not_prefix_webLink, scheme_not_prefix_webLink, isPrefixOf_self_append]
+
+theorem unprefix_schemeLink (x : List Char) : unprefix (schemeLink ++ x) = (some true, x) := by
+  simp [unprefix, web_not_prefix_schemeLink, scheme_not_prefix_schemeLink,
+    webLink_not_prefix_schemeLink, isPrefixOf_self_append]
+
+theorem kindOf_two (l : Bool) : (kindOf l == 2) = l := by cases l <;> rfl
+
+/-- The fields behind a prefix with no whitespace that `unprefix` drops,
+naming kind `pre`: what parse makes of them. -/
+theorem parse_code_eq {i : Invite} (p : List Char) {pre : Option Bool}
+    (hp : ∀ c ∈ p, c.isWhitespace = false) (hu : unprefix (p ++ i.code) = (pre, i.code)) :
+    Invite.parse (String.ofList (p ++ i.code)) =
+      if (pre = none ∨ pre = some i.link) ∧ i.Valid then some i else none := by
   unfold Invite.parse
   rw [String.toList_ofList]
   have hf : (p ++ i.code).filter (fun c => !c.isWhitespace) = p ++ i.code := by
@@ -171,16 +313,43 @@ theorem parse_code {i : Invite} (hv : i.Valid) (p : List Char)
   simp only [Base62.decode_encode]
   rw [show (⟨i.bytes.data.toList.toArray⟩ : ByteArray) = i.bytes from rfl, Invite.bytes,
     Codec.decode_encode]
-  simp only
-  rw [if_pos (by first | exact ⟨rfl, hv⟩ | exact ⟨trivial, hv⟩ | exact hv)]
+  simp only [kindOf_two, true_and]
 
-/-- **A valid invite's text (the join page link) parses back to it.** -/
-theorem parse_text {i : Invite} (hv : i.Valid) : Invite.parse i.text = some i :=
-  parse_code hv web web_not_ws (unprefix_web _)
+/-- A prefix with no whitespace that `unprefix` drops, of the link's own
+kind or none: the fields behind it parse back to the invite. -/
+theorem parse_code {i : Invite} (hv : i.Valid) (p : List Char) {pre : Option Bool}
+    (hp : ∀ c ∈ p, c.isWhitespace = false) (hu : unprefix (p ++ i.code) = (pre, i.code))
+    (hpre : pre = none ∨ pre = some i.link) :
+    Invite.parse (String.ofList (p ++ i.code)) = some i := by
+  rw [parse_code_eq p hp hu, if_pos ⟨hpre, hv⟩]
 
-/-- **The URI the join page opens parses back to the same invite.** -/
-theorem parse_uri {i : Invite} (hv : i.Valid) : Invite.parse i.uri = some i :=
-  parse_code hv scheme scheme_not_ws (unprefix_scheme _)
+/-- **A valid invite's text (its page's link) parses back to it.** -/
+theorem parse_text {i : Invite} (hv : i.Valid) : Invite.parse i.text = some i := by
+  unfold Invite.text
+  cases h : i.link
+  · exact parse_code hv web web_not_ws (unprefix_web _) (Or.inr (by rw [h]))
+  · exact parse_code hv webLink webLink_not_ws (unprefix_webLink _) (Or.inr (by rw [h]))
+
+/-- **The URI its page opens parses back to the same invite.** -/
+theorem parse_uri {i : Invite} (hv : i.Valid) : Invite.parse i.uri = some i := by
+  unfold Invite.uri
+  cases h : i.link
+  · exact parse_code hv scheme scheme_not_ws (unprefix_scheme _) (Or.inr (by rw [h]))
+  · exact parse_code hv schemeLink schemeLink_not_ws (unprefix_schemeLink _) (Or.inr (by rw [h]))
+
+/-- **A link behind the other kind's page or scheme is refused** (the
+scheme must match the offer, as libquiet's): a device link's code under
+`join` reads as no invite, and a member's under `link`. -/
+theorem parse_other_kind (i : Invite) :
+    Invite.parse (String.ofList ((if i.link then web else webLink) ++ i.code)) = none ∧
+    Invite.parse (String.ofList ((if i.link then scheme else schemeLink) ++ i.code)) = none := by
+  cases h : i.link
+  · constructor
+    · rw [if_neg (by simp), parse_code_eq webLink webLink_not_ws (unprefix_webLink _), h]; simp
+    · rw [if_neg (by simp), parse_code_eq schemeLink schemeLink_not_ws (unprefix_schemeLink _), h]; simp
+  · constructor
+    · rw [if_pos rfl, parse_code_eq web web_not_ws (unprefix_web _), h]; simp
+    · rw [if_pos rfl, parse_code_eq scheme scheme_not_ws (unprefix_scheme _), h]; simp
 
 /-- **Whatever parses is valid.** -/
 theorem parse_valid {s : String} {i : Invite} (h : Invite.parse s = some i) : i.Valid := by
@@ -190,7 +359,7 @@ theorem parse_valid {s : String} {i : Invite} (h : Invite.parse s = some i) : i.
   · cases h
   · split at h
     · split at h
-      · rename_i hv; cases h; exact hv.2
+      · rename_i hv; cases h; exact hv.2.2
       · cases h
     · cases h
 

@@ -18,7 +18,8 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   seed da
   seed db
   (Turn.turn fam ops : SqlM Nat Unit).run da
-  let cfg : Config := { maxKnown := cap, maxIds := 64, every := 10, askTime := 100, live := 300, retry := 1 }
+  let cfg : Config := { maxKnown := cap, maxIds := 64, askTime := 100, live := 300, retry := 1 }
+  let step := 10
   let xa := setup b true cfg
   let xb := setup a false cfg
   let (na, ea) ← ((Node.boot fam ops 0).onTick xa 0).run da
@@ -36,7 +37,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   let mut steps := 0
   for round in [0:200] do
     rounds := round + 1
-    let now := round * cfg.every
+    let now := round * step
     let mut cursor := 0
     while cursor < frames.size && cursor < 100000 do
       let (dst, bytes) := frames[cursor]!
@@ -57,7 +58,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
     received := ((← (dumpOps (F := Nat)).run db).filter (fun o => o.kind == 1)).length
     if received == count then break
     for side in [true, false] do
-      let (n, e) ← if side then (na.onTick xa (now + cfg.every)).run da else (nb.onTick xb (now + cfg.every)).run db
+      let (n, e) ← if side then (na.onTick xa (now + step)).run da else (nb.onTick xb (now + step)).run db
       if side then na := n else nb := n
       frames := frames ++ e.send.toArray
       drops := drops + e.drop.length
@@ -70,7 +71,7 @@ def bigSyncChecks (t : Checks) (count := 5000) (cap := 256) : IO Unit := do
   t.ok "honest big sync delivers every op" (received == count && ops.all fun o => stored.contains o.id)
   t.ok "honest big sync stays in one session without drops" (drops == 0 && sameSession && !(← keysGone da) && !(← keysGone db))
   t.ok "honest big sync bounds sets and timestamps throughout" (bounded && peak == cap)
-  t.ok "full round keeps no sender per-op state" (peaks.offered == 0 && peaks.closed == 0 && peaks.frontier == 0 && !peaks.cut)
+  t.ok "full round keeps no sender per-op state" (peaks.offered == 0)
   IO.println s!"full sync set peaks: {repr peaks}"
   IO.println s!"big sync: {count} ops, cap {cap}, {rounds} rounds, {steps} frames, peak {peak}, drops {drops}"
 

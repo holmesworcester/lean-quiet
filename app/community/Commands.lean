@@ -44,10 +44,10 @@ def found (seed name myName : ByteArray) (time : Nat) (k esk fresh : Key32) :
 and its link, naming this node's key, with the bearer seed and dial
 hints given. None on a node with no key (a node that founded or joined
 nothing). -/
-def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray) :
+def inviteTo (c myAdm : Id) (d : Device) (bearerSeed : ByteArray) (hints : List ByteArray) (link : Bool := false) :
     View Fact (Option (Write × Invite)) := do
   let some (key, _) ← nodeKey | pure none
-  let p := issue c myAdm d key bearerSeed hints
+  let p := issue c myAdm d key bearerSeed hints link
   pure (some (⟨[p.1]⟩, p.2))
 
 /-- Join from a link, from the node with key `key`, to be known as
@@ -57,7 +57,8 @@ until admission). -/
 def joinOps (i : Invite) (seed name : ByteArray) (key : Key) : Write :=
   let d := Device.ofSeed seed
   let req := i.request d key
-  ⟨[secret seed, req, accept i.community d.pk, joining i req.id name d.pk]⟩
+  -- a device link joins its issuer's user, whose profile it syncs: no name
+  ⟨[secret seed, req, accept i.community d.pk, joining i req.id (if i.link then .empty else name) d.pk]⟩
 
 /-- Whether every admission into c among these rows is into a user with
 no removal. -/
@@ -157,8 +158,10 @@ def join (i : Invite) (seed name : ByteArray) (fresh : Key32) : View Fact Write 
 
 /-- Once device d is admitted into c with no profile yet: the first
 profile, named as this device's join asked (a node may hold several
-joins of c: a raced one, or a rejoin's). Reads my admission, my profile
-and my join; writes nothing otherwise. -/
+joins of c: a raced one, or a rejoin's). A join with no name (a device
+link's, `joinOps`) writes none: its user has a profile, which may not
+have synced yet. Reads my admission, my profile and my join; writes
+nothing otherwise. -/
 def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
   let adms ← admission.byDevice.read [c, d.pk]
   match adms.rows.head? with
@@ -169,7 +172,7 @@ def introduce (c : Id) (d : Device) (time : Nat) : View Fact Write := do
       | .joining c' _ _ _ nm d' _ => if c' = c ∧ d' = d.pk then some nm else none
       | _ => none
     match name with
-    | some nm => pure (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
+    | some nm => pure (if prof.total = 0 ∧ nm.isEmpty = false then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
     | none => pure ⟨[]⟩
   | _ => pure ⟨[]⟩
 
