@@ -553,6 +553,7 @@ property of keys those relations' keys have (`reads_allowPeer_of`). -/
 section
 variable {P : ByteArray → Prop} (hR : ∀ as, P (removal.byUser.key as))
   (hD : ∀ as, P (admission.byDevice.key as)) (hK : ∀ as, P (admission.byKey.key as))
+  (hQ : ∀ as, P (approval.byRequester.key as)) (hV : ∀ as, P (approval.byDev.key as))
 include hR
 
 theorem reads_unremoved_of (c : Id) (rows : List (Pos × Fact)) : (unremoved c rows).Reads P := by
@@ -596,9 +597,95 @@ theorem reads_live_of (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads
       · exact ih
     | _ => exact ih
 
-include hD hK in
+include hD hV in
+theorem reads_usersKeep_of (c x : Id) (f : Approve.Fact) (rows : List (Pos × Fact)) :
+    (usersKeep c x f rows).Reads P := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, g⟩ := pf
+    cases g with
+    | ofAdmission y =>
+      obtain ⟨c', u, d, e, k⟩ := y
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact .list (hR [c, u]) fun a => by
+          show View.Reads _ (if a.rows.isEmpty then _ else _)
+          split
+          · exact ih
+          · exact .list (hV [c, f.dev]) fun ch => by
+              show View.Reads _ (if cutsKeep ch.rows x f a.rows then _ else _)
+              split
+              · exact ih
+              · exact .pure _
+      · exact ih
+    | _ => exact ih
+
+include hD hV in
+theorem reads_kept_of (c x : Id) (f : Approve.Fact) : (kept c x f).Reads P :=
+  .list (hD [c, f.dev]) fun a => reads_usersKeep_of hR hD hV c x f a.rows
+
+include hD hQ hV in
+theorem reads_counts_of (c : Id) : ∀ (k : Nat) (x : Id) (f : Approve.Fact), (counts c k x f).Reads P
+  | 0, _, _ => .pure _
+  | k + 1, x, f => (reads_kept_of hR hD hV c x f).bind fun ok => by
+    show View.Reads _ (if !ok then _ else if f.depth = 0 then _ else _)
+    split
+    · exact .pure _
+    · split
+      · exact .pure _
+      · exact .list (hQ [c, f.dev]) fun a => by
+          show View.Reads _ (match factIn f.up a.rows with | some g => counts c k f.up g | none => .pure false)
+          split
+          · exact reads_counts_of c k f.up _
+          · exact .pure _
+
+include hD hQ hV in
+theorem reads_approvedBy_of (c u : Id) (e : Key) (rows : List (Pos × Fact)) :
+    (approvedBy c u e rows).Reads P := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨⟨q, x⟩, g⟩ := pf
+    cases g with
+    | ofApproval f =>
+      show View.Reads _ (if f.ru = u ∧ f.re = e then _ else _)
+      split
+      · exact (reads_counts_of hR hD hQ hV c (f.depth + 1) x f).bind fun b => by
+          show View.Reads _ (if b then _ else _)
+          split
+          · exact .pure _
+          · exact ih
+      · exact ih
+    | _ => exact ih
+
+include hD hQ hV in
+theorem reads_trusted_of (c u : Id) (d e : Key) : (trusted c u d e).Reads P :=
+  .list (hD [c, d]) fun r => by
+    show View.Reads _ (if _ then _ else _)
+    split
+    · exact .pure _
+    · exact .list (hQ [c, d]) fun a => reads_approvedBy_of hR hD hQ hV c u e a.rows
+
+include hD hQ hV in
+theorem reads_letIn_of (c : Id) (rows : List (Pos × Fact)) : (letIn c rows).Reads P := by
+  induction rows with
+  | nil => exact .pure _
+  | cons pf t ih =>
+    obtain ⟨p, f⟩ := pf
+    cases f with
+    | ofAdmission x =>
+      obtain ⟨c', u, d, e, k⟩ := x
+      show View.Reads _ (if c' = c then _ else _)
+      split
+      · exact (reads_trusted_of hR hD hQ hV c u d e).bind fun _ =>
+          (reads_deviceLive_of hR hD c d).bind fun _ => ih.bind fun _ => .pure _
+      · exact ih
+    | _ => exact ih
+
+include hD hK hQ hV in
 theorem reads_allowPeer_of (c : Id) (e : Key) : (allowPeer c e).Reads P :=
-  (View.Reads.read (hK [c, e])).bind fun a => (reads_live_of hR hD c a.rows).bind fun _ => .pure _
+  (View.Reads.read (hK [c, e])).bind fun a => (reads_letIn_of hR hD hQ hV c a.rows).bind fun _ => .pure _
 
 end
 

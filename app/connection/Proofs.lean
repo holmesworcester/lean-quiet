@@ -761,6 +761,10 @@ theorem removal_only {r : Rel Community.Remove.Fact} {f : Community.Fact} {as : 
     (h : (r.comap Community.Fact.removal?).args f = some as) : f.membership = true := by
   cases f <;> simp [Rel.comap, Community.Fact.removal?, Community.Fact.membership] at h ⊢
 
+theorem approval_only {r : Rel Community.Approve.Fact} {f : Community.Fact} {as : List ByteArray}
+    (h : (r.comap Community.Fact.approval?).args f = some as) : f.membership = true := by
+  cases f <;> simp [Rel.comap, Community.Fact.approval?, Community.Fact.membership] at h ⊢
+
 /-- **The trust rule reads only the node's urgent keys.** -/
 theorem reads_allowPeer_urgent (c : Id) (e : Community.Key) :
     ((Community.allowPeer c e).liftL : View F Bool).Reads (UrgentKey (node C K) (nodeCites C K)) :=
@@ -770,7 +774,11 @@ theorem reads_allowPeer_urgent (c : Id) (e : Community.Key) :
     (fun as => urgentKey_member (r := Community.admission.byDevice) (by simp [Community.rels])
       (fun _ _ h => admission_only h) as)
     (fun as => urgentKey_member (r := Community.admission.byKey) (by simp [Community.rels])
-      (fun _ _ h => admission_only h) as) c e).liftL
+      (fun _ _ h => admission_only h) as)
+    (fun as => urgentKey_member (r := Community.approval.byRequester) (by simp [Community.rels])
+      (fun _ _ h => approval_only h) as)
+    (fun as => urgentKey_member (r := Community.approval.byDev) (by simp [Community.rels])
+      (fun _ _ h => approval_only h) as) c e).liftL
 
 theorem community_ops {s t : DB F} (h : t.ops = s.ops) : (community C t).ops = (community C s).ops := by
   show leftOps _ t.ops = leftOps _ s.ops

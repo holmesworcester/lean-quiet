@@ -3314,7 +3314,8 @@ theorem grant_admin {C : Crypto} {o : Op} {b : Grant.Body} {r a t : Root.Fact} {
 /-- A removal's authority is the author's own admission, or shows the
 author admin (the self-removal rule). -/
 theorem remove_auth {C : Crypto} {o : Op} {b : Remove.Body} {r a t : Root.Fact} {own admin : Bool}
-    {x : Remove.Fact} (h : Remove.check C o b r a own admin t = some x) : own = true ∨ admin = true := by
+    {heads : Option (List Approve.Fact)} {x : Remove.Fact}
+    (h : Remove.check C o b r a own admin t heads = some x) : own = true ∨ admin = true := by
   unfold Remove.check at h
   split at h
   · split at h
@@ -3323,6 +3324,37 @@ theorem remove_auth {C : Crypto} {o : Op} {b : Remove.Body} {r a t : Root.Fact} 
       · exact Or.inl ho
       · exact Or.inr ha
     · cases h
+
+/-- Facts that read as approvals are membership facts. -/
+theorem approvals_membership {ls : List Fact} :
+    ∀ {ps}, approvals ls = some ps → ∀ g ∈ ls, g.membership = true := by
+  induction ls with
+  | nil => intro _ _ g hg; cases hg
+  | cons f rest ih =>
+    intro ps h g hg
+    cases f with
+    | ofApproval p =>
+      obtain ⟨ps', h', -⟩ := Option.map_eq_some_iff.1 h
+      rcases List.mem_cons.1 hg with rfl | hg
+      · rfl
+      · exact ih h' g hg
+    | _ => simp [approvals] at h
+
+/-- A Valid approval's cited approvals read as approvals. -/
+theorem approve_some {C : Crypto} {o : Op} {b : Approve.Body} {r a : Root.Fact} {q : Request.Fact}
+    {ls : Option (List Approve.Fact)} {x : Approve.Fact} (h : Approve.check C o b r q a ls = some x) :
+    ∃ ps, ls = some ps := by
+  cases ls with
+  | none => unfold Approve.check at h; split at h <;> simp at h
+  | some ps => exact ⟨ps, rfl⟩
+
+/-- A Valid removal's cited approvals read as approvals. -/
+theorem remove_some {C : Crypto} {o : Op} {b : Remove.Body} {r a t : Root.Fact} {own admin : Bool}
+    {heads : Option (List Approve.Fact)} {x : Remove.Fact}
+    (h : Remove.check C o b r a own admin t heads = some x) : ∃ ps, heads = some ps := by
+  cases heads with
+  | none => unfold Remove.check at h; split at h; split at h <;> cases h
+  | some ps => exact ⟨ps, rfl⟩
 
 /-- **A Valid membership op cites only membership facts.** -/
 theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
@@ -3344,16 +3376,26 @@ theorem check_cites {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
        · rfl
        · exact isAdmin_membership (grant_admin h')
        · rfl)
-    | (simp only [List.mem_cons, List.not_mem_nil, or_false] at hg
-       obtain ⟨_, h', _⟩ := Option.map_eq_some_iff.1 h
-       rcases hg with rfl | rfl | rfl | rfl
+    | (obtain ⟨_, h', _⟩ := Option.map_eq_some_iff.1 h
+       simp only [List.mem_cons] at hg
+       rcases hg with rfl | rfl | rfl | hg
+       · rfl
+       · rfl
+       · rfl
+       · obtain ⟨ps, hp⟩ := approve_some h'
+         exact approvals_membership hp g hg)
+    | (obtain ⟨_, h', _⟩ := Option.map_eq_some_iff.1 h
+       simp only [List.mem_cons] at hg
+       rcases hg with rfl | rfl | rfl | rfl | hg
        · rfl
        · rfl
        · rcases remove_auth h' with ho | ha
          · simp only [Bool.and_eq_true, decide_eq_true_eq] at ho
            rw [ho.1]; rfl
          · exact isAdmin_membership ha
-       · rfl)
+       · rfl
+       · obtain ⟨ps, hp⟩ := remove_some h'
+         exact approvals_membership hp g hg)
 
 theorem validate_urgent {C : Crypto} {o : Op} {fs : List Fact} {f : Fact}
     (h : validate C o fs = some f) (hm : f.membership = true) : urgentKind o = true := by
