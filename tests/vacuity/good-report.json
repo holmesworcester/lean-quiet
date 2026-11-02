@@ -30,9 +30,9 @@
   "verdicts_spec": {
     "status": "runtime-witness",
     "theorem": "Engine.World.Plain.verdicts_spec",
-    "witness": "Vacuity.Good.urgentReplySpec",
+    "witness": "Vacuity.Good.grantSpec",
     "module": "tests.vacuity.Good",
-    "detail": "Natively, on the urgent family Alice's store holds a verdict on Bob's reply after her write; verdicts_spec, whose closure premise holds of every op there, turns it into the spec's verdict over her stored ops. Synthetic fixture: the same two-node plain World and run on the one-room family with every op urgent (as membership is), so every op's closure is all urgent. The running node on held stores, not the Community family, sealed frames or the handshake."
+    "detail": "Natively, after the write that brings the replies' anchor, a reply is still queued and undecided behind the drain cap, and running closedIn shows the grant's stored closure (the grant and the admission) all urgent, so closed_of_check gives the closure premise; verdicts_spec turns the grant's stored verdict into the spec's verdict over Alice's stored ops. The next tick decides every reply. Synthetic fixture: the two-node plain World on the one-room family with one urgent kind (an admission-like grant) and content; Alice writes an admission and drainCap + 1 replies that wait on a message she has not written, then that message and a grant citing the admission, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
   },
   "Plain.agree_decided": {
     "status": "runtime-witness",
@@ -159,5 +159,12 @@
     "witness": "Vacuity.Good.mutantUnindexed",
     "module": "tests.vacuity.Good",
     "detail": "The negative control at the fixture's room and Alice's op: the mutant dial hook's node has no index pieces. Synthetic fixture: a two-node plain World on the one-room Unit family from empty stores, no attacker; Alice writes two messages, Bob the same two in the opposite order, then ticks. The running node on held stores, not the Community family, sealed frames or the handshake."
+  },
+  "urgent_spec": {
+    "status": "runtime-witness",
+    "theorem": "Engine.urgent_spec",
+    "witness": "Vacuity.Good.grantValid",
+    "module": "tests.vacuity.Good",
+    "detail": "Natively, with a reply still queued and undecided behind the drain cap, the grant is stored Valid; urgent_valid_iff (urgent_spec's Valid half), on the store's Inv and settled urgent work from Plain.good_node and the natively checked all-urgent closure, gives the spec's Valid verdict over Alice's stored ops. Synthetic fixture: the two-node plain World on the one-room family with one urgent kind (an admission-like grant) and content; Alice writes an admission and drainCap + 1 replies that wait on a message she has not written, then that message and a grant citing the admission, then ticks, all legal at time 0. The running node on held stores, not the Community family, sealed frames or the handshake."
   }
 }

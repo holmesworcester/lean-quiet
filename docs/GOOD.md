@@ -226,7 +226,13 @@ Witnessed on a concrete run (tests/vacuity/Good.lean): two nodes write
 the same two ops in opposite orders; `agree_decided` and
 `verdicts_sound` are applied natively, with the ops' SHA-256 ids decided
 by running them, and `agree` and `verdicts_spec` on the same run over a
-family whose every op is urgent.
+family whose every op is urgent. The mixed case drain-cap exists for is
+witnessed too: on a family with one urgent kind, Alice's `drainCap + 1`
+replies wait on a message she writes later, and the write that brings it
+leaves a reply queued behind the cap while the urgent grant in that same
+write is decided; its closure is checked all urgent by running
+`closedIn` (`closed_of_check`), `verdicts_spec` and `urgent_valid_iff`
+give its verdict as the spec's, and the next tick decides every reply.
 
 Does not cover: the production hooks (sealed sessions, the handshake,
 rooms from the store); lifecycle (R1, R2, production `crash` and

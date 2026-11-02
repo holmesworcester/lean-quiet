@@ -10,8 +10,13 @@ applied to it: in the kernel where its premise is the run, and natively
 where it also takes premises about op ids (SHA-256, decided by running
 it). The urgent laws run on the same World over a family whose every op
 is urgent, as membership is (`urgentWorld`), where their closure premise
-holds of every op. Synthetic fixture; the running node on a held store,
-not the Community family, sealed frames or the handshake. -/
+holds of every op; and on a mixed family (`mixedWorld`) where one kind
+is urgent: Alice's backlog of `drainCap + 1` replies waits on a message
+she writes later, so the write that brings it leaves a reply queued
+behind the cap while the urgent grant in that same write is decided, its
+closure checked natively (`closed_of_check`), and the next tick decides
+the rest. Synthetic fixture; the running node on a held store, not the
+Community family, sealed frames or the handshake. -/
 namespace Vacuity.Good
 open Engine Engine.Sync Engine.World Tests
 
@@ -71,6 +76,64 @@ def urgentRun : urgentWorld.Run where
 
 /-- Every op's closure is all urgent on the urgent family. -/
 theorem all_urgent (s : DB Unit) (x : Id) : UrgentClosed urgentWorld.fam s x := fun _ _ _ _ => rfl
+
+/-! ### The mixed family: urgent grants, content behind the cap -/
+
+/-- Kind 2 is urgent (admission-like); kind 1 is content. -/
+def mixedWorld : Plain Unit := { world with fam := { oneRoom room with urgent := fun o => o.kind == 2 } }
+
+def admit : Op := Op.make 2 [] "Alice admits Bob".toUTF8
+def grant : Op := Op.make 2 [admit.id] "Alice grants Bob, citing his admission".toUTF8
+/-- The message the replies answer, written after them. -/
+def anchor : Op := Op.make 1 [] "Alice: the thread's first message".toUTF8
+/-- One more reply than a turn drains. -/
+def backlog : List Op :=
+  (List.range (drainCap + 1)).map fun i => Op.make 1 [anchor.id] s!"Alice: reply {i}".toUTF8
+
+/-- Alice writes the admission and the replies (which wait on the anchor),
+then the anchor and the grant, then the clocks tick. -/
+def mixedAct : Nat → Act world.n
+  | 0 => .write alice (admit :: backlog) 0
+  | 1 => .write alice [anchor, grant] 0
+  | k + 2 => .tick (if k % 2 = 0 then alice else bob) 0
+
+theorem mixed_now_zero : ∀ k, (worlds mixedWorld.setup mixedWorld.start mixedAct k).now = 0
+  | 0 => rfl
+  | 1 => rfl
+  | 2 => rfl
+  | _ + 3 => rfl
+
+def mixedRun : mixedWorld.Run where
+  act := mixedAct
+  legal k := by
+    have h := mixed_now_zero k
+    match k with
+    | 0 => exact ⟨Nat.le_of_eq h, trivial⟩
+    | 1 => exact ⟨Nat.le_of_eq h, trivial⟩
+    | _ + 2 => exact Nat.le_of_eq h
+
+/-- Every listed id's stored op is urgent and requires only listed ids. -/
+def closedIn {F : Type} (fam : Family F) (s : DB F) (S : List Id) : Bool :=
+  S.all fun y => match s.ops y with
+    | none => true
+    | some o => urgentOf fam o && o.reqs.all (has S)
+
+/-- **A checked closure is all urgent**: the list holds x's whole stored
+closure, and every op in it is urgent. -/
+theorem closed_of_check {F : Type} {fam : Family F} {s : DB F} {S : List Id} (h : closedIn fam s S = true)
+    {x : Id} (hx : x ∈ S) : UrgentClosed fam s x := by
+  have hS : ∀ y ∈ S, ∀ o, s.ops y = some o → urgentOf fam o = true ∧ ∀ r ∈ o.reqs, r ∈ S := by
+    intro y hy o ho
+    have := List.all_eq_true.1 h y hy
+    simp only [ho, Bool.and_eq_true, List.all_eq_true] at this
+    exact ⟨this.1, fun r hr => (has_iff S r).1 (this.2 r hr)⟩
+  have hreach : ∀ y, Engine.Sync.Reach s.ops x y → y ∈ S := by
+    intro y hy
+    induction hy with
+    | refl => exact hx
+    | step _ ho hr ih => exact (hS _ ih _ ho).2 _ hr
+  intro y o hy ho
+  exact (hS y (hreach y hy) o ho).1
 
 /-! ## Kernel witnesses: laws whose premise is the run -/
 
@@ -176,6 +239,50 @@ def urgentReplySpec : Option (PLift (∃ v, urgentAlice.db.status reply.id = som
   | some v => some ⟨⟨v, rfl, (Plain.verdicts_spec urgentRun 2 alice (all_urgent _ _) v).1 h⟩⟩
   | none => none
 
+def mixedAlice : Held Unit := (mixedRun.world 2).box alice
+def mixedTicked : Held Unit := (mixedRun.world 3).box alice
+
+/-- A reply Alice still has queued, undecided, after the write that
+brought its anchor. -/
+def queuedReply : Option Op :=
+  backlog.find? fun o => has mixedAlice.db.queue o.id && (mixedAlice.db.status o.id).isNone
+
+/-- The grant's stored closure, the grant and the admission, is all
+urgent: checked by running `closedIn`. -/
+def grantClosed : Option (PLift (UrgentClosed mixedWorld.fam mixedAlice.db grant.id)) :=
+  if h : closedIn mixedWorld.fam mixedAlice.db [grant.id, admit.id] = true then
+    some ⟨closed_of_check h (List.mem_cons_self ..)⟩
+  else none
+
+theorem mixedInv : Inv mixedWorld.fam mixedAlice.db :=
+  let ⟨_, hr, _⟩ := (Plain.good_node mixedRun 2 alice).store
+  reach_inv hr
+
+theorem mixedSettled : UrgentSettled mixedWorld.fam mixedAlice.db :=
+  (Plain.good_node mixedRun 2 alice).waiting.settled
+
+/-- With a reply still queued, the grant's stored verdict is the spec's
+(`verdicts_spec` at the node). -/
+def grantSpec : Option (PLift (∃ v, mixedAlice.db.status grant.id = some v ∧
+    Spec mixedWorld.fam mixedAlice.db.ops grant.id v)) :=
+  match grantClosed with
+  | some ⟨hc⟩ =>
+    match h : mixedAlice.db.status grant.id with
+    | some v => some ⟨⟨v, rfl, (Plain.verdicts_spec mixedRun 2 alice hc v).1 h⟩⟩
+    | none => none
+  | none => none
+
+/-- With a reply still queued, the grant is Valid exactly as the spec
+says (`urgent_valid_iff` on the store's `Inv` and settled urgent work). -/
+def grantValid : Option (PLift (mixedAlice.db.status grant.id = some (.valid ()) ∧
+    Spec mixedWorld.fam mixedAlice.db.ops grant.id (.valid ()))) :=
+  match grantClosed with
+  | some ⟨hc⟩ =>
+    match h : mixedAlice.db.status grant.id with
+    | some (.valid ()) => some ⟨rfl, (urgent_valid_iff mixedInv mixedSettled hc ()).1 h⟩
+    | _ => none
+  | none => none
+
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "both nodes hold both ops" (aliceBox.log.length == 2 && bobBox.log.length == 2)
@@ -188,6 +295,12 @@ def main : IO UInt32 := do
   t.ok "urgent family: alice's verdict on bob's reply is exactly the spec's" urgentReplySpec.isSome
   t.ok "urgent family: both stores decided both ops"
     ((urgentAlice.db.status hello.id).isSome && (urgentBob.db.status reply.id).isSome)
+  t.ok "mixed family: a reply is still queued and undecided after the anchor's write" queuedReply.isSome
+  t.ok "mixed family: the grant's stored closure is all urgent (checked)" grantClosed.isSome
+  t.ok "mixed family: with a reply queued, the grant's verdict is the spec's" grantSpec.isSome
+  t.ok "mixed family: with a reply queued, the grant is Valid as the spec says" grantValid.isSome
+  t.ok "mixed family: the next tick decides every reply"
+    (backlog.all fun o => (mixedTicked.db.status o.id).isSome)
   return ← t.finish "good vacuity"
 
 end Vacuity.Good
