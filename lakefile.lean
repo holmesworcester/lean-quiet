@@ -92,7 +92,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr, .submodules `tests.app]
+    .submodules `tests.qr, .submodules `tests.app, .submodules `tests.scale]
 
 lean_exe component_demand where
   root := `tests.app.Demand
@@ -206,6 +206,10 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+-- a round's work at 1k, 10k, 100k items (tests/scale/run.sh)
+lean_exe scale where
+  root := `tests.scale.Scale
+
 lean_exe syncworld where
   root := `tests.engine.SyncWorld
 
@@ -293,6 +297,11 @@ lean_exe pic_retry where
 -- Two apps joined by link, ops carried between them as sync would.
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
+
+-- Notifications: two apps joined by link; cards, quiet, levels, links,
+-- Sync in the background, removal.
+lean_exe notify where
+  root := `platforms.headless.Notify
 
 -- Linked devices app to app: link, approve, sync, removal cuts both.
 lean_exe link_devices where
@@ -540,6 +549,9 @@ lean_exe vacuity_identity_trust where
 
 lean_exe vacuity_core where
   root := `tests.vacuity.CoreRuntimeMain
+
+lean_exe vacuity_good where
+  root := `tests.vacuity.GoodMain
 
 lean_exe vacuity_seal_audit where
   root := `tests.vacuity.SealAuditMain

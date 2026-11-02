@@ -25,7 +25,7 @@ What each door costs SQLite (engine/core/Sqlite.lean, Query.lean):
 | dependents | primary-key range of `reqs` | 1 | the list's length |
 | undecide | delete its verdict, filings and queue entries | 3 | 0 |
 | deleteOp | read its bytes; delete it and its waits both ways | 4 | 0 |
-| countOps | `count(*)` over `ops` | 1 | the count |
+| countOps | the `tally` row the `ops` triggers keep | 1 | 0 |
 
 A list with `also` is charged its total for the conjunct walk; SQLite
 walks the smallest conjunct, which can be longer, so no law may rest on
@@ -89,7 +89,7 @@ instance [Store F m] : Store F (CostT m) where
   dependents x := chargedBy (fun xs => { reads := 1, seeks := 1, rows := xs.length }) (Store.dependents (F := F) x)
   undecide x := charged { writes := 3, seeks := 3 } (Store.undecide (F := F) x)
   deleteOp x := charged { reads := 1, writes := 3, seeks := 4 } (Store.deleteOp (F := F) x)
-  countOps := chargedBy (fun n => { reads := 1, seeks := 1, rows := n }) (Store.countOps (F := F))
+  countOps := charged { reads := 1, seeks := 1 } (Store.countOps (F := F))
 
 instance [Lists F m] : Lists F (CostT m) where
   list q := chargedBy (listCost q) (Lists.list q)

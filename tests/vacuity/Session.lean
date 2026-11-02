@@ -24,6 +24,12 @@ theorem honestRun : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
     kk_runs (.lit prologue) 11 22 33 44 (.lit payload1) (.lit payload2)
   exact ⟨st, m1, sr, m2, si, ⟨hw1, hr1, hw2, hr2⟩, hh, hs, hr⟩
 
+/-- The log of the honest run, and nothing else: 11's request, then 22's
+answer to it. -/
+def RunLog (m1 m2 q m : T) : Prop :=
+  q = .pair (.lit prologue) (.pair (.pub (.atom 22)) (.lit payload1)) ∧ m = m1 ∨
+    q = .pair (.lit prologue) (.pair (.pub (.atom 11)) (.pair m1 (.lit payload2))) ∧ m = m2
+
 def secretNames : Nat → Prop := secrets 11 22 33 44
 
 /-- This fixture's attacker, which starts from names and public keys,
@@ -32,47 +38,56 @@ theorem exposed_parts {S : Nat → Prop} {t : T} (h : Exposed S t) {k ad p : T} 
     (hp : Part (.aead k n ad p) t) : Clean S k := by
   rcases h with ⟨i, rfl, -⟩ | ⟨x, rfl⟩ <;> cases hp
 
+/-- Whatever honest calls the attacker makes, every call among them. -/
 theorem secretsHeld : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
-    ¬ Derivable AllCalls (Exposed secretNames) si.send.k ∧
-    ¬ Derivable AllCalls (Exposed secretNames) si.recv.k ∧
-    ¬ Derivable AllCalls (Exposed secretNames) sr.send.k ∧
-    ¬ Derivable AllCalls (Exposed secretNames) sr.recv.k := by
+    ∀ O : T → T → Prop,
+      ¬ Derivable O (Exposed secretNames) si.send.k ∧
+      ¬ Derivable O (Exposed secretNames) si.recv.k ∧
+      ¬ Derivable O (Exposed secretNames) sr.send.k ∧
+      ¬ Derivable O (Exposed secretNames) sr.recv.k := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
-  exact ⟨st, m1, sr, m2, si, ht,
-    kk_secret (sent1_write1 good trivial ht.1) ht.2.2.2 ht.2.1 ht.2.2.1⟩
+  exact ⟨st, m1, sr, m2, si, ht, fun O =>
+    kk_secret (O := O) (sent1_write1 good trivial ht.1) ht.2.2.2 ht.2.1 ht.2.2.1⟩
 
 -- The premise boundaries are not assumed: all four concrete names differ.
 theorem distinctRoles : (11 : Nat) ≠ 33 ∧ 11 ≠ 44 ∧ 22 ≠ 33 ∧ 22 ≠ 44 := by decide
 
+/-- The attacker's honest calls are exactly the run's two. -/
 theorem afterStaticLeak : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
     let K := Exposed (fun i => i = 33 ∨ i = 44)
-    Derivable AllCalls K (.atom 11) ∧ Derivable AllCalls K (.atom 22) ∧
-      Derivable AllCalls K m1 ∧ Derivable AllCalls K m2 ∧
-      ¬ Derivable AllCalls K si.send.k ∧ ¬ Derivable AllCalls K si.recv.k ∧
-      ¬ Derivable AllCalls K sr.send.k ∧ ¬ Derivable AllCalls K sr.recv.k := by
+    Derivable (RunLog m1 m2) K (.atom 11) ∧ Derivable (RunLog m1 m2) K (.atom 22) ∧
+      Derivable (RunLog m1 m2) K m1 ∧ Derivable (RunLog m1 m2) K m2 ∧
+      ¬ Derivable (RunLog m1 m2) K si.send.k ∧ ¬ Derivable (RunLog m1 m2) K si.recv.k ∧
+      ¬ Derivable (RunLog m1 m2) K sr.send.k ∧ ¬ Derivable (RunLog m1 m2) K sr.recv.k := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
   exact ⟨st, m1, sr, m2, si, ht,
-    kk_forward_secret (by decide) (by decide) ht.1 ht.2.1 ht.2.2.1 ht.2.2.2⟩
+    kk_forward_secret (by decide) (by decide) ht.1 ht.2.1 ht.2.2.1 ht.2.2.2
+      (.inl ⟨rfl, rfl⟩) (.inr ⟨rfl, rfl⟩)⟩
 
 /-- Negative control: leak the initiator's static AND ephemeral and the
-same successful session's keys really are derivable. -/
+same successful session's keys really are derivable, whatever honest
+calls the attacker makes, none among them. -/
 theorem initiatorLeakBreaksSecrecy : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
-    Derivable AllCalls (Exposed (fun i => i = 22 ∨ i = 44)) si.send.k ∧
-    Derivable AllCalls (Exposed (fun i => i = 22 ∨ i = 44)) si.recv.k := by
+    ∀ O : T → T → Prop,
+      Derivable O (Exposed (fun i => i = 22 ∨ i = 44)) si.send.k ∧
+      Derivable O (Exposed (fun i => i = 22 ∨ i = 44)) si.recv.k := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
-  exact ⟨st, m1, sr, m2, si, ht,
-    kk_secret_init_tight (by decide) (by decide) (sent1_write1 good trivial ht.1) ht.2.2.2⟩
+  exact ⟨st, m1, sr, m2, si, ht, fun O =>
+    kk_secret_init_tight (O := O) (by decide) (by decide) (sent1_write1 good trivial ht.1) ht.2.2.2⟩
 
-/-- The transcript is actually available to the attacker, by asking the
-honest parties to send it; this discharges authentication's derivability
-premise without defining attacker knowledge to include the conclusion. -/
+/-- The transcript is actually available to the attacker, through the
+run's own two honest calls; this discharges authentication's
+derivability premise without defining attacker knowledge to include the
+conclusion. -/
 theorem transcriptPublic {st m1 sr m2 si} (ht : Transcript st m1 sr m2 si) :
-    Derivable AllCalls (Exposed secretNames) m1 ∧ Derivable AllCalls (Exposed secretNames) m2 := by
-  have pub (x : T) : Derivable AllCalls (Exposed secretNames) (.pub x) := .know (.inr ⟨x, rfl⟩)
-  have hm1 : Derivable AllCalls (Exposed secretNames) m1 :=
-    .sent (.pair (.lit _) (.pair (pub _) (.lit _))) (.request 11 33 ht.1) trivial
-  have hm2 : Derivable AllCalls (Exposed secretNames) m2 :=
-    .sent (.pair (.lit _) (.pair (pub _) (.pair hm1 (.lit _)))) (.answer 22 44 ht.2.1 ht.2.2.1) trivial
+    Derivable (RunLog m1 m2) (Exposed secretNames) m1 ∧
+      Derivable (RunLog m1 m2) (Exposed secretNames) m2 := by
+  have pub (x : T) : Derivable (RunLog m1 m2) (Exposed secretNames) (.pub x) := .know (.inr ⟨x, rfl⟩)
+  have hm1 : Derivable (RunLog m1 m2) (Exposed secretNames) m1 :=
+    .sent (.pair (.lit _) (.pair (pub _) (.lit _))) (.request 11 33 ht.1) (.inl ⟨rfl, rfl⟩)
+  have hm2 : Derivable (RunLog m1 m2) (Exposed secretNames) m2 :=
+    .sent (.pair (.lit _) (.pair (pub _) (.pair hm1 (.lit _)))) (.answer 22 44 ht.2.1 ht.2.2.1)
+      (.inr ⟨rfl, rfl⟩)
   exact ⟨hm1, hm2⟩
 
 /-! ### Authentication, over explicit honest calls -/
@@ -85,12 +100,6 @@ def OtherSessions (m1 q m : T) : Prop := ¬ Answers 22 m1 q m
 /-- Every honest call but initiator 11 writing 22 a message 1 with
 `payload1`: its requests with other payloads stay open. -/
 def OtherRequests (q m : T) : Prop := ¬ Requests 11 (.pub (.atom 22)) (.lit payload1) q m
-
-/-- The log of the honest run, and nothing else: 11's request, then 22's
-answer to it. -/
-def RunLog (m1 m2 q m : T) : Prop :=
-  q = .pair (.lit prologue) (.pair (.pub (.atom 22)) (.lit payload1)) ∧ m = m1 ∨
-    q = .pair (.lit prologue) (.pair (.pub (.atom 11)) (.pair m1 (.lit payload2))) ∧ m = m2
 
 /-- No honest call is 22 answering, in any session. -/
 def NoAnswerBy22 (q m : T) : Prop := ∀ m1, ¬ Answers 22 m1 q m
@@ -111,10 +120,10 @@ def leak22 (i : Nat) : Prop := i = 11 ∨ i = 33 ∨ i = 44
 attacker still has the initiator send it, and has 22 answer another
 session (initiator ephemeral 55, responder ephemeral 66), whose own
 initiator accepts that answer. Yet this session's initiator accepts
-nothing it derives. With every call open the honest reply is derivable
-and accepted, so `O` is what makes the difference. -/
+nothing it derives. Under the run's own two calls the honest reply is
+derivable and accepted, so `O` is what makes the difference. -/
 theorem initiatorAuthenticates : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
-    Derivable AllCalls (Exposed secretNames) m2 ∧
+    Derivable (RunLog m1 m2) (Exposed secretNames) m2 ∧
     Derivable (OtherSessions m1) (Exposed secretNames) m1 ∧
     (∃ st' m1' m2' si', m1' ≠ m1 ∧
       read2 sym st' (.atom 11) (.atom 55) m2' = some (si', .lit payload2) ∧
@@ -160,12 +169,7 @@ theorem initiatorAgrees : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
       write2 sym st (.atom f) (.pub (.atom 11)) (.pub (.atom 33)) p = some (responder, m2) ∧
       si.h = responder.h ∧ si.send = responder.recv ∧ si.recv = responder.send := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
-  have pub (x : T) : Derivable (RunLog m1 m2) (Exposed secretNames) (.pub x) := .know (.inr ⟨x, rfl⟩)
-  have hm1 : Derivable (RunLog m1 m2) (Exposed secretNames) m1 :=
-    .sent (.pair (.lit _) (.pair (pub _) (.lit _))) (.request 11 33 ht.1) (.inl ⟨rfl, rfl⟩)
-  have hm2 : Derivable (RunLog m1 m2) (Exposed secretNames) m2 :=
-    .sent (.pair (.lit _) (.pair (pub _) (.pair hm1 (.lit _)))) (.answer 22 44 ht.2.1 ht.2.2.1)
-      (.inr ⟨rfl, rfl⟩)
+  have hm2 := (transcriptPublic ht).2
   exact ⟨st, m1, sr, m2, si, ht, hm2,
     kk_agree (S := secretNames) (fun _ => exposed_clean) (fun _ h => exposed_parts h)
       (by simp [secretNames, secrets]) (Or.inl (by simp [secretNames, secrets]))
@@ -174,10 +178,11 @@ theorem initiatorAgrees : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
 /-- **The responder authenticates the initiator, under a non-trivial
 `O`.** Barred only from 11 writing 22 a message 1 with `payload1`, the
 attacker still has 11 write one with `payload3`, which 22 accepts. Yet
-22 accepts nothing it derives as from 11 with `payload1`, though with
-every call open the honest message 1 is derivable and accepted. -/
+22 accepts nothing it derives as from 11 with `payload1`, though under
+the run's own two calls the honest message 1 is derivable and
+accepted. -/
 theorem responderAuthenticates : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
-    Derivable AllCalls (Exposed secretNames) m1 ∧
+    Derivable (RunLog m1 m2) (Exposed secretNames) m1 ∧
     (∃ st' m1', read1 sym (.lit prologue) (.atom 22) (.pub (.atom 11)) m1' =
         some (st', .pub (.atom 55), .lit payload3) ∧
       Derivable OtherRequests (Exposed secretNames) m1') ∧
@@ -204,9 +209,7 @@ theorem responderAgrees : ∃ st m1 sr m2 si, Transcript st m1 sr m2 si ∧
       RunLog m1 m2 (.pair (.lit prologue) (.pair (.pub (.atom 22)) (.lit payload1))) m1 ∧
       write1 sym (.lit prologue) (.atom 11) (.atom e) (.pub (.atom 22)) (.lit payload1) = some (st, m1) := by
   obtain ⟨st, m1, sr, m2, si, ht, _⟩ := honestRun
-  have hm1 : Derivable (RunLog m1 m2) (Exposed secretNames) m1 :=
-    .sent (.pair (.lit _) (.pair (.know (.inr ⟨_, rfl⟩)) (.lit _))) (.request 11 33 ht.1)
-      (.inl ⟨rfl, rfl⟩)
+  have hm1 := (transcriptPublic ht).1
   exact ⟨st, m1, sr, m2, si, ht, hm1,
     kk_agree_resp (S := secretNames) (fun _ => exposed_clean) (fun _ h => exposed_parts h)
       (by simp [secretNames, secrets]) (by simp [secretNames, secrets]) ht.2.1 hm1⟩

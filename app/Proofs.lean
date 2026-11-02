@@ -28,6 +28,7 @@ import engine.sync.SimLaws
 import engine.wire.Loop
 import engine.wire.EgressLaws
 import engine.sync.SharedLog
+import engine.world.Pieces
 import engine.wire.CloseLaws
 import engine.wire.NodeUniqueLaws
 
@@ -2273,18 +2274,34 @@ end
 section
 
 /-
-The Connection family's hooks only read the store, on held data: each
-leaves the `Held` store as it is (`Reads`). Everything they would have
-stored they return as ops, which the node writes through the engine
-(`Node.store`, `Node.put`), and every id they want purged they return
-too (`closing`, `retired`, `outbox`), which the node purges through
-`Turn.purge`. `hooks_reads` collects them.
+The Connection family's hooks only read the store: each leaves the
+store as it is (`Reads`), in any monad whose steps can (`ReadsOnly`):
+the held store, and the production interpreter's memory
+(`Connection.Execution.M`), so each law below is proven once, for both.
+Everything they would have stored they return as ops, which the node
+writes through the engine (`Node.store`, `Node.put`), and every id they
+want purged they return too (`closing`, `retired`, `outbox`), which the
+node purges through `Turn.purge`. `hooks_reads` collects them.
 
 The fresh bytes `react`, `dial` and `sealFor` draw are assumed to leave
-the store as it is (`hfr`), as the OS's random bytes do on SQLite.
+the store as it is (`hfr`), as the OS's random bytes do on SQLite, and
+as the production interpreter's entropy tape does
+(`Execution.fresh_reads`).
 
-`view_held`: a view run on held data is its evaluation over the tables,
-and reads only; so `rooms` gives `roomsV` (`rooms_held`).
+**A new reads law.** For a hook function generic in its monad, state
+it once, below the `variable` line, over the section's `m`:
+`theorem f_reads … : Reads (f … : m _) := by unfold f; keeps [g_reads, …]`.
+List the reads laws of the calls `f` makes. `keeps` already handles
+pure, bind, `for`, `getOp`, `getStatus` and lists. If `f` draws fresh
+bytes, add `[Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))` and
+pass `hfr` to `keeps`. The law then holds on the held store and at
+`Execution.M` as stated. A new store monad needs only a `ReadsOnly`
+instance, plus `ListsRead` if its lists read only. That instance's
+`reads` must say "the store is as it was", because a generic law means
+no more than the instance it is used at (see `ReadsOnly`).
+
+`view_held`: a view run on held data is its evaluation over the tables;
+so `rooms` gives `roomsV` (`rooms_held`).
 -/
 
 namespace Connection
@@ -2298,56 +2315,58 @@ theorem view_held {α} (v : View F α) (h : Held F) :
   | pure a => rfl
   | list q k ih => exact ih (Engine.eval h.db q)
 
-theorem view_reads {α} (v : View F α) : Reads (v.run : HeldM F α) := fun h => by
-  rw [view_held]
-
-/-- **The rooms hook is `roomsV`, read afresh from the store**, and it
-reads only. -/
+/-- **The rooms hook is `roomsV`, read afresh from the store.** -/
 theorem rooms_held (cid : Id) (h : Held F) :
     (rooms cid : HeldM F (List Room)).run h = ((roomsV cid).eval h.db, h) :=
   view_held (roomsV cid) h
 
-theorem list_reads (q : ListQ) : Reads (Lists.list q : HeldM F (Answer F)) := fun _ => rfl
+set_option linter.unusedSectionVars false
+variable {m : Type → Type} [Monad m] [Lists F m] [Store F m] [ReadsOnly F m] [ListsRead m]
 
-theorem rows_reads (r : Rel Fact) (args : List B) : Reads (rows r args : HeldM F _) := by
-  unfold rows; keeps [list_reads]
+theorem view_reads {α} (v : View F α) : Reads (v.run : m α) := by
+  induction v with
+  | pure a => exact Reads.pure' a
+  | list q k ih => exact Reads.bind' (Reads.list' q) ih
 
-theorem count_reads (r : Rel Fact) (args : List B) : Reads (count r args : HeldM F _) := by
-  unfold count; keeps [list_reads]
+theorem rows_reads (r : Rel Fact) (args : List B) : Reads (rows r args : m _) := by
+  unfold rows; keeps []
 
-theorem endpoints_reads : Reads (endpoints : HeldM F _) := by
-  unfold endpoints; keeps [list_reads]
+theorem count_reads (r : Rel Fact) (args : List B) : Reads (count r args : m _) := by
+  unfold count; keeps []
 
-theorem arrivedFrom_reads (x : Id) : Reads (arrivedFrom x : HeldM F _) := by
+theorem endpoints_reads : Reads (endpoints : m _) := by
+  unfold endpoints; keeps []
+
+theorem arrivedFrom_reads (x : Id) : Reads (arrivedFrom x : m _) := by
   unfold arrivedFrom; keeps [rows_reads]
 
-theorem arrival_reads (x : Id) : Reads (arrival x : HeldM F _) := by
+theorem arrival_reads (x : Id) : Reads (arrival x : m _) := by
   unfold arrival; keeps [rows_reads]
 
-/-- `sessionKeys_reads` (app/connection/Proofs.lean), as `Reads`. -/
-private theorem keys_reads (cid : Id) : Reads (sessionKeys cid : HeldM F _) := sessionKeys_reads cid
+private theorem keys_reads (cid : Id) : Reads (sessionKeys cid : m _) := by
+  unfold sessionKeys; keeps [rows_reads]
 
-theorem connectedTo_reads (peer : B) : Reads (connectedTo peer : HeldM F _) := by
+theorem connectedTo_reads (peer : B) : Reads (connectedTo peer : m _) := by
   unfold connectedTo; keeps [rows_reads]
 
-theorem helloOf_reads (K : Keys) (sk r to m1 : B) : Reads (helloOf K sk r to m1 : HeldM F _) := by
+theorem helloOf_reads (K : Keys) (sk r to m1 : B) : Reads (helloOf K sk r to m1 : m _) := by
   unfold helloOf; keeps [rows_reads]
 
 /-! ## react -/
 
-theorem openEach_reads (epOp : Id) : ∀ l, Reads (openEach epOp l : HeldM F (List Op))
+theorem openEach_reads (epOp : Id) : ∀ l, Reads (openEach epOp l : m (List Op))
   | [] => Reads.pure' _
   | (_, _) :: t => by rw [openEach]; keeps [count_reads, openEach_reads epOp t]
 
-theorem openAll_reads : ∀ l, Reads (openAll l : HeldM F (List Op))
+theorem openAll_reads : ∀ l, Reads (openAll l : m (List Op))
   | [] => Reads.pure' _
   | (_, _, _) :: t => by rw [openAll]; keeps [rows_reads, openEach_reads, openAll_reads t]
 
-theorem joinsOf_reads (fam : Family F) (c : B) : ∀ l, Reads (joinsOf fam c l : HeldM F (List Op))
+theorem joinsOf_reads (fam : Family F) (c : B) : ∀ l, Reads (joinsOf fam c l : m (List Op))
   | [] => Reads.pure' _
   | _ :: t => by rw [joinsOf]; keeps [joinsOf_reads fam c t]
 
-theorem deliverAll_reads (fam : Family F) : ∀ l, Reads (deliverAll fam l : HeldM F (List Op)) := by
+theorem deliverAll_reads (fam : Family F) : ∀ l, Reads (deliverAll fam l : m (List Op)) := by
   intro l
   induction l with
   | nil => exact Reads.pure' _
@@ -2355,13 +2374,13 @@ theorem deliverAll_reads (fam : Family F) : ∀ l, Reads (deliverAll fam l : Hel
     obtain ⟨x, f⟩ := p
     cases f <;> simp only [deliverAll] <;> keeps [joinsOf_reads, ih]
 
-theorem answerOne_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+theorem answerOne_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))
     (K : Keys) (eps : List (B × B × Id)) (r c frm : B) :
-    Reads (answerOne K eps r c frm : HeldM F (List Op)) := by
+    Reads (answerOne K eps r c frm : m (List Op)) := by
   unfold answerOne; keeps [count_reads, view_reads, arrivedFrom_reads, hfr]
 
-theorem answerAll_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
-    (K : Keys) (eps : List (B × B × Id)) : ∀ l, Reads (answerAll K eps l : HeldM F (List Op)) := by
+theorem answerAll_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))
+    (K : Keys) (eps : List (B × B × Id)) : ∀ l, Reads (answerAll K eps l : m (List Op)) := by
   intro l
   induction l with
   | nil => exact Reads.pure' _
@@ -2369,21 +2388,21 @@ theorem answerAll_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F By
     obtain ⟨x, f⟩ := p
     cases f <;> simp only [answerAll] <;> keeps [answerOne_reads hfr, ih]
 
-theorem establishConns_reads (r e epOp : Id) : ∀ l, Reads (establishConns r e epOp l : HeldM F (List Op))
+theorem establishConns_reads (r e epOp : Id) : ∀ l, Reads (establishConns r e epOp l : m (List Op))
   | [] => Reads.pure' _
   | (_, _) :: t => by rw [establishConns]; keeps [count_reads, establishConns_reads r e epOp t]
 
-theorem establishReqs_reads (epOp : Id) : ∀ l, Reads (establishReqs epOp l : HeldM F (List Op))
+theorem establishReqs_reads (epOp : Id) : ∀ l, Reads (establishReqs epOp l : m (List Op))
   | [] => Reads.pure' _
   | (_, _) :: t => by
     rw [establishReqs]; keeps [rows_reads, establishConns_reads, establishReqs_reads epOp t]
 
-theorem establishAll_reads : ∀ l, Reads (establishAll l : HeldM F (List Op))
+theorem establishAll_reads : ∀ l, Reads (establishAll l : m (List Op))
   | [] => Reads.pure' _
   | (_, _, _) :: t => by rw [establishAll]; keeps [rows_reads, establishReqs_reads, establishAll_reads t]
 
-theorem react_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (fam : Family F) (K : Keys) :
-    Reads (react fam K : HeldM F (List Op)) := by
+theorem react_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (fam : Family F) (K : Keys) :
+    Reads (react fam K : m (List Op)) := by
   unfold react
   keeps [endpoints_reads, rows_reads, openAll_reads, deliverAll_reads, answerAll_reads hfr,
     establishAll_reads]
@@ -2391,7 +2410,7 @@ theorem react_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteAr
 /-! ## dial -/
 
 theorem requestOf_reads (K : Keys) (sk inviter : B) (req : Id) :
-    ∀ l, Reads (requestOf K sk inviter req l : HeldM F (Option Id)) := by
+    ∀ l, Reads (requestOf K sk inviter req l : m (Option Id)) := by
   intro l
   induction l with
   | nil => exact Reads.pure' _
@@ -2399,83 +2418,88 @@ theorem requestOf_reads (K : Keys) (sk inviter : B) (req : Id) :
     obtain ⟨x, f⟩ := p
     cases f <;> simp only [requestOf] <;> keeps [helloOf_reads, ih]
 
-theorem dialOne_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen pk sk : B)
-    (f : Community.Fact) : Reads (dialOne K listen pk sk f : HeldM F (List Op)) := by
+theorem dialOne_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (K : Keys) (listen pk sk : B)
+    (f : Community.Fact) : Reads (dialOne K listen pk sk f : m (List Op)) := by
   cases f <;> simp only [dialOne] <;>
-    keeps [view_reads, list_reads, requestOf_reads, rows_reads, connectedTo_reads, count_reads, hfr]
+    keeps [view_reads, requestOf_reads, rows_reads, connectedTo_reads, count_reads, hfr]
 
-theorem dialAll_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen pk sk : B) :
-    ∀ l, Reads (dialAll K listen pk sk l : HeldM F (List Op))
+theorem dialAll_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (K : Keys) (listen pk sk : B) :
+    ∀ l, Reads (dialAll K listen pk sk l : m (List Op))
   | [] => Reads.pure' _
   | (_, _) :: t => by rw [dialAll]; keeps [dialOne_reads hfr, dialAll_reads hfr K listen pk sk t]
 
-theorem dial_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (listen : B) (t : Nat) :
-    Reads (dial K listen t : HeldM F (List Op)) := by
-  unfold dial; keeps [endpoints_reads, list_reads, dialAll_reads hfr]
+theorem dial_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (K : Keys) (listen : B) (t : Nat) :
+    Reads (dial K listen t : m (List Op)) := by
+  unfold dial; keeps [endpoints_reads, dialAll_reads hfr]
 
 /-! ## Sessions -/
 
-theorem closing_reads (cid : Id) : Reads (closing cid : HeldM F (List Id)) := by
+theorem closing_reads (cid : Id) : Reads (closing cid : m (List Id)) := by
   unfold closing; keeps []
 
-theorem rooms_reads (cid : Id) : Reads (rooms cid : HeldM F (List Room)) := by
+theorem rooms_reads (cid : Id) : Reads (rooms cid : m (List Room)) := by
   unfold rooms; exact view_reads _
 
-theorem sessionOf_reads (f : Fact) : Reads (sessionOf f : HeldM F _) := by
+theorem sessionOf_reads (f : Fact) : Reads (sessionOf f : m _) := by
   cases f <;> simp only [sessionOf] <;> keeps [arrival_reads]
 
-theorem sessionsOf_reads : ∀ l, Reads (sessionsOf l : HeldM F _)
+theorem sessionsOf_reads : ∀ l, Reads (sessionsOf l : m _)
   | [] => Reads.pure' _
   | (_, _) :: t => by rw [sessionsOf]; keeps [sessionOf_reads, sessionsOf_reads t]
 
-theorem allSessions_reads : Reads (allSessions : HeldM F _) := by
+theorem allSessions_reads : Reads (allSessions : m _) := by
   unfold allSessions; keeps [rows_reads, sessionsOf_reads]
 
-theorem carrying_reads : ∀ l, Reads (carrying l : HeldM F _)
+theorem carrying_reads : ∀ l, Reads (carrying l : m _)
   | [] => Reads.pure' _
   | _ :: t => by rw [carrying]; keeps [view_reads, carrying_reads t]
 
-theorem openSessions_reads : Reads (openSessions : HeldM F _) := by
+theorem openSessions_reads : Reads (openSessions : m _) := by
   unfold openSessions; keeps [allSessions_reads, carrying_reads]
 
-theorem sessions_reads : Reads (sessions : HeldM F _) := by
+theorem sessions_reads : Reads (sessions : m _) := by
   unfold sessions; keeps [openSessions_reads]
 
 /-- `retired`, as this base has it (another branch reads the
 established facts themselves: redo this lemma there). -/
-theorem retired_reads : Reads (retired : HeldM F (List Id)) := by
+theorem retired_reads : Reads (retired : m (List Id)) := by
   unfold retired; keeps [allSessions_reads, openSessions_reads, rows_reads]
 
-theorem sealFor_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray)) (K : Keys) (cid : Id) (p : B) :
-    Reads (sealFor K cid p : HeldM F (Option B)) := by
+theorem sealFor_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray)) (K : Keys) (cid : Id) (p : B) :
+    Reads (sealFor K cid p : m (Option B)) := by
   unfold sealFor; keeps [keys_reads, hfr]
 
-theorem outbox_reads : Reads (outbox : HeldM F (List (Id × B × B))) := by
+/-- `openFrame_reads` (app/connection/Proofs.lean) on held data, in any monad. -/
+private theorem frameOpen_reads (K : Keys) (b : B) : Reads (openFrame K b : m _) := by
+  unfold openFrame; keeps [keys_reads]
+
+theorem outbox_reads : Reads (outbox : m (List (Id × B × B))) := by
   unfold outbox; keeps [rows_reads]
 
-theorem resendConns_reads (addr : B) : ∀ l, Reads (resendConns addr l : HeldM F (List Op))
+theorem resendConns_reads (addr : B) : ∀ l, Reads (resendConns addr l : m (List Op))
   | [] => Reads.pure' _
   | (_, _) :: t => by rw [resendConns]; keeps [resendConns_reads addr t]
 
 theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
-    Reads (onArrival via addr o at_ : HeldM F (List Op)) := by
+    Reads (onArrival via addr o at_ : m (List Op)) := by
   unfold onArrival; keeps [count_reads, view_reads, rows_reads, resendConns_reads]
 
-theorem retryKey_reads (cid : Id) : Reads (retryKey cid : HeldM F (Option Id)) := by
+theorem retryKey_reads (cid : Id) : Reads (retryKey cid : m (Option Id)) := by
   unfold retryKey; keeps [rows_reads]
 
 /-- **The Connection family's hooks only read the store.** Run on held
-data, each leaves the store as it is: what the family would store it
-returns as ops for the node to write, and what it would forget it
-returns as ids for the node to purge. -/
-theorem hooks_reads [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F ByteArray))
+data, or on the production interpreter's memory, each leaves the store
+as it is: what the family would store it returns as ops for the node
+to write, and what it would forget it returns as ids for the node to
+purge. -/
+theorem hooks_reads [Fresh m] (hfr : Reads (Fresh.fresh : m ByteArray))
     (fam : Family F) (K : Keys) (listen : B) :
-    let k := (hooks fam K listen : Hooks F (HeldM F))
+    let k := (hooks fam K listen : Hooks F m)
     (∀ cid, Reads (k.rooms cid)) ∧ (∀ via a o t, Reads (k.recv via a o t)) ∧ Reads k.outbox ∧
     (∀ cid, Reads (k.closing cid)) ∧ Reads k.retired ∧ Reads k.react ∧ (∀ t, Reads (k.dial t)) ∧
     Reads k.established ∧ (∀ cid b, Reads (k.sealFor cid b)) ∧ (∀ b, Reads (k.openFrame b)) ∧ (∀ cid, Reads (k.retryKey cid)) :=
   ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_reads K, retryKey_reads⟩
+    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, frameOpen_reads K, retryKey_reads⟩
 
 end Connection
 
@@ -2483,8 +2507,10 @@ end
 
 section
 
-/- Production hooks with an advancing entropy tape. ReadsHeld preserves
-only the Held database/history; fresh draws are allowed to change cursor. -/
+/- The production interpreter's memory reads as the held store does:
+`Reads` keeps its `Held` database and history, while a fresh draw
+advances the entropy cursor and still reads (`fresh_reads`). So the
+hooks' "reads only" laws hold at `M` as they are (`Connection.hooks_reads`). -/
 
 namespace Connection.Execution
 open Engine Engine.Sync Codec
@@ -2494,232 +2520,35 @@ open Engine Engine.Sync Codec
 @[simp] theorem M.pure_apply {α} (a : α) (s : Memory) :
     (pure a : M α) s = (a, s) := rfl
 
-def ReadsHeld {α} (p : M α) : Prop := ∀ s, (p s).2.held = s.held
+instance : ReadsOnly F M where
+  reads p := ∀ s, (p s).2.held = s.held
+  pure' _ _ := rfl
+  bind' hp hk s := (hk _ _).trans (hp s)
+  getOp' _ _ := rfl
+  getStatus' _ _ := rfl
 
-namespace ReadsHeld
- theorem pure' {α} (a : α) : ReadsHeld (pure a : M α) := fun _ => rfl
- theorem bind' {α β} {p : M α} {k : α → M β}
-     (hp : ReadsHeld p) (hk : ∀ a, ReadsHeld (k a)) : ReadsHeld (p >>= k) := by
-   intro s
-   exact (hk _ _).trans (hp s)
- theorem forIn' {α β} (l : List α) (b : β) {f : α → β → M (ForInStep β)}
-     (hf : ∀ a b, ReadsHeld (f a b)) : ReadsHeld (forIn l b f) := by
-   induction l generalizing b with
-   | nil => exact pure' b
-   | cons a t ih =>
-     rw [List.forIn_cons]
-     apply bind' (hf a b)
-     intro r
-     cases r with
-     | done b => exact pure' b
-     | yield b => exact ih b
- theorem getOp' (i : Id) : ReadsHeld (Store.getOp i : M _) := fun _ => rfl
- theorem getStatus' (i : Id) : ReadsHeld (Store.getStatus i : M _) := fun _ => rfl
- theorem fresh : ReadsHeld (Fresh.fresh : M ByteArray) := fun _ => rfl
-end ReadsHeld
+instance : ListsRead M := ⟨fun _ _ => rfl⟩
 
-syntax "readsHeld" "[" term,* "]" : tactic
-macro_rules
-  | `(tactic| readsHeld [$ts,*]) => do
-    let mut tac : Lean.TSyntax `tactic ← `(tactic| first | split | intro)
-    for t in ts.getElems.reverse do
-      tac ← `(tactic| first | with_reducible_and_instances apply $t | $tac:tactic)
-    `(tactic| repeat' (first
-      | dsimp only | with_reducible_and_instances apply ReadsHeld.bind'
-      | with_reducible_and_instances apply ReadsHeld.pure' | with_reducible_and_instances apply ReadsHeld.forIn'
-      | with_reducible_and_instances apply ReadsHeld.getOp' | with_reducible_and_instances apply ReadsHeld.getStatus'
-      | $tac:tactic))
+theorem fresh_reads : Reads (Fresh.fresh : M ByteArray) := fun _ => rfl
 
-/-- **A view run on held data is its evaluation**, and leaves the store
-as it is. -/
-theorem view_held {α} (v : View F α) (h : Memory) :
-    (v.run : M α) h = (v.eval h.held.db, h) := by
-  induction v with
-  | pure a => rfl
-  | list q k ih => exact ih (Engine.eval h.held.db q)
+/-- The production interpreter's run is a run (engine/world/Pieces.lean's
+`Lawful`): `M` is state passing over `Memory`, the entropy tape included. -/
+theorem lawful : Engine.World.Lawful (fun {α} (m : M α) (s : Memory) => m s) :=
+  ⟨fun _ _ => rfl, fun _ _ _ => rfl⟩
 
-theorem view_reads {α} (v : View F α) : ReadsHeld (v.run : M α) := fun h => by
-  rw [view_held]
+/-- A step that reads only is `MetaOnly` over the held store: it may move
+the entropy cursor or the retry cursors, never the store. -/
+theorem reads_meta {α : Type} {p : M α} (hp : Reads p) :
+    Engine.World.MetaOnly (fun {α} (m : M α) (s : Memory) => m s) Memory.held p := hp
 
-/-- **The rooms hook is `roomsV`, read afresh from the store**, and it
-reads only. -/
-theorem rooms_held (cid : Id) (h : Memory) :
-    (rooms cid : M (List Room)) h = ((roomsV cid).eval h.held.db, h) :=
-  view_held (roomsV cid) h
-
-theorem list_reads (q : ListQ) : ReadsHeld (Lists.list q : M (Answer F)) := fun _ => rfl
-
-theorem rows_reads (r : Rel Fact) (args : List B) : ReadsHeld (rows r args : M _) := by
-  unfold rows; readsHeld [list_reads]
-
-theorem count_reads (r : Rel Fact) (args : List B) : ReadsHeld (count r args : M _) := by
-  unfold count; readsHeld [list_reads]
-
-theorem endpoints_reads : ReadsHeld (endpoints : M _) := by
-  unfold endpoints; readsHeld [list_reads]
-
-theorem arrivedFrom_reads (x : Id) : ReadsHeld (arrivedFrom x : M _) := by
-  unfold arrivedFrom; readsHeld [rows_reads]
-
-theorem arrival_reads (x : Id) : ReadsHeld (arrival x : M _) := by
-  unfold arrival; readsHeld [rows_reads]
-
-/-- `sessionKeys_reads` (app/connection/Proofs.lean), as `ReadsHeld`. -/
-private theorem keys_reads (cid : Id) : ReadsHeld (sessionKeys cid : M _) := by
-  unfold sessionKeys; readsHeld [rows_reads]
-
-theorem connectedTo_reads (peer : B) : ReadsHeld (connectedTo peer : M _) := by
-  unfold connectedTo; readsHeld [rows_reads]
-
-theorem helloOf_reads (K : Keys) (sk r to m1 : B) : ReadsHeld (helloOf K sk r to m1 : M _) := by
-  unfold helloOf; readsHeld [rows_reads]
-
-/-! ## react -/
-
-theorem openEach_reads (epOp : Id) : ∀ l, ReadsHeld (openEach epOp l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by rw [openEach]; readsHeld [count_reads, openEach_reads epOp t]
-
-theorem openAll_reads : ∀ l, ReadsHeld (openAll l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _, _) :: t => by rw [openAll]; readsHeld [rows_reads, openEach_reads, openAll_reads t]
-
-theorem joinsOf_reads (fam : Family F) (c : B) : ∀ l, ReadsHeld (joinsOf fam c l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | _ :: t => by rw [joinsOf]; readsHeld [joinsOf_reads fam c t]
-
-theorem deliverAll_reads (fam : Family F) : ∀ l, ReadsHeld (deliverAll fam l : M (List Op)) := by
-  intro l
-  induction l with
-  | nil => exact ReadsHeld.pure' _
-  | cons p t ih =>
-    obtain ⟨x, f⟩ := p
-    cases f <;> simp only [deliverAll] <;> readsHeld [joinsOf_reads, ih]
-
-theorem answerOne_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
-    (K : Keys) (eps : List (B × B × Id)) (r c frm : B) :
-    ReadsHeld (answerOne K eps r c frm : M (List Op)) := by
-  unfold answerOne; readsHeld [count_reads, view_reads, arrivedFrom_reads, hfr]
-
-theorem answerAll_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
-    (K : Keys) (eps : List (B × B × Id)) : ∀ l, ReadsHeld (answerAll K eps l : M (List Op)) := by
-  intro l
-  induction l with
-  | nil => exact ReadsHeld.pure' _
-  | cons p t ih =>
-    obtain ⟨x, f⟩ := p
-    cases f <;> simp only [answerAll] <;> readsHeld [answerOne_reads hfr, ih]
-
-theorem establishConns_reads (r e epOp : Id) : ∀ l, ReadsHeld (establishConns r e epOp l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by rw [establishConns]; readsHeld [count_reads, establishConns_reads r e epOp t]
-
-theorem establishReqs_reads (epOp : Id) : ∀ l, ReadsHeld (establishReqs epOp l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by
-    rw [establishReqs]; readsHeld [rows_reads, establishConns_reads, establishReqs_reads epOp t]
-
-theorem establishAll_reads : ∀ l, ReadsHeld (establishAll l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _, _) :: t => by rw [establishAll]; readsHeld [rows_reads, establishReqs_reads, establishAll_reads t]
-
-theorem react_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (fam : Family F) (K : Keys) :
-    ReadsHeld (react fam K : M (List Op)) := by
-  unfold react
-  readsHeld [endpoints_reads, rows_reads, openAll_reads, deliverAll_reads, answerAll_reads hfr,
-    establishAll_reads]
-
-/-! ## dial -/
-
-theorem requestOf_reads (K : Keys) (sk inviter : B) (req : Id) :
-    ∀ l, ReadsHeld (requestOf K sk inviter req l : M (Option Id)) := by
-  intro l
-  induction l with
-  | nil => exact ReadsHeld.pure' _
-  | cons p t ih =>
-    obtain ⟨x, f⟩ := p
-    cases f <;> simp only [requestOf] <;> readsHeld [helloOf_reads, ih]
-
-theorem dialOne_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen pk sk : B)
-    (f : Community.Fact) : ReadsHeld (dialOne K listen pk sk f : M (List Op)) := by
-  cases f <;> simp only [dialOne] <;>
-    readsHeld [view_reads, list_reads, requestOf_reads, rows_reads, connectedTo_reads, count_reads, hfr]
-
-theorem dialAll_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen pk sk : B) :
-    ∀ l, ReadsHeld (dialAll K listen pk sk l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by rw [dialAll]; readsHeld [dialOne_reads hfr, dialAll_reads hfr K listen pk sk t]
-
-theorem dial_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (listen : B) (t : Nat) :
-    ReadsHeld (dial K listen t : M (List Op)) := by
-  unfold dial; readsHeld [endpoints_reads, list_reads, dialAll_reads hfr]
-
-/-! ## Sessions -/
-
-theorem closing_reads (cid : Id) : ReadsHeld (closing cid : M (List Id)) := by
-  unfold closing; readsHeld []
-
-theorem rooms_reads (cid : Id) : ReadsHeld (rooms cid : M (List Room)) := by
-  unfold rooms; exact view_reads _
-
-theorem sessionOf_reads (f : Fact) : ReadsHeld (sessionOf f : M _) := by
-  cases f <;> simp only [sessionOf] <;> readsHeld [arrival_reads]
-
-theorem sessionsOf_reads : ∀ l, ReadsHeld (sessionsOf l : M _)
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by rw [sessionsOf]; readsHeld [sessionOf_reads, sessionsOf_reads t]
-
-theorem allSessions_reads : ReadsHeld (allSessions : M _) := by
-  unfold allSessions; readsHeld [rows_reads, sessionsOf_reads]
-
-theorem carrying_reads : ∀ l, ReadsHeld (carrying l : M _)
-  | [] => ReadsHeld.pure' _
-  | _ :: t => by rw [carrying]; readsHeld [view_reads, carrying_reads t]
-
-theorem openSessions_reads : ReadsHeld (openSessions : M _) := by
-  unfold openSessions; readsHeld [allSessions_reads, carrying_reads]
-
-theorem sessions_reads : ReadsHeld (sessions : M _) := by
-  unfold sessions; readsHeld [openSessions_reads]
-
-/-- `retired`, as this base has it (another branch reads the
-established facts themselves: redo this lemma there). -/
-theorem retired_reads : ReadsHeld (retired : M (List Id)) := by
-  unfold retired; readsHeld [allSessions_reads, openSessions_reads, rows_reads]
-
-theorem sealFor_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray)) (K : Keys) (cid : Id) (p : B) :
-    ReadsHeld (sealFor K cid p : M (Option B)) := by
-  unfold sealFor; readsHeld [keys_reads, hfr]
-
-theorem outbox_reads : ReadsHeld (outbox : M (List (Id × B × B))) := by
-  unfold outbox; readsHeld [rows_reads]
-
-theorem resendConns_reads (addr : B) : ∀ l, ReadsHeld (resendConns addr l : M (List Op))
-  | [] => ReadsHeld.pure' _
-  | (_, _) :: t => by rw [resendConns]; readsHeld [resendConns_reads addr t]
-
-theorem onArrival_reads (via : Option Id) (addr : B) (o : Op) (at_ : Nat) :
-    ReadsHeld (onArrival via addr o at_ : M (List Op)) := by
-  unfold onArrival; readsHeld [count_reads, view_reads, rows_reads, resendConns_reads]
-
-theorem openFrame_tape_reads (K : Keys) (b : B) : ReadsHeld (openFrame K b : M _) := by
-  unfold openFrame; readsHeld [keys_reads]
-
-theorem retryKey_reads (cid : Id) : ReadsHeld (retryKey cid : M (Option Id)) := by
-  unfold retryKey; readsHeld [rows_reads]
-
-/-- **The Connection family's hooks only read the store.** Run on held
-data, each leaves the store as it is: what the family would store it
-returns as ops for the node to write, and what it would forget it
-returns as ids for the node to purge. -/
-theorem hooks_reads [Fresh (M)] (hfr : ReadsHeld (Fresh.fresh : M ByteArray))
-    (fam : Family F) (K : Keys) (listen : B) :
-    let k := (hooks fam K listen : Hooks F (M))
-    (∀ cid, ReadsHeld (k.rooms cid)) ∧ (∀ via a o t, ReadsHeld (k.recv via a o t)) ∧ ReadsHeld k.outbox ∧
-    (∀ cid, ReadsHeld (k.closing cid)) ∧ ReadsHeld k.retired ∧ ReadsHeld k.react ∧ (∀ t, ReadsHeld (k.dial t)) ∧
-    ReadsHeld k.established ∧ (∀ cid b, ReadsHeld (k.sealFor cid b)) ∧ (∀ b, ReadsHeld (k.openFrame b)) ∧ (∀ cid, ReadsHeld (k.retryKey cid)) :=
-  ⟨rooms_reads, onArrival_reads, outbox_reads, closing_reads, retired_reads, react_reads hfr fam K,
-    dial_reads hfr K listen, sessions_reads, sealFor_reads hfr K, openFrame_tape_reads K, retryKey_reads⟩
+/-- **The production retry store's save moves only its cursor**:
+`retryStore.save` writes `Memory.retries`, never the held store. -/
+theorem save_meta (S : Setup) (side : Side) (store : RetryStore M) (hs : (S.sync side).retryStore = some store)
+    (peer : Id) (cursor : Sweep) :
+    Engine.World.MetaOnly (fun {α} (m : M α) (s : Memory) => m s) Memory.held (store.save peer cursor) := by
+  simp only [Setup.sync, Option.some.injEq] at hs
+  subst hs
+  intro _; rfl
 
 end Connection.Execution
 
@@ -2988,7 +2817,7 @@ open Engine Engine.Sync
 def GoesM (fam : Family F) {α} (p : M α) : Prop :=
   ∀ s, Moves fam s.held (p s).2.held
 
-theorem ReadsHeld.goes {fam : Family F} {α} {p : M α} (h : ReadsHeld p) : GoesM fam p :=
+theorem _root_.Engine.Sync.Reads.goesM {fam : Family F} {α} {p : M α} (h : Reads p) : GoesM fam p :=
   fun s => Moves.of_eq (h s).symm
 
 namespace GoesM
@@ -3009,9 +2838,9 @@ theorem forIn' {fam : Family F} {α β} (l : List α) (b : β)
     | done b => exact pure' fam b
     | yield b => exact ih b
 theorem getOp' (fam : Family F) (i : Id) : GoesM fam (Store.getOp i : M _) :=
-  (ReadsHeld.getOp' i).goes
+  (Reads.getOp' (m := M) i).goesM
 theorem getStatus' (fam : Family F) (i : Id) : GoesM fam (Store.getStatus i : M _) :=
-  (ReadsHeld.getStatus' i).goes
+  (Reads.getStatus' (m := M) i).goesM
 theorem turn' (fam : Family F) (ops : List Op) : GoesM fam (Turn.turn fam ops : M Unit) :=
   fun _ => .single (.turn _ _)
 theorem purge' (fam : Family F) (ids : List Id) (scrub : Bool) :
@@ -3034,25 +2863,25 @@ macro_rules
 namespace NodeTape
 
 structure ReadOnly (x : Sync F M) : Prop where
-  rooms : ∀ cid, ReadsHeld (x.hooks.rooms cid)
-  recv : ∀ via a o t, ReadsHeld (x.hooks.recv via a o t)
-  outbox : ReadsHeld x.hooks.outbox
-  closing : ∀ cid, ReadsHeld (x.hooks.closing cid)
-  retired : ReadsHeld x.hooks.retired
-  react : ReadsHeld x.hooks.react
-  dial : ∀ t, ReadsHeld (x.hooks.dial t)
-  established : ReadsHeld x.hooks.established
-  sealFor : ∀ cid b, ReadsHeld (x.hooks.sealFor cid b)
-  openFrame : ∀ b, ReadsHeld (x.hooks.openFrame b)
-  catalog : ∀ cat, x.catalog = some cat → ReadsHeld cat.ceiling ∧ ∀ i, ReadsHeld (cat.read i)
-  retryKey : ∀ cid, ReadsHeld (x.hooks.retryKey cid)
+  rooms : ∀ cid, Reads (x.hooks.rooms cid)
+  recv : ∀ via a o t, Reads (x.hooks.recv via a o t)
+  outbox : Reads x.hooks.outbox
+  closing : ∀ cid, Reads (x.hooks.closing cid)
+  retired : Reads x.hooks.retired
+  react : Reads x.hooks.react
+  dial : ∀ t, Reads (x.hooks.dial t)
+  established : Reads x.hooks.established
+  sealFor : ∀ cid b, Reads (x.hooks.sealFor cid b)
+  openFrame : ∀ b, Reads (x.hooks.openFrame b)
+  catalog : ∀ cat, x.catalog = some cat → Reads cat.ceiling ∧ ∀ i, Reads (cat.read i)
+  retryKey : ∀ cid, Reads (x.hooks.retryKey cid)
   retryStore : ∀ store, x.retryStore = some store →
-    (∀ peer, ReadsHeld (store.load peer)) ∧ (∀ peer cursor, ReadsHeld (store.save peer cursor))
+    (∀ peer, Reads (store.load peer)) ∧ (∀ peer cursor, Reads (store.save peer cursor))
 
 /-- Discharges every hook premise for the actual advancing-tape interpreter. -/
 theorem production_readOnly (S : Setup) (side : Side) : ReadOnly (S.sync side) := by
   obtain ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10,h11⟩ :=
-    hooks_reads ReadsHeld.fresh family sodium (S.addr side)
+    hooks_reads fresh_reads family sodium (S.addr side)
   refine ⟨h1,h2,h3,h4,h5,h6,h7,h8,h9,h10, ?_, h11, ?_⟩
   · intro cat hcat
     cases hcat
@@ -3066,67 +2895,67 @@ theorem ReadOnly.afterActs {x : Sync F M} (hr : ReadOnly x) (n : Engine.Sync.Nod
   ⟨hr.rooms, hr.recv, hr.outbox, hr.closing, hr.retired, hr.react, hr.dial,
     hr.established, hr.sealFor, hr.openFrame, hr.catalog, hr.retryKey, hr.retryStore⟩
 
-theorem sweep_reads (cat : Catalog M) (hc : ReadsHeld cat.ceiling)
-    (hr : ∀ i, ReadsHeld (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
-    ReadsHeld (Sweep.run (F := F) cat cursor shows room) := by
+theorem sweep_reads (cat : Catalog M) (hc : Reads cat.ceiling)
+    (hr : ∀ i, Reads (cat.read i)) (cursor : Sweep) (shows : Op → Bool) (room : Nat) :
+    Reads (Sweep.run (F := F) cat cursor shows room) := by
   unfold Sweep.run
-  readsHeld [hc, hr]
+  keeps [hc, hr]
 
-theorem read_program {α} (p : Read α) : ReadsHeld (p.run (Store.getOp (F := F)) : M α) := by
+theorem read_program {α} (p : Read α) : Reads (p.run (Store.getOp (F := F)) : M α) := by
   induction p with
-  | done a => exact ReadsHeld.pure' a
-  | get i next ih => exact ReadsHeld.bind' (ReadsHeld.getOp' i) ih
+  | done a => exact Reads.pure' a
+  | get i next ih => exact Reads.bind' (Reads.getOp' i) ih
 
 variable (fam : Family F) (cfg : Config)
 
-theorem holdsIn_reads (r i : Id) : ReadsHeld (holdsIn fam r i : M Bool) := by
-  unfold holdsIn; readsHeld []
+theorem holdsIn_reads (r i : Id) : Reads (holdsIn fam r i : M Bool) := by
+  unfold holdsIn; keeps []
 theorem onHold_reads (c : Conn) (r : Id) (ids : List Id) :
-    ReadsHeld (c.onHold fam cfg r ids : M Step) := by
-  unfold Conn.onHold; readsHeld [holdsIn_reads]
-theorem filed_reads (c : Conn) (ids : List Id) : ReadsHeld (c.filed fam cfg ids : M Step) := by
-  unfold Conn.filed; readsHeld []
+    Reads (c.onHold fam cfg r ids : M Step) := by
+  unfold Conn.onHold; keeps [holdsIn_reads]
+theorem filed_reads (c : Conn) (ids : List Id) : Reads (c.filed fam cfg ids : M Step) := by
+  unfold Conn.filed; keeps []
 theorem closure_reads (r : Id) (fuel : Nat) : ∀ todo seen,
-    ReadsHeld (closureOps fam r fuel todo seen : M (List Op)) := by
+    Reads (closureOps fam r fuel todo seen : M (List Op)) := by
   induction fuel with
-  | zero => intro todo seen; rw [closureOps_zero]; exact ReadsHeld.pure' _
+  | zero => intro todo seen; rw [closureOps_zero]; exact Reads.pure' _
   | succ n ih =>
     intro todo
     induction todo with
-    | nil => intro seen; rw [closureOps_nil]; exact ReadsHeld.pure' _
+    | nil => intro seen; rw [closureOps_nil]; exact Reads.pure' _
     | cons y rest ihr =>
       intro seen
       rw [closureOps_cons]
       split
       · exact ihr seen
-      · refine ReadsHeld.bind' (ReadsHeld.getOp' y) fun oo => ?_
+      · refine Reads.bind' (Reads.getOp' y) fun oo => ?_
         cases oo with
         | none => exact ih _ _
         | some o =>
           dsimp only
           split
-          · exact ReadsHeld.bind' (ih _ _) fun _ => ReadsHeld.pure' _
+          · exact Reads.bind' (ih _ _) fun _ => Reads.pure' _
           · exact ih _ _
-theorem give_reads : ∀ (l : List (Id × Id)) (c : Conn), ReadsHeld (c.give fam cfg l : M Step)
-  | [], _ => ReadsHeld.pure' _
+theorem give_reads : ∀ (l : List (Id × Id)) (c : Conn), Reads (c.give fam cfg l : M Step)
+  | [], _ => Reads.pure' _
   | (r,x) :: rest, c => by
     unfold Conn.give
     split
     · exact give_reads rest c
-    · exact ReadsHeld.bind' (closure_reads fam r _ _ _) fun _ =>
-        ReadsHeld.bind' (give_reads rest _) fun _ => ReadsHeld.pure' _
-theorem filedGive_reads (c : Conn) (ids : List Id) : ReadsHeld (c.filedGive fam cfg ids : M Step) := by
-  unfold Conn.filedGive Conn.notify; readsHeld [give_reads, filed_reads]
+    · exact Reads.bind' (closure_reads fam r _ _ _) fun _ =>
+        Reads.bind' (give_reads rest _) fun _ => Reads.pure' _
+theorem filedGive_reads (c : Conn) (ids : List Id) : Reads (c.filedGive fam cfg ids : M Step) := by
+  unfold Conn.filedGive Conn.notify; keeps [give_reads, filed_reads]
 theorem tickGive_reads (ix : Index) (c : Conn) (now : Nat) :
-    ReadsHeld (c.tickGive fam cfg ix now : M Step) := by
+    Reads (c.tickGive fam cfg ix now : M Step) := by
   unfold Conn.tickGive Conn.notify Conn.tick Conn.work
-  readsHeld [give_reads]
+  keeps [give_reads]
 theorem recv_reads (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) :
-    ReadsHeld (Conn.recv fam cfg ix c bytes now : M Step) := by
-  unfold Conn.recv; readsHeld [onHold_reads]
+    Reads (Conn.recv fam cfg ix c bytes now : M Step) := by
+  unfold Conn.recv; keeps [onHold_reads]
 theorem serveOwed_reads (c : Conn) (budget : Nat) (first : List Id) :
-    ReadsHeld (c.serveOwed fam cfg budget first : M (Conn × List Op × List Op)) := by
-  unfold Conn.serveOwed; readsHeld [read_program]
+    Reads (c.serveOwed fam cfg budget first : M (Conn × List Op × List Op)) := by
+  unfold Conn.serveOwed; keeps [read_program]
 
 variable {fam cfg}
 variable (x : Sync F M) (hr : ReadOnly x)
@@ -3139,47 +2968,47 @@ theorem recordGiven_goes (n : Engine.Sync.Node) (st : List (Id × Id)) : GoesM x
   unfold Node.recordGiven; goesTape [put_goes]
 include hr
 
-theorem refresh_reads (cid : Id) (c : Conn) : ReadsHeld (Node.refresh x cid c) := by
-  unfold Node.refresh; readsHeld [hr.rooms]
+theorem refresh_reads (cid : Id) (c : Conn) : Reads (Node.refresh x cid c) := by
+  unfold Node.refresh; keeps [hr.rooms]
 theorem fanout_goes (n : Engine.Sync.Node) (ids : List Id) : GoesM x.fam (n.fanout x ids) := by
   unfold Node.fanout
-  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
-    fun c ids => (filedGive_reads x.fam x.cfg c ids).goes, recordGiven_goes]
+  goesTape [fun cid c => (refresh_reads x hr cid c).goesM,
+    fun c ids => (filedGive_reads x.fam x.cfg c ids).goesM, recordGiven_goes]
 theorem store_goes (n : Engine.Sync.Node) (ops : List Op) (mine : Bool) : GoesM x.fam (n.store x ops mine) := by
   unfold Node.store
   simp only [Std.Legacy.Range.forIn_eq_forIn_range']
-  goesTape [put_goes, fanout_goes x hr, hr.react.goes]
+  goesTape [put_goes, fanout_goes x hr, hr.react.goesM]
 theorem open_goes (n : Engine.Sync.Node) (cid : Id) (addr : ByteArray) (dialer : Bool) (now : Nat) :
     GoesM x.fam (n.open x cid addr dialer now) := by
-  unfold Node.open; goesTape [fun cid => (hr.rooms cid).goes]
+  unfold Node.open; goesTape [fun cid => (hr.rooms cid).goesM]
 theorem follow_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.follow x now) := by
-  unfold Node.follow; goesTape [hr.established.goes, open_goes x hr]
+  unfold Node.follow; goesTape [hr.established.goesM, open_goes x hr]
 omit hr in
 theorem effectsPurge_goes (ids : List Id) (scrub : Bool) : GoesM x.fam (Effects.purge x ids scrub) := by
   unfold Effects.purge; goesTape []
 theorem flush_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.flush x out) := by
-  unfold Node.flush; goesTape [hr.outbox.goes, effectsPurge_goes]
+  unfold Node.flush; goesTape [hr.outbox.goesM, effectsPurge_goes]
 theorem seal_goes (n : Engine.Sync.Node) (out : Acts) : GoesM x.fam (n.seal x out) := by
-  unfold Node.seal; goesTape [fun cid b => (hr.sealFor cid b).goes]
+  unfold Node.seal; goesTape [fun cid b => (hr.sealFor cid b).goesM]
 theorem sealRetries_goes (n : Engine.Sync.Node) (retries : List RetryOffer) :
     GoesM x.fam (n.sealRetries x retries) := by
   unfold Node.sealRetries; goesTape [seal_goes x hr]
 theorem endSession_goes (cid : Id) : GoesM x.fam (Node.endSession x cid) := by
-  unfold Node.endSession; goesTape [fun cid => (hr.closing cid).goes, effectsPurge_goes]
+  unfold Node.endSession; goesTape [fun cid => (hr.closing cid).goesM, effectsPurge_goes]
 theorem finish_goes (n : Engine.Sync.Node) (out : Acts) (now : Nat) : GoesM x.fam (n.finish x out now) := by
   unfold Node.finish
-  goesTape [follow_goes x hr, flush_goes x hr, hr.retired.goes, seal_goes x hr,
+  goesTape [follow_goes x hr, flush_goes x hr, hr.retired.goesM, seal_goes x hr,
     sealRetries_goes x hr, endSession_goes x hr]
 theorem onClose_goes (n : Engine.Sync.Node) (addr : ByteArray) (now : Nat) : GoesM x.fam (n.onClose x addr now) := by
   unfold Node.onClose; goesTape [finish_goes x hr]
 theorem apply_goes (n : Engine.Sync.Node) (cid : Id) (st : Step) (now : Nat) :
     GoesM x.fam (n.apply x cid st now) := by
   unfold Node.apply
-  goesTape [recordGiven_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goes]
+  goesTape [recordGiven_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goesM]
 theorem serve_goes (n : Engine.Sync.Node) (cid : Id) (now : Nat) : GoesM x.fam (n.serveOwed x cid now) := by
   unfold Node.serveOwed
-  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
-    fun c budget first => (serveOwed_reads x.fam x.cfg c budget first).goes]
+  goesTape [fun cid c => (refresh_reads x hr cid c).goesM,
+    fun c budget first => (serveOwed_reads x.fam x.cfg c budget first).goesM]
 theorem sweep_goes (n : Engine.Sync.Node) (cid : Id) : GoesM x.fam (n.sweep x cid) := by
   cases hcat : x.catalog with
   | none => simp only [Node.sweep, hcat]; exact GoesM.pure' x.fam _
@@ -3188,16 +3017,16 @@ theorem sweep_goes (n : Engine.Sync.Node) (cid : Id) : GoesM x.fam (n.sweep x ci
     cases hs : x.retryStore with
     | none =>
       simp only [Node.sweep, hcat, hs]
-      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
-        fun cid => (hr.retryKey cid).goes,
-        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goesM,
+        fun cid => (hr.retryKey cid).goesM,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goesM]
     | some store =>
       obtain ⟨hl, hsave⟩ := hr.retryStore store hs
       simp only [Node.sweep, hcat, hs]
-      goesTape [fun cid c => (refresh_reads x hr cid c).goes,
-        fun cid => (hr.retryKey cid).goes, fun peer => (hl peer).goes,
-        fun peer cursor => (hsave peer cursor).goes,
-        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goes]
+      goesTape [fun cid c => (refresh_reads x hr cid c).goesM,
+        fun cid => (hr.retryKey cid).goesM, fun peer => (hl peer).goesM,
+        fun peer cursor => (hsave peer cursor).goesM,
+        fun cursor shows room => (sweep_reads cat hc hrd cursor shows room).goesM]
 
 theorem sweep_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) :
     GoesM x.fam (n.sweep (n.afterActs x out) cid) :=
@@ -3210,19 +3039,19 @@ theorem serve_afterActs_goes (n : Engine.Sync.Node) (out : Acts) (cid : Id) (now
 theorem onSealed_goes (n : Engine.Sync.Node) (addr : ByteArray) (opened : Option (Id × ByteArray)) (now : Nat) :
     GoesM x.fam (n.onSealed x addr opened now) := by
   unfold Node.onSealed
-  goesTape [fun cid c => (refresh_reads x hr cid c).goes,
-    fun ix c bytes now => (recv_reads x.fam x.cfg ix c bytes now).goes,
+  goesTape [fun cid c => (refresh_reads x hr cid c).goesM,
+    fun ix c bytes now => (recv_reads x.fam x.cfg ix c bytes now).goesM,
     apply_goes x hr, serve_goes x hr, finish_goes x hr]
 theorem onFrame_goes (n : Engine.Sync.Node) (addr bytes : ByteArray) (now : Nat) :
     GoesM x.fam (n.onFrame x addr bytes now) := by
   unfold Node.onFrame
-  goesTape [write_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goes,
-    finish_goes x hr, fun b => (hr.openFrame b).goes, onSealed_goes x hr]
+  goesTape [write_goes, store_goes x hr, fun via a o t => (hr.recv via a o t).goesM,
+    finish_goes x hr, fun b => (hr.openFrame b).goesM, onSealed_goes x hr]
 theorem onTick_goes (n : Engine.Sync.Node) (now : Nat) : GoesM x.fam (n.onTick x now) := by
   unfold Node.onTick Node.onTickReserved Node.onTickDirect Node.sweepAll
-  goesTape [fun t => (hr.dial t).goes, store_goes x hr,
-    fun cid c => (refresh_reads x hr cid c).goes,
-    fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goes,
+  goesTape [fun t => (hr.dial t).goesM, store_goes x hr,
+    fun cid c => (refresh_reads x hr cid c).goesM,
+    fun ix c now => (tickGive_reads x.fam x.cfg ix c now).goesM,
     apply_goes x hr,
     sweep_goes x hr, sweep_afterActs_goes x hr,
     serve_afterActs_goes x hr,
@@ -3347,6 +3176,98 @@ theorem Run.shared_retained {S initial} (r : Run S initial) (target : Side)
   | @step k _ ih =>
     rw [r.next k]
     exact (world_step_moves S (r.state k) (r.action k) target).shared_retained ih hs
+
+/-! ### The community laws in every production trace
+
+The node-level community laws (`connect_iff_node`, `removal_cuts_off_node`,
+…) hold of any store with the engine's invariant and an empty queue.
+`trace_good` says every production trace leaves each peer's store so; each
+`…_trace` law below is one node law applied to it. Covered: both peers run
+the actual `Node.onTick/onFrame/onWrite/onClose` with `Connection.hooks`,
+native crypto, the Held store and any entropy, under any order of ticks,
+arbitrary local writes, FIFO deliveries, drops and two-sided closes. Not
+covered: more than two peers, reordering, restarts, an attacker on the
+wire, and SQLite (the Held store stands in for it). -/
+
+section
+open Community (Admitted Removed Live allowPeer ed25519)
+variable (S : Setup) (ea eb : Nat → ByteArray) (actions : List Action) (side : Side)
+set_option hygiene false in
+local notation "store" => ((trace S (empty ea eb) actions).peer side).memory.held.db
+
+/-- **Every production trace leaves each peer's store good:** the engine's
+invariant holds and the validation queue is empty, the two premises of
+every node-level community law, stated over the running family
+(`family` is its alias here). This is the join's single point of truth;
+the `…_trace` laws rest on it alone. Under drain-cap (holmes-0f), a turn
+settles only urgent facts (removals, admissions, connection and session
+facts), so this becomes "urgent facts settled", and the corollaries rest
+on that through engine/core/Locality.lean: a membership op's verdict
+depends only on the ops it cites, and those are all urgent. Only this law
+changes then. -/
+theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧ (store).queue = [] := by
+  obtain ⟨⟨_, hr, _⟩, hq⟩ := empty_trace_store S ea eb actions side
+  exact ⟨reach_inv hr, hq⟩
+
+/-- **The trust rule at every peer, after every production trace:** it
+takes a node key exactly when a live device is admitted under it. -/
+theorem connect_iff_trace (c : Id) (e : Community.Key) :
+    ((allowPeer c e).liftL : View F Bool).eval store = true ↔
+      ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d e ∧
+        Live ed25519 (community ed25519 store).ops c d :=
+  connect_iff_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e
+
+/-- **A removal the peer holds cuts the removed user's node out of its
+trust rule,** after every production trace. -/
+theorem removal_cuts_off_trace {c u : Id} {e : Community.Key}
+    (hr : Removed ed25519 (community ed25519 store).ops c u)
+    (only : ∀ u' d, Admitted ed25519 (community ed25519 store).ops c u' d e →
+      ∃ e', Admitted ed25519 (community ed25519 store).ops c u d e') :
+    ((allowPeer c e).liftL : View F Bool).eval store = false :=
+  removal_cuts_off_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 hr only
+
+/-- **A node key every admission of which is cut is refused,** at every
+peer after every production trace. -/
+theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
+    (hd : ∀ u d, Admitted ed25519 (community ed25519 store).ops c u d e →
+      Community.Cut ed25519 (community ed25519 store).ops c d) :
+    ((allowPeer c e).liftL : View F Bool).eval store = false :=
+  refuse_nonmember_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e hd
+
+/-- Admitted, at every peer after every production trace: by a Valid
+admission among the peer's own verdicts. -/
+theorem admitted_trace {c u : Id} {d e : Community.Key} :
+    Admitted ed25519 (community ed25519 store).ops c u d e ↔
+      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) :=
+  admitted_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+
+/-- Removed, at every peer after every production trace: by a Valid
+removal among the peer's own verdicts. -/
+theorem removed_trace {c u : Id} :
+    Removed ed25519 (community ed25519 store).ops c u ↔
+      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
+  removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+
+end
+
+/-- Every state of a run is the trace of the run's first `n` actions. -/
+theorem Run.state_trace {S initial} (r : Run S initial) (n : Nat) :
+    r.state n = trace S initial ((List.range n).map r.action) := by
+  have snoc : ∀ w l a, trace S w (l ++ [a]) = step S (trace S w l) a := by
+    intro w l a
+    induction l generalizing w with
+    | nil => rfl
+    | cons b l ih => exact ih (step S w b)
+  induction n with
+  | zero => exact r.zero
+  | succ n ih => rw [r.next, ih, List.range_succ, List.map_append, List.map_singleton, snoc]
+
+/-- `trace_good` at every state of every run from `empty`, fair or not. -/
+theorem Run.good {S ea eb} (r : Run S (empty ea eb)) (n : Nat) (side : Side) :
+    Inv (Connection.node Community.ed25519 sodium) ((r.state n).peer side).memory.held.db ∧
+      ((r.state n).peer side).memory.held.db.queue = [] := by
+  rw [r.state_trace]
+  exact trace_good S ea eb _ side
 
 end Connection.Execution
 
@@ -3585,19 +3506,21 @@ committed, including all sixteen possible actual reaction rounds. -/
 theorem store_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.store x ops true s).2.held.db.ops o.id = some o := by
   have hp : (n.put x ops true s).2.held.db.ops o.id = some o := by
     obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs
-    have ho' : o ∈ ops.filter x.fam.durable := List.mem_filter.2 ⟨ho, durable_of_room x.fam hr⟩
-    simpa only [Node.put, intake, ite_true] using
-      write_receives x n s _ hi ho' (fun p hp => sameInput p (List.mem_filter.1 hp).1) sameStore
+    have hin : o ∈ intake x.fam true ops := by
+      simp only [intake, ite_true, List.mem_filter]; exact ⟨⟨ho, durable_of_room x.fam hr⟩, hc⟩
+    simpa only [Node.put] using write_receives x n s (intake x.fam true ops) hi hin
+      (fun p hp => sameInput p (intake_sub x.fam hp)) sameStore
   unfold Node.store
   apply committed_bind x.fam _ _ s hp hs
   intro r
   simp only [Std.Legacy.Range.forIn_eq_forIn_range']
-  goesTape [NodeTape.fanout_goes x hr, NodeTape.put_goes, hr.react.goes]
+  goesTape [NodeTape.fanout_goes x hr, NodeTape.put_goes, hr.react.goesM]
 
 /-- A local write has committed every compatible shared input before
 Node.onWrite returns. This is a completed-handler bound, not a wall-clock
@@ -3605,22 +3528,23 @@ bound or a claim that absent prerequisites already exist. -/
 theorem onWrite_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op) (now : Nat)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.onWrite x ops now s).2.held.db.ops o.id = some o := by
   unfold Node.onWrite
   exact committed_bind x.fam _ _ s
-    (store_receives x hr n s ops hi ho hs sameInput sameStore) hs
+    (store_receives x hr n s ops hi ho hs hc sameInput sameStore) hs
     (fun _ => NodeTape.finish_goes x hr _ _ _)
 
 theorem production_write_receives (S : Setup) (side : Side) (n : Engine.Sync.Node)
     (s : Memory) (ops : List Op) (now : Nat) (hi : Inv family s.held.db)
-    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome)
+    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome) (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.step (S.sync side) (.write ops) now s).2.held.db.ops o.id = some o := by
   simpa only [Node.step] using
-    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs sameInput sameStore)
+    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs hc sameInput sameStore)
 
 end Connection.Execution
 
@@ -3670,14 +3594,14 @@ end HistoryStep
 def HistoryM (fam : Family F) {α} (p : M α) : Prop :=
   ∀ s, HistoryStep fam s.held (p s).2.held
 
-theorem ReadsHeld.history {fam : Family F} {α} {p : M α} (hp : ReadsHeld p) : HistoryM fam p := by
+theorem _root_.Engine.Sync.Reads.history {fam : Family F} {α} {p : M α} (hp : Reads p) : HistoryM fam p := by
   intro s hr ha
   rw [hp s]
   exact ⟨hr, ha, [], by simp⟩
 
 namespace HistoryM
  theorem pure' (fam : Family F) {α} (a : α) : HistoryM fam (pure a : M α) :=
-   (ReadsHeld.pure' a).history
+   (Reads.pure' (m := M) a).history
  theorem bind' {fam : Family F} {α β} {p : M α} {k : α → M β}
      (hp : HistoryM fam p) (hk : ∀ a, HistoryM fam (k a)) : HistoryM fam (p >>= k) := by
    intro s hr ha
@@ -3697,9 +3621,9 @@ namespace HistoryM
      | done b => exact pure' fam b
      | yield b => exact ih b
  theorem getOp' (fam : Family F) (i : Id) : HistoryM fam (Store.getOp i : M _) :=
-   (ReadsHeld.getOp' i).history
+   (Reads.getOp' (m := M) i).history
  theorem getStatus' (fam : Family F) (i : Id) : HistoryM fam (Store.getStatus i : M _) :=
-   (ReadsHeld.getStatus' i).history
+   (Reads.getStatus' (m := M) i).history
  theorem purge' (fam : Family F) (ids : List Id) (scrub : Bool) :
      HistoryM fam (Turn.purge fam ids scrub : M Unit) := by
    intro s hr ha
@@ -3744,8 +3668,6 @@ theorem recordGiven_history (n : Engine.Sync.Node) (st : List (Id × Id)) : Hist
   unfold Node.recordGiven; historyTape [put_history]
 include hr
 
-theorem refresh_reads (cid : Id) (c : Conn) : ReadsHeld (Node.refresh x cid c) := by
-  unfold Node.refresh; readsHeld [hr.rooms]
 theorem fanout_history (n : Engine.Sync.Node) (ids : List Id) : HistoryM x.fam (n.fanout x ids) := by
   unfold Node.fanout
   historyTape [fun cid c => (refresh_reads x hr cid c).history,
@@ -4459,6 +4381,65 @@ theorem Run.unique {S : Setup} {ea eb : Nat → ByteArray}
 end Connection.Execution
 
 end
+
+namespace App
+open Engine Data
+
+/-! ## Notifications and Sync in the background (docs/NOTIFICATIONS.md) -/
+
+/-- **With Sync in the background on, sync keeps running out of the
+front**: `netStep`, `flushNode` and `resumeReader` all ask `St.syncs`, so
+the background step keeps the node, its parked writes and the reader. -/
+theorem syncs_kept (s : St) (h : s.keepSync = true) : s.syncs = true := by
+  simp [St.syncs, h]
+
+/-- **With it off, sync runs only in front with a surface, as before.** -/
+theorem syncs_off (s : St) (h : s.keepSync = false) : s.syncs = (s.active && s.surface) := by
+  simp [St.syncs, h]
+
+/-- **Toggling never loses parked writes**: the setting leaves the node's
+handle, its parked writes and their journal as they were. -/
+theorem keepSync_keeps (s : St) (on : Bool) :
+    (keepSyncSt s on).toNode = s.toNode ∧ (keepSyncSt s on).queuedWrites = s.queuedWrites ∧
+      (keepSyncSt s on).net = s.net ∧ (keepSyncSt s on).netBoot = s.netBoot := ⟨rfl, rfl, rfl, rfl⟩
+
+/-- The setting is the switch's where the platform has the service, and
+never on where it has none. -/
+theorem keepSync_set (s : St) (on : Bool) : (keepSyncSt s on).keepSync = (on && s.canKeep) := rfl
+
+/-- **Going to the background with sync kept leaves the node alone**:
+leaving the page (what `keepAwake` does besides capturing input and
+saving the checkpoint) keeps the node's handle, every parked write and
+the setting. -/
+theorem unmount_keeps_node (s : St) :
+    (unmountState s).net = s.net ∧ (unmountState s).toNode = s.toNode ∧
+      (unmountState s).queuedWrites = s.queuedWrites ∧ (unmountState s).keepSync = s.keepSync := by
+  unfold unmountState stashDraft
+  split <;> exact ⟨rfl, rfl, rfl, rfl⟩
+
+/-- **A message link opens exactly its message**: its conversation, the
+window read about the message's position, and the restore path holding
+the message's top edge at `off` (`restore_page_anchor`). -/
+theorem target_opens (s : St) (t : Community.Target) (p : Pos) (off : Nat) :
+    (targetSt s t p off).page = .chat ∧ (targetSt s t p off).mark = some (t.message, off) ∧
+      (targetSt s t p off).anchor = some p ∧ (targetSt s t p off).restoreAnchor = true ∧
+      (targetSt s t p off).pendingTarget = none := by
+  refine ⟨?_, rfl, rfl, rfl, rfl⟩
+  exact Nav.go_page .chat s.nav
+
+/-- **The link's acceptance is this device's admitted entry in exactly
+the link's community.** -/
+theorem targetOf_member (comms : Array Kinds.Accepted.Me) (t : Community.Target) (m : Kinds.Accepted.Me)
+    (h : targetOf comms t = some m) : m.c = t.community ∧ m.waiting = false ∧ m.removed = false ∧ m ∈ comms := by
+  unfold targetOf at h
+  have hm := Array.mem_of_find?_eq_some h
+  have hp := Array.find?_some h
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true'] at hp
+  exact ⟨hp.1.1, hp.1.2, hp.2, hm⟩
+
+end App
+
+
 
 section
 
