@@ -30,8 +30,7 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 60 | 243 |
 | [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 66 | 172 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 65 | 202 |
-| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 32 | 149 |
-| [Quality proofs](proof-tree/quality-proofs.md) | 78 | 274 |
+| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 110 | 423 |
 | [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 177 | 348 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 14 | 32 |
 | [Also cited](proof-tree/also-cited.md) | 90 | 126 |

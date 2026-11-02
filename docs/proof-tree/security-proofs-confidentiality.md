@@ -752,7 +752,7 @@
 <li><details><summary><a id="law-Engine.Sync.recv_keeps"></a>✅ <a href="../../engine/sync/OfferLaws.lean#L383">Engine.Sync.recv_keeps</a> · 106 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.onRbsr_keeps"></a>✅ <a href="../../engine/sync/OfferLaws.lean#L194">Engine.Sync.onRbsr_keeps</a> · 86 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.Index.answer_fun"></a>▫️ <a href="../../engine/sync/Conn.lean#L381">Engine.Sync.Index.answer_fun</a> · 77 below</summary><ul>
-<li>✅ <a href="quality-proofs.md#law-Engine.Sync.Index.answer_eq">Engine.Sync.Index.answer_eq</a> ↪ · 76 below</li>
+<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.Index.answer_eq">Engine.Sync.Index.answer_eq</a> ↪ · 76 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.answer_offers"></a>▫️ <a href="../../engine/sync/OfferLaws.lean#L124">Engine.Sync.answer_offers</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/sync/RoundLaws.lean#L44">Engine.Sync.mem_within</a></li>
@@ -769,7 +769,7 @@
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.start_keeps"></a>✅ <a href="../../engine/sync/OfferLaws.lean#L159">Engine.Sync.start_keeps</a> · 76 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.Index.opening_fun"></a>▫️ <a href="../../engine/sync/Conn.lean#L378">Engine.Sync.Index.opening_fun</a> · 70 below</summary><ul>
-<li>✅ <a href="quality-proofs.md#law-Engine.Sync.Index.opening_eq">Engine.Sync.Index.opening_eq</a> ↪ · 69 below</li>
+<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.Index.opening_eq">Engine.Sync.Index.opening_eq</a> ↪ · 69 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.opening_offers"></a>▫️ <a href="../../engine/sync/OfferLaws.lean#L148">Engine.Sync.opening_offers</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/sync/RoundLaws.lean#L44">Engine.Sync.mem_within</a></li>

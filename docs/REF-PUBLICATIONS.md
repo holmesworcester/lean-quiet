@@ -1,7 +1,7 @@
 # Shared publication regressions
 
-The pinned Lean SDK can lose a direct `IO.Ref.set` to an overlapping getter
-that restores an older value. TCP and app reader stop publication are covered
+Up to Lean 4.34, the SDK could lose a direct `IO.Ref.set` to an overlapping
+getter that restored an older value. TCP and app reader stop publication are covered
 by [the native lifetime gate](NATIVE-LIFETIMES.md). The follow-up
 `mise run test:ref-publications` covers four additional running paths:
 
@@ -32,9 +32,14 @@ by [the native lifetime gate](NATIVE-LIFETIMES.md). The follow-up
   because the reader's internal position had already advanced.
 
 Each case pauses the actual SDK getter with GDB and uses the running
-production operation as publisher. All four old direct-set mutations must
-compile and fail their exact assertion; debugger/layout errors, signals,
-timeouts and build failures do not count. The restored cases must pass.
+production operation as publisher. The four cases must pass;
+debugger/layout errors, signals, timeouts and build failures fail the gate.
+
+**Lean 4.35.0 fixed the race.** In Lean 4.35.0 (2026-10-12; lean4 #14775
+and #14585), `IO.Ref.set` waits until an overlapping `get` has put its value
+back, so a set can no longer be lost. The four old direct-set mutations no
+longer fail, so they were dropped. We keep the atomic `modify` publications
+anyway: they cost little, and they do not depend on that fix.
 Logs and SQLite databases remain under `out/ref-publications`; a timeout
 terminates only the test command's owned debugger/inferior process group.
 
