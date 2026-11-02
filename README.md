@@ -572,7 +572,7 @@ for list queries, and Purge.lean for purges. It rests on five promises:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1495 rest on Lean's standard axioms only, and about three quarters of its theorems (1144 of 1467, not counting 28 negative controls) are about the code that runs; another 35 run the
+hypotheses. All 1492 rest on Lean's standard axioms only, and about three quarters of its theorems (1141 of 1464, not counting 28 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -715,12 +715,12 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1144 of 1467 laws are about running code;** another 35 run its node code in a World, and 288 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1141 of 1464 laws are about running code;** another 35 run its node code in a World, and 288 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 207 | 161 |  | 46 |
-| Sync | 304 | 260 |  | 44 |
+| Sync | 301 | 257 |  | 44 |
 | The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 208 | 143 | 16 | 49 |
@@ -2206,8 +2206,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 527 kernel witnesses, 179 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 19 of 756 linked declarations still pending.**
+**Coverage: 526 kernel witnesses, 179 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 19 of 755 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
