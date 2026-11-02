@@ -98,7 +98,11 @@ def main (args : List String) : IO UInt32 := do
       (10485760, "10 MiB"), (5368709120, "5.0 GiB"), (1099511627776, "1024 GiB")]
     let bad := js.filter fun (n, w) => Arrival.humanBytes n != w
     check s!"sizes are worded as libquiet's humanBytes words them ({js.length} sizes; differing {bad})" bad.isEmpty
-    -- a message with one photo, its ops as the send intent makes them
+    -- a message with one photo, its ops as the send intent makes them;
+    -- first the founding settled (writer idle, the reader caught up): its
+    -- intent runs in the reader's pass, which a loaded box runs later
+    -- (holmes-24: "the community has a content key" failed once under load)
+    waitIdle sm
     let s ← get
     let bytes ← IO.FS.readBinFile "assets/0.qoi"
     let some src := Image.decode bytes | check "the photo decodes" false

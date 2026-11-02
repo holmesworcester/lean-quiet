@@ -55,7 +55,10 @@ fetch_main() {
 }
 fetch_main
 if ! git merge-base --is-ancestor origin/main HEAD; then
-  if ! git merge --no-edit origin/main; then
+  # no rerere: a recorded resolution (anyone's, of running code too) would be
+  # replayed into the tree without markers; land.sh resolves only generated
+  # lines itself and stops on anything else for a person to see
+  if ! git -c rerere.enabled=false merge --no-edit origin/main; then
     # generated lines conflict on most merges, README's (links, table rows)
     # and the proof tree's: main's are taken, and written again below; the
     # model-law list (tests/wiring-models.txt) only shrinks, so a law stays

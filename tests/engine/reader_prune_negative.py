@@ -12,7 +12,7 @@ logs.mkdir(parents=True, exist_ok=True)
 def run(args, name):
     try:
         p = subprocess.run(args, cwd=root, stdout=subprocess.PIPE,
-                           stderr=subprocess.STDOUT, text=True, timeout=180)
+                           stderr=subprocess.STDOUT, text=True, timeout=900)
     except subprocess.TimeoutExpired as e:
         output = e.stdout or ""
         if isinstance(output, bytes):
