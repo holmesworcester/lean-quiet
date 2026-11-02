@@ -92,7 +92,7 @@ lean_lib Headless where
 -- the test suites' modules (their executables are below)
 lean_lib Tests where
   globs := #[.submodules `tests.engine, .submodules `tests.net, .submodules `tests.mdns,
-    .submodules `tests.qr, .submodules `tests.app]
+    .submodules `tests.qr, .submodules `tests.app, .submodules `tests.scale]
 
 lean_exe component_demand where
   root := `tests.app.Demand
@@ -206,6 +206,10 @@ lean_exe wire where
 lean_exe syncpair where
   root := `tests.engine.SyncPair
 
+-- a round's work at 1k, 10k, 100k items (tests/scale/run.sh)
+lean_exe scale where
+  root := `tests.scale.Scale
+
 lean_exe syncworld where
   root := `tests.engine.SyncWorld
 
@@ -294,6 +298,10 @@ lean_exe pic_retry where
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
 
+-- Linked devices app to app: link, approve, sync, removal cuts both.
+lean_exe link_devices where
+  root := `platforms.headless.LinkDevices
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
@@ -301,6 +309,10 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `platforms.headless.NetJoin
+
+-- Linked devices over real TCP on loopback: four apps, four nodes.
+lean_exe net_link where
+  root := `platforms.headless.NetLink
 
 lean_exe write_admission where
   root := `platforms.headless.WriteAdmission

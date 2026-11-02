@@ -22,12 +22,14 @@
         android:theme="@android:style/Theme.Material.NoActionBar"
         android:windowSoftInputMode="adjustResize|stateHidden"
         android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|keyboard|uiMode|fontScale|density|smallestScreenSize">
-      <!-- Invites: the join page (site/join.html) opens leanquiet://join/… -->
+      <!-- Invites: the join page (site/join.html) opens leanquiet://join/…,
+           and a device link's page (site/link.html) leanquiet://link/… -->
       <intent-filter>
         <action android:name="android.intent.action.VIEW" />
         <category android:name="android.intent.category.DEFAULT" />
         <category android:name="android.intent.category.BROWSABLE" />
         <data android:scheme="leanquiet" android:host="join" />
+        <data android:scheme="leanquiet" android:host="link" />
       </intent-filter>
       <meta-data android:name="android.app.lib_name" android:value="leanapp" />
       <intent-filter>

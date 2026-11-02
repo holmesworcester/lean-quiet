@@ -23,6 +23,7 @@ import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
+import engine.sync.ClaimsLaws
 import engine.sync.NewestLaws
 import engine.sync.WindowLaws
 import engine.sync.StateLaws
@@ -188,8 +189,18 @@ open Engine Community
 #print axioms Community.approve_valid
 #print axioms Community.admit_admits
 #print axioms Community.admission_needs_approval
+#print axioms Community.link_approved_by_issuer
+#print axioms Community.link_admits_issuer
+#print axioms Community.issue_link
+#print axioms Community.anyUser_approves_link
+#print axioms Community.newUser_links
+#print axioms Community.asks_link
+#print axioms Community.joinOps_link_unnamed
+#print axioms Community.introduce_named
+#print axioms Community.shipped_introduce_unnamed
 #print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
+#print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
 #print axioms Community.admin_granted
@@ -221,6 +232,7 @@ open Engine Community
 #print axioms Community.parse_text
 #print axioms Community.parse_uri
 #print axioms Community.parse_valid
+#print axioms Community.parse_other_kind
 #print axioms Community.Base62.decode_encode
 #print axioms Community.secret_derives
 #print axioms Community.named_by_admin
@@ -871,6 +883,35 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Engine.cr_erase
+#print axioms Engine.within_at
+#print axioms Engine.decide_reads
+#print axioms Engine.step_reads_le
+#print axioms Engine.intake_reqs
+#print axioms Engine.intakeConn_reqs
+#print axioms Engine.intake_sub
+#print axioms Engine.mem_intake_shared
+#print axioms Engine.intake_mine
+#print axioms Engine.stored_capped
+#print axioms Engine.step_capped
+#print axioms Engine.fed_reqs
+#print axioms Engine.step_reads_fed
+#print axioms Connection.wire_not_conn
+#print axioms Connection.intakeConn_wire
+#print axioms Community.post_reqs_le
+#print axioms Community.attach_reqs
+#print axioms Community.nodeKeyOr_authored
+#print axioms Community.found_authored
+#print axioms Community.joinOps_authored
+#print axioms Community.inviteTo_authored
+#print axioms Community.join_authored
+#print axioms Community.introduce_authored
+#print axioms Community.removeMember_authored
+#print axioms Community.approveReq_authored
+#print axioms Community.stopWaiting_authored
+#print axioms Community.react_reqs_le
+#print axioms Community.receiptFor_authored
+#print axioms Community.send_authored
 #print axioms Engine.list_costs
 #print axioms Engine.model_fits
 #print axioms Engine.View.view_lists
@@ -1289,6 +1330,38 @@ end cost
 #print axioms Engine.Sync.Tree.answer_step
 #print axioms Engine.Sync.Tree.exchange_ids_stable
 #print axioms Engine.Sync.Tree.exchange_log
+#print axioms Engine.Sync.Key.plt_tie
+#print axioms Engine.Sync.label_canon
+#print axioms Engine.Sync.height_canon
+#print axioms Engine.Sync.split_canon
+#print axioms Engine.Sync.insert_canon
+#print axioms Engine.Sync.split_hashes
+#print axioms Engine.Sync.insert_hashes
+#print axioms Engine.Sync.toList_canon
+#print axioms Engine.Sync.size_canon
+#print axioms Engine.Sync.hasKey_canon
+#print axioms Engine.Sync.canon_perm
+#print axioms Engine.Sync.rangeT_canon
+#print axioms Engine.Sync.cutsT_canon
+#print axioms Engine.Sync.answerT_canon
+#print axioms Engine.Sync.openingT_canon
+#print axioms Engine.Sync.val_answerTM
+#print axioms Engine.Sync.val_rangeTM
+#print axioms Engine.Sync.val_insertM
+#print axioms Engine.Sync.val_splitM
+#print axioms Engine.Sync.val_openingTM
+#print axioms Engine.Sync.rangeTM_hashes
+#print axioms Engine.Sync.answerTM_hashes
+#print axioms Engine.Sync.openingTM_hashes
+#print axioms Engine.Sync.cutsT_pieces
+#print axioms Engine.Sync.split_height
+#print axioms Engine.Sync.ends_log
+#print axioms Engine.Sync.piece_size
+#print axioms Engine.Sync.pieces_count
+#print axioms Engine.Sync.claims_log
+#print axioms Engine.Sync.tally_le
+#print axioms Engine.Sync.RoomTree.items_add
+#print axioms Engine.Sync.ins_sorted
 #print axioms Engine.Sync.Tree.exchange_stable
 #print axioms Engine.Sync.Tree.fold_congr
 #print axioms Engine.Sync.Tree.pick_keys_gt
@@ -1513,6 +1586,14 @@ end cost
 #print axioms Connection.Execution.world_trace_moves
 #print axioms Connection.Execution.empty_trace_store
 #print axioms Connection.Execution.Run.shared_retained
+#print axioms Connection.Execution.trace_good
+#print axioms Connection.Execution.connect_iff_trace
+#print axioms Connection.Execution.removal_cuts_off_trace
+#print axioms Connection.Execution.refuse_nonmember_trace
+#print axioms Connection.Execution.admitted_trace
+#print axioms Connection.Execution.removed_trace
+#print axioms Connection.Execution.Run.state_trace
+#print axioms Connection.Execution.Run.good
 #print axioms Engine.Sync.Sweep.offer_sent
 #print axioms Engine.Sync.Sweep.next_sent
 #print axioms Engine.Sync.Sweep.step_progress
@@ -1553,6 +1634,9 @@ end cost
 #print axioms Engine.Sync.Outbox.push_preserves_reserved
 #print axioms Engine.Sync.Outbox.urgent_then_retry
 #print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.Outbox.drain_lingers
+#print axioms Engine.Sync.Outbox.drain_quiet_closes
+#print axioms Engine.Sync.Outbox.stopped_never_lingers
 #print axioms Engine.Sync.serveOwed_hot_count
 
 #print axioms Engine.Sync.Ingress.distance_lt

@@ -221,7 +221,8 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · rfl
       · rfl
       · rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh
-        · simpa using hh
+        · obtain ⟨rfl, -⟩ := by simpa using hh
+          rfl
         · exact isAdmin_shared hh
       · rfl
     · cases hf'
@@ -1351,6 +1352,68 @@ theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray)
   all_goals (try simp only [Always, pure_eq])
   all_goals simp
 
+/-- **A device link's join names nobody** (`joinOps_link_unnamed`): the
+new device joins its issuer's user, so its joining op carries no name. -/
+theorem joinOps_link_unnamed (i : Invite) (seed name : ByteArray) (key : Key) (h : i.link = true) :
+    (joinOps i seed name key).ops = [secret seed, i.request (Device.ofSeed seed) key,
+      accept i.community (Device.ofSeed seed).pk,
+      joining i (i.request (Device.ofSeed seed) key).id .empty (Device.ofSeed seed).pk] := by
+  simp [joinOps, h]
+
+/-- **A join with no name writes no profile** (`introduce_named`): what
+`introduce` writes is nothing, or one profile under a name its join
+gave. With `joinOps_link_unnamed`, a linked device never names its
+user. -/
+theorem introduce_named (c : Id) (d : Device) (time : Nat) :
+    Always (fun w : Write => w.ops = [] ∨ ∃ adm nm, nm.isEmpty = false ∧ w.ops = [profile c adm d nm time])
+      (introduce c d time) := by
+  unfold introduce
+  refine always_bind fun adms => ?_
+  dsimp only [Always]
+  split
+  · refine always_bind fun prof => ?_
+    dsimp only [Always]
+    refine always_bind fun joins => ?_
+    dsimp only [Always]
+    split
+    · rename_i nm _
+      by_cases hc : prof.total = 0 ∧ nm.isEmpty = false
+      · simp only [Always, pure_eq, hc, and_self, ↓reduceIte]; exact Or.inr ⟨_, nm, hc.2, rfl⟩
+      · simp [Always, pure_eq, hc]
+    · simp [Always, pure_eq]
+  · simp [Always, pure_eq]
+
+/-- `introduce` as it shipped before device links: a join's name taken
+as it is, an empty one too. A negative control: never run. -/
+def introduceShipped (c : Id) (d : Device) (time : Nat) : View Fact Write := do
+  let adms ← admission.byDevice.read [c, d.pk]
+  match adms.rows.head? with
+  | some ((_, adm), .admission _ u _ _) =>
+    let prof ← profile.byUser.read [c, u] (limit := some 0)
+    let joins ← joining.all.read []
+    let name := joins.rows.findSome? fun (_, f) => match f with
+      | .joining c' _ _ _ nm d' _ => if c' = c ∧ d' = d.pk then some nm else none
+      | _ => none
+    match name with
+    | some nm => return (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
+    | none => return ⟨[]⟩
+  | _ => return ⟨[]⟩
+
+/-- **As shipped, a linked device admitted before its user's profile
+synced would name its user ""** (`shipped_introduce_unnamed`): on a
+store holding its admission and its device link's join (no name) and
+no profile yet, the shipped `introduce` writes a profile with an empty
+name, where `introduce` writes nothing. -/
+theorem shipped_introduce_unnamed (c u adm : Id) (d : Device) (e : Key) (time : Nat) (sk : ByteArray)
+    (q : Pos) (k : Key) (hs : List ByteArray) (r : Id) (n : Nat) :
+    let as : List (Answer Fact) := [⟨[((sk, adm), .admission c u d.pk e)], 1, 1⟩, ⟨[], 0, 0⟩,
+      ⟨[(q, .joining c k hs r .empty d.pk n)], 1, 1⟩]
+    runWith as (introduceShipped c d time) = some ⟨[profile c adm d .empty time]⟩ ∧
+      runWith as (introduce c d time) = some ⟨[]⟩ := by
+  simp only [introduceShipped, introduce, Rel.read, View.read, bind_eq, pure_eq, View.bind, runWith,
+    List.head?_cons, List.findSome?_cons, and_self, ite_true]
+  exact ⟨trivial, rfl⟩
+
 /-- The mutant: an approval that wraps the key to every member. -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
   let ok := approve c req myAdm d
@@ -1746,6 +1809,203 @@ theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : 
     | _ => simp [received.byKey] at hargs
 
 end
+end Community
+
+/-! ## Every op this node's intents write is within the intake cap
+
+The intake cap (engine/core/Sync.lean, `maxReqs` = 64) refuses an op
+citing more requirements, from a peer or from this node. These laws say
+it refuses no honest write: every op the Community family's intents
+write cites a constant number, none growing with the community. A root,
+a key, a secret, an acceptance, an endpoint and a pending join cite
+nothing; a wrap, a receipt and an abandon one op; an invitation, a
+request and a profile two; a post two or three (its clump); a reaction
+and an attachment three; a removal four; a chunk two; a name three and
+the name it supersedes (one, as `rename` writes it); an admission three
+(one approval admits).
+-/
+
+namespace Community
+open Engine Engine.View
+
+/-- Every op of a write cites at most `maxReqs` requirements. -/
+def Authored (w : Write) : Prop := ∀ o ∈ w.ops, o.reqs.length ≤ maxReqs
+
+@[simp] theorem mkOp_reqs (reqs : List Id) (b : Body) : (mkOp reqs b).reqs = reqs := rfl
+
+theorem maxReqs_eq : maxReqs = 64 := rfl
+
+theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (cl : Option Id) :
+    (post c adm d k t n tm cl).reqs.length ≤ 3 := by
+  cases cl <;> simp [post]
+
+theorem attach_reqs (c adm msg : Id) (time : Nat) (d : Device) (k : Key32) (f : NewFile) :
+    (attach c adm msg time d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg time d k f).2, o.reqs.length = 2 := by
+  refine ⟨rfl, fun o ho => ?_⟩
+  simp only [attach, List.mem_map] at ho
+  obtain ⟨_, _, rfl⟩ := ho
+  rfl
+
+/-- Whatever the first view answers. -/
+theorem always_bind_all {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a)) :
+    ∀ v : View Fact α, Always P (v.bind f)
+  | .pure a => h a
+  | .list _ k => fun a => always_bind_all h (k a)
+
+/-- What the first view answers, with what it always has. -/
+theorem always_bindV {α β : Type} {P : β → Prop} {Q : α → Prop} {f : α → View Fact β}
+    (h : ∀ a, Q a → Always P (f a)) : ∀ {v : View Fact α}, Always Q v → Always P (v.bind f)
+  | .pure a, hv => h a hv
+  | .list _ k, hv => fun a => always_bindV h (v := k a) (hv a)
+
+@[simp] theorem always_pure {α : Type} {P : α → Prop} (a : α) : Always P (Pure.pure a : View Fact α) ↔ P a :=
+  Iff.rfl
+
+@[simp] theorem always_list {α : Type} {P : α → Prop} (q : ListQ) (k : Answer Fact → View Fact α) :
+    Always P (View.list q k) ↔ ∀ a, Always P (k a) := Iff.rfl
+
+theorem always_bindM {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a))
+    (v : View Fact α) : Always P (v >>= f) := always_bind_all h v
+
+/-- Close a goal that a write of these ops is authored. -/
+macro "authored" : tactic => `(tactic| (
+  simp only [always_pure, Always, Authored]
+  intro o ho
+  simp only [List.mem_cons, List.not_mem_nil, or_false, List.mem_singleton, List.mem_ite_nil_left,
+    List.mem_ite_nil_right, List.not_mem_nil] at ho
+  try subst ho
+  try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt, approve, admit, wrapKey, wrap]))
+
+theorem nodeKeyOr_authored (fresh : Key32) :
+    Always (fun p : Key × List Op => ∀ o ∈ p.2, o.reqs.length ≤ maxReqs) (nodeKeyOr fresh) := by
+  unfold nodeKeyOr
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | some p => simp [Always]
+  | none => simp [Always, endpoint, maxReqs]
+
+theorem found_authored (seed nm my : ByteArray) (tm : Nat) (k esk fresh : Key32) :
+    Always Authored (found seed nm my tm k esk fresh) := by
+  unfold found
+  refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+  simp only []
+  intro o ho
+  simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with ho | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact hp o ho
+  all_goals simp [secret, root, accept, setName, profile, contentKey, wrapKey, wrap, maxReqs]
+
+theorem joinOps_authored (i : Invite) (seed nm : ByteArray) (key : Key) : Authored (joinOps i seed nm key) := by
+  intro o ho
+  simp only [joinOps, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with rfl | rfl | rfl | rfl <;>
+    simp [secret, accept, joining, Invite.request, request, maxReqs]
+
+theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List ByteArray) :
+    Always (fun r : Option (Write × Invite) => ∀ p, r = some p → Authored p.1) (inviteTo c a d b hs) := by
+  unfold inviteTo
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | none => simp
+  | some p =>
+    intro q hq
+    cases hq
+    intro o ho
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ho
+    subst ho; simp [issue, invite, maxReqs]
+
+theorem join_authored (i : Invite) (seed nm : ByteArray) (fresh : Key32) : Always Authored (join i seed nm fresh) := by
+  unfold join
+  refine always_bind_all (fun held => ?_) _
+  split
+  · simp [Always, Authored]
+  · intro joins
+    refine always_bind_all (fun d => ?_) _
+    cases d with
+    | some p =>
+      obtain ⟨k, hs, r, nm', d, n⟩ := p
+      simp [Always, Authored, maxReqs]
+    | none =>
+      intro adm
+      dsimp only
+      split
+      · authored
+      · refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+        intro o ho
+        simp only [List.mem_append] at ho
+        rcases ho with ho | ho
+        · exact hp o ho
+        · exact joinOps_authored i seed nm p.1 o ho
+
+theorem introduce_authored (c : Id) (d : Device) (tm : Nat) : Always Authored (introduce c d tm) := by
+  unfold introduce
+  refine always_bind_all (fun adms => ?_) _
+  split
+  · refine always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _
+    dsimp only
+    repeat' split
+    all_goals authored
+  · authored
+
+theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeMember c t d) := by
+  unfold removeMember
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  repeat' split
+  all_goals first
+    | authored
+    | (refine always_bind_all (fun _ => ?_) _; dsimp only; repeat' split
+       all_goals authored)
+
+theorem approveReq_authored (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    Always Authored (approveReq c req myAdm d esk) := by
+  unfold approveReq
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  dsimp only
+  repeat' split
+  all_goals simp [Authored, approve, admit, wrapKey, wrap, maxReqs]
+
+theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
+  intro o ho
+  simp only [stopWaiting, List.mem_cons, List.not_mem_nil, or_false] at ho
+  subst ho; simp [abandon, maxReqs]
+
+/-- **A reaction cites three** (the app writes `react` directly). -/
+theorem react_reqs_le (c a t : Id) (d : Device) (e : ByteArray) (tm : Nat) :
+    (react c a t d e tm).reqs.length ≤ maxReqs := by
+  simp [react, maxReqs]
+
+theorem receiptFor_authored (o : Op) :
+    Always (fun os : List Op => ∀ p ∈ os, p.reqs.length ≤ maxReqs) (receiptFor o) := by
+  unfold receiptFor
+  split
+  · simp
+  · split
+    · split
+      · simp
+      · refine always_bind_all (fun _ => ?_) _
+        split
+        · simp
+        · refine always_bind_all (fun _ => ?_) _
+          simp [receipt, maxReqs]
+    · simp
+
+theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t : ByteArray) (now : Nat) (files : List NewFile) :
+    Always Authored (send c a d k nonce t now files) := by
+  unfold send
+  refine always_bind_all (fun cl => always_bind_all (fun n => ?_) _) _
+  refine always_bindV (fun r hr => ?_) (receiptFor_authored _)
+  intro o ho
+  simp only [List.mem_cons, List.mem_append, List.mem_flatMap] at ho
+  rcases ho with (rfl | ho) | ⟨f, _, ho⟩
+  · have := post_reqs_le c a d (kidOf cryptoSeal k) (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) t)
+      (min (n + 1) countCap) now cl
+    simp only [sealedPost]; rw [maxReqs_eq]; omega
+  · exact hr o ho
+  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id now d k f
+    rcases ho with rfl | ho
+    · rw [h.1, maxReqs_eq]; decide
+    · rw [h.2 o ho, maxReqs_eq]; decide
+
 end Community
 
 /-! ## How deep a Valid op's timed requirements go (`timed_chain_le`)

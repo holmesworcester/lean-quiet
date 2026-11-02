@@ -993,7 +993,8 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofGrant b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
     (Grant.check C o b r a (isAdmin r.c a.u auth) t).map .ofAdmin
   | .ofRemove b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
-    (Remove.check C o b r a (!auth.isLocal) (isAdmin r.c a.u auth) t).map .ofRemoval
+    (Remove.check C o b r a (decide (auth = .ofAdmission a) && decide (o.reqs[2]? = o.reqs[1]?))
+      (isAdmin r.c a.u auth) t).map .ofRemoval
   | .ofPost b, [.ofAdmission r, .ofAdmission a] => (Post.check C o b r a none).map .ofMessage
   | .ofPost b, [.ofAdmission r, .ofAdmission a, .ofMessage p] => (Post.check C o b r a (some p)).map .ofMessage
   | .ofProfile b, [.ofAdmission r, .ofAdmission a] => (Profile.check C o b r a).map .ofProfile
@@ -1370,12 +1371,17 @@ def toSign (reqs : List Id) (b : Body) : ByteArray :=
 
 def sig (sk : ByteArray) (reqs : List Id) (b : Body) : ByteArray := edSign sk (toSign reqs b)
 
+/-- What a link carries: the community, the invitation it redeems, the
+inviter's node key and dial hints, and the invitation's bearer seed; and
+whether it is a device link (its invitation admits another device of the
+issuer's user) or a member's. -/
 structure Invite where
   community : Id
   invitation : Id
   inviter : Key
   hints : List ByteArray
   secret : ByteArray
+  link : Bool
   deriving DecidableEq, Inhabited
 
 /-- The invitation's bearer key pair, from the link's seed. -/
