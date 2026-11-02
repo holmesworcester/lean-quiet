@@ -1,9 +1,15 @@
 /-
-A store call that SQLite refused because another connection held a lock
-past the busy timeout (SQLITE_BUSY, SQLITE_LOCKED: `IO.Error.resourceBusy`,
-from engine/native/glue.c) changed nothing, and may run again. The runner
-runs every store call through `retrying`, so a busy store slows the node
-down and never stops it (engine/core/BusyLaws.lean).
+A busy store slows the runner down and never stops it.
+
+The glue (engine/native/glue.c) retries a statement SQLite refuses as
+busy where the refusal changed nothing: a `BEGIN`, and a single statement
+run outside a transaction. Whatever busy failure still escapes comes back
+as `IO.Error.resourceBusy`, and the runner runs every store call through
+`retrying`, which runs the call again from the same node state
+(engine/core/BusyLaws.lean: `attempt` never fails busy). That second
+retry is the backstop: a busy statement inside a held write transaction
+is not expected in WAL mode, but if one came, the whole node step would
+run again, repeating any fresh write committed earlier in it.
 -/
 namespace Engine.Store
 

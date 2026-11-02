@@ -52,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ops (id BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOU
 CREATE TABLE IF NOT EXISTS catalog (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS catalog_version (version INTEGER PRIMARY KEY);
 CREATE TABLE IF NOT EXISTS retry_cursor (peer BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
+CREATE TABLE IF NOT EXISTS scrub_due (one INTEGER PRIMARY KEY CHECK (one = 1));
 CREATE TRIGGER IF NOT EXISTS catalog_insert AFTER INSERT ON ops BEGIN
   INSERT INTO catalog (id) VALUES (NEW.id);
 END;
@@ -318,13 +319,27 @@ def purgeTx [Codec F] [SortKey F] (fam : Family F) (ids : List Id) : SqlM F (Lis
 
 /-- Copy the WAL into the database and truncate it, so no old frame
 keeps a deleted byte. Outside any transaction; a no-op unless the
-database is in WAL mode. -/
+database is in WAL mode. A reader holding an older snapshot blocks it
+(after SQLite's busy wait): then the scrub is due (`scrub_due`), the
+purged bytes stay in the WAL until `scrubDue` gets through on a later
+runner tick, and nothing waits on the reader. It used to throw, which
+ended the node's networking ("network runner stopped: purge: a reader
+blocked the WAL checkpoint"). -/
 def checkpointSql : SqlM F Unit := do
   let mode := col0 (← sqlQ (F := F) "PRAGMA journal_mode" #[])
   if (mode.head? >>= String.fromUTF8?) != some "wal" then return
   let rows ← sqlQ (F := F) "PRAGMA wal_checkpoint(TRUNCATE)" #[]
+  let due := !(← sqlQ (F := F) "SELECT one FROM scrub_due" #[]).isEmpty
   if (rows[0]? >>= (·[0]?) >>= String.fromUTF8?) != some "0" then
-    throw (IO.userError "purge: a reader blocked the WAL checkpoint; the purged bytes stay in the WAL until the next one")
+    unless due do sqlDo (F := F) "INSERT OR IGNORE INTO scrub_due (one) VALUES (1)" #[]
+  else if due then
+    sqlDo (F := F) "DELETE FROM scrub_due" #[]
+
+/-- A scrub a reader blocked, tried again: the runner runs it every tick,
+a read when none is due. -/
+def scrubDue : SqlM F Unit := do
+  if (← sqlQ (F := F) "SELECT one FROM scrub_due" #[]).isEmpty then return
+  checkpointSql
 
 /-- What a purge does after its transaction, to the file only: with
 `vacuum`, `VACUUM`; then the WAL checkpoint. Neither changes a row of

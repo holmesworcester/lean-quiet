@@ -144,7 +144,19 @@ catches it next time. The aim is no escapes.
   the glue's error is busy, and `retrying` gets through once the lock is
   released, the write made once. A mutant `attempt` that lets busy through
   fails `attempt_busy`, and a seeded runner call that bypasses the retry
-  is caught (tests/vacuity/controls.py).
+  is caught (tests/vacuity/controls.py). The lock was held by slow
+  commits under disk contention (`synchronous = FULL`), queued behind one
+  another (holmes-7d's trace). Because `retrying` runs a whole node step
+  again, the glue now retries first where a refusal changed nothing (a
+  `BEGIN`, a single statement outside a transaction), so a step's earlier
+  fresh writes are not repeated. A second path to the same catch: a
+  session close's scrubbing purge threw when a reader blocked its WAL
+  checkpoint ("purge: a reader blocked the WAL checkpoint"). Now the
+  scrub is marked due (`scrub_due`) and a later runner tick runs it once
+  the reader is gone. tests/vacuity/StoreTrust.lean checks both on a real
+  file, and holmes-7d's `busy_runner` (engine:tcp) runs a second
+  connection's write lock, and a reader across a session close, against
+  two running nodes, with the shipped runner as its negative control.
 
 - **A room shown mid-session waited for the dialer's 30 s timer**
   (seen by the user as slow syncing "in some cases. maybe because the
