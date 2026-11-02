@@ -470,7 +470,7 @@ among `rows` (the user's own: `admission.byUser [c, u]`), each once;
 for reads (`all` false), not this node's own key. -/
 def noticeRecipients (pk : Key) (all : Bool) : List (Pos × Fact) → List Key
   | [] => []
-  | (_, .admission _ _ _ enc) :: rest =>
+  | (_, .admission _ _ _ enc _) :: rest =>
     let r := noticeRecipients pk all rest
     if Engine.has r enc || (!all && decide (enc = pk)) then r else enc :: r
   | _ :: rest => noticeRecipients pk all rest

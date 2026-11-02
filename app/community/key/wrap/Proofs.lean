@@ -18,6 +18,11 @@ theorem always_true {P : α → Prop} (hP : ∀ a, P a) : ∀ {v : View F α}, A
   | .pure a => hP a
   | .list _ k => fun a => always_true hP (v := k a)
 
+/-- What every answer has, weakened. -/
+theorem always_imp {P Q : α → Prop} (h : ∀ a, P a → Q a) : ∀ {v : View F α}, Always P v → Always Q v
+  | .pure a, hp => h a hp
+  | .list _ k, hp => fun a => always_imp h (v := k a) (hp a)
+
 theorem always_eval [SortKey F] {P : α → Prop} (s : DB F) : ∀ {v : View F α}, Always P v → P (v.eval s)
   | .pure _, h => h
   | .list q k, h => always_eval s (v := k (Engine.eval s q)) (h _)

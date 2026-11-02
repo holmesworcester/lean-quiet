@@ -65,13 +65,13 @@ def file : NewFile :=
   { info := { name := "a.qoi".toUTF8, kind := "image/qoi".toUTF8, w := 1, h := 1, preview := .empty },
     bytes := "one pixel".toUTF8, key := Bytes.digest "vacuity-file-key".toUTF8,
     nonce := Bytes.fit 24 "vacuity-file-nonce".toUTF8, metaNonce := Bytes.fit 24 "vacuity-meta-nonce".toUTF8 }
-def attached := attach c admission.id message.id bob communityKey file
+def attached := attach c admission.id message.id 29880000 bob communityKey file
 def attachOps := before ++ [attached.1]
 
 def attachKey : Option (PLift (∃ c' kid, RootKid ed25519 (run attachOps).ops c' kid)) := do
   let ⟨f, ⟨h⟩⟩ ← validFact attachOps attached.1
   match f, h with
-  | .attachment c' _ _ _ _ kid _, h => return PLift.up ⟨c', kid, attach_community_key h⟩
+  | .attachment c' _ _ _ _ _ kid _, h => return PLift.up ⟨c', kid, attach_community_key h⟩
   | _, _ => none
 
 def keyKid := applyLaw

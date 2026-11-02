@@ -126,12 +126,26 @@ def removedStays := applyLaw (certify after removeB removeBFact)
 
 -- Alice's second device: her own approval of its device link's request,
 -- and its admission into her user (the founder's, c).
-def linkApproved := do
-  let ⟨hx⟩ ← certify linked linkApproval (.approval c requestA2.id c)
-  let ⟨hr⟩ ← certify linked requestA2 (.request c c alice2.pk (keyOf alice2) true)
-  return PLift.up (link_approved_by_issuer (keyed linked) hx hr)
+/-- Alice's approval of the link request, as the store judges it. -/
+def linkApprovalFact : Option Approve.Fact :=
+  match specAt (family ed25519) (table linked) 8 linkApproval.id with
+  | some (.valid (.ofApproval g)) => some g
+  | _ => none
 
-def linkAdmits := applyLaw (certify linked linkAdmission (.admission c c alice2.pk (keyOf alice2)))
+def linkApproved : Option (PLift (∃ g : Approve.Fact, g.u = c ∧
+    (∃ o i k, table linked requestA2.id = some o ∧ o.reqs = [c, i] ∧
+      V ed25519 (table linked) i (Fact.invitation c g.u k true)) ∧
+    ∃ ra ea ka, V ed25519 (table linked) ra (Fact.admission c g.u g.dev ea ka) ∧ g.dev ≠ alice2.pk)) := do
+  let g ← linkApprovalFact
+  let ⟨hx⟩ ← certify linked linkApproval (.ofApproval g)
+  let ⟨hr⟩ ← certify linked requestA2 (.request c c alice2.pk (keyOf alice2) true)
+  if hgc : g.c = c then
+    if hgr : g.req = requestA2.id then
+      return PLift.up ⟨g, link_approved_by_issuer (g := g) (keyed linked) hx hgc hgr hr⟩
+    else none
+  else none
+
+def linkAdmits := applyLaw (certify linked linkAdmission (.admission c c alice2.pk (keyOf alice2) keyId))
   (link_admits_issuer (keyed linked))
 
 def main : IO UInt32 := do

@@ -135,5 +135,5 @@ def main (args : List String) : IO UInt32 := do
   t.ok "another user's approval of it is invalid (link_approved_by_issuer)" (m3.status byAlice.id == some .invalid)
   t.ok "the issuer's approval admits it" (valid3 byFounder && valid3 dadm)
   t.ok "into the issuer's user (link_admits_issuer)"
-    (match m3.status dadm.id with | some (.valid (.admission _ u _ _)) => u == c | _ => false)
+    (match m3.status dadm.id with | some (.valid (.admission _ u _ _ _)) => u == c | _ => false)
   t.finish "linkcheck"

@@ -2865,10 +2865,11 @@ theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧ (store).queu
   exact ⟨reach_inv hr, hq⟩
 
 /-- **The trust rule at every peer, after every production trace:** it
-takes a node key exactly when a live device is admitted under it. -/
+takes a node key exactly when a live device has a trusted admission
+under it. -/
 theorem connect_iff_trace (c : Id) (e : Community.Key) :
     ((allowPeer c e).liftL : View F Bool).eval store = true ↔
-      ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d e ∧
+      ∃ u d, Community.Trusted ed25519 (community ed25519 store).ops c u d e ∧
         Live ed25519 (community ed25519 store).ops c d :=
   connect_iff_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e
 
@@ -2893,14 +2894,14 @@ theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
 admission among the peer's own verdicts. -/
 theorem admitted_trace {c u : Id} {d e : Community.Key} :
     Admitted ed25519 (community ed25519 store).ops c u d e ↔
-      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) :=
+      ∃ x k, (store).status x = some (.valid (.inl (.admission c u d e k))) :=
   admitted_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
 
 /-- Removed, at every peer after every production trace: by a Valid
 removal among the peer's own verdicts. -/
 theorem removed_trace {c u : Id} :
     Removed ed25519 (community ed25519 store).ops c u ↔
-      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
+      ∃ x r k, (store).status x = some (.valid (.inl (.removal c u r k))) :=
   removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
 
 end

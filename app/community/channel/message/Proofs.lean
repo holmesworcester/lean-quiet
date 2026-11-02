@@ -65,8 +65,8 @@ theorem message_order {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Opt
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
   refine ⟨o, hx, ?_⟩
   cases clump with
-  | none => obtain ⟨_, _, _, _, rfl, _⟩ := check_message hv; simp [orderOf, hb]
-  | some r => obtain ⟨_, _, _, _, _, _, _, _, _, rfl, _⟩ := check_child hv; simp [orderOf, hb]
+  | none => obtain ⟨_, _, _, _, _, rfl, _⟩ := check_message hv; simp [orderOf, hb]
+  | some r => obtain ⟨_, _, _, _, _, _, _, _, _, _, rfl, _⟩ := check_child hv; simp [orderOf, hb]
 
 /-- A Valid message cites an admission of its author's device into its
 author's user, and that device signed it. -/

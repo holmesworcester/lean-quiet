@@ -381,7 +381,7 @@ def main (args : List String) : IO UInt32 := do
     let s ← get
     let (bs, _, _) ← (show M _ from readList (admission.all.query [s.me.c]) #[])
     let bUser := bs.rows.filterMap fun (_, f) => match f with
-      | .admission _ u _ _ => if u != s.me.c then some u else none
+      | .admission _ u _ _ _ => if u != s.me.c then some u else none
       | _ => none
     let some u := bUser.head? | check "A finds B's user" false
     let ok ← removeWrite u

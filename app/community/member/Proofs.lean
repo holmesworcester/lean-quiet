@@ -87,11 +87,11 @@ theorem removal_authorized {x c t u : Id} {k : List (Key × Id × Nat)} (h : V C
 u is an admin's, or it removes u itself and its authority is u's own
 admission: the same op it cites as its author's admission. So no
 removal waits on anything but membership ops. -/
-theorem removal_anchored {x c t u : Id} (h : V C ops x (.removal c t u)) :
+theorem removal_anchored {x c t u : Id} {k : List (Key × Id × Nat)} (h : V C ops x (.removal c t u k)) :
     IsAdmin C ops c u ∨ (t = u ∧ ∃ o, ops x = some o ∧ o.reqs[2]? = o.reqs[1]?) := by
   obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
-  obtain ⟨_, _, _, _, _, auth, _, _, rfl, rfl, _, ha, _⟩ := check_removal hv
-  obtain ⟨_, _, z, _, _, _, _, hz, _⟩ := all2_four hr
+  obtain ⟨_, _, _, _, _, _, _, auth, _, _, _, _, rfl, rfl, _, ha, _⟩ := check_removal hv
+  obtain ⟨_, _, z, _, _, _, _, hz, _⟩ := all2_cons3 hr
   rcases ha with ⟨ht, _, hreq⟩ | ha
   · exact Or.inr ⟨ht, o, hx, hreq⟩
   · exact Or.inl (isAdmin_sound hz ha)

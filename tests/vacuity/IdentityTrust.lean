@@ -506,7 +506,7 @@ def selfMsg := remove c admission.id message.id admission.id bob
 def selfOther := remove c admission.id c admission.id bob
 
 def removalAnchored := do
-  let ⟨hr⟩ ← certifyDB (before ++ [selfOwn]) selfOwn (.removal c requestB.id requestB.id)
+  let ⟨hr⟩ ← certifyDB (before ++ [selfOwn]) selfOwn (.removal c requestB.id requestB.id [])
   pure (PLift.up (removal_anchored hr))
 
 def main : IO UInt32 := do

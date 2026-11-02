@@ -397,10 +397,10 @@ theorem post_community_key {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump 
     exact ⟨d0, e0, hy⟩
 
 /-- **Every Valid attachment is sealed under the community key.** -/
-theorem attach_community_key {x c m u root : Id} {len : Nat} {kid sealed : ByteArray}
-    (h : V C ops x (.attachment c m u root len kid sealed)) : RootKid C ops c kid := by
+theorem attach_community_key {x c m u root : Id} {len tm : Nat} {kid sealed : ByteArray}
+    (h : V C ops x (.attachment c m u root len tm kid sealed)) : RootKid C ops c kid := by
   obtain ⟨o, b, fs, _, _, hr, hv⟩ := valid_inv h
-  obtain ⟨_, d0, e0, _, _, _, _, _, _, _, _, _, _, rfl, hh, _⟩ := check_attach hv
+  obtain ⟨_, d0, e0, _, _, _, _, _, _, _, _, _, rfl, hh, _⟩ := check_attach hv
   obtain ⟨y, _, _, hreq, hy, _, _⟩ := all2_cons2 hr
   rw [hreq] at hh; simp at hh; subst hh
   exact ⟨d0, e0, hy⟩
@@ -2562,9 +2562,6 @@ theorem approve_reqs_le (c req adm : Id) (d : Device) (up prev : Option Id) :
     (approve c req adm d up prev).reqs.length ≤ 5 := by
   cases up <;> cases prev <;> simp [approve, mkOp]
 
-/-- The mutant: an approval that wraps the key to every member's node
-key (each admission's). -/
-
 /-- **A device link's join names nobody** (`joinOps_link_unnamed`): the
 new device joins its issuer's user, so its joining op carries no name. -/
 theorem joinOps_link_unnamed (i : Invite) (seed name : ByteArray) (key : Key) (h : i.link = true) :
@@ -2601,7 +2598,7 @@ as it is, an empty one too. A negative control: never run. -/
 def introduceShipped (c : Id) (d : Device) (time : Nat) : View Fact Write := do
   let adms ← admission.byDevice.read [c, d.pk]
   match adms.rows.head? with
-  | some ((_, adm), .admission _ u _ _) =>
+  | some ((_, adm), .admission _ u _ _ _) =>
     let prof ← profile.byUser.read [c, u] (limit := some 0)
     let joins ← joining.all.read []
     let name := joins.rows.findSome? fun (_, f) => match f with
@@ -2619,7 +2616,7 @@ no profile yet, the shipped `introduce` writes a profile with an empty
 name, where `introduce` writes nothing. -/
 theorem shipped_introduce_unnamed (c u adm : Id) (d : Device) (e : Key) (time : Nat) (sk : ByteArray)
     (q : Pos) (k : Key) (hs : List ByteArray) (r : Id) (n : Nat) :
-    let as : List (Answer Fact) := [⟨[((sk, adm), .admission c u d.pk e)], 1, 1⟩, ⟨[], 0, 0⟩,
+    let as : List (Answer Fact) := [⟨[((sk, adm), .admission c u d.pk e k)], 1, 1⟩, ⟨[], 0, 0⟩,
       ⟨[(q, .joining c k hs r .empty d.pk n)], 1, 1⟩]
     runWith as (introduceShipped c d time) = some ⟨[profile c adm d .empty time]⟩ ∧
       runWith as (introduce c d time) = some ⟨[]⟩ := by
@@ -2627,7 +2624,8 @@ theorem shipped_introduce_unnamed (c u adm : Id) (d : Device) (e : Key) (time : 
     List.head?_cons, List.findSome?_cons, and_self, ite_true]
   exact ⟨trivial, rfl⟩
 
-/-- The mutant: an approval that wraps the key to every member. -/
+/-- The mutant: an approval that wraps the key to every member's node
+key (each admission's). -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
   let ok := approve c req myAdm d
   let ks ← key.byCommunity.read [c] (limit := some 1)
@@ -3030,28 +3028,28 @@ is sealed to is the node key of an admission among the rows read (the
 user's own), and a read is never sealed back to this node. -/
 theorem noticeRecipients_own (pk : Key) (all : Bool) (rows : List (Pos × Fact)) (e : Key)
     (h : e ∈ noticeRecipients pk all rows) :
-    (∃ p c u d, (p, Fact.admission c u d e) ∈ rows) ∧ (all = true ∨ e ≠ pk) := by
+    (∃ p c u d k, (p, Fact.admission c u d e k) ∈ rows) ∧ (all = true ∨ e ≠ pk) := by
   induction rows with
   | nil => simp [noticeRecipients] at h
   | cons x rest ih =>
     rcases x with ⟨p, f⟩
     cases f with
     | ofAdmission a =>
-      rcases a with ⟨c, u, d, enc⟩
+      rcases a with ⟨c, u, d, enc, k⟩
       simp only [noticeRecipients] at h
       split at h
-      · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
-        exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+      · obtain ⟨⟨p', c', u', d', k', hm⟩, hs⟩ := ih h
+        exact ⟨⟨p', c', u', d', k', List.mem_cons_of_mem _ hm⟩, hs⟩
       · rename_i hn
         rcases List.mem_cons.1 h with rfl | h
-        · refine ⟨⟨p, c, u, d, List.mem_cons_self ..⟩, ?_⟩
+        · refine ⟨⟨p, c, u, d, k, List.mem_cons_self ..⟩, ?_⟩
           cases all <;> simp_all
-        · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
-          exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+        · obtain ⟨⟨p', c', u', d', k', hm⟩, hs⟩ := ih h
+          exact ⟨⟨p', c', u', d', k', List.mem_cons_of_mem _ hm⟩, hs⟩
     | _ =>
       simp only [noticeRecipients] at h
-      obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
-      exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+      obtain ⟨⟨p', c', u', d', k', hm⟩, hs⟩ := ih h
+      exact ⟨⟨p', c', u', d', k', List.mem_cons_of_mem _ hm⟩, hs⟩
 
 /-- **A message link parses back to exactly its message**: the
 community, the conversation, the message and any thread root it names. -/
@@ -3203,22 +3201,26 @@ theorem introduce_authored (c : Id) (d : Device) (tm : Nat) : Always Authored (i
     all_goals authored
   · authored
 
-theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeMember c t d) := by
-  unfold removeMember
-  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
-  repeat' split
-  all_goals first
-    | authored
-    | (refine always_bind_all (fun _ => ?_) _; dsimp only; repeat' split
-       all_goals authored)
+theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeMember c t d) :=
+  always_imp (fun _ hw o ho => Nat.le_trans (hw o ho) (by decide)) (removeMember_reqs_le c t d)
 
 theorem approveReq_authored (c req myAdm : Id) (d : Device) (esk : ByteArray) :
     Always Authored (approveReq c req myAdm d esk) := by
   unfold approveReq
-  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ =>
+    always_bind_all (fun up => always_bind_all (fun hd => always_bind_all (fun _ => ?_) _) _) _) _) _) _
   dsimp only
+  have hok : (approve c req myAdm d up (hd.rows.head?.map (·.1.2))).reqs.length ≤ maxReqs :=
+    Nat.le_trans (approve_reqs_le _ _ _ _ _ _) (by decide)
   repeat' split
-  all_goals simp [Authored, approve, admit, wrapKey, wrap, maxReqs]
+  all_goals
+    intro o ho
+    simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at ho
+    first
+      | (rcases ho with rfl | rfl | rfl <;> first | exact hok | simp [admit, wrapKey, wrap, mkOp, Op.make_reqs, maxReqs])
+      | (rcases ho with rfl | rfl <;> first | exact hok | simp [admit, mkOp, Op.make_reqs, maxReqs])
+      | (subst ho; exact hok)
+      | (rcases ho with (rfl | rfl) | rfl <;> first | exact hok | simp [admit, wrapKey, wrap, mkOp, Op.make_reqs, maxReqs])
 
 theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
   intro o ho

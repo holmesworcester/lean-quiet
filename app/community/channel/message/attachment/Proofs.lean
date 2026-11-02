@@ -12,21 +12,21 @@ u, and a message of c by the same user u, at the message's time; that
 device signed it. -/
 theorem check_attach {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c m u root : Id} {len tm : Nat}
     {kid sealed : ByteArray} (h : check C o b fs = some (.attachment c m u root len tm kid sealed)) :
-    ∃ s d0 e0 d e d2 k2 t2 n2 clump, b = .attach root len tm kid sealed s ∧
-      fs = [.admission c c d0 e0, .admission c u d e, .message c u d2 k2 t2 n2 tm clump] ∧
+    ∃ s d0 e0 d e ka d2 k2 t2 n2 clump, b = .attach root len tm kid sealed s ∧
+      fs = [.admission c c d0 e0 kid, .admission c u d e ka, .message c u d2 k2 t2 n2 tm clump] ∧
       o.reqs.head? = some c ∧ m = o.reqs.getD 2 .empty ∧ root.size = 32 ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r a m
-  rcases b with ⟨r', l, tm', k, x, s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c1, u', d, e⟩; rcases m with ⟨c2, u2, d2, k2, t2, n2, tm2, clump⟩
+  rcases b with ⟨r', l, tm', k, x, s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c1, u', d, e, ka⟩; rcases m with ⟨c2, u2, d2, k2, t2, n2, tm2, clump⟩
   simp only [Attach.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofAttachment.injEq, Attach.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl⟩ := h
-    obtain ⟨h1, rfl, rfl, rfl, rfl, rfl, h6, _, _, _, h10⟩ := hc
-    exact ⟨_, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
+    obtain ⟨h1, rfl, rfl, rfl, rfl, rfl, rfl, h6, _, _, _, h10⟩ := hc
+    exact ⟨_, _, _, _, _, _, _, _, _, _, _, rfl, rfl, h1, rfl, h6, h10⟩
   · simp at h
 
 /-- **A chunk hangs off its message.** A Valid chunk of an attachment of
@@ -36,7 +36,7 @@ theorem chunk_hangs_off {x c att root m u : Id} {len i tm : Nat} {k s : ByteArra
     ∃ o oa, ops x = some o ∧ att ∈ o.reqs ∧ ops att = some oa ∧ m = oa.reqs.getD 2 .empty := by
   obtain ⟨o, _, _, _, _, _, hx, hreq, _⟩ := chunk_of_attachment h
   obtain ⟨oa, b, fs, hxa, _, _, hva⟩ := valid_inv ha
-  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, hm, _⟩ := check_attach hva
+  obtain ⟨_, _, _, _, _, _, _, _, _, _, _, _, _, _, hm, _⟩ := check_attach hva
   exact ⟨o, oa, hx, by rw [hreq]; simp, hxa, hm⟩
 
 /-- A Valid attachment's op claims its time, which is its message's. -/
@@ -45,7 +45,7 @@ theorem attach_order {x c m u root : Id} {len tm : Nat} {k s : ByteArray}
     ∃ o, ops x = some o ∧ orderOf o = tm ∧ m = o.reqs.getD 2 .empty ∧
       ∃ d2 k2 t2 n2 clump, V C ops m (.message c u d2 k2 t2 n2 tm clump) := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨_, _, _, _, _, d2, k2, t2, n2, clump, rfl, rfl, _, hm, _⟩ := check_attach hv
+  obtain ⟨_, _, _, _, _, _, d2, k2, t2, n2, clump, rfl, rfl, _, hm, _⟩ := check_attach hv
   obtain ⟨_, _, z, hreq, _, _, hz⟩ := all2_three hr
   rw [hreq] at hm; simp at hm; subst hm
   exact ⟨o, hx, by simp [orderOf, hb], by rw [hreq]; rfl, d2, k2, t2, n2, clump, hz⟩
