@@ -17,10 +17,10 @@ is: tests/engine/busy_runner_negative.sh), the runner stops with
 
 Then a reader holds a read transaction on b's file while b's session
 closes: the close's purge scrubs (VACUUM and a truncating checkpoint),
-which the reader blocks. b's runner keeps running, and the WAL is
-truncated once the reader ends. Run against the checkpoint as it
-shipped (a blocked one threw), the runner stops ("purge: a reader
-blocked the WAL checkpoint").
+which the reader blocks, so the scrub is due (`scrub_due`). b's runner
+keeps running, and a tick after the reader ends does the scrub. Run
+against the checkpoint as it shipped (a blocked one threw), the runner
+stops ("purge: a reader blocked the WAL checkpoint").
 
     busy_runner <outdir> [hold-ms]
 -/
@@ -182,7 +182,7 @@ def main (args : List String) : IO UInt32 := do
   -- closes (a's runner stops): the close's purge deletes the session's
   -- arrival record, and its truncating checkpoint cannot finish while the
   -- reader holds its snapshot. b's runner keeps running; once the reader
-  -- ends, a later tick truncates the WAL.
+  -- ends, a later tick does the scrub.
   let recs ← (opsOf kRecord).run (← Db.openAt pb)
   t.ok "close: b holds the session's arrival record" (!recs.isEmpty)
   let reader ← Db.openAt pb
@@ -198,19 +198,20 @@ def main (args : List String) : IO UInt32 := do
   -- held past the 5 s busy timeout the checkpoint waits on readers for
   IO.sleep hold.toUInt32
   t.ok "close: the session's close purges its arrival record" purged
+  -- the reader blocked the close's truncating checkpoint: the scrub is due
+  let due (db : Db) : IO Bool := do
+    return !(← db.query "SELECT one FROM scrub_due" #[]).isEmpty
+  t.ok "close: the reader blocked the scrub; it is due (scrub_due)" (← due (← Db.openAt pb))
   t.ok "close: b's runner is still running while a reader blocks the checkpoint" (!(← IO.hasFinished rb.done))
   reader.exec "COMMIT"
-  let wal := pb ++ "-wal"
-  let mut truncated := false
+  -- a tick after the reader ends runs the scrub again, and it is done
+  let mut scrubbed := false
   for _ in [0:300] do
     IO.sleep 50
-    let size ← if ← System.FilePath.pathExists wal then pure (← System.FilePath.metadata wal).byteSize else pure 0
-    -- the runner's own connection keeps the WAL file: only a truncating
-    -- checkpoint empties it while the runner lives
-    if size == 0 && !(← IO.hasFinished rb.done) then
-      truncated := true
+    if !(← due (← Db.openAt pb)) && !(← IO.hasFinished rb.done) then
+      scrubbed := true
       break
-  t.ok "close: once the reader ends, b's runner truncates its WAL (the scrub done)" truncated
+  t.ok "close: once the reader ends, b's runner does the scrub (no longer due)" scrubbed
   t.ok "close: and b's runner is still running" (!(← IO.hasFinished rb.done))
   rb.stop
   let code ← t.finish "busy_runner"
