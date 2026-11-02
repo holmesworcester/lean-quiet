@@ -11,7 +11,10 @@ Any other conflict, a hand-written claim row say, is left for a person:
 a branch's new citations would be lost if main's side were taken. Exit 1
 when any conflict is left.
 
-    ci/readme-merge.py            resolve README.md in place
+The proof tree (docs/PROOF-TREE.md, docs/proof-tree/) is written whole by
+ci/proof-tree.py, so each of its conflicts takes main's side.
+
+    ci/readme-merge.py [FILE...]  resolve README.md (or these files) in place
     ci/readme-merge.py --self-test"""
 import re
 import sys
@@ -31,17 +34,23 @@ def counts_only(ours, theirs):
     return len(ours) == len(theirs) and all(shape(a) == shape(b) for a, b in zip(ours, theirs))
 
 
-def resolve(text):
-    """The text with what can be resolved resolved, and the number left."""
+def generated(path):
+    """A file written whole by a script: every conflict in it takes main's side."""
+    return path == "docs/PROOF-TREE.md" or (path.startswith("docs/proof-tree/") and path.endswith(".md"))
+
+
+def resolve(text, whole=False):
+    """The text with what can be resolved resolved, and the number left;
+    `whole`: all of it is generated."""
     lines = text.split("\n")
-    out, left, inside, i = [], 0, False, 0
+    out, left, inside, i = [], 0, whole, 0
     while i < len(lines):
         line = lines[i]
         if not line.startswith("<<<<<<< "):
             if line.strip() in BEGIN:
                 inside = True
             elif line.strip() in END:
-                inside = False
+                inside = whole
             out.append(line)
             i += 1
             continue
@@ -79,14 +88,27 @@ def self_test():
     assert left == 0 and "201 | 135" in text and "995 of 1341" in text, "generated or counts left"
     text, left = resolve(f"<!-- wiring:begin -->\n{gen}\n<!-- wiring:end -->\n{claim}\n")
     assert left == 1 and "[`a`], [`b`]" in text, "a hand-written row must be left"
+    node = conflict("<li>✅ <a href=\"x.lean#L3\">a</a> · 4 below</li>", "<li>✅ <a href=\"x.lean#L5\">a</a></li>")
+    text, left = resolve(f"# The proof tree\n{node}\n", whole=generated("docs/proof-tree/sync.md"))
+    assert left == 0 and "#L5" in text and "#L3" not in text, "the proof tree takes main's side"
+    assert not generated("docs/SYNC.md") and not generated("README.md"), "only the proof tree is whole"
     print("readme-merge: self-test passed")
 
 
 if sys.argv[1:] == ["--self-test"]:
     self_test()
     sys.exit(0)
-text, left = resolve(open("README.md").read())
-open("README.md", "w").write(text)
+left = 0
+for path in sys.argv[1:] or ["README.md"]:
+    try:
+        text = open(path).read()
+    except FileNotFoundError:  # deleted on one side: written again after the build
+        if generated(path):
+            continue
+        raise
+    text, n = resolve(text, generated(path))
+    open(path, "w").write(text)
+    left += n
 if left:
     print(f"readme-merge: {left} conflict(s) outside the generated lines left to resolve by hand")
 sys.exit(1 if left else 0)

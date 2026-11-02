@@ -54,7 +54,9 @@ def opA : Op := Settings.Appearance.choose 1 .dark
 
 theorem keptA : intake Data.fam true [opA] = [opA] := by
   have : Data.fam.scope opA = .local := Settings.Appearance.choose_local 1 .dark
-  simp [intake, Family.durable, this]
+  have hc : opA.capped = true := by
+    simp [Op.capped, opA, Settings.Appearance.choose, Settings.mkOp, Op.make, maxReqs]
+  simp [intake, Family.durable, this, hc]
 
 theorem inA : opA ∈ intake Data.fam true [opA] := by rw [keptA]; exact List.mem_singleton.2 rfl
 

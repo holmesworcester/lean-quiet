@@ -3002,6 +3002,98 @@ theorem Run.shared_retained {S initial} (r : Run S initial) (target : Side)
     rw [r.next k]
     exact (world_step_moves S (r.state k) (r.action k) target).shared_retained ih hs
 
+/-! ### The community laws in every production trace
+
+The node-level community laws (`connect_iff_node`, `removal_cuts_off_node`,
+…) hold of any store with the engine's invariant and an empty queue.
+`trace_good` says every production trace leaves each peer's store so; each
+`…_trace` law below is one node law applied to it. Covered: both peers run
+the actual `Node.onTick/onFrame/onWrite/onClose` with `Connection.hooks`,
+native crypto, the Held store and any entropy, under any order of ticks,
+arbitrary local writes, FIFO deliveries, drops and two-sided closes. Not
+covered: more than two peers, reordering, restarts, an attacker on the
+wire, and SQLite (the Held store stands in for it). -/
+
+section
+open Community (Admitted Removed Live allowPeer ed25519)
+variable (S : Setup) (ea eb : Nat → ByteArray) (actions : List Action) (side : Side)
+set_option hygiene false in
+local notation "store" => ((trace S (empty ea eb) actions).peer side).memory.held.db
+
+/-- **Every production trace leaves each peer's store good:** the engine's
+invariant holds and the validation queue is empty, the two premises of
+every node-level community law, stated over the running family
+(`family` is its alias here). This is the join's single point of truth;
+the `…_trace` laws rest on it alone. Under drain-cap (holmes-0f), a turn
+settles only urgent facts (removals, admissions, connection and session
+facts), so this becomes "urgent facts settled", and the corollaries rest
+on that through engine/core/Locality.lean: a membership op's verdict
+depends only on the ops it cites, and those are all urgent. Only this law
+changes then. -/
+theorem trace_good : Inv (Connection.node ed25519 sodium) store ∧ (store).queue = [] := by
+  obtain ⟨⟨_, hr, _⟩, hq⟩ := empty_trace_store S ea eb actions side
+  exact ⟨reach_inv hr, hq⟩
+
+/-- **The trust rule at every peer, after every production trace:** it
+takes a node key exactly when a live device is admitted under it. -/
+theorem connect_iff_trace (c : Id) (e : Community.Key) :
+    ((allowPeer c e).liftL : View F Bool).eval store = true ↔
+      ∃ u d, Admitted ed25519 (community ed25519 store).ops c u d e ∧
+        Live ed25519 (community ed25519 store).ops c d :=
+  connect_iff_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e
+
+/-- **A removal the peer holds cuts the removed user's node out of its
+trust rule,** after every production trace. -/
+theorem removal_cuts_off_trace {c u : Id} {e : Community.Key}
+    (hr : Removed ed25519 (community ed25519 store).ops c u)
+    (only : ∀ u' d, Admitted ed25519 (community ed25519 store).ops c u' d e →
+      ∃ e', Admitted ed25519 (community ed25519 store).ops c u d e') :
+    ((allowPeer c e).liftL : View F Bool).eval store = false :=
+  removal_cuts_off_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 hr only
+
+/-- **A node key every admission of which is cut is refused,** at every
+peer after every production trace. -/
+theorem refuse_nonmember_trace (c : Id) (e : Community.Key)
+    (hd : ∀ u d, Admitted ed25519 (community ed25519 store).ops c u d e →
+      Community.Cut ed25519 (community ed25519 store).ops c d) :
+    ((allowPeer c e).liftL : View F Bool).eval store = false :=
+  refuse_nonmember_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2 c e hd
+
+/-- Admitted, at every peer after every production trace: by a Valid
+admission among the peer's own verdicts. -/
+theorem admitted_trace {c u : Id} {d e : Community.Key} :
+    Admitted ed25519 (community ed25519 store).ops c u d e ↔
+      ∃ x, (store).status x = some (.valid (.inl (.admission c u d e))) :=
+  admitted_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+
+/-- Removed, at every peer after every production trace: by a Valid
+removal among the peer's own verdicts. -/
+theorem removed_trace {c u : Id} :
+    Removed ed25519 (community ed25519 store).ops c u ↔
+      ∃ x r, (store).status x = some (.valid (.inl (.removal c u r))) :=
+  removed_node (trace_good S ea eb actions side).1 (trace_good S ea eb actions side).2
+
+end
+
+/-- Every state of a run is the trace of the run's first `n` actions. -/
+theorem Run.state_trace {S initial} (r : Run S initial) (n : Nat) :
+    r.state n = trace S initial ((List.range n).map r.action) := by
+  have snoc : ∀ w l a, trace S w (l ++ [a]) = step S (trace S w l) a := by
+    intro w l a
+    induction l generalizing w with
+    | nil => rfl
+    | cons b l ih => exact ih (step S w b)
+  induction n with
+  | zero => exact r.zero
+  | succ n ih => rw [r.next, ih, List.range_succ, List.map_append, List.map_singleton, snoc]
+
+/-- `trace_good` at every state of every run from `empty`, fair or not. -/
+theorem Run.good {S ea eb} (r : Run S (empty ea eb)) (n : Nat) (side : Side) :
+    Inv (Connection.node Community.ed25519 sodium) ((r.state n).peer side).memory.held.db ∧
+      ((r.state n).peer side).memory.held.db.queue = [] := by
+  rw [r.state_trace]
+  exact trace_good S ea eb _ side
+
 end Connection.Execution
 
 end
@@ -3181,14 +3273,16 @@ committed, including all sixteen possible actual reaction rounds. -/
 theorem store_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.store x ops true s).2.held.db.ops o.id = some o := by
   have hp : (n.put x ops true s).2.held.db.ops o.id = some o := by
     obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs
-    have ho' : o ∈ ops.filter x.fam.durable := List.mem_filter.2 ⟨ho, durable_of_room x.fam hr⟩
-    simpa only [Node.put, intake, ite_true] using
-      write_receives x n s _ hi ho' (fun p hp => sameInput p (List.mem_filter.1 hp).1) sameStore
+    have hin : o ∈ intake x.fam true ops := by
+      simp only [intake, ite_true, List.mem_filter]; exact ⟨⟨ho, durable_of_room x.fam hr⟩, hc⟩
+    simpa only [Node.put] using write_receives x n s (intake x.fam true ops) hi hin
+      (fun p hp => sameInput p (intake_sub x.fam hp)) sameStore
   unfold Node.store
   apply committed_bind x.fam _ _ s hp hs
   intro r
@@ -3201,22 +3295,23 @@ bound or a claim that absent prerequisites already exist. -/
 theorem onWrite_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (n : Engine.Sync.Node) (s : Memory) (ops : List Op) (now : Nat)
     (hi : Inv x.fam s.held.db) {o : Op} (ho : o ∈ ops) (hs : (x.fam.room o).isSome)
+    (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.onWrite x ops now s).2.held.db.ops o.id = some o := by
   unfold Node.onWrite
   exact committed_bind x.fam _ _ s
-    (store_receives x hr n s ops hi ho hs sameInput sameStore) hs
+    (store_receives x hr n s ops hi ho hs hc sameInput sameStore) hs
     (fun _ => NodeTape.finish_goes x hr _ _ _)
 
 theorem production_write_receives (S : Setup) (side : Side) (n : Engine.Sync.Node)
     (s : Memory) (ops : List Op) (now : Nat) (hi : Inv family s.held.db)
-    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome)
+    {o : Op} (ho : o ∈ ops) (hs : (family.room o).isSome) (hc : o.capped = true)
     (sameInput : ∀ p ∈ ops, p.id = o.id → p = o)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.step (S.sync side) (.write ops) now s).2.held.db.ops o.id = some o := by
   simpa only [Node.step] using
-    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs sameInput sameStore)
+    (onWrite_receives (S.sync side) (NodeTape.production_readOnly S side) n s ops now hi ho hs hc sameInput sameStore)
 
 end Connection.Execution
 
