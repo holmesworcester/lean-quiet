@@ -50,6 +50,12 @@ Rests on: `Community.Unforgeable`
 |---|---|---|
 | h | `Community.V C ops x (Community.Fact.removal c t u)` | [discharged] |
 
+**`Community.removal_anchored`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.removal c t u)` | [discharged] |
+
 **`Community.admin_granted`** (wired)
 
 | premise | statement | tag |
@@ -71,6 +77,53 @@ Rests on: `Community.Unforgeable`
 |---|---|---|
 | he | `Engine.Extends ops ops'` | [discharged] |
 | h | `Community.V C ops x f` | [discharged] |
+
+## ✅ A linked device joins its issuer's user, approved by that user.
+
+**`Community.link_approved_by_issuer`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hk | `Community.Keyed ops` | [discharged] |
+| hx | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
+| hr | `Community.V C ops r (Community.Fact.request c u d e true)` | [discharged] |
+
+**`Community.link_admits_issuer`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hk | `Community.Keyed ops` | [discharged] |
+| h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+
+**`Community.issue_link`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.parse_other_kind`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.asks_link`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.joinOps_link_unnamed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `i.link = true` | [discharged] |
+
+**`Community.introduce_named`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
 
 ## ✅ Every op verifies under the required keys:
 
@@ -221,7 +274,7 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send ++ Engine.Sync.holdsOf cfg (Engine.Sync.Conn.walk fam cfg c h).fst.snd` | [base] |
+| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send` | [base] |
 | hi | `i ∈ ids` | [discharged] |
 
 **`Connection.wire_kinds`** (wired)
@@ -268,14 +321,14 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send ++ Engine.Sync.holdsOf cfg (Engine.Sync.Conn.walk fam cfg c h).fst.snd` | [base] |
+| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send` | [base] |
 | hi | `i ∈ ids` | [discharged] |
 
 **`Engine.Sync.offer_stored`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send ++ Engine.Sync.holdsOf cfg (Engine.Sync.Conn.walk fam cfg c h).fst.snd` | [base] |
+| hm | `(Engine.Sync.Msg.hold r ids).op ∈ (Engine.Sync.Conn.filed fam cfg c news h).fst.send` | [base] |
 | hi | `i ∈ ids` | [discharged] |
 
 **`Engine.Sync.tick_send`** (wired)
@@ -633,7 +686,6 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | hi | `Engine.Inv fam h.db` | [discharged] |
 | hc | `Engine.Sync.Cached fam n h.db` | [discharged] |
-| hs | `Engine.Sync.SnapsIn n.ix c` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 **`Engine.Sync.boot_cached`** (wired)
@@ -665,11 +717,11 @@ Rests on: `Engine.Model.run`
 | hc | `Engine.Sync.Cached fam n s` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`Engine.Sync.write_snaps`** (wired)
+**`Engine.Sync.write_items`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hs | `Engine.Sync.SnapsIn n.ix c` | [discharged] |
+| ha | `a ∈ n.ix.items r` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 **`Engine.Sync.have_shown_premises`** (wired)
@@ -1068,6 +1120,29 @@ Rests on: `Engine.Model.run`
 | hq | `q ∈ ((Connection.onArrival none addr o at_).run s).fst` | [base] |
 | hb | `Engine.Codec.decode q.body = some (Connection.Body.send a)` | [discharged] |
 
+## 🟡 A removed user's linked devices are told.
+
+Rests on: `Engine.Model.run`
+
+**`Community.removal_cuts_off`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hr | `Community.Removed C s.ops c u` | [discharged] |
+| only | `∀ (u' : Engine.Id) (d : Community.Key), Community.Admitted C s.ops c u' d e → ∃ e', Community.Admitted C s.ops c u d e'` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Connection.rooms_removed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hl | `Connection.LiveIn s c` | [discharged] |
+| hr | `Connection.Refused s cid c` | [discharged] |
+| a | `rm ∈ Engine.View.eval s (Connection.roomsV cid)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
 ## 🟡 No session before approval,
 
 Rests on: `Engine.Model.run`
@@ -1335,6 +1410,7 @@ Rests on: `Engine.Model.run`, `Merkle.NoCollision`
 | hk | `Community.Keyed ops` | [discharged] |
 | hsize | `∀ (x : ByteArray), (Engine.sha256 x).size = 32` | [discharged] |
 | hspr | `Community.ChunksSound ops ct` | [crypto] |
+| ha | `Community.V C ops att (Community.Fact.attachment c m u (Merkle.fileRoot Engine.sha256 ct) l2 tm k s)` | [discharged] |
 | hx | `Community.V C ops x (Community.Fact.chunk c att (Merkle.fileRoot Engine.sha256 ct) l i)` | [discharged] |
 | hy | `Community.V C ops y (Community.Fact.chunk c att (Merkle.fileRoot Engine.sha256 ct) l' i)` | [discharged] |
 
@@ -1346,8 +1422,14 @@ Rests on: `Engine.Model.run`, `Merkle.NoCollision`
 | hspr | `Community.ChunksSound s.ops ct` | [crypto] |
 | h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
-| ha | `Community.V C s.ops att (Community.Fact.attachment c m u (Merkle.fileRoot Engine.sha256 ct) len k x)` | [discharged] |
+| ha | `Community.V C s.ops att (Community.Fact.attachment c m u (Merkle.fileRoot Engine.sha256 ct) len tm k x)` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.chunks_in_window`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.chunk c att root len i)` | [discharged] |
 
 **`Merkle.assumptions_hold`** (wired)
 
@@ -1493,31 +1575,11 @@ Rests on: `Engine.Model.run`
 | hc | `Engine.Sync.Conn.Reachable fam cfg c` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`Engine.Sync.full_round_stateless`** (wired)
+**`Engine.Sync.over_cost`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hf | `c.roundFloor ≤ 1` | [discharged] |
-
-**`Engine.Sync.closure_capped`** (wired)
-
-| premise | statement | tag |
-|---|---|---|
-| a | `Engine.Sync.Conn.ClosureBounded cfg c` | [discharged] |
-| (stated over) | `Engine.Model.run` | [base] |
-
-**`Engine.Sync.closure_complete_under_cap`** (wired)
-
-| premise | statement | tag |
-|---|---|---|
-| hwindow | `1 < c.roundFloor` | [discharged] |
-| hempty | `c.closed = ∅` | [discharged] |
-| hunique | `c.frontier.Nodup` | [discharged] |
-| hseeds | `c.frontier ⊆ whole` | [discharged] |
-| hwhole | `Engine.Sync.Whole fam h c whole` | [discharged] |
-| hcap | `whole.length ≤ cfg.closureCap` | [discharged] |
-| hfuel | `whole.length ≤ cfg.walk` | [discharged] |
-| (stated over) | `Engine.Model.run` | [base] |
+| hc | `∀ (x : Engine.Id), ix.cost x ≤ M` | [discharged] |
 
 **`Engine.Sync.honest_no_drop`** (wired)
 
@@ -1587,6 +1649,102 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | ht | `c.askTime[i]?.getD c.heard + cfg.askTime < now` | [discharged] |
 
+## ✅ A windowed node gets its window's requirements in the round.
+
+**`Engine.Sync.window_set_canonical`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hL | `∀ (o : Engine.Op), o ∈ L1 ↔ o ∈ L2` | [discharged] |
+| u1 | `∀ (o : Engine.Op), o ∈ L1 → ∀ (p : Engine.Op), p ∈ L1 → o.id = p.id → o = p` | [discharged] |
+
+**`Engine.Sync.over_mem`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hf | `1 < f` | [discharged] |
+
+**`Engine.Sync.window_round_complete`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
+| hmax | `0 < cfg.maxIds` | [discharged] |
+| sub | `∀ (t : Nat) (a : Engine.Sync.Item), a ∈ Engine.Sync.Index.over cfg.params.depth (states t).index r ((states t).receiving.beginRound k).roundFloor → a ∈ U` | [discharged] |
+| sorted | `∀ (t : Nat), Engine.Sync.Sorted Prod.fst (Engine.Sync.Index.over cfg.params.depth (states t).index r ((states t).receiving.beginRound k).roundFloor)` | [discharged] |
+| hZ | `∀ (t : Nat), Z (t + 1) = Engine.Sync.Index.over cfg.params.depth (states t).index r ((states t).receiving.beginRound k).roundFloor` | [discharged] |
+| named | `∀ (t : Nat), Engine.Sync.Named Prod.fst Prod.snd (Engine.Sync.Index.over cfg.params.depth (states t).index r ((states t).receiving.beginRound k).roundFloor +…` | [discharged] |
+| sound | `∀ (t : Nat), Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 (Engine.Sync.Index.over cfg.params.depth (states t).index r ((states t).receiving.beginRound k…` | [discharged] |
+| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn U cl ≤ bound` | [discharged] |
+
+**`Engine.Sync.closure_delivered_under_bound`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
+| hmax | `0 < cfg.maxIds` | [discharged] |
+| sub | `∀ (t : Nat) (a : Engine.Sync.Item), a ∈ Engine.Sync.RoundRun.State.items cfg r k (states t) → a ∈ U` | [discharged] |
+| sorted | `∀ (t : Nat), Engine.Sync.Sorted Prod.fst (Engine.Sync.RoundRun.State.items cfg r k (states t))` | [discharged] |
+| hZ | `∀ (t : Nat), Z (t + 1) = Engine.Sync.RoundRun.State.items cfg r k (states t)` | [discharged] |
+| named | `∀ (t : Nat), Engine.Sync.Named Prod.fst Prod.snd (Engine.Sync.RoundRun.State.items cfg r k (states t) ++ Z t)` | [discharged] |
+| sound | `∀ (t : Nat), Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 (Engine.Sync.RoundRun.State.items cfg r k (states t)) (Z t)` | [discharged] |
+| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn U cl ≤ bound` | [discharged] |
+| alt | `∀ (t : Nat), mine (t + 1) = !mine t` | [discharged] |
+| hf | `1 < f` | [discharged] |
+| hB | `∀ (t : Nat), mine t = true → ∀ (b : Engine.Sync.Item), b ∈ Engine.Sync.Index.over cfg.params.depth ixB r f → b ∈ Engine.Sync.RoundRun.State.items cfg r k (st…` | [discharged] |
+| hB0 | `mine 0 = false → ∀ (b : Engine.Sync.Item), b ∈ Engine.Sync.Index.over cfg.params.depth ixB r f → b ∈ Z 0` | [discharged] |
+| fits | `∀ (x : Engine.Id) (j : Nat), Engine.Sync.Near (ixB.next r) (ixB.windowIds r f) j x → Engine.Sync.Near (ixB.next r) (ixB.windowIds r f) cfg.params.depth x` | [discharged] |
+| ha | `a ∈ ixB.items r` | [discharged] |
+| hj | `Engine.Sync.Near (ixB.next r) (ixB.windowIds r f) j a.snd` | [discharged] |
+| hcl | `cl ∈ (states 0).pending` | [discharged] |
+| honest | `Engine.Sync.Honest Prod.fst Prod.snd Engine.sha256 (Z 0) q cl` | [discharged] |
+| hq | `q.has a.fst = true` | [discharged] |
+
+**`Community.timed_chain_le`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hv | `Community.V C ops x f` | [discharged] |
+| hc | `Community.TimedChain ops x n` | [discharged] |
+
+## ✅ Newest first.
+
+**`Engine.Sync.opening_newest_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| sX | `Engine.Sync.Sorted key X` | [discharged] |
+
+**`Engine.Sync.answer_newest_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| sX | `Engine.Sync.Sorted key X` | [discharged] |
+
+**`Engine.Sync.newest_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| sX | `Engine.Sync.Sorted key X` | [discharged] |
+| a | `List.Pairwise Engine.Sync.Range.Before (List.map Engine.Sync.Claim.range cs)` | [discharged] |
+| a | `∀ (c : Engine.Sync.Claim), c ∈ cs → c.range.Plain` | [discharged] |
+
+**`Engine.Sync.window_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.chunks_in_window`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.chunk c att root len i)` | [discharged] |
+
 ## ✅ Rooms progress independently.
 
 **`Engine.Sync.room_independent`** (wired)
@@ -1595,7 +1753,7 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | hp | `c.peerFloor = some pf` | [discharged] |
 | hr | `r ∈ c.rooms` | [discharged] |
-| idle | `(c.snaps.any fun p => p.fst.fst == r) = false` | [discharged] |
+| due | `(Engine.Sync.Conn.due cfg c r now \|\| Engine.Sync.Conn.retake cfg c r) = true` | [discharged] |
 
 **`Engine.Sync.unshown_room_answered`** (wired)
 
@@ -1610,7 +1768,6 @@ Rests on: `Engine.Model.run`
 | hr | `Engine.has c.rooms r = true` | [discharged] |
 | hc | `cs.isEmpty = false` | [discharged] |
 | fresh | `c.oldRound r k = false` | [discharged] |
-| hn | `List.find? (fun p => decide (p.fst = (r, k))) c.snaps = none` | [discharged] |
 
 ## ✅ Purges notify readers.
 
@@ -2155,7 +2312,53 @@ Rests on: `Engine.Model.run`
 | hs | `ops' o.id = some o` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-## 🟡 A delivered sync round finishes and announces missing IDs,
+## 🟡 A sync round finishes and finds every difference, whatever is written meanwhile.
+
+**`Engine.Sync.RoundRun.terminates`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| sub | `∀ (t : Nat) (a : Engine.Sync.Item), a ∈ Engine.Sync.RoundRun.State.items cfg r k (states t) → a ∈ U` | [discharged] |
+| sorted | `∀ (t : Nat), Engine.Sync.Sorted Prod.fst (Engine.Sync.RoundRun.State.items cfg r k (states t))` | [discharged] |
+| a | `∀ (cl : Engine.Sync.Claim), cl ∈ (states t).pending → Engine.Sync.RoundRun.rankIn U cl ≤ bound` | [discharged] |
+
+**`Engine.Sync.RoundRun.discovers`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
+| hmax | `0 < cfg.maxIds` | [discharged] |
+| sub | `∀ (t : Nat) (a : Engine.Sync.Item), a ∈ Engine.Sync.RoundRun.State.items cfg r k (states t) → a ∈ U` | [discharged] |
+| sorted | `∀ (t : Nat), Engine.Sync.Sorted Prod.fst (Engine.Sync.RoundRun.State.items cfg r k (states t))` | [discharged] |
+| hZ | `∀ (t : Nat), Z (t + 1) = Engine.Sync.RoundRun.State.items cfg r k (states t)` | [discharged] |
+| named | `∀ (t : Nat), Engine.Sync.Named Prod.fst Prod.snd (Engine.Sync.RoundRun.State.items cfg r k (states t) ++ Z t)` | [discharged] |
+| sound | `∀ (t : Nat), Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 (Engine.Sync.RoundRun.State.items cfg r k (states t)) (Z t)` | [discharged] |
+| alt | `∀ (t : Nat), mine (t + 1) = !mine t` | [discharged] |
+| keep | `∀ (t : Nat), mine t = true → a ∈ Engine.Sync.RoundRun.State.items cfg r k (states t)` | [discharged] |
+| a | `Engine.Sync.RoundRun.rankIn U cl = m` | [discharged] |
+| a | `cl ∈ (states t).pending` | [discharged] |
+| a | `Engine.Sync.Honest Prod.fst Prod.snd Engine.sha256 (Z t) q cl` | [discharged] |
+| a | `q.has a.fst = true` | [discharged] |
+| a | `mine t = true ∧ ¬a ∈ Z t ∨ mine t = false ∧ a ∈ Z t` | [discharged] |
+
+**`Engine.Sync.live_round_complete`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
+| hmax | `0 < cfg.maxIds` | [discharged] |
+| sub | `∀ (t : Nat) (a : Engine.Sync.Item), a ∈ Engine.Sync.RoundRun.State.items cfg r k (states t) → a ∈ U` | [discharged] |
+| sorted | `∀ (t : Nat), Engine.Sync.Sorted Prod.fst (Engine.Sync.RoundRun.State.items cfg r k (states t))` | [discharged] |
+| hZ | `∀ (t : Nat), Z (t + 1) = Engine.Sync.RoundRun.State.items cfg r k (states t)` | [discharged] |
+| named | `∀ (t : Nat), Engine.Sync.Named Prod.fst Prod.snd (Engine.Sync.RoundRun.State.items cfg r k (states t) ++ Z t)` | [discharged] |
+| sound | `∀ (t : Nat), Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 (Engine.Sync.RoundRun.State.items cfg r k (states t)) (Z t)` | [discharged] |
+| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn U cl ≤ bound` | [discharged] |
 
 **`Engine.Sync.exchange_complete`** (model)
 
@@ -2169,21 +2372,117 @@ Rests on: `Engine.Model.run`
 | a | `(Engine.Sync.within key r X).length + (Engine.Sync.within key r Y).length < n` | [discharged] |
 | (about) | `code that does not run: Engine.Sync.exchange` | [model] |
 
+**`Engine.Sync.Tree.exchange_log`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| sX | `Engine.Sync.Sorted key X` | [discharged] |
+| sY | `Engine.Sync.Sorted key Y` | [discharged] |
+| nm | `Engine.Sync.Named key ident (X ++ Y)` | [discharged] |
+| so | `Engine.Sync.Sound key ident h X Y` | [discharged] |
+| hc | `Engine.Sync.Honest key ident h Y r c` | [discharged] |
+| hX | `(Engine.Sync.within key r X).length ≤ P.leaf * P.fan ^ j` | [discharged] |
+| hY | `(Engine.Sync.within key r Y).length ≤ P.leaf * P.fan ^ i` | [discharged] |
+| hn | `i + j + 2 ≤ n` | [discharged] |
+| (about) | `code that does not run: Engine.Sync.exchange` | [model] |
+
 **`Engine.Sync.conn_runs_exchange`** (model)
 
 | premise | statement | tag |
 |---|---|---|
-| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [discharged] |
 | capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
 | hmax | `0 < cfg.maxIds` | [discharged] |
-| ready | `Engine.Sync.RoundRun.Ready r k X Y (states 0)` | [discharged] |
+| ready | `Engine.Sync.RoundRun.Both r k (states 0)` | [discharged] |
+| hX | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t)) = X` | [discharged] |
+| hY | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t + 1)) = Y` | [discharged] |
 | sx | `Engine.Sync.Sorted Prod.fst X` | [discharged] |
 | sy | `Engine.Sync.Sorted Prod.fst Y` | [discharged] |
 | named | `Engine.Sync.Named Prod.fst Prod.snd (X ++ Y)` | [discharged] |
 | sound | `Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 X Y` | [discharged] |
 | emptyA | `(states 0).receiving.asked = ∅` | [discharged] |
 | emptyB | `(states 0).waiting.asked = ∅` | [discharged] |
-| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rank X Y cl ≤ bound` | [model] |
+| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn (X ++ Y) cl ≤ bound` | [discharged] |
+| (about) | `code that does not run: Engine.Sync.RoundRun.State.advance, Engine.Sync.exchange` | [model] |
+
+## 🟡 A room shown on a live session gets a round, whichever end starts showing it.
+
+Rests on: `Engine.Model.run`
+
+**`Engine.Sync.round_due`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `c.dialer = true` | [discharged] |
+| hp | `c.peerFloor = some pf` | [discharged] |
+| hr | `r ∈ c.rooms` | [discharged] |
+| hl | `now ≤ c.heard + cfg.live` | [discharged] |
+| due | `(Engine.Sync.Conn.due cfg c r now \|\| Engine.Sync.Conn.retake cfg c r) = true` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.shown_due`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hnew | `¬r ∈ c.rooms` | [discharged] |
+
+**`Engine.Sync.responder_asks`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `c.dialer = false` | [discharged] |
+| hp | `c.peerFloor = some pf` | [discharged] |
+| hr | `r ∈ c.rooms` | [discharged] |
+| hl | `now ≤ c.heard + cfg.live` | [discharged] |
+| fresh | `c.roundedAt r = none` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.ask_due`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `c.dialer = true` | [discharged] |
+| hr | `r ∈ c.rooms` | [discharged] |
+| idle | `(c.active.any fun p => decide (p.fst = r)) = false` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.join_round`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hda | `a.dialer = true` | [discharged] |
+| hdb | `b.dialer = false` | [discharged] |
+| hpa | `a.peerFloor = some pfa` | [discharged] |
+| hpb | `b.peerFloor = some pfb` | [discharged] |
+| hra | `r ∈ a.rooms` | [discharged] |
+| hrb | `r ∈ b.rooms` | [discharged] |
+| fresh | `b.roundedAt r = none` | [discharged] |
+| idle | `(a.active.any fun p => decide (p.fst = r)) = false` | [discharged] |
+| hlb | `t1 ≤ b.heard + cfg.live` | [discharged] |
+| hla | `t3 ≤ t2 + cfg.live` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.no_round_before_safety`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ht | `c.roundedAt r = some t` | [discharged] |
+| early | `now < t + cfg.safety` | [discharged] |
+| hs | `Engine.has c.short r = false` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.responder_opens_none`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `c.dialer = false` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.shipped_controls_apply`** (control)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
 
 ## ✅ Fingerprints are honest.
 
@@ -2218,23 +2517,6 @@ Rests on: `Engine.Model.run`
 | hold | `∀ (y : Engine.Id) (o : Engine.Op), Engine.Sync.Reach ops x y → ops y = some o → ops' y = some o` | [discharged] |
 | (about) | `a specification or an assumption only` | [spec] |
 
-## 🟡 A joiner connects, and both sides converge.
-
-Rests on: `(a World's network)`
-
-**`Connection.Execution.successful_fair_extension`** (world)
-
-| premise | statement | tag |
-|---|---|---|
-| success | `Goal (Connection.Execution.trace S initial actions)` | [model] |
-| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
-
-**`Connection.Execution.fairRun_fair`** (world)
-
-| premise | statement | tag |
-|---|---|---|
-| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
-
 ## 🟡 The connection's progress steps work.
 
 Rests on: `Engine.Model.run`
@@ -2245,23 +2527,26 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | hr | `r ∈ c.rooms` | [discharged] |
 | fresh | `c.oldRound r k = false` | [discharged] |
-| hX | `X = (Option.map (fun x => x.snd) (List.find? (fun p => decide (p.fst = (r, k))) c.snaps)).getD (ix.items r)` | [discharged] |
+| hX | `X = Engine.Sync.Index.over cfg.params.depth ix r (c.beginRound k).roundFloor` | [discharged] |
 
 **`Engine.Sync.conn_runs_exchange`** (model)
 
 | premise | statement | tag |
 |---|---|---|
-| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [discharged] |
 | capacity | `∀ (t : Nat), Engine.Sync.RoundRun.Capacity cfg r k (states t)` | [discharged] |
 | hmax | `0 < cfg.maxIds` | [discharged] |
-| ready | `Engine.Sync.RoundRun.Ready r k X Y (states 0)` | [discharged] |
+| ready | `Engine.Sync.RoundRun.Both r k (states 0)` | [discharged] |
+| hX | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t)) = X` | [discharged] |
+| hY | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t + 1)) = Y` | [discharged] |
 | sx | `Engine.Sync.Sorted Prod.fst X` | [discharged] |
 | sy | `Engine.Sync.Sorted Prod.fst Y` | [discharged] |
 | named | `Engine.Sync.Named Prod.fst Prod.snd (X ++ Y)` | [discharged] |
 | sound | `Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 X Y` | [discharged] |
 | emptyA | `(states 0).receiving.asked = ∅` | [discharged] |
 | emptyB | `(states 0).waiting.asked = ∅` | [discharged] |
-| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rank X Y cl ≤ bound` | [model] |
+| ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn (X ++ Y) cl ≤ bound` | [discharged] |
+| (about) | `code that does not run: Engine.Sync.RoundRun.State.advance, Engine.Sync.exchange` | [model] |
 
 **`Engine.Sync.closure_delivered`** (wired)
 
@@ -2427,6 +2712,23 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hs | `r ∈ S.rooms s cid` | [discharged] |
 | hmore | `∀ (b : ByteArray), b ∈ more → ∃ r l, b = (Engine.Sync.Msg.hold r l).op.bytes` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+## 🟡 A joiner connects, and both sides converge.
+
+Rests on: `(a World's network)`
+
+**`Connection.Execution.successful_fair_extension`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| success | `Goal (Connection.Execution.trace S initial actions)` | [model] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.fairRun_fair`** (world)
+
+| premise | statement | tag |
+|---|---|---|
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 ## ✅ Wants retain their order.

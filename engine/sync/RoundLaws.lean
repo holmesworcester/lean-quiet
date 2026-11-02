@@ -28,7 +28,7 @@ def Sound (X Y : List α) : Prop :=
 /-- A claim Y can honestly make about r. -/
 def Honest (Y : List α) (r : Range) : Claim → Prop
   | .fp r' n l => r' = r ∧ (n, l) = fp key ident h (within key r Y)
-  | .ids r' xs => r' = r ∧ xs = (within key r Y).map ident
+  | .ids r' xs => r' = r ∧ xs = ((within key r Y).map ident).reverse
 
 end
 
@@ -99,7 +99,7 @@ theorem filter_len_lt {l : List α} {p q : α → Bool} (hq : ∀ a, q a = true 
 /-- Answering a claim of ids: what this side holds there that the
 claimant lacks, and what it lacks. -/
 theorem exchange_ids (n : Nat) (X Y : List α) (r : Range) (xs : List ByteArray)
-    (hc : xs = (within key r Y).map ident) (i : ByteArray) :
+    (hc : xs = ((within key r Y).map ident).reverse) (i : ByteArray) :
     (i ∈ (exchange key ident h P (n + 1) X Y (.ids r xs)).1 ↔
       named ident (within key r X) i = true ∧ named ident (within key r Y) i = false) ∧
     (i ∈ (exchange key ident h P (n + 1) X Y (.ids r xs)).2 ↔
@@ -107,10 +107,10 @@ theorem exchange_ids (n : Nat) (X Y : List α) (r : Range) (xs : List ByteArray)
   subst hc
   rw [exchange, (mem_fold _ _ i).1, (mem_fold _ _ i).2]
   simp only [answer, List.mem_cons, List.mem_nil_iff, or_false, exists_eq_or_imp, give, get,
-    exists_eq_left, List.not_mem_nil, false_or, or_false]
+    exists_eq_left, List.not_mem_nil, false_or, or_false, List.mem_reverse]
   constructor
   · simp only [List.mem_map, List.mem_filter, Bool.not_eq_true', List.any_eq_false, List.mem_map,
-      named_iff, named_false]
+      named_iff, named_false, List.mem_reverse]
     constructor
     · rintro ⟨a, ⟨ha, hna⟩, rfl⟩
       refine ⟨⟨a, ha, rfl⟩, fun b hb e => ?_⟩
@@ -120,7 +120,7 @@ theorem exchange_ids (n : Nat) (X Y : List α) (r : Range) (xs : List ByteArray)
       simp only [decide_eq_true_eq]
       intro e'
       exact hn b hb (e.trans e'.symm)
-  · simp only [List.mem_filter, List.mem_map, Bool.not_eq_true', named_iff, named_false]
+  · simp only [List.mem_filter, List.mem_map, Bool.not_eq_true', named_iff, named_false, List.mem_reverse]
 
 /-- Items named alike on both sides of a range: by `lbl_inj`. -/
 theorem same_of_fp {X Y : List α} {r : Range} (nm : Named key ident (X ++ Y))
@@ -262,7 +262,7 @@ theorem exchange_complete : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim
         · -- Few items here: answer with them all.
           rw [exchange, (mem_fold _ _ i).1, (mem_fold _ _ i).2]
           have ha : answer key ident h P X (.fp r' cn cl) =
-              [.claim (.ids r' ((within key r' X).map ident))] := by
+              [.claim (.ids r' ((within key r' X).map ident).reverse)] := by
             simp [answer, hf, hl]
           rw [ha]
           simp only [List.mem_cons, List.mem_nil_iff, or_false, exists_eq_left, give, get]
@@ -277,16 +277,17 @@ theorem exchange_complete : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim
             exact ⟨n - 1, by omega⟩
           obtain ⟨k, rfl⟩ := hn1
           have := exchange_ids (key := key) (ident := ident) (h := h) (P := P) k Y X r'
-            ((within key r' X).map ident) rfl i
+            ((within key r' X).map ident).reverse rfl i
           exact ⟨this.2, this.1⟩
         · -- Many items here: cut the range; each piece is a round of its own.
           have hl' : P.leaf < (within key r' X).length := by omega
           rw [exchange, (mem_fold _ _ i).1, (mem_fold _ _ i).2]
-          have ha : answer key ident h P X (.fp r' cn cl) =
-              (pieces r' (cutsOf key P (within key r' X))).map fun q =>
-                .claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2) := by
-            simp [answer, hf, hl]
-          rw [ha]
+          -- The answer claims each piece once, in whatever order (`answer_newest_first`).
+          have ha : ∀ o, o ∈ answer key ident h P X (.fp r' cn cl) ↔
+              ∃ q ∈ pieces r' (cutsOf key P (within key r' X)),
+                Out.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2) = o := by
+            intro o
+            simp only [answer, hf, hl, ite_false, List.mem_map, List.mem_reverse]
           have hcut : ∀ c ∈ cutsOf key P (within key r' X), r'.has c = true := by
             intro c hc
             simp only [cutsOf, List.mem_map] at hc
@@ -299,17 +300,16 @@ theorem exchange_complete : ∀ (n : Nat) (X Y : List α) (r : Range) (c : Claim
             (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)
             sY sX (named_symm nm) so.symm ⟨rfl, rfl⟩
             (by have := (pieces_shrink (P := P) sX hl' q hq).1; have := hsub q hq; omega) i
-          have hmap : ∀ (f : Out → List ByteArray), (∃ o ∈ (pieces r' (cutsOf key P (within key r' X))).map
-              (fun q => Out.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)),
+          have hmap : ∀ (f : Out → List ByteArray), (∃ o ∈ answer key ident h P X (.fp r' cn cl),
               i ∈ f o) ↔ ∃ q ∈ pieces r' (cutsOf key P (within key r' X)),
               i ∈ f (.claim (.fp q (fp key ident h (within key q X)).1 (fp key ident h (within key q X)).2)) := by
             intro f
             constructor
             · rintro ⟨o, ho, hi⟩
-              obtain ⟨q, hq, rfl⟩ := List.mem_map.mp ho
+              obtain ⟨q, hq, rfl⟩ := (ha o).1 ho
               exact ⟨q, hq, hi⟩
             · rintro ⟨q, hq, hi⟩
-              exact ⟨_, List.mem_map.mpr ⟨q, hq, rfl⟩, hi⟩
+              exact ⟨_, (ha _).2 ⟨q, hq, rfl⟩, hi⟩
           rw [hmap, hmap]
           simp only [give, get]
           constructor
