@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# The clean-room test of `make install && make run`: for each image, a fresh
-# container clones the committed tree (HEAD, as a git bundle), installs and
-# builds from nothing as a user with sudo, and opens the app under Xvfb; a
-# screenshot must show the window painted (tests/make/clean_room_inner.sh).
+# The clean-room test of `make install && make run` and `make demo`: for
+# each image, a fresh container clones the committed tree (HEAD, as a git
+# bundle), installs and builds from nothing as a user with sudo, and opens
+# the app under Xvfb; a screenshot must show the window painted. Then
+# make demo's e2e runs from the clone: two windows joined, a message each
+# way (tests/make/clean_room_inner.sh).
 #
 #   tests/make/clean_room.sh [image...]   default: ubuntu:24.04 ubuntu:22.04 debian:12
 #
@@ -18,8 +20,8 @@
 # swap; images run one after another unless CLEAN_ROOM_PARALLEL=1.
 # VERIFY=1 also runs `make verify` (lake check, lake comparator) in the
 # container, which then runs privileged: both sandbox with bubblewrap.
-# Only committed files are tested. Artifacts (logs, screenshots, result.txt)
-# stay in out/make/clean-room/<image>/. Removes its containers.
+# Only committed files are tested. Artifacts (logs, screenshots, result.txt,
+# demo-e2e/) stay in out/make/clean-room/<image>/. Removes its containers.
 set -euo pipefail
 top=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$top"
@@ -83,7 +85,7 @@ one() {
   [ -z "$(find "$dir" ! -user "$(id -u)" -print -quit)" ] ||
     docker run --rm -v "$dir:/out" "$image" chown -R "$(id -u):$(id -g)" /out
   if [ "$code" = 0 ] && grep -qx 'step=pass' "$dir/result.txt"; then
-    echo "ok   $image: $(grep "^install_summary=" "$dir/result.txt" | cut -d= -f2-); screenshots $dir/shot-run.png, shot-online.png"
+    echo "ok   $image: $(grep "^install_summary=" "$dir/result.txt" | cut -d= -f2-); screenshots $dir/shot-run.png, shot-online.png, demo-e2e/8-reply.png"
   else
     echo "FAIL $image (exit $code): $(grep '^fail=' "$dir/result.txt" 2>/dev/null | cut -d= -f2-) - see $dir"
     return 1
