@@ -309,6 +309,9 @@ changed with it:
 - `connect_iff`: the stricter trust rule, `Trusted ∧ Live` instead of
   `Admitted ∧ Live`.
 
+`deviceCut_removal`, a headline law added after the submission, names
+the admission with its key id too.
+
 [89914bea]: https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797
 [74dea236]: https://github.com/holmesworcester/lean-quiet/commit/74dea2361edfe17ea860812302b6617f271e6fd5
 [b8387523]: https://github.com/holmesworcester/lean-quiet/commit/b83875239ee0574e43acdb09b2be40b888c26394

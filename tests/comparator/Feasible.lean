@@ -3,8 +3,8 @@ Which headline laws Comparator can judge under their own names
 (docs/HEADLINE.md, "Comparator"): `#challenge_imports` (tests/SpecSurface.lean)
 lists, for each, the modules a challenge must import, or the definitions
 that block it (they live in the law's module, or in one that imports
-it); then, for the groups of tests/comparator/solution.py's `OWN`, that
-no group's imports reach one of its own laws.
+it), and the fewest groups whose imports reach none of their own laws:
+tests/comparator/solution.py's `OWN` follows them.
 
   lake env lean tests/comparator/Feasible.lean
 -/
@@ -23,7 +23,7 @@ import engine.renderer.Cover
 import engine.sync.ConnLaws
 import engine.wire.NoiseSymbolic
 
-/-! ## Each of the seventeen -/
+/-! ## Each of the eighteen, and the fewest groups of them -/
 
 #challenge_imports
   Community.no_impersonation
@@ -43,12 +43,4 @@ import engine.wire.NoiseSymbolic
   Switch.select_tapped_dedupe
   Community.approveReq_ops
   Engine.ingest_costs
-
-/-! ## The groups of `OWN`: none may report a clash -/
-
-#challenge_imports Community.no_impersonation Community.admission_needs_approval
-  Community.removal_authorized Community.connect_iff Connection.sealed_auth
-  Switch.select_tapped_dedupe Community.approveReq_ops
-#challenge_imports Engine.same_ops_same_verdicts
-#challenge_imports Engine.ingest_costs
-#challenge_imports NavLaws.back_open
+  PeopleLaws.deviceCut_removal

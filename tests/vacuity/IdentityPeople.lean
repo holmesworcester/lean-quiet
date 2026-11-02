@@ -62,6 +62,12 @@ def liveListsLe := PeopleLaws.live_lists_le (run before) c (run before).stored.l
 
 def presentWLists := PeopleLaws.presentW_lists (run before) c 1 3 (run before).stored.length everyDeviceBound
 
+-- After Alice removes Bob, the running `deviceCut` marks Bob's device: the
+-- premise of `deviceCut_removal` holds of a real signed store, and the law
+-- then names the admission and the removal it read.
+def deviceCutRemoval := if h : (deviceCut c bob.pk).eval (run after) = true then
+  some (PLift.up (PeopleLaws.deviceCut_removal (run after) c bob.pk h)) else none
+
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "present_iff with Bob admitted" presentIff.isSome
@@ -82,6 +88,9 @@ def main : IO UInt32 := do
   t.ok "window query count formula" (View.listsAt (run before) (Profile.presentW c 1 3) ==
     1 + View.listsAt (run before) (live c rows))
   t.ok "global stored bound is finite and nontrivial" ((run before).stored.length == 8)
+  t.ok "deviceCut_removal: removed Bob's device is cut, by a removal read" deviceCutRemoval.isSome
+  t.ok "Bob's device is not cut before his removal" (!(deviceCut c bob.pk).eval (run before))
+  t.ok "Alice's device is cut once Bob removes her" ((deviceCut c alice.pk).eval (run after))
   t.finish "people vacuity (signed community, actual nonempty query results)"
 
 end Vacuity.IdentityPeople
