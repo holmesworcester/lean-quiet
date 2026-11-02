@@ -256,7 +256,7 @@ theorem answer_step (X Y : List α) (q : Range) (c : Claim) (sX : Engine.Sync.So
     (i : ByteArray) (hd : Diff key ident X Y q i) :
     (∃ xs, Out.hold xs ∈ answer key ident h P X c ∧ i ∈ xs ∧ named ident (within key q X) i = true) ∨
     (∃ xs, Out.want xs ∈ answer key ident h P X c ∧ i ∈ xs ∧ named ident (within key q Y) i = true) ∨
-    ((∃ n l, c = .fp q n l) ∧ Out.claim (.ids q ((within key q X).map ident)) ∈ answer key ident h P X c) ∨
+    ((∃ n l, c = .fp q n l) ∧ Out.claim (.ids q ((within key q X).map ident).reverse) ∈ answer key ident h P X c) ∨
     ((∃ n l, c = .fp q n l) ∧ ∃ q', Out.claim (.fp q' (fp key ident h (within key q' X)).1 (fp key ident h (within key q' X)).2) ∈
         answer key ident h P X c ∧ (∀ k, q'.has k = true → q.has k = true) ∧ Diff key ident X Y q' i ∧
         (within key q' X).length + (within key q' Y).length < (within key q X).length + (within key q Y).length ∧
@@ -270,14 +270,14 @@ theorem answer_step (X Y : List α) (q : Range) (c : Claim) (sX : Engine.Sync.So
     · left
       refine ⟨_, Or.inl rfl, ?_, h1⟩
       obtain ⟨a, ha, rfl⟩ := named_iff.1 h1
-      refine List.mem_map.2 ⟨a, List.mem_filter.2 ⟨ha, ?_⟩, rfl⟩
-      simp only [Bool.not_eq_true', List.any_eq_false, decide_eq_true_eq, List.mem_map]
+      refine List.mem_reverse.2 (List.mem_map.2 ⟨a, List.mem_filter.2 ⟨ha, ?_⟩, rfl⟩)
+      simp only [Bool.not_eq_true', List.any_eq_false, decide_eq_true_eq, List.mem_map, List.mem_reverse]
       rintro _ ⟨b, hb, rfl⟩ e
       exact absurd (named_iff.2 ⟨b, hb, e.symm⟩) (by rw [h2]; simp)
     · right; left
       refine ⟨_, Or.inr rfl, ?_, h1⟩
       obtain ⟨a, ha, rfl⟩ := named_iff.1 h1
-      exact List.mem_filter.2 ⟨List.mem_map.2 ⟨a, ha, rfl⟩, by simp [h2]⟩
+      exact List.mem_filter.2 ⟨List.mem_reverse.2 (List.mem_map.2 ⟨a, ha, rfl⟩), by simp [h2]⟩
   | fp r n l =>
     obtain ⟨rfl, hfp⟩ := hc
     by_cases hf : fp key ident h (within key r X) = (n, l)
@@ -308,8 +308,8 @@ theorem answer_step (X Y : List α) (q : Range) (c : Claim) (sX : Engine.Sync.So
         have hY : (within key q' Y).length ≤ (within key r Y).length :=
           filter_len_le (fun a ha => hsub _ ha)
         refine ⟨q', ?_, hsub, hdq, by omega, pieces_le P sX q' hq', hY, hl'⟩
-        simp only [answer, hf, hl, ite_false]
-        exact List.mem_map.2 ⟨q', hq', rfl⟩
+        simp only [answer, hf, hl, ite_false, List.mem_map, List.mem_reverse]
+        exact ⟨q', hq', rfl⟩
 
 end
 
