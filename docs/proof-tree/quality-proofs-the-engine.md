@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › The engine**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1348) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
+✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
 
 <ul>
 <li><details><summary><a id="law-Engine.same_ops_same_verdicts"></a>✅ <a href="../../engine/core/Termination.lean#L122">Engine.same_ops_same_verdicts</a> · 72 below</summary><ul>
@@ -449,7 +449,7 @@
 </ul></details></li>
 <li><details><summary><a id="law-App.withNav_cache"></a>✅ <a href="../../app/nav/Proofs.lean#L124">App.withNav_cache</a> · 172 below</summary><ul>
 <li>✅ <a href="#law-Data.placeIn_newest">Data.placeIn_newest</a> ↪ · 170 below</li>
-<li>✅ <a href="../../app/Screen.lean#L2057">App.page_round</a></li>
+<li>✅ <a href="../../app/Screen.lean#L2140">App.page_round</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Data.placeIn_newest"></a>✅ <a href="../../app/nav/Proofs.lean#L67">Data.placeIn_newest</a> · 170 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.ofOps_valid"></a>✅ <a href="../../engine/sync/Ephemeral.lean#L62">Engine.Sync.ofOps_valid</a> · 116 below</summary><ul>

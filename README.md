@@ -593,7 +593,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1582 rest on Lean's standard axioms only, and about nine tenths of its theorems (1348 of 1490, not counting 59 proof steps and 33 negative controls) are about the code that runs; another 69 run the
+hypotheses. All 1583 rest on Lean's standard axioms only, and about nine tenths of its theorems (1349 of 1491, not counting 59 proof steps and 33 negative controls) are about the code that runs; another 69 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -757,7 +757,7 @@ law's statement names only the record. A negative control in
 note and checks that the law turns to a model only because of the field.
 
 <!-- wiring:begin -->
-**1348 of 1490 laws are about running code;** another 69 run its node code in a World, and 73 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 33 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1349 of 1491 laws are about running code;** another 69 run its node code in a World, and 73 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 33 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -770,7 +770,7 @@ note and checks that the law turns to a model only because of the field.
 | Community | 255 | 252 |  | 3 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 6 | 6 |  |  |
-| Screen | 248 | 238 |  | 10 |
+| Screen | 249 | 239 |  | 10 |
 | App | 152 | 109 | 18 | 25 |
 | Node | 16 | 16 |  |  |
 | App state | 9 | 9 |  |  |
@@ -2294,8 +2294,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 525 kernel witnesses, 193 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 85 of 834 linked declarations still pending.**
+**Coverage: 526 kernel witnesses, 193 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 85 of 835 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
