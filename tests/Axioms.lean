@@ -1771,3 +1771,27 @@ end cost
 #print axioms Connection.Execution.world_trace_unique
 #print axioms Connection.Execution.empty_trace_unique
 #print axioms Connection.Execution.Run.unique
+
+-- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
+#print axioms Community.notice_signed
+#print axioms Community.notice_local
+#print axioms Community.caughtUp_local
+#print axioms Community.target_roundtrip
+#print axioms Notify.own_silent
+#print axioms Notify.notifies_iff
+#print axioms Notify.can_alert
+#print axioms Notify.once
+#print axioms Notify.step_quiet
+#print axioms Notify.step_removed
+#print axioms Notify.step_read
+#print axioms Notify.step_keeps
+#print axioms Notify.step_post
+#print axioms Notify.marks_le
+#print axioms App.syncs_kept
+#print axioms App.syncs_off
+#print axioms App.keepSync_keeps
+#print axioms App.keepSync_set
+#print axioms App.unmount_keeps_node
+#print axioms App.target_opens
+#print axioms App.targetOf_member
+#print axioms Community.noticeRecipients_own

@@ -298,6 +298,11 @@ lean_exe pic_retry where
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
 
+-- Notifications: two apps joined by link; cards, quiet, levels, links,
+-- Sync in the background, removal.
+lean_exe notify where
+  root := `platforms.headless.Notify
+
 -- Linked devices app to app: link, approve, sync, removal cuts both.
 lean_exe link_devices where
   root := `platforms.headless.LinkDevices

@@ -4151,6 +4151,65 @@ end Connection.Execution
 
 end
 
+namespace App
+open Engine Data
+
+/-! ## Notifications and Sync in the background (docs/NOTIFICATIONS.md) -/
+
+/-- **With Sync in the background on, sync keeps running out of the
+front**: `netStep`, `flushNode` and `resumeReader` all ask `St.syncs`, so
+the background step keeps the node, its parked writes and the reader. -/
+theorem syncs_kept (s : St) (h : s.keepSync = true) : s.syncs = true := by
+  simp [St.syncs, h]
+
+/-- **With it off, sync runs only in front with a surface, as before.** -/
+theorem syncs_off (s : St) (h : s.keepSync = false) : s.syncs = (s.active && s.surface) := by
+  simp [St.syncs, h]
+
+/-- **Toggling never loses parked writes**: the setting leaves the node's
+handle, its parked writes and their journal as they were. -/
+theorem keepSync_keeps (s : St) (on : Bool) :
+    (keepSyncSt s on).toNode = s.toNode ∧ (keepSyncSt s on).queuedWrites = s.queuedWrites ∧
+      (keepSyncSt s on).net = s.net ∧ (keepSyncSt s on).netBoot = s.netBoot := ⟨rfl, rfl, rfl, rfl⟩
+
+/-- The setting is the switch's where the platform has the service, and
+never on where it has none. -/
+theorem keepSync_set (s : St) (on : Bool) : (keepSyncSt s on).keepSync = (on && s.canKeep) := rfl
+
+/-- **Going to the background with sync kept leaves the node alone**:
+leaving the page (what `keepAwake` does besides capturing input and
+saving the checkpoint) keeps the node's handle, every parked write and
+the setting. -/
+theorem unmount_keeps_node (s : St) :
+    (unmountState s).net = s.net ∧ (unmountState s).toNode = s.toNode ∧
+      (unmountState s).queuedWrites = s.queuedWrites ∧ (unmountState s).keepSync = s.keepSync := by
+  unfold unmountState stashDraft
+  split <;> exact ⟨rfl, rfl, rfl, rfl⟩
+
+/-- **A message link opens exactly its message**: its conversation, the
+window read about the message's position, and the restore path holding
+the message's top edge at `off` (`restore_page_anchor`). -/
+theorem target_opens (s : St) (t : Community.Target) (p : Pos) (off : Nat) :
+    (targetSt s t p off).page = .chat ∧ (targetSt s t p off).mark = some (t.message, off) ∧
+      (targetSt s t p off).anchor = some p ∧ (targetSt s t p off).restoreAnchor = true ∧
+      (targetSt s t p off).pendingTarget = none := by
+  refine ⟨?_, rfl, rfl, rfl, rfl⟩
+  exact Nav.go_page .chat s.nav
+
+/-- **The link's acceptance is this device's admitted entry in exactly
+the link's community.** -/
+theorem targetOf_member (comms : Array Kinds.Accepted.Me) (t : Community.Target) (m : Kinds.Accepted.Me)
+    (h : targetOf comms t = some m) : m.c = t.community ∧ m.waiting = false ∧ m.removed = false ∧ m ∈ comms := by
+  unfold targetOf at h
+  have hm := Array.mem_of_find?_eq_some h
+  have hp := Array.find?_some h
+  simp only [Bool.and_eq_true, decide_eq_true_eq, Bool.not_eq_true'] at hp
+  exact ⟨hp.1.1, hp.1.2, hp.2, hm⟩
+
+end App
+
+
+
 section
 
 /-
