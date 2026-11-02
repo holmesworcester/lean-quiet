@@ -61,9 +61,10 @@ def unmountedRead (s : St) : IO Bool := do
   let (answer, _) ← (App.query ⟨[ByteArray.mk #[0x61]], true⟩ .comms).run (unmountState s)
   return answer.isNone
 def unmountedWrite (s : St) : IO Bool := do
-  have := LifecycleLaws.unmount_write s { ops := [Op.make 239 [] (ByteArray.mk #[1])] }
-  let (sent, _) ← (App.writeAll { ops := [Op.make 239 [] (ByteArray.mk #[1])] }).run (unmountState s)
-  return !sent
+  have := LifecycleLaws.unmount_write s (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] }) .none
+  let (id, _) ← (App.act (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] })).run (unmountState s)
+  let (queued, _) ← (App.actPresenting .none (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] })).run (unmountState s)
+  return id.isEmpty && !queued
 def oldCallback (s : St) : IO Bool := do
   have := LifecycleLaws.old_callback s (modify fun st => { st with text := "stale callback" })
   let (ran, after) ← (App.owned s.life.lease (modify fun st => { st with text := "stale callback" })).run

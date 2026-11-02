@@ -1185,9 +1185,13 @@ open App Engine Data
 theorem unmount_read (s : St) (scope : Component.Scope) (q : Reader.Want) :
     (App.query scope q).run (unmountState s) = pure (none, unmountState s) := by rfl
 
-/-- No write is submitted on behalf of an unmounted page. -/
-theorem unmount_write (s : St) (w : Community.Write) :
-    (App.writeAll w).run (unmountState s) = pure (false, unmountState s) := by rfl
+/-- No write is submitted on behalf of an unmounted page: neither entry
+the app writes through (`act`, which `actWith`, `write` and chaos call,
+and the composer's `actPresenting`) queues an act for the reader. -/
+theorem unmount_write (s : St) (intent : Reader.RM Community.Write) (k : Cont) :
+    (App.act intent).run (unmountState s) = pure (.empty, unmountState s) ∧
+    (App.actPresenting k intent).run (unmountState s) = pure (false, unmountState s) :=
+  ⟨by rfl, by rfl⟩
 
 /-- No old callback can read, paint or write after the page is remounted. -/
 theorem old_callback (s : St) (action : M α) :
