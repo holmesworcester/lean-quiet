@@ -39,7 +39,7 @@ a reaction, a join or a removal.
 | 2 | Nobody joins without a member's approval. | `Community.admission_needs_approval` |
 | 3 | Only admins can remove other members. | `Community.removal_authorized` |
 | 4 | A removal cannot be undone. | `Community.removed_stays` |
-| 5 | A device accepts a connection exactly when the peer is a current member's device.† | `Community.connect_iff` |
+| 5 | A device accepts a connection exactly when the peer is a current member's device, let in by approvals no removal has cut off.† | `Community.connect_iff` |
 | 6 | After a removal, the removed member's open sessions get only the removal notice.† | `Connection.removal_reaches_session` |
 | 7 | Sync sends a peer only what that peer may see.† | `Engine.Sync.recv_send` |
 | 8 | Forged or tampered network messages are ignored without being read.† | `Connection.sealed_auth` |
