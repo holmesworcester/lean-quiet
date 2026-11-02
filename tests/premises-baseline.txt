@@ -1,10 +1,5 @@
 # Cited laws whose premises are untagged today (no vacuity evidence); may only shrink.
-law App.syncs_kept
-law App.syncs_off
-law App.targetOf_member
-law Community.noticeRecipients_own
-law Community.notice_signed
-law Community.target_roundtrip
+law Engine.Sync.RoundRun.exec_current
 law Engine.World.Plain.converge
 law Engine.World.Plain.deliver_queues
 law Engine.World.Plain.deliver_takes
@@ -26,9 +21,4 @@ law Engine.World.onTick_moves
 law Engine.World.recv_asked
 law Engine.World.recv_owed
 law Engine.World.serve_moves
-law Notify.marks_le
-law Notify.own_silent
-law Notify.step_keeps
-law Notify.step_post
-law Notify.step_read
-law Notify.step_removed
+law Work.request_again

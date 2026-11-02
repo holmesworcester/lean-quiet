@@ -36,3 +36,4 @@ Engine.Model.run base sat=- neg=- say=SQLite|store model
 Engine.Sync.popW base sat=- neg=- say=channel|queue
 Engine.runJ base sat=- neg=- say=journal
 Demand.Plan.BeforeNext holds sat=- neg=- say=-
+Engine.SeekCost.seek base sat=- neg=- say=-

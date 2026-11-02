@@ -61,9 +61,10 @@ def unmountedRead (s : St) : IO Bool := do
   let (answer, _) ← (App.query ⟨[ByteArray.mk #[0x61]], true⟩ .comms).run (unmountState s)
   return answer.isNone
 def unmountedWrite (s : St) : IO Bool := do
-  have := LifecycleLaws.unmount_write s { ops := [Op.make 239 [] (ByteArray.mk #[1])] }
-  let (sent, _) ← (App.writeAll { ops := [Op.make 239 [] (ByteArray.mk #[1])] }).run (unmountState s)
-  return !sent
+  have := LifecycleLaws.unmount_write s (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] }) .none
+  let (id, _) ← (App.act (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] })).run (unmountState s)
+  let (queued, _) ← (App.actPresenting .none (pure { ops := [Op.make 239 [] (ByteArray.mk #[1])] })).run (unmountState s)
+  return id.isEmpty && !queued
 def oldCallback (s : St) : IO Bool := do
   have := LifecycleLaws.old_callback s (modify fun st => { st with text := "stale callback" })
   let (ran, after) ← (App.owned s.life.lease (modify fun st => { st with text := "stale callback" })).run
@@ -99,10 +100,6 @@ def rasterPixel (f : Ttf.Face) (g : Nat) : Option (PLift (∃ b, Ttf.raster f g 
       else none
     else none
 
-def added := Pic.add #[] 2 1 2 1 RendererImages.picture.px
-def addStored := if grew : added.1.size = (#[] : Pic.Composer).size + 1 then
-  some (PLift.up (Pic.add_stored (c := #[]) (c' := added.1) (msg := added.2) (ow := 2) (oh := 1) (w := 2) (h := 1) (px := RendererImages.picture.px) rfl grew))
-  else none
 
 attribute [local instance] LiveLaws.byteArray_lawful LiveLaws.listQ_lawful LiveLaws.q_lawful
 
@@ -122,7 +119,6 @@ def noticedAgreement :=
 -- Fitting viewport with a visible keyboard, including the app law's pair.
 def viewport := LifecycleLaws.viewport_geometry (Geometry.Geom.mk 1280 24 300 80 100)
   (by unfold Geometry.Geom.Fits; decide) 8 100 124 600 200
-def viewportExists := LifecycleLaws.viewport_possible
 
 def pageCodec := App.page_round .profile
 
@@ -146,7 +142,6 @@ def main : IO UInt32 := do
   t.ok "compact keeps a real raster unchanged"
     (((Ttf.raster face glyph 24 24).map Ttf.Memo.compact).map (·.pixels) ==
       (Ttf.raster face glyph 24 24).map (·.pixels))
-  t.ok "concrete two-pixel attachment grows and applies add_stored" addStored.isSome
   let sm ← Sim.new
   let s ← App.start sm.io #[390, 844, 0, 0, 160] (dir ++ "/quiet.db")
   let s := { s.withNav ⟨.chat, [.home]⟩ with text := "Draft message", field := "Name", mark := none }

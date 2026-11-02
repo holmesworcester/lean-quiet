@@ -160,6 +160,13 @@ Rests on: `Community.Unforgeable`
 | h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
 | (stated over) | `Community.Unforgeable` | [crypto] |
 
+**`Community.no_impersonation`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hU | `Community.Unforgeable C ops Signed` | [crypto] |
+| h | `Community.V C ops x (Community.Fact.message c u d k t n tm clump)` | [discharged] |
+
 ## ✅ A removed member's ops stand.
 
 **`Community.admin_removal_stands`** (wired)
@@ -450,6 +457,7 @@ Rests on: `Community.Seal.Good`, `Engine.Model.run`, `Trust.NativeCrypto`
 | h | `Community.check C o b fs = some f` | [discharged] |
 | hb | `b.isLocal = false` | [discharged] |
 | a | `g ∈ fs` | [discharged] |
+| a | `Community.check C o' b' fs' = some g` | [discharged] |
 
 **`Community.approveReq_wrap_admits`** (wired)
 
@@ -1247,6 +1255,14 @@ Rests on: `Engine.Model.run`
 | hl | `f.isLocal = true` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+**`Community.order_local`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hf | `Engine.Fed (Community.family C) M s` | [discharged] |
+| hl | `Community.Listed C s.ops c x sk` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
 **`Engine.intakeConn_conn`** (wired)
 
 | premise | statement | tag |
@@ -1327,7 +1343,7 @@ Rests on: `Connection.Noise.Suite.Good`, `Engine.Model.run`, `Trust.NativeCrypto
 
 ## ✅ One parse per op.
 
-Rests on: `Engine.CollisionFree`
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 
 **`Engine.Codec.encode_decode`** (wired)
 
@@ -1341,12 +1357,19 @@ Rests on: `Engine.CollisionFree`
 |---|---|---|
 | h | `Engine.Op.decode b = some o` | [discharged] |
 
-**`Engine.distinct_of_collisionFree`** (model)
+**`Engine.distinct_of_collisionFree`** (step)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.CollisionFree L` | [crypto] |
-| (about) | `a specification or an assumption only` | [spec] |
+
+**`Engine.oneOpPerId_of`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hr | `Engine.Reach fam L s` | [discharged] |
+| hc | `Engine.CollisionFree (L ++ Engine.Change.ingests cs)` | [crypto] |
+| (stated over) | `Engine.Model.run` | [base] |
 
 **`Community.op_of_valid`** (wired)
 
@@ -1403,12 +1426,11 @@ Rests on: `Engine.CollisionFree`
 |---|---|---|
 | h | `Mdns.decode p = some m` | [model] |
 
-**`Community.parse_uri`** (model)
+**`Community.parse_uri`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | hv | `i.Valid` | [discharged] |
-| (about) | `code that does not run: Community.Invite.uri` | [model] |
 
 ## ✅ Attachments authenticate themselves.
 
@@ -1472,13 +1494,6 @@ Rests on: `Engine.Model.run`, `Merkle.NoCollision`
 |---|---|---|
 | (stated over) | `Merkle.NoCollision` | [crypto] |
 
-**`Merkle.no_injective_hash`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| hsize | `∀ (x : Merkle.B), ByteArray.size (H x) = 32` | [discharged] |
-| (about) | `a specification or an assumption only` | [spec] |
-
 ## ✅ Judging cannot be hung.
 
 Rests on: `Engine.CollisionFree`, `Engine.Model.run`
@@ -1540,11 +1555,11 @@ Rests on: `Engine.Model.run`
 
 ## 🟡 Bounded buffering:
 
-**`Engine.Sync.buffer_bounded`** (model)
+**`Engine.Sync.buffer_bounded`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| a | `k ∈ Engine.Sync.keeps ByteArray.empty reads` | [model] |
+| a | `k ∈ Engine.Sync.keeps ByteArray.empty reads` | [discharged] |
 
 **`Engine.Sync.frames_kept`** (wired)
 
@@ -1624,12 +1639,11 @@ Rests on: `Engine.Model.run`
 | hd | `s.drop = true` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`Engine.Sync.work_retry_bounded`** (model)
+**`Engine.Sync.work_retry_bounded`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Engine.Sync.retried` | [model] |
 
 **`Engine.Sync.onWant_authorized`** (wired)
 
@@ -1844,13 +1858,13 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops x (Community.Fact.notice c u r bx tm)` | [untagged] |
+| h | `Community.V C ops x (Community.Fact.notice c u r bx tm)` | [discharged] |
 
 **`Community.noticeRecipients_own`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `e ∈ Community.noticeRecipients pk all rows` | [untagged] |
+| h | `e ∈ Community.noticeRecipients pk all rows` | [discharged] |
 
 ## ✅ Honest nodes agree.
 
@@ -1905,13 +1919,12 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | hq | `s.queue = []` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`Engine.spec_extends`** (model)
+**`Engine.spec_extends`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | he | `Engine.Extends ops ops'` | [discharged] |
 | h | `Engine.Spec fam ops x v` | [discharged] |
-| (about) | `a specification or an assumption only` | [spec] |
 
 **`Engine.inv_ingest`** (wired)
 
@@ -2193,20 +2206,18 @@ Rests on: `Engine.Model.run`
 
 Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 
-**`App.withNav_cache`** (model)
+**`App.withNav_cache`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | hd | `Engine.Distinct (Data.placed s.eph (s.navGen + 1) n.page.code (List.map App.PageId.code n.stack))` | [crypto] |
-| (about) | `code that does not run: Data.placed` | [model] |
 
-**`Data.placeIn_newest`** (model)
+**`Data.placeIn_newest`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | hd | `Engine.Distinct (Data.placed h gen page stack)` | [crypto] |
 | (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Data.placed` | [model] |
 
 **`Quiet.node_nav_ephemeral`** (wired)
 
@@ -2431,6 +2442,43 @@ Rests on: `Engine.Model.run`
 | a | `q.has a.fst = true` | [discharged] |
 | a | `mine t = true ∧ ¬a ∈ Z t ∨ mine t = false ∧ a ∈ Z t` | [discharged] |
 
+**`Engine.Sync.RoundRun.exec_current`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [untagged] |
+| first | `Engine.Sync.RoundRun.Both r k (states 0)` | [untagged] |
+
+**`Engine.Sync.RoundRun.run_empty`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [discharged] |
+| empty | `(states t).pending = []` | [discharged] |
+
+**`Engine.Sync.RoundRun.advance_empty`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| empty | `s.pending = []` | [discharged] |
+
+**`Engine.Sync.RoundRun.pending_source`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [discharged] |
+| hmax | `0 < cfg.maxIds` | [discharged] |
+| emptyA | `(states 0).receiving.asked = ∅` | [discharged] |
+| emptyB | `(states 0).waiting.asked = ∅` | [discharged] |
+| a | `i ∈ (states t).receiving.asked ∨ i ∈ (states t).waiting.asked` | [discharged] |
+
+**`Engine.Sync.RoundRun.run_bounded`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| exec | `Engine.Sync.RoundRun.Exec cfg r k times ixs states` | [discharged] |
+| first | `Engine.Sync.Conn.Bounded cfg (states 0).receiving ∧ Engine.Sync.Conn.Bounded cfg (states 0).waiting` | [discharged] |
+
 **`Engine.Sync.live_round_complete`** (wired)
 
 | premise | statement | tag |
@@ -2502,7 +2550,7 @@ Rests on: `Engine.Model.run`
 | emptyA | `(states 0).receiving.asked = ∅` | [discharged] |
 | emptyB | `(states 0).waiting.asked = ∅` | [discharged] |
 | ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn (X ++ Y) cl ≤ bound` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.RoundRun.State.advance, Engine.Sync.exchange` | [model] |
+| (about) | `code that does not run: Engine.Sync.exchange` | [model] |
 
 ## 🟡 A room shown on a live session gets a round, whichever end starts showing it.
 
@@ -2593,7 +2641,7 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | t | `Trust.SqliteStore F holds` | [base] |
 
-**`Engine.Sync.Sweep.step_progress`** (model)
+**`Engine.Sync.Sweep.step_progress`** (step)
 
 | premise | statement | tag |
 |---|---|---|
@@ -2603,9 +2651,8 @@ Rests on: `Engine.Model.run`
 | shown | `shows o = true` | [discharged] |
 | fits | `Engine.Sync.Sweep.cost o ≤ Engine.Sync.maxFrame` | [discharged] |
 | budget | `Engine.Sync.maxFrame ≤ room` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Sweep.rank` | [model] |
 
-**`Engine.Sync.Sweep.step_nonincrease`** (model)
+**`Engine.Sync.Sweep.step_nonincrease`** (step)
 
 | premise | statement | tag |
 |---|---|---|
@@ -2615,7 +2662,6 @@ Rests on: `Engine.Model.run`
 | shown | `shows o = true` | [discharged] |
 | fits | `Engine.Sync.Sweep.cost o ≤ Engine.Sync.maxFrame` | [discharged] |
 | unsent | `(s.step ceiling input shows room).snd ≠ some o` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Sweep.rank` | [model] |
 
 **`Engine.Sync.Sweep.retried_fair`** (wired)
 
@@ -2654,13 +2700,24 @@ Rests on: `Engine.Model.run`
 
 ## 🟡 Partial sync is safe.
 
-**`Engine.Sync.spec_local`** (model)
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
+
+**`Engine.Sync.spec_local`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.Spec fam ops x v` | [discharged] |
 | hold | `∀ (y : Engine.Id) (o : Engine.Op), Engine.Sync.Reach ops x y → ops y = some o → ops' y = some o` | [discharged] |
-| (about) | `a specification or an assumption only` | [spec] |
+
+**`Engine.same_ops_same_verdicts`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hs | `Engine.Reach fam L s` | [discharged] |
+| ht | `Engine.Reach fam M t` | [discharged] |
+| hd | `Engine.Distinct (L ++ M)` | [crypto] |
+| hsame | `∀ (o : Engine.Op), o ∈ L ↔ o ∈ M` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 
 ## 🟡 The connection's progress steps work.
 
@@ -2691,7 +2748,7 @@ Rests on: `Engine.Model.run`
 | emptyA | `(states 0).receiving.asked = ∅` | [discharged] |
 | emptyB | `(states 0).waiting.asked = ∅` | [discharged] |
 | ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn (X ++ Y) cl ≤ bound` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.RoundRun.State.advance, Engine.Sync.exchange` | [model] |
+| (about) | `code that does not run: Engine.Sync.exchange` | [model] |
 
 **`Engine.Sync.closure_delivered`** (wired)
 
@@ -2952,52 +3009,59 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 Rests on: `(a World's network)`, `Engine.Model.run`
 
-**`Engine.Sync.Ingress.Prioritized.write_within`** (model)
+**`Engine.Sync.Ingress.Prioritized.write_within`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `(r.state i).writes = pre ++ w :: post` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Ingress.Prioritized.Run.selected` | [model] |
 
-**`Engine.Sync.Ingress.Prioritized.source_or_cancelled_within`** (model)
+**`Engine.Sync.Ingress.Prioritized.source_or_cancelled_within`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | ready | `(r.state i).inbox.slots[↑target] = some value` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Ingress.Prioritized.ChurnRun.selected` | [model] |
 
-**`Engine.Sync.Ingress.Prioritized.write_within_churn`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| h | `(r.state i).writes = pre ++ w :: post` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Ingress.Prioritized.ChurnRun.selected` | [model] |
-
-**`Engine.Sync.Inbox.Priority.write_within`** (model)
+**`Engine.Sync.Ingress.Prioritized.write_within_churn`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `(r.state i).writes = pre ++ w :: post` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Inbox.Priority.Run.selected` | [model] |
 
-**`Engine.Sync.Inbox.Priority.event_within`** (model)
+**`Engine.Sync.Inbox.Priority.write_within`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `(r.state i).writes = pre ++ w :: post` | [discharged] |
+
+**`Data.WriterQueue.local_within`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `(r.state i).writes = pre ++ job :: post` | [discharged] |
+
+**`Engine.Sync.Inbox.Priority.event_within`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `(r.state i).events = pre ++ e :: post` | [discharged] |
-| (about) | `code that does not run: Engine.Sync.Inbox.Priority.Run.selected` | [model] |
 
-**`Engine.Sync.Inbox.Priority.local_share`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| (about) | `code that does not run: Engine.Sync.Inbox.Priority.phaseAfter` | [model] |
-
-**`Engine.Sync.Inbox.Priority.phase_cycle`** (model)
+**`Data.WriterQueue.background_within`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| (about) | `code that does not run: Engine.Sync.Inbox.Priority.phaseAfter` | [model] |
+| h | `(r.state i).events = pre ++ job :: post` | [discharged] |
+
+**`Engine.Sync.Inbox.Priority.local_share`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Inbox.Priority.phase_cycle`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
 
 **`Engine.Sync.Loop.turn_records`** (wired)
 
@@ -3017,18 +3081,48 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | advances | `∀ (N bound : Nat), ∃ i, i ≥ N ∧ bound ≤ r.now i` | [discharged] |
 
-**`Engine.Sync.urgent_ahead`** (model)
+**`Engine.Sync.urgent_ahead`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| (about) | `code that does not run: Engine.Sync.Lanes.take` | [model] |
+| (none) | | |
 
-**`Engine.Sync.ahead_bytes`** (model)
+**`Engine.Sync.ahead_bytes`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h₀ | `Engine.Sync.Lanes.Reach cap burst q₀` | [discharged] |
-| h | `((((Engine.Sync.Lanes.take burst q₀).snd.pushAll pre).push Engine.Sync.Lane.urgent u).pushAll post).bytes ≤ cap` | [model] |
+| h | `((((Engine.Sync.Lanes.take burst q₀).snd.pushAll pre).push Engine.Sync.Lane.urgent u).pushAll post).bytes ≤ cap` | [discharged] |
+
+**`Engine.Sync.Reserved.take_vacant`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.take_append`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.take_bytes`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.lanes_bounded`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Sync.Lanes.Reach cap burst q` | [discharged] |
+
+**`Engine.Sync.Reserved.offer_bounded`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| bounded | `Engine.Sync.Reserved.Bounded bytes frames retryBytes q` | [discharged] |
 
 **`Engine.Sync.cut_bytes`** (wired)
 
@@ -3100,6 +3194,157 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | sameStore | `∀ (p : Engine.Op), s.held.db.ops o.id = some p → p = o` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.Sync.Inbox.Priority.served`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `Engine.Sync.Inbox.Priority.Waiting (r.state i) x n` | [discharged] |
+
+**`Engine.Sync.Inbox.Priority.waiting_step`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Sync.Inbox.Priority.Waiting s x n` | [discharged] |
+
+**`Engine.Sync.Inbox.Priority.phase_cycle`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Ingress.Prioritized.step_event`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `↑phase = 0` | [discharged] |
+| he | `inbox.poll.fst = some (source, value)` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.step_only_event`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| he | `inbox.poll.fst = some (source, value)` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.step_empty_event`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `↑phase = 0` | [discharged] |
+| he | `inbox.poll.fst = none` | [discharged] |
+
+**`Engine.Sync.Ingress.served`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `(r.state i).slots[↑target] = some value` | [discharged] |
+| a | `Engine.Sync.Ingress.distance (r.state i).cursor target < bound` | [discharged] |
+
+**`Engine.Sync.Ingress.scan_ready`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ready | `slots[↑target] = some value` | [discharged] |
+| a | `Engine.Sync.Ingress.distance cursor target < fuel` | [discharged] |
+
+**`Engine.Sync.Ingress.poll_progress`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ready | `s.slots[↑target] = some value` | [discharged] |
+
+**`Engine.Sync.Ingress.advance_distance`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `cursor ≠ target` | [discharged] |
+
+**`Engine.Sync.Ingress.arrivals_preserve`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `s.slots[↑target] = some held` | [discharged] |
+
+**`Engine.Sync.Ingress.flooded_prefix`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Ingress.Prioritized.served`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `(r.state i).inbox.slots[↑target] = some value` | [discharged] |
+| a | `Engine.Sync.Ingress.Prioritized.rank (r.state i) target ≤ bound` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.step_progress`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ready | `s.inbox.slots[↑target] = some value` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.step_write`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `↑phase ≠ 0` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.write_progress`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Sync.Ingress.Prioritized.Waiting s w bound` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.write_served`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `Engine.Sync.Ingress.Prioritized.Waiting (r.state i) w bound` | [discharged] |
+
+**`Engine.Sync.Ingress.cancelAll_preserves`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `¬target ∈ sources` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.changes_preserve`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `¬target ∈ closed` | [discharged] |
+| ready | `s.inbox.slots[↑target] = some value` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.served_or_cancelled`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `(r.state i).inbox.slots[↑target] = some value` | [discharged] |
+| a | `Engine.Sync.Ingress.Prioritized.rank (r.state i) target ≤ bound` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.write_served_churn`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `Engine.Sync.Ingress.Prioritized.Waiting (r.state i) w bound` | [discharged] |
+
+**`Engine.Sync.Ingress.Prioritized.churnFlood_source`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Ingress.Prioritized.churnFlood_write`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Ingress.Prioritized.churnFlood_exact`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
 
 ## 🟡 Everyone converges.
 
@@ -3680,7 +3925,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | a | `l.length ≤ n` | [discharged] |
 
-## ✅ Component work has revocable ownership.
+## 🟡 Component work has revocable ownership.
 
 **`Demand.owned_iff`** (wired)
 
@@ -3726,6 +3971,15 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | absent | `(p.reconcile off).held k = false` | [discharged] |
 | found | `((p.reconcile off).reconcile on).ticket k = some new` | [discharged] |
 
+**`Work.request_again`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hn | `(need == need) = true` | [untagged] |
+| ht | `(t == t) = true` | [untagged] |
+| hh | `h.ticket = t` | [untagged] |
+| htk | `(s.planFor need).ticket need.key = some t` | [untagged] |
+
 ## 🟡 Visible work retains its turn.
 
 **`Demand.next_map`** (wired)
@@ -3740,14 +3994,13 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | inst | `LawfulBEq K` | [discharged] |
 
-**`Demand.filter_rank`** (model)
+**`Demand.filter_rank`** (step)
 
 | premise | statement | tag |
 |---|---|---|
 | inst | `LawfulBEq K` | [discharged] |
 | present | `target ∈ queued` | [discharged] |
 | retained | `keep target = true` | [discharged] |
-| (about) | `a specification or an assumption only` | [spec] |
 
 **`Demand.take_progress`** (wired)
 
@@ -3784,7 +4037,34 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | ready | `∀ (j : Nat), i ≤ j → j < i + List.idxOf target (r.queue i) + 1 → target ∈ r.queue j → r.visible j target = true` | [discharged] |
 | retained | `∀ (j : Nat), i ≤ j → j < i + List.idxOf target (r.queue i) + 1 → r.keep j target = true` | [discharged] |
 
-## 🟡 Unmounted pages issue no new reads or writes.
+**`Demand.take_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq K` | [discharged] |
+| hs | `Demand.FirstSorted first q` | [discharged] |
+| hx | `∃ x, x ∈ q ∧ first x = true` | [discharged] |
+
+**`Demand.take_sorted`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq K` | [discharged] |
+| hs | `Demand.FirstSorted first q` | [discharged] |
+
+**`Demand.reconcileFirst_sorted`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq K` | [discharged] |
+
+**`Demand.shipped_late`** (control)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+## ✅ Unmounted pages issue no new reads or writes.
 
 **`LifecycleLaws.unmount_read`** (wired)
 
@@ -3792,11 +4072,11 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-**`LifecycleLaws.unmount_write`** (model)
+**`LifecycleLaws.unmount_write`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| (about) | `code that does not run: App.writeAll` | [model] |
+| (none) | | |
 
 **`LifecycleLaws.old_callback`** (wired)
 
@@ -3816,25 +4096,17 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-**`Lifecycle.subscriptions_exact`** (wired)
+**`Lifecycle.live_exact`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| (none) | | |
+| complete | `∀ (q : Data.Q), want q = true → l.entries[q]?.isSome = true` | [discharged] |
 
 **`Lifecycle.mounted_runs`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | (none) | | |
-
-## 🟡 The cache holds only the mounted queries.
-
-**`Lifecycle.live_exact`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| complete | `∀ (q : Data.Q), q ∈ s.queries → l.entries[q]?.isSome = true` | [model] |
 
 ## 🟡 Lifecycle state survives a restart or resize.
 
@@ -3873,12 +4145,6 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | premise | statement | tag |
 |---|---|---|
 | fits | `g.Fits` | [discharged] |
-
-**`LifecycleLaws.viewport_possible`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| (about) | `a specification or an assumption only` | [spec] |
 
 ## 🟡 Nothing on screen is covered or mis-tapped.
 
@@ -3927,12 +4193,11 @@ Rests on: `NodeOffer.offerM`
 |---|---|---|
 | (stated over) | `NodeOffer.offerM` | [env] |
 
-**`NodeOffer.offer_runs`** (model)
+**`NodeOffer.offer_runs`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | (stated over) | `NodeOffer.offerM` | [env] |
-| (about) | `a specification or an assumption only` | [spec] |
 
 ## ✅ A screen need re-read only what changed.
 
@@ -3981,6 +4246,166 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | h | `Engine.Inv fam s` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+
+**`Live.record_indexed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| h | `Live.Indexed i` | [discharged] |
+
+**`Live.marked_complete`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| h | `Live.Indexed i` | [discharged] |
+| hd | `i.deps[w]? = some qs` | [discharged] |
+| hq | `q ∈ qs` | [discharged] |
+| hh | `q ∈ hit` | [discharged] |
+| hw | `wanted.contains w = true` | [discharged] |
+
+**`Live.dirty_marked`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| hd | `w ∈ i.dirty` | [discharged] |
+| hw | `wanted.contains w = true` | [discharged] |
+
+**`Live.record_dirty`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+
+**`Live.fresh_record`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| inst | `LawfulBEq V` | [discharged] |
+| h | `Live.Fresh eval i b wanted` | [discharged] |
+
+**`Live.fresh_notice`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| inst | `LawfulBEq V` | [discharged] |
+| hi | `Live.Indexed i` | [discharged] |
+| h | `Live.Fresh eval i b wanted` | [discharged] |
+| stable | `∀ (w : W) (qs : Array Q), i.deps[w]? = some qs → (∀ (q : Q), q ∈ qs → ¬q ∈ hit) → eval' w = eval w` | [discharged] |
+
+**`Live.fresh_keep`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| inst | `LawfulBEq V` | [discharged] |
+| h | `Live.Fresh eval i b wanted` | [discharged] |
+
+**`Live.settle_fresh`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| inst | `LawfulBEq V` | [discharged] |
+| h | `Live.Fresh eval i b wanted` | [discharged] |
+| clean | `∀ (w : W), wanted.contains w = true → ¬w ∈ i.dirty` | [discharged] |
+| a | `wanted.contains w = true` | [discharged] |
+| a | `b.get? w = some (v, n)` | [discharged] |
+
+## ✅ A read costs its limit, not its list.
+
+Rests on: `Engine.SeekCost.seek`
+
+**`Engine.readPlan_cost`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ha | `q.also = []` | [discharged] |
+| hr | `q.after = none` | [discharged] |
+| hb | `q.before = none` | [discharged] |
+| hl | `q.limit = some n` | [discharged] |
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.readPlan_cost_range`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ha | `q.also = []` | [discharged] |
+| hl | `q.limit = some n` | [discharged] |
+| hc | `q.cap ≠ 0` | [discharged] |
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.readPlan_cost_le`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.plan_stmt_cost`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `st ∈ (Engine.listPlan q k others).stmts` | [discharged] |
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.splitWalk_exact`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.splitWalk_steps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `0 < L` | [discharged] |
+| a | `min r c < L * 2 ^ k` | [discharged] |
+| a | `k < fuel` | [discharged] |
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.splitWalk_cost`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hL | `0 < L` | [discharged] |
+| hμ | `min r c < L * 2 ^ k` | [discharged] |
+| hk | `k < fuel` | [discharged] |
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+
+**`Engine.sideCount_run`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.SeekCost.seek` | [base] |
+| (about) | `a specification or an assumption only` | [spec] |
 
 ## 🟡 Notices are exact.
 
@@ -4069,31 +4494,6 @@ Rests on: `Engine.Model.run`, `Engine.runJ`
 |---|---|---|
 | hI | `I.WF` | [discharged] |
 
-**`Screen.screen_subs`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| hg | `fr.Good` | [discharged] |
-| (about) | `code that does not run: Screen.Frame.listWins, Screen.Frame.near, Screen.Frame.shown, Screen.Frame.wants` | [model] |
-
-**`Screen.hull_near`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| hg | `fr.Good` | [discharged] |
-| hw | `w ∈ fr.listWins` | [model] |
-| hr | `r ∈ fr.rows` | [discharged] |
-| hin | `w.inside r.pos = true` | [discharged] |
-
-**`Screen.past_hull_le`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| ha | `a ∈ fr.rows` | [discharged] |
-| hn | `fr.near a = true` | [model] |
-| hnew | `(List.filter (fun r => a.pos.cmp r.pos == Ordering.lt) fr.rows).length ≤ half` | [discharged] |
-| hold | `(List.filter (fun r => r.pos.cmp a.pos != Ordering.gt) fr.rows).length ≤ half` | [discharged] |
-
 **`Engine.Mutants.key_notice_imprecise`** (control)
 
 | premise | statement | tag |
@@ -4107,12 +4507,6 @@ Rests on: `Engine.Model.run`, `Engine.runJ`
 |---|---|---|
 | (stated over) | `Engine.Model.run` | [base] |
 | (stated over) | `Engine.runJ` | [base] |
-
-**`Screen.keep_scrolled_off`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| (about) | `code that does not run: Screen.Frame.near, Screen.Frame.wants, Screen.far, Screen.frame2, Screen.keepAll` | [model] |
 
 **`LiveLaws.agrees_notice`** (wired)
 
@@ -4245,6 +4639,56 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | (stated over) | `Engine.Model.run` | [base] |
 
+**`PeopleLaws.presentW_lists`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hD | `∀ (d : ByteArray), (Engine.View.eval s (Community.admission.byDevice.read [c, d])).rows.length ≤ D` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.presentW_lists_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.present_lists_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.present_scans`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.live_lists_le`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hD | `∀ (d : ByteArray), (Engine.View.eval s (Community.admission.byDevice.read [c, d])).rows.length ≤ D` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.live_lists_ge`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.deviceLive_lists`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.unremoved_lists`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
 **`PeopleLaws.deviceCut_removal`** (wired)
 
 | premise | statement | tag |
@@ -4348,6 +4792,18 @@ Rests on: `Engine.Model.run`
 | size | `bottom.toNat - top.toNat + 48 < UInt32.size` | [discharged] |
 
 **`Slide.edge_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`PlaceLaws.bottoms_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`PlaceLaws.rowAt_iff`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
@@ -4609,14 +5065,13 @@ Rests on: `Community.Unforgeable`, `Engine.Model.run`
 | hq | `s.queue = []` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`ViewLaws.row_marked`** (model)
+**`ViewLaws.row_marked`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
-| hr | `ReaderT.run (Kinds.Message.read c me msg) s = some (d, deps)` | [base] |
-| (about) | `code that does not run: Kinds.Message.read` | [model] |
+| (stated over) | `Engine.Model.run` | [base] |
 
 **`RowLaws.twin_shown`** (wired)
 
@@ -4721,16 +5176,48 @@ Rests on: `Community.Unforgeable`, `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
+**`ArrivalLaws.ring_counts`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Arrival.layout f z bx by_ bw bh got total len = some p` | [discharged] |
+
+**`ArrivalLaws.lit_zero`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`ArrivalLaws.lit_full`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| ht | `0 < total` | [discharged] |
+
+**`ArrivalLaws.lit_mono`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hg | `got ≤ got'` | [discharged] |
+| h | `Arrival.lit R s got total i j = true` | [discharged] |
+
+**`ArrivalLaws.lit_clockwise`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Arrival.lit R s got total i j = true` | [discharged] |
+| hr | `Arrival.onRing R s i' j' = true` | [discharged] |
+| hle | `(Arrival.turn R i' j').fst * (Arrival.turn R i j).snd ≤ (Arrival.turn R i j).fst * (Arrival.turn R i' j').snd` | [discharged] |
+
 ## 🟡 What you see is what was sent.
 
 Rests on: `Engine.Model.run`
 
-**`ViewLaws.message_own`** (model)
+**`ViewLaws.message_own`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `ReaderT.run (Kinds.Message.readOwn msg) db = some (d, deps)` | [base] |
-| (about) | `code that does not run: Data.Q.get` | [model] |
 
 **`Community.readable_held`** (wired)
 
@@ -4798,12 +5285,11 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | h | `k = k'` | [discharged] |
 
-**`App.pageIn_acc`** (model)
+**`App.pageIn_acc`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `k = k'` | [discharged] |
-| (about) | `a specification or an assumption only` | [spec] |
+| h | `App.pageIn s = App.pageIn s'` | [discharged] |
 
 ## ✅ Display order.
 
@@ -4909,13 +5395,13 @@ Rests on: `Engine.Model.run`
 | hk | `Community.V C s.ops x (Community.Fact.key c kid k)` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-## 🟡 A card is exactly libquiet's policy.
+## ✅ A card is exactly libquiet's policy.
 
 **`Notify.step_post`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Notify.Effect.post d ∈ (Notify.step s present v reads ins).snd` | [untagged] |
+| h | `Notify.Effect.post d ∈ (Notify.step s present v reads ins).snd` | [discharged] |
 
 **`Notify.notifies_iff`** (wired)
 
@@ -4927,7 +5413,7 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `f.device = f.authorDevice` | [untagged] |
+| h | `f.device = f.authorDevice` | [discharged] |
 
 **`Notify.can_alert`** (wired)
 
@@ -4941,7 +5427,7 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-## 🟡 The conversation on screen is quiet; reads and removal clear cards; a partial read keeps newer ones.
+## ✅ The conversation on screen is quiet; reads and removal clear cards; a partial read keeps newer ones.
 
 **`Notify.step_quiet`** (wired)
 
@@ -4953,36 +5439,36 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [untagged] |
+| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [discharged] |
 
 **`Notify.step_removed`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [untagged] |
+| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [discharged] |
 
 **`Notify.step_keeps`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hd | `d ∈ s.active` | [untagged] |
-| hg | `Notify.gone present ins v reads d = false` | [untagged] |
+| hd | `d ∈ s.active` | [discharged] |
+| hg | `Notify.gone present ins v reads d = false` | [discharged] |
 
-## 🟡 A mark never runs ahead of the clock,
+## ✅ A mark never runs ahead of the clock,
 
 **`Notify.marks_le`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `p ∈ Notify.marks now ins` | [untagged] |
+| h | `p ∈ Notify.marks now ins` | [discharged] |
 
-## 🟡 A card's link opens exactly its message:
+## ✅ A card's link opens exactly its message:
 
 **`Community.target_roundtrip`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hv | `t.Valid` | [untagged] |
+| hv | `t.Valid` | [discharged] |
 
 **`App.target_opens`** (wired)
 
@@ -4994,21 +5480,21 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `App.targetOf comms t = some m` | [untagged] |
+| h | `App.targetOf comms t = some m` | [discharged] |
 
-## 🟡 Sync in the background keeps sync running; off, it stops as before.
+## ✅ Sync in the background keeps sync running; off, it stops as before.
 
 **`App.syncs_kept`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `s.keepSync = true` | [untagged] |
+| h | `s.keepSync = true` | [discharged] |
 
 **`App.syncs_off`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `s.keepSync = false` | [untagged] |
+| h | `s.keepSync = false` | [discharged] |
 
 **`App.keepSync_keeps`** (wired)
 
@@ -5083,44 +5569,37 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-## 🟡 Pictures render whole:
+## ✅ A photo sent keeps its shape:
 
-**`Pic.render_wellFormed`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| (about) | `code that does not run: Pic.render` | [model] |
-
-**`Pic.render_opaque`** (model)
+**`Pic.fit_small`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hk | `k < (Pic.render g pics).w * (Pic.render g pics).h` | [model] |
+| hs | `max w h ≤ e` | [discharged] |
 
-**`Pic.scale_wellFormed`** (model)
+**`Pic.fit_long`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| (about) | `code that does not run: Pic.scale` | [model] |
+| he | `1 ≤ e` | [discharged] |
+| hl | `e < max w h` | [discharged] |
 
-**`Pic.fit_round`** (model)
+**`Pic.fit_le`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| he | `1 ≤ e` | [discharged] |
+
+**`Pic.fit_pos`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hw | `1 ≤ w` | [discharged] |
+| hh | `1 ≤ h` | [discharged] |
+
+**`Pic.fit_round`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | hl | `e < max w h` | [discharged] |
-| (about) | `code that does not run: Pic.fit` | [model] |
-
-**`Pic.layout_inside`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| hg | `2 * g.pad + 1 ≤ g.height` | [discharged] |
-| a | `s ∈ (Pic.layout g ss).fst` | [model] |
-
-**`Pic.layout_apart`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| hg | `2 * g.pad + 1 ≤ g.height` | [discharged] |
-| (about) | `code that does not run: Pic.layout` | [model] |
 

@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › Sync**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1241) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (281) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2159)
+✅ wired: about running code (1345) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (61) · 📐 model: over a model (71) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2127)
 
 <ul>
 <li><details><summary><a id="law-Engine.Sync.RoundRun.terminates"></a>✅ <a href="../../engine/sync/RoundRun.lean#L286">Engine.Sync.RoundRun.terminates</a> · 114 below</summary><ul>
@@ -139,7 +139,32 @@
 <li>✅ <a href="../../engine/sync/RoundRun.lean#L267">Engine.Sync.RoundRun.next_mem</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L29">Engine.Sync.byteArray_lawfulBEq</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.live_round_complete"></a>✅ <a href="../../engine/sync/RoundRun.lean#L747">Engine.Sync.live_round_complete</a> · 144 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.exec_current"></a>✅ <a href="../../engine/sync/RoundRun.lean#L529">Engine.Sync.RoundRun.exec_current</a> · 102 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.RoundRun.successor">Engine.Sync.RoundRun.successor</a> ↪ · 99 below</li>
+<li><details><summary><a id="law-Engine.Sync.conn_round_continues"></a>✅ <a href="../../engine/sync/RoundRun.lean#L79">Engine.Sync.conn_round_continues</a> · 80 below</summary><ul>
+<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.Index.answer_fun">Engine.Sync.Index.answer_fun</a> ↪ · 77 below</li>
+<li>▫️ <a href="#law-Engine.Sync.has_of_mem">Engine.Sync.has_of_mem</a> ↪ · 1 below</li>
+</ul></details></li>
+<li>✅ <a href="#law-Engine.Sync.RoundRun.advance_empty">Engine.Sync.RoundRun.advance_empty</a> ↪ · 41 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.run_empty"></a>✅ <a href="../../engine/sync/RoundRun.lean#L619">Engine.Sync.RoundRun.run_empty</a> · 42 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.RoundRun.advance_empty">Engine.Sync.RoundRun.advance_empty</a> ↪ · 41 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.advance_empty"></a>✅ <a href="../../engine/sync/RoundRun.lean#L520">Engine.Sync.RoundRun.advance_empty</a> · 41 below</summary><ul>
+<li>▫️ <a href="#law-Engine.Sync.ofOp_rbsr">Engine.Sync.ofOp_rbsr</a> ↪ · 40 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.pending_source"></a>✅ <a href="../../engine/sync/RoundRun.lean#L590">Engine.Sync.RoundRun.pending_source</a> · 5 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.asks_have_source"></a>✅ <a href="../../engine/sync/RoundRun.lean#L568">Engine.Sync.RoundRun.asks_have_source</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.mem_inserts"></a>🪜 <a href="../../engine/sync/RoundRun.lean#L550">Engine.Sync.RoundRun.mem_inserts</a> · 1 below · a step of Engine.Sync.RoundRun.asks_have_source, Engine.Sync.RoundRun.pending_source</summary><ul>
+<li>▫️ <a href="../../engine/wire/WorldLaws.lean#L29">Engine.Sync.byteArray_lawfulBEq</a></li>
+</ul></details></li>
+<li>▫️ <a href="#law-Engine.Sync.chunks_cover">Engine.Sync.chunks_cover</a> ↪ · 1 below</li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.RoundRun.run_bounded"></a>✅ <a href="../../engine/sync/RoundRun.lean#L629">Engine.Sync.RoundRun.run_bounded</a> · 4 below</summary><ul>
+<li>✅ <a href="security-proofs-hostile-input.md#law-Engine.Sync.round_bounded">Engine.Sync.round_bounded</a> ↪ · 3 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.live_round_complete"></a>✅ <a href="../../engine/sync/RoundRun.lean#L754">Engine.Sync.live_round_complete</a> · 144 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.RoundRun.discovers">Engine.Sync.RoundRun.discovers</a> ↪ · 142 below</li>
 <li>✅ <a href="#law-Engine.Sync.RoundRun.terminates">Engine.Sync.RoundRun.terminates</a> ↪ · 114 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L29">Engine.Sync.byteArray_lawfulBEq</a></li>
@@ -153,10 +178,10 @@
 <li>✅ <a href="../../engine/sync/TreeLaws.lean#L138">Engine.Sync.Tree.runLen_le</a></li>
 <li>▫️ <a href="../../engine/sync/RoundLaws.lean#L70">Engine.Sync.filter_len_le</a></li>
 </ul></details></li>
-<li>✅ <a href="../../engine/sync/RoundRun.lean#L713">Engine.Sync.RoundRun.items_par</a></li>
+<li>✅ <a href="../../engine/sync/RoundRun.lean#L720">Engine.Sync.RoundRun.items_par</a></li>
 <li>✅ <a href="../../engine/sync/RoundRun.lean#L267">Engine.Sync.RoundRun.next_mem</a></li>
 </ul></details></li>
-<li>✅ <a href="../../engine/sync/RoundRun.lean#L713">Engine.Sync.RoundRun.items_par</a></li>
+<li>✅ <a href="../../engine/sync/RoundRun.lean#L720">Engine.Sync.RoundRun.items_par</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.exchange_complete"></a>📐 <a href="../../engine/sync/RoundLaws.lean#L235">Engine.Sync.exchange_complete</a> · 63 below</summary><ul>
 <li>▫️ <a href="#law-Engine.Sync.same_of_fp">Engine.Sync.same_of_fp</a> ↪ · 43 below</li>
@@ -190,33 +215,17 @@
 </ul></details></li>
 <li>📐 <a href="#law-Engine.Sync.Tree.exchange_ids_stable">Engine.Sync.Tree.exchange_ids_stable</a> ↪ · 1 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.conn_runs_exchange"></a>📐 <a href="../../engine/sync/RoundRun.lean#L784">Engine.Sync.conn_runs_exchange</a> · 158 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.conn_runs_exchange"></a>📐 <a href="../../engine/sync/RoundRun.lean#L791">Engine.Sync.conn_runs_exchange</a> · 158 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.live_round_complete">Engine.Sync.live_round_complete</a> ↪ · 144 below</li>
-<li><details><summary><a id="law-Engine.Sync.RoundRun.exec_current"></a>📐 <a href="../../engine/sync/RoundRun.lean#L522">Engine.Sync.RoundRun.exec_current</a> · 102 below</summary><ul>
-<li>✅ <a href="#law-Engine.Sync.RoundRun.successor">Engine.Sync.RoundRun.successor</a> ↪ · 99 below</li>
-<li><details><summary><a id="law-Engine.Sync.conn_round_continues"></a>✅ <a href="../../engine/sync/RoundRun.lean#L79">Engine.Sync.conn_round_continues</a> · 80 below</summary><ul>
-<li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.Index.answer_fun">Engine.Sync.Index.answer_fun</a> ↪ · 77 below</li>
-<li>▫️ <a href="#law-Engine.Sync.has_of_mem">Engine.Sync.has_of_mem</a> ↪ · 1 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.RoundRun.advance_empty"></a>📐 <a href="../../engine/sync/RoundRun.lean#L513">Engine.Sync.RoundRun.advance_empty</a> · 41 below</summary><ul>
-<li>▫️ <a href="#law-Engine.Sync.ofOp_rbsr">Engine.Sync.ofOp_rbsr</a> ↪ · 40 below</li>
-</ul></details></li>
-</ul></details></li>
+<li>✅ <a href="#law-Engine.Sync.RoundRun.exec_current">Engine.Sync.RoundRun.exec_current</a> ↪ · 102 below</li>
 <li>📐 <a href="#law-Engine.Sync.exchange_complete">Engine.Sync.exchange_complete</a> ↪ · 63 below</li>
-<li><details><summary><a id="law-Engine.Sync.RoundRun.pending_source"></a>📐 <a href="../../engine/sync/RoundRun.lean#L583">Engine.Sync.RoundRun.pending_source</a> · 5 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.RoundRun.asks_have_source"></a>✅ <a href="../../engine/sync/RoundRun.lean#L561">Engine.Sync.RoundRun.asks_have_source</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.RoundRun.mem_inserts"></a>📐 <a href="../../engine/sync/RoundRun.lean#L543">Engine.Sync.RoundRun.mem_inserts</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/WorldLaws.lean#L29">Engine.Sync.byteArray_lawfulBEq</a></li>
-</ul></details></li>
-<li>▫️ <a href="#law-Engine.Sync.chunks_cover">Engine.Sync.chunks_cover</a> ↪ · 1 below</li>
-</ul></details></li>
-</ul></details></li>
+<li>✅ <a href="#law-Engine.Sync.RoundRun.pending_source">Engine.Sync.RoundRun.pending_source</a> ↪ · 5 below</li>
 <li>▫️ <a href="#law-Engine.Sync.Sound.symm">Engine.Sync.Sound.symm</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Engine.Sync.named_false">Engine.Sync.named_false</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Engine.Sync.named_symm">Engine.Sync.named_symm</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/sync/RoundRun.lean#L505">Engine.Sync.RoundRun.exec_runs</a></li>
-<li>✅ <a href="../../engine/sync/RoundRun.lean#L713">Engine.Sync.RoundRun.items_par</a></li>
-<li>▫️ <a href="../../engine/sync/RoundRun.lean#L720">Engine.Sync.RoundRun.par_alt</a></li>
+<li>▫️ <a href="../../engine/sync/RoundRun.lean#L512">Engine.Sync.RoundRun.exec_runs</a></li>
+<li>✅ <a href="../../engine/sync/RoundRun.lean#L720">Engine.Sync.RoundRun.items_par</a></li>
+<li>▫️ <a href="../../engine/sync/RoundRun.lean#L727">Engine.Sync.RoundRun.par_alt</a></li>
 <li>▫️ <a href="../../engine/sync/RoundLaws.lean#L44">Engine.Sync.mem_within</a></li>
 <li>▫️ <a href="../../engine/sync/RoundLaws.lean#L38">Engine.Sync.named_iff</a></li>
 </ul></details></li>
@@ -350,17 +359,17 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 <li>▫️ <a href="../../engine/sync/SweepRun.lean#L40">Engine.Sync.Sweep.Reads.readOnly</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Sweep.step_progress"></a>📐 <a href="../../engine/sync/SweepLaws.lean#L55">Engine.Sync.Sweep.step_progress</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.Sweep.step_progress"></a>🪜 <a href="../../engine/sync/SweepLaws.lean#L55">Engine.Sync.Sweep.step_progress</a> · 2 below · a step of Engine.Sync.Sweep.retried, Engine.Sync.Sweep.retried_fair</summary><ul>
 <li>▫️ <a href="../../engine/sync/SweepLaws.lean#L37">Engine.Sync.Sweep.advance_rank</a></li>
 <li>▫️ <a href="../../engine/sync/SweepLaws.lean#L43">Engine.Sync.Sweep.begin_rank</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Sweep.step_nonincrease"></a>📐 <a href="../../engine/sync/SweepLaws.lean#L125">Engine.Sync.Sweep.step_nonincrease</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.Sweep.step_nonincrease"></a>🪜 <a href="../../engine/sync/SweepLaws.lean#L125">Engine.Sync.Sweep.step_nonincrease</a> · 2 below · a step of Engine.Sync.Sweep.retried_fair</summary><ul>
 <li>▫️ <a href="../../engine/sync/SweepLaws.lean#L37">Engine.Sync.Sweep.advance_rank</a></li>
 <li>▫️ <a href="../../engine/sync/SweepLaws.lean#L43">Engine.Sync.Sweep.begin_rank</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.Sweep.retried_fair"></a>✅ <a href="../../engine/sync/SweepLaws.lean#L167">Engine.Sync.Sweep.retried_fair</a> · 4 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.Sweep.step_nonincrease">Engine.Sync.Sweep.step_nonincrease</a> ↪ · 2 below</li>
-<li>📐 <a href="#law-Engine.Sync.Sweep.step_progress">Engine.Sync.Sweep.step_progress</a> ↪ · 2 below</li>
+<li>🪜 <a href="#law-Engine.Sync.Sweep.step_nonincrease">Engine.Sync.Sweep.step_nonincrease</a> ↪ · 2 below · a step of Engine.Sync.Sweep.retried_fair</li>
+<li>🪜 <a href="#law-Engine.Sync.Sweep.step_progress">Engine.Sync.Sweep.step_progress</a> ↪ · 2 below · a step of Engine.Sync.Sweep.retried, Engine.Sync.Sweep.retried_fair</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.lbl_inj"></a>✅ <a href="../../engine/sync/Fp.lean#L313">Engine.Sync.lbl_inj</a> · 40 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.lbl_eq"></a>▫️ <a href="../../engine/sync/Fp.lean#L269">Engine.Sync.lbl_eq</a> · 29 below</summary><ul>
@@ -427,12 +436,13 @@
 <li><details><summary><a id="law-Engine.Sync.num_inj"></a>✅ <a href="../../engine/sync/Fp.lean#L48">Engine.Sync.num_inj</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/sync/Fp.lean#L43">Engine.Sync.num_pos</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.spec_local"></a>📐 <a href="../../engine/core/Locality.lean#L56">Engine.Sync.spec_local</a> · 8 below</summary><ul>
-<li>📐 <a href="quality-proofs-the-engine.md#law-Engine.spec_extends">Engine.spec_extends</a> ↪ · 5 below</li>
+<li><details><summary><a id="law-Engine.Sync.spec_local"></a>✅ <a href="../../engine/core/Locality.lean#L56">Engine.Sync.spec_local</a> · 8 below</summary><ul>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.spec_extends">Engine.spec_extends</a> ↪ · 5 below</li>
 <li><details><summary><a id="law-Engine.Sync.specAt_restrict"></a>▫️ <a href="../../engine/core/Locality.lean#L36">Engine.Sync.specAt_restrict</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/core/Locality.lean#L21">Engine.Sync.Reach.trans</a></li>
 </ul></details></li>
 </ul></details></li>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.same_ops_same_verdicts">Engine.same_ops_same_verdicts</a> ↪ · 72 below</li>
 <li><details><summary><a id="law-Engine.Sync.conn_answers_ids"></a>✅ <a href="../../engine/wire/WorldLaws.lean#L1578">Engine.Sync.conn_answers_ids</a> · 84 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.Index.answer_fun">Engine.Sync.Index.answer_fun</a> ↪ · 77 below</li>
 <li>▫️ <a href="#law-Engine.Sync.exchange_ids">Engine.Sync.exchange_ids</a> ↪ · 3 below</li>
@@ -444,7 +454,7 @@
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.reach_inv">Engine.reach_inv</a> ↪ · 56 below</li>
 <li><details><summary><a id="law-Engine.Sync.ReceiverRun.store_reachable"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L255">Engine.Sync.ReceiverRun.store_reachable</a> · 8 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.write_reachable"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L202">Engine.Sync.write_reachable</a> · 7 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below</li>
+<li>🪜 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</li>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.Sync.turn_reachable">Engine.Sync.turn_reachable</a> ↪ · 2 below</li>
 </ul></details></li>
 </ul></details></li>
@@ -452,50 +462,50 @@
 <li><details><summary><a id="law-Engine.Sync.write_takes"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L116">Engine.Sync.write_takes</a> · 33 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.write_preserves_op"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L103">Engine.Sync.write_preserves_op</a> · 14 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.drainS_ops">Engine.drainS_ops</a> ↪ · 7 below</li>
-<li>📐 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below</li>
+<li>🪜 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L300">Engine.Sync.foldl_ingest_keep</a></li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L434">Engine.Sync.turn_apply</a></li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.foldl_ingest_new">Engine.Sync.foldl_ingest_new</a> ↪ · 12 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.drainS_ops">Engine.drainS_ops</a> ↪ · 7 below</li>
-<li><details><summary><a id="law-Engine.Sync.absentFold_covers"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L87">Engine.Sync.absentFold_covers</a> · 3 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.absentFold_keeps"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L68">Engine.Sync.absentFold_keeps</a> · 1 below</summary><ul>
-<li>📐 <a href="../../engine/sync/ClosureStore.lean#L48">Engine.Sync.absentStep_keeps</a></li>
+<li><details><summary><a id="law-Engine.Sync.absentFold_covers"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L87">Engine.Sync.absentFold_covers</a> · 3 below · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_takes</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.absentFold_keeps"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L68">Engine.Sync.absentFold_keeps</a> · 1 below · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_takes</summary><ul>
+<li>🪜 <a href="../../engine/sync/ClosureStore.lean#L48">Engine.Sync.absentStep_keeps</a> · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_takes</li>
 </ul></details></li>
-<li>📐 <a href="../../engine/sync/ClosureStore.lean#L48">Engine.Sync.absentStep_keeps</a></li>
+<li>🪜 <a href="../../engine/sync/ClosureStore.lean#L48">Engine.Sync.absentStep_keeps</a> · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_takes</li>
 <li>▫️ <a href="../../engine/sync/ServeLaws.lean#L271">Engine.Sync.instLawfulBEqByteArray_engine</a></li>
 </ul></details></li>
-<li>📐 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below</li>
-<li><details><summary><a id="law-Engine.Sync.absentFold_source"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L74">Engine.Sync.absentFold_source</a> · 1 below</summary><ul>
-<li>📐 <a href="../../engine/sync/ClosureStore.lean#L57">Engine.Sync.absentStep_source</a></li>
+<li>🪜 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</li>
+<li><details><summary><a id="law-Engine.Sync.absentFold_source"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L74">Engine.Sync.absentFold_source</a> · 1 below · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_log_subset +2</summary><ul>
+<li>🪜 <a href="../../engine/sync/ClosureStore.lean#L57">Engine.Sync.absentStep_source</a> · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_log_subset +2</li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.absentOf_new">Engine.Sync.absentOf_new</a> ↪ · 1 below</li>
 </ul></details></li>
-<li>▫️ <a href="quality-proofs-the-engine.md#law-Engine.reach_stored">Engine.reach_stored</a> ↪ · 10 below</li>
+<li>▫️ <a href="security-proofs-hostile-input.md#law-Engine.reach_stored">Engine.reach_stored</a> ↪ · 10 below</li>
 <li>✅ <a href="#law-Engine.Sync.ReceiverRun.store_reachable">Engine.Sync.ReceiverRun.store_reachable</a> ↪ · 8 below</li>
 <li>✅ <a href="../../engine/core/Sync.lean#L78">Engine.intake_sub</a></li>
 <li>✅ <a href="../../engine/core/Sync.lean#L86">Engine.mem_intake_shared</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.ReceiverRun.settled"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L263">Engine.Sync.ReceiverRun.settled</a> · 74 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.ReceiverRun.settled"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L263">Engine.Sync.ReceiverRun.settled</a> · 74 below · a step of Engine.Sync.closure_delivered</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.write_settles"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L223">Engine.Sync.write_settles</a> · 68 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.Sync.turn_settles">Engine.Sync.turn_settles</a> ↪ · 61 below</li>
-<li>📐 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below</li>
-<li>📐 <a href="#law-Engine.Sync.absentFold_source">Engine.Sync.absentFold_source</a> ↪ · 1 below</li>
+<li>🪜 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</li>
+<li>🪜 <a href="#law-Engine.Sync.absentFold_source">Engine.Sync.absentFold_source</a> ↪ · 1 below · a step of Engine.Sync.ReceiverRun.receives, Engine.Sync.closure_delivered, Engine.Sync.write_log_subset +2</li>
 </ul></details></li>
 <li>✅ <a href="#law-Engine.Sync.ReceiverRun.store_reachable">Engine.Sync.ReceiverRun.store_reachable</a> ↪ · 8 below</li>
 <li>✅ <a href="../../engine/core/Sync.lean#L78">Engine.intake_sub</a></li>
 </ul></details></li>
 <li>✅ <a href="#law-Engine.Sync.ReceiverRun.invariant">Engine.Sync.ReceiverRun.invariant</a> ↪ · 66 below</li>
 <li>✅ <a href="also-cited.md#law-Engine.Sync.ServiceRun.eventually_emitted">Engine.Sync.ServiceRun.eventually_emitted</a> ↪ · 46 below</li>
-<li><details><summary><a id="law-Engine.Sync.finite_eventually_held"></a>📐 <a href="../../engine/sync/ClosureDelivery.lean#L203">Engine.Sync.finite_eventually_held</a> · 17 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.ReceiverRun.retains"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L279">Engine.Sync.ReceiverRun.retains</a> · 16 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.ReceiverRun.keeps"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L274">Engine.Sync.ReceiverRun.keeps</a> · 15 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.finite_eventually_held"></a>🪜 <a href="../../engine/sync/ClosureDelivery.lean#L203">Engine.Sync.finite_eventually_held</a> · 17 below · a step of Engine.Sync.closure_delivered</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.ReceiverRun.retains"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L279">Engine.Sync.ReceiverRun.retains</a> · 16 below · a step of Engine.Sync.closure_delivered</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.ReceiverRun.keeps"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L274">Engine.Sync.ReceiverRun.keeps</a> · 15 below · a step of Engine.Sync.closure_delivered</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.write_preserves_op">Engine.Sync.write_preserves_op</a> ↪ · 14 below</li>
 </ul></details></li>
 </ul></details></li>
 </ul></details></li>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.status_iff_spec">Engine.status_iff_spec</a> ↪ · 9 below</li>
-<li>📐 <a href="#law-Engine.Sync.spec_local">Engine.Sync.spec_local</a> ↪ · 8 below</li>
+<li>✅ <a href="#law-Engine.Sync.spec_local">Engine.Sync.spec_local</a> ↪ · 8 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.stream_offered"></a>🌐 <a href="../../engine/wire/WorldLaws.lean#L1520">Engine.Sync.stream_offered</a> · 81 below</summary><ul>
 <li>🌐 <a href="#law-Engine.Sync.write_offers_all">Engine.Sync.write_offers_all</a> ↪ · 80 below</li>
@@ -952,70 +962,30 @@
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L29">Engine.Sync.byteArray_lawfulBEq</a></li>
 </ul></details></li>
 <li>✅ <a href="security-proofs-hostile-input.md#law-Engine.Sync.asks_expire">Engine.Sync.asks_expire</a> ↪ · 1 below</li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_within"></a>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L220">Engine.Sync.Ingress.Prioritized.write_within</a> · 6 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_served"></a>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L205">Engine.Sync.Ingress.Prioritized.write_served</a> · 5 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_progress"></a>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L157">Engine.Sync.Ingress.Prioritized.write_progress</a> · 4 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L8">Engine.Sync.Inbox.Priority.advance_at_zero</a></li>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L143">Engine.Sync.Ingress.Prioritized.step_empty_event</a></li>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L30">Engine.Sync.Ingress.Prioritized.step_write</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_within"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L220">Engine.Sync.Ingress.Prioritized.write_within</a> · 6 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.write_served">Engine.Sync.Ingress.Prioritized.write_served</a> ↪ · 5 below</li>
 </ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.source_or_cancelled_within"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L82">Engine.Sync.Ingress.Prioritized.source_or_cancelled_within</a> · 16 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.served_or_cancelled">Engine.Sync.Ingress.Prioritized.served_or_cancelled</a> ↪ · 15 below</li>
+<li>🪜 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a> · a step of Engine.Sync.ExpiryGrace.source_before_exhaustion, Engine.Sync.Ingress.Prioritized.churnFlood_source, Engine.Sync.Ingress.Prioritized.poll_exists +8</li>
 </ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_within_churn"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L116">Engine.Sync.Ingress.Prioritized.write_within_churn</a> · 7 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.write_served_churn">Engine.Sync.Ingress.Prioritized.write_served_churn</a> ↪ · 6 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.source_or_cancelled_within"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L82">Engine.Sync.Ingress.Prioritized.source_or_cancelled_within</a> · 16 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.served_or_cancelled"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L56">Engine.Sync.Ingress.Prioritized.served_or_cancelled</a> · 15 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.step_progress"></a>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L65">Engine.Sync.Ingress.Prioritized.step_progress</a> · 9 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.poll_exists"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L56">Engine.Sync.Ingress.Prioritized.poll_exists</a> · 3 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.scan_ready"></a>📐 <a href="../../engine/wire/IngressLaws.lean#L30">Engine.Sync.Ingress.scan_ready</a> · 1 below</summary><ul>
-<li>📐 <a href="../../engine/wire/IngressLaws.lean#L19">Engine.Sync.Ingress.advance_distance</a></li>
+<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.write_within"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L167">Engine.Sync.Inbox.Priority.write_within</a> · 8 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Inbox.Priority.served">Engine.Sync.Inbox.Priority.served</a> ↪ · 7 below</li>
 </ul></details></li>
-<li>📐 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a></li>
+<li><details><summary><a id="law-Data.WriterQueue.local_within"></a>✅ <a href="../../engine/renderer/WriteQueueLaws.lean#L43">Data.WriterQueue.local_within</a> · 9 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Inbox.Priority.write_within">Engine.Sync.Inbox.Priority.write_within</a> ↪ · 8 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.poll_progress"></a>📐 <a href="../../engine/wire/IngressLaws.lean#L94">Engine.Sync.Ingress.poll_progress</a> · 3 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.Ingress.scan_ready">Engine.Sync.Ingress.scan_ready</a> ↪ · 1 below</li>
-<li>📐 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a></li>
+<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.event_within"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L175">Engine.Sync.Inbox.Priority.event_within</a> · 8 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Inbox.Priority.served">Engine.Sync.Inbox.Priority.served</a> ↪ · 7 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.step_only_event"></a>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L46">Engine.Sync.Ingress.Prioritized.step_only_event</a> · 1 below</summary><ul>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
+<li><details><summary><a id="law-Data.WriterQueue.background_within"></a>✅ <a href="../../engine/renderer/WriteQueueLaws.lean#L54">Data.WriterQueue.background_within</a> · 9 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Inbox.Priority.event_within">Engine.Sync.Inbox.Priority.event_within</a> ↪ · 8 below</li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L11">Engine.Sync.Inbox.Priority.advance_positive</a></li>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
-<li>📐 <a href="../../engine/wire/IngressPriorityLaws.lean#L30">Engine.Sync.Ingress.Prioritized.step_write</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.changes_preserve"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L35">Engine.Sync.Ingress.Prioritized.changes_preserve</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.arrivals_preserve"></a>📐 <a href="../../engine/wire/IngressLaws.lean#L121">Engine.Sync.Ingress.arrivals_preserve</a> · 1 below</summary><ul>
-<li>✅ <a href="../../engine/wire/IngressLaws.lean#L77">Engine.Sync.Ingress.offer_preserves</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.cancelAll_preserves"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L15">Engine.Sync.Ingress.cancelAll_preserves</a> · 1 below</summary><ul>
-<li>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L9">Engine.Sync.Ingress.cancel_other</a></li>
-</ul></details></li>
-</ul></details></li>
-</ul></details></li>
-<li>📐 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_within_churn"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L116">Engine.Sync.Ingress.Prioritized.write_within_churn</a> · 7 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_served_churn"></a>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L100">Engine.Sync.Ingress.Prioritized.write_served_churn</a> · 6 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.Ingress.Prioritized.write_progress">Engine.Sync.Ingress.Prioritized.write_progress</a> ↪ · 4 below</li>
-<li>📐 <a href="../../engine/wire/IngressChurnLaws.lean#L93">Engine.Sync.Ingress.Prioritized.Waiting.same_inputs</a></li>
-</ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.write_within"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L167">Engine.Sync.Inbox.Priority.write_within</a> · 8 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.served"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L150">Engine.Sync.Inbox.Priority.served</a> · 7 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.waiting_step"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L63">Engine.Sync.Inbox.Priority.waiting_step</a> · 6 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L8">Engine.Sync.Inbox.Priority.advance_at_zero</a></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L11">Engine.Sync.Inbox.Priority.advance_positive</a></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L39">Engine.Sync.Inbox.Priority.step_event</a></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L50">Engine.Sync.Inbox.Priority.step_only_event</a></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L45">Engine.Sync.Inbox.Priority.step_only_write</a></li>
-<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L33">Engine.Sync.Inbox.Priority.step_write</a></li>
-</ul></details></li>
-</ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.event_within"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L175">Engine.Sync.Inbox.Priority.event_within</a> · 8 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.Inbox.Priority.served">Engine.Sync.Inbox.Priority.served</a> ↪ · 7 below</li>
-</ul></details></li>
-<li><a id="law-Engine.Sync.Inbox.Priority.local_share"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L28">Engine.Sync.Inbox.Priority.local_share</a></li>
-<li><a id="law-Engine.Sync.Inbox.Priority.phase_cycle"></a>📐 <a href="../../engine/wire/PriorityLaws.lean#L22">Engine.Sync.Inbox.Priority.phase_cycle</a></li>
+<li><a id="law-Engine.Sync.Inbox.Priority.local_share"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L28">Engine.Sync.Inbox.Priority.local_share</a></li>
+<li><a id="law-Engine.Sync.Inbox.Priority.phase_cycle"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L22">Engine.Sync.Inbox.Priority.phase_cycle</a></li>
 <li><details><summary><a id="law-Engine.Sync.Loop.turn_records"></a>✅ <a href="../../engine/wire/LoopLaws.lean#L89">Engine.Sync.Loop.turn_records</a> · 2 below</summary><ul>
 <li>✅ <a href="../../engine/wire/LoopLaws.lean#L39">Engine.Sync.Loop.dispatch_records</a></li>
 <li>▫️ <a href="../../engine/wire/LoopLaws.lean#L82">Engine.Sync.Loop.inbox_phase</a></li>
@@ -1027,33 +997,40 @@
 <li><details><summary><a id="law-Engine.Sync.Tick.cofinal"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L445">Engine.Sync.Tick.cofinal</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L430">Engine.Sync.Tick.due</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.urgent_ahead"></a>📐 <a href="../../engine/wire/LaneLaws.lean#L108">Engine.Sync.urgent_ahead</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.urgent_ahead"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L108">Engine.Sync.urgent_ahead</a> · 2 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L91">Engine.Sync.pushAll_lanes</a></li>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L76">Engine.Sync.take_urgent_first</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.ahead_bytes"></a>📐 <a href="../../engine/wire/LaneLaws.lean#L179">Engine.Sync.ahead_bytes</a> · 13 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.lanes_bounded"></a>📐 <a href="../../engine/wire/LaneLaws.lean#L164">Engine.Sync.lanes_bounded</a> · 6 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.take_bytes"></a>📐 <a href="../../engine/wire/LaneLaws.lean#L145">Engine.Sync.take_bytes</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.take_append"></a>📐 <a href="../../engine/wire/LaneLaws.lean#L81">Engine.Sync.take_append</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Engine.Sync.cut_append"></a>▫️ <a href="../../engine/wire/LaneLaws.lean#L55">Engine.Sync.cut_append</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/LaneLaws.lean#L34">Engine.Sync.fill_append</a></li>
-</ul></details></li>
-</ul></details></li>
-<li>▫️ <a href="../../engine/wire/LaneLaws.lean#L116">Engine.Sync.bytesOf_append</a></li>
-</ul></details></li>
-<li>✅ <a href="../../engine/wire/LaneLaws.lean#L130">Engine.Sync.push_capped</a></li>
-</ul></details></li>
-<li>📐 <a href="#law-Engine.Sync.take_bytes">Engine.Sync.take_bytes</a> ↪ · 4 below</li>
+<li><details><summary><a id="law-Engine.Sync.ahead_bytes"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L179">Engine.Sync.ahead_bytes</a> · 13 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.lanes_bounded">Engine.Sync.lanes_bounded</a> ↪ · 6 below</li>
+<li>✅ <a href="#law-Engine.Sync.take_bytes">Engine.Sync.take_bytes</a> ↪ · 4 below</li>
 <li><details><summary><a id="law-Engine.Sync.pushAll_bytes"></a>▫️ <a href="../../engine/wire/LaneLaws.lean#L121">Engine.Sync.pushAll_bytes</a> · 2 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L116">Engine.Sync.bytesOf_append</a></li>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L91">Engine.Sync.pushAll_lanes</a></li>
 </ul></details></li>
-<li>📐 <a href="#law-Engine.Sync.take_append">Engine.Sync.take_append</a> ↪ · 2 below</li>
-<li>📐 <a href="#law-Engine.Sync.urgent_ahead">Engine.Sync.urgent_ahead</a> ↪ · 2 below</li>
+<li>✅ <a href="#law-Engine.Sync.take_append">Engine.Sync.take_append</a> ↪ · 2 below</li>
+<li>✅ <a href="#law-Engine.Sync.urgent_ahead">Engine.Sync.urgent_ahead</a> ↪ · 2 below</li>
 <li>✅ <a href="#law-Engine.Sync.cut_bytes">Engine.Sync.cut_bytes</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L116">Engine.Sync.bytesOf_append</a></li>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L91">Engine.Sync.pushAll_lanes</a></li>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L76">Engine.Sync.take_urgent_first</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Reserved.take_vacant"></a>✅ <a href="../../engine/wire/Reserved.lean#L122">Engine.Sync.Reserved.take_vacant</a></li>
+<li><details><summary><a id="law-Engine.Sync.take_append"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L81">Engine.Sync.take_append</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.cut_append"></a>▫️ <a href="../../engine/wire/LaneLaws.lean#L55">Engine.Sync.cut_append</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/LaneLaws.lean#L34">Engine.Sync.fill_append</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.take_bytes"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L145">Engine.Sync.take_bytes</a> · 4 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.take_append">Engine.Sync.take_append</a> ↪ · 2 below</li>
+<li>▫️ <a href="../../engine/wire/LaneLaws.lean#L116">Engine.Sync.bytesOf_append</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.lanes_bounded"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L164">Engine.Sync.lanes_bounded</a> · 6 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.take_bytes">Engine.Sync.take_bytes</a> ↪ · 4 below</li>
+<li>✅ <a href="../../engine/wire/LaneLaws.lean#L130">Engine.Sync.push_capped</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Reserved.offer_bounded"></a>✅ <a href="../../engine/wire/Reserved.lean#L156">Engine.Sync.Reserved.offer_bounded</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/Reserved.lean#L61">Engine.Sync.RetrySlot.offer_bound</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.cut_bytes"></a>✅ <a href="../../engine/wire/LaneLaws.lean#L61">Engine.Sync.cut_bytes</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/LaneLaws.lean#L43">Engine.Sync.fill_bytes</a></li>
@@ -1095,7 +1072,7 @@
 <li><details><summary><a id="law-Connection.Execution.write_receives"></a>🌐 <a href="../../app/Proofs.lean#L3073">Connection.Execution.write_receives</a> · 38 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.write_takes">Engine.Sync.write_takes</a> ↪ · 33 below</li>
 <li><details><summary><a id="law-Connection.Execution.write_store_tape"></a>📐 <a href="../../app/Proofs.lean#L3048">Connection.Execution.write_store_tape</a> · 7 below</summary><ul>
-<li>📐 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below</li>
+<li>🪜 <a href="#law-Engine.Sync.write_store">Engine.Sync.write_store</a> ↪ · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</li>
 <li><details><summary><a id="law-Connection.Execution.M.forIn_reads"></a>▫️ <a href="../../app/Proofs.lean#L3039">Connection.Execution.M.forIn_reads</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/Proofs.lean#L2172">Connection.Execution.M.bind_apply</a></li>
 </ul></details></li>
@@ -1122,6 +1099,85 @@
 <li>▫️ <a href="quality-proofs-the-engine.md#law-Connection.Execution.NodeTape.finish_goes">Connection.Execution.NodeTape.finish_goes</a> ↪ · 43 below</li>
 <li>✅ <a href="#law-Connection.Execution.committed_bind">Connection.Execution.committed_bind</a> ↪ · 13 below</li>
 </ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.served"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L150">Engine.Sync.Inbox.Priority.served</a> · 7 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Inbox.Priority.waiting_step">Engine.Sync.Inbox.Priority.waiting_step</a> ↪ · 6 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Inbox.Priority.waiting_step"></a>✅ <a href="../../engine/wire/PriorityLaws.lean#L63">Engine.Sync.Inbox.Priority.waiting_step</a> · 6 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L8">Engine.Sync.Inbox.Priority.advance_at_zero</a></li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L11">Engine.Sync.Inbox.Priority.advance_positive</a></li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L39">Engine.Sync.Inbox.Priority.step_event</a></li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L50">Engine.Sync.Inbox.Priority.step_only_event</a></li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L45">Engine.Sync.Inbox.Priority.step_only_write</a></li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L33">Engine.Sync.Inbox.Priority.step_write</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.Prioritized.step_event"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.step_only_event"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L46">Engine.Sync.Ingress.Prioritized.step_only_event</a> · 1 below</summary><ul>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.Prioritized.step_empty_event"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L143">Engine.Sync.Ingress.Prioritized.step_empty_event</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.served"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L136">Engine.Sync.Ingress.served</a> · 6 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.poll_progress">Engine.Sync.Ingress.poll_progress</a> ↪ · 3 below</li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.arrivals_preserve">Engine.Sync.Ingress.arrivals_preserve</a> ↪ · 1 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.scan_ready"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L23">Engine.Sync.Ingress.scan_ready</a> · 1 below</summary><ul>
+<li>✅ <a href="../../engine/wire/IngressLaws.lean#L12">Engine.Sync.Ingress.advance_distance</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.poll_progress"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L87">Engine.Sync.Ingress.poll_progress</a> · 3 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.scan_ready">Engine.Sync.Ingress.scan_ready</a> ↪ · 1 below</li>
+<li>🪜 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a> · a step of Engine.Sync.ExpiryGrace.source_before_exhaustion, Engine.Sync.Ingress.Prioritized.churnFlood_source, Engine.Sync.Ingress.Prioritized.poll_exists +8</li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.advance_distance"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L12">Engine.Sync.Ingress.advance_distance</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.arrivals_preserve"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L114">Engine.Sync.Ingress.arrivals_preserve</a> · 1 below</summary><ul>
+<li>✅ <a href="../../engine/wire/IngressLaws.lean#L70">Engine.Sync.Ingress.offer_preserves</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.flooded_prefix"></a>✅ <a href="../../engine/wire/IngressLaws.lean#L179">Engine.Sync.Ingress.flooded_prefix</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.served"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L111">Engine.Sync.Ingress.Prioritized.served</a> · 12 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.step_progress">Engine.Sync.Ingress.Prioritized.step_progress</a> ↪ · 9 below</li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.arrivals_preserve">Engine.Sync.Ingress.arrivals_preserve</a> ↪ · 1 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.step_progress"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L65">Engine.Sync.Ingress.Prioritized.step_progress</a> · 9 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.poll_exists"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L56">Engine.Sync.Ingress.Prioritized.poll_exists</a> · 3 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.scan_ready">Engine.Sync.Ingress.scan_ready</a> ↪ · 1 below</li>
+<li>🪜 <a href="../../engine/wire/IngressLaws.lean#L5">Engine.Sync.Ingress.distance_lt</a> · a step of Engine.Sync.ExpiryGrace.source_before_exhaustion, Engine.Sync.Ingress.Prioritized.churnFlood_source, Engine.Sync.Ingress.Prioritized.poll_exists +8</li>
+</ul></details></li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.poll_progress">Engine.Sync.Ingress.poll_progress</a> ↪ · 3 below</li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.step_only_event">Engine.Sync.Ingress.Prioritized.step_only_event</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L11">Engine.Sync.Inbox.Priority.advance_positive</a></li>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L30">Engine.Sync.Ingress.Prioritized.step_write</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.Prioritized.step_write"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L30">Engine.Sync.Ingress.Prioritized.step_write</a></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_progress"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L157">Engine.Sync.Ingress.Prioritized.write_progress</a> · 4 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/PriorityLaws.lean#L8">Engine.Sync.Inbox.Priority.advance_at_zero</a></li>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L143">Engine.Sync.Ingress.Prioritized.step_empty_event</a></li>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L37">Engine.Sync.Ingress.Prioritized.step_event</a></li>
+<li>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L30">Engine.Sync.Ingress.Prioritized.step_write</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_served"></a>✅ <a href="../../engine/wire/IngressPriorityLaws.lean#L205">Engine.Sync.Ingress.Prioritized.write_served</a> · 5 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.write_progress">Engine.Sync.Ingress.Prioritized.write_progress</a> ↪ · 4 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.cancelAll_preserves"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L15">Engine.Sync.Ingress.cancelAll_preserves</a> · 1 below</summary><ul>
+<li>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L9">Engine.Sync.Ingress.cancel_other</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.changes_preserve"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L35">Engine.Sync.Ingress.Prioritized.changes_preserve</a> · 4 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.arrivals_preserve">Engine.Sync.Ingress.arrivals_preserve</a> ↪ · 1 below</li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.cancelAll_preserves">Engine.Sync.Ingress.cancelAll_preserves</a> ↪ · 1 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.served_or_cancelled"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L56">Engine.Sync.Ingress.Prioritized.served_or_cancelled</a> · 15 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.step_progress">Engine.Sync.Ingress.Prioritized.step_progress</a> ↪ · 9 below</li>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.changes_preserve">Engine.Sync.Ingress.Prioritized.changes_preserve</a> ↪ · 4 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.write_served_churn"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L100">Engine.Sync.Ingress.Prioritized.write_served_churn</a> · 6 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.write_progress">Engine.Sync.Ingress.Prioritized.write_progress</a> ↪ · 4 below</li>
+<li>🪜 <a href="../../engine/wire/IngressChurnLaws.lean#L93">Engine.Sync.Ingress.Prioritized.Waiting.same_inputs</a> · a step of Engine.Sync.Ingress.Prioritized.churnFlood_write, Engine.Sync.Ingress.Prioritized.write_served_churn, Engine.Sync.Ingress.Prioritized.write_within_churn</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.churnFlood_source"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L144">Engine.Sync.Ingress.Prioritized.churnFlood_source</a> · 17 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.source_or_cancelled_within">Engine.Sync.Ingress.Prioritized.source_or_cancelled_within</a> ↪ · 16 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Engine.Sync.Ingress.Prioritized.churnFlood_write"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L152">Engine.Sync.Ingress.Prioritized.churnFlood_write</a> · 8 below</summary><ul>
+<li>✅ <a href="#law-Engine.Sync.Ingress.Prioritized.write_within_churn">Engine.Sync.Ingress.Prioritized.write_within_churn</a> ↪ · 7 below</li>
+</ul></details></li>
+<li><a id="law-Engine.Sync.Ingress.Prioritized.churnFlood_exact"></a>✅ <a href="../../engine/wire/IngressChurnLaws.lean#L156">Engine.Sync.Ingress.Prioritized.churnFlood_exact</a></li>
 <li><details><summary><a id="law-Engine.World.Plain.converge"></a>🌐 <a href="../../engine/world/Plain.lean#L203">Engine.World.Plain.converge</a> · 129 below</summary><ul>
 <li>🌐 <a href="#law-Engine.World.Plain.grows">Engine.World.Plain.grows</a> ↪ · 120 below</li>
 <li><details><summary><a id="law-Engine.World.converge_of_edge"></a>▫️ <a href="../../engine/world/Epidemic.lean#L209">Engine.World.converge_of_edge</a> · 7 below</summary><ul>
@@ -1747,7 +1803,7 @@
 </ul></details></li>
 <li>✅ <a href="#law-Engine.Sync.fetch_all">Engine.Sync.fetch_all</a> ↪ · 2 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.serveOwed_run">Engine.Sync.serveOwed_run</a> ↪ · 2 below</li>
-<li><details><summary><a id="law-Engine.Sync.filter_idxOf_le"></a>📐 <a href="../../engine/sync/ClosureDelivery.lean#L62">Engine.Sync.filter_idxOf_le</a> · 1 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.filter_idxOf_le"></a>🪜 <a href="../../engine/sync/ClosureDelivery.lean#L62">Engine.Sync.filter_idxOf_le</a> · 1 below · a step of Engine.Sync.ServiceRun.eventually_emitted, Engine.Sync.ServiceRun.pending, Engine.Sync.ServiceRun.pending_until +2</summary><ul>
 <li>▫️ <a href="../../engine/sync/TimeLaws.lean#L9">Engine.Sync.instLawfulBEqByteArray_engine_1</a></li>
 </ul></details></li>
 <li>▫️ <a href="../../engine/sync/TimeLaws.lean#L9">Engine.Sync.instLawfulBEqByteArray_engine_1</a></li>
@@ -2253,7 +2309,7 @@ Subtrees met 5 levels down, drawn whole here once.
 <li><details><summary><a id="law-Engine.Sync.has_of_mem"></a>▫️ <a href="../../engine/wire/WorldLaws.lean#L532">Engine.Sync.has_of_mem</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/core/Model.lean#L30">Engine.has_iff</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.write_store"></a>📐 <a href="../../engine/sync/ClosureStore.lean#L23">Engine.Sync.write_store</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.write_store"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L23">Engine.Sync.write_store</a> · 3 below · a step of Engine.Sync.ReceiverRun.invariant, Engine.Sync.ReceiverRun.receives, Engine.Sync.ReceiverRun.store_reachable +7</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.Sync.HeldM.forIn_reads">Engine.Sync.HeldM.forIn_reads</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L25">Engine.Sync.HeldM.bind_apply</a></li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L28">Engine.Sync.HeldM.getOp_apply</a></li>

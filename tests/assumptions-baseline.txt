@@ -6,6 +6,8 @@ Connection.Noise.Symbolic.sym sat
 Engine.CollisionFree neg
 Engine.Model.run neg
 Engine.Model.run sat
+Engine.SeekCost.seek neg
+Engine.SeekCost.seek sat
 Engine.Sync.popW neg
 Engine.Sync.popW sat
 Engine.runJ neg

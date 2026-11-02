@@ -257,24 +257,6 @@ theorem inv_commit {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (c : C)
 theorem inv_frame {w : RWorld σ C W V Q} (h : Inv hits eval reads w) : Inv hits eval reads (w.frame) :=
   ⟨h.1, h.2.1, Board.seen_take h.2.2⟩
 
-theorem inv_evict {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (held : Q → Bool) :
-    Inv hits eval reads (w.evict held) := by
-  refine ⟨fun x v n hx => ?_, h.2.1, h.2.2⟩
-  rcases h.1 x v n hx with d | hit | st | e
-  · exact Or.inl d
-  · exact Or.inr (Or.inl hit)
-  · refine Or.inr (Or.inr (Or.inl ?_))
-    revert st
-    simp only [staleW, evict]
-    split
-    · simp
-    · simp only [Bool.or_eq_true, List.any_eq_true]
-      intro st
-      rcases st with st | ⟨q, hq, t⟩
-      · exact Or.inl st
-      · exact Or.inr ⟨q, hq, by simp [t]⟩
-  · exact Or.inr (Or.inr (Or.inr e))
-
 theorem inv_want {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (ws : List W) :
     Inv hits eval reads (w.want ws) := by
   refine ⟨fun x v n hx => ?_, h.2.1, h.2.2⟩
@@ -407,9 +389,6 @@ theorem inv_passWith {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : 
       split
       · exact hh x
       · rfl
-
-theorem inv_pass {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (cap : Nat) :
-    Inv hits eval reads (w.pass hits eval reads cap) := inv_passWith hits eval reads h cap fun _ m => m
 
 /-- **No missed update, as the reader runs**: a pass that reads every
 want it marks (or any set holding them), then one frame, shows every
