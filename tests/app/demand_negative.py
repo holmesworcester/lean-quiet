@@ -118,9 +118,16 @@ cases = [
 
 ]
 
+# --list: the cases, one a line ("proofs" is the two proof mutants);
+# names given: just those (ci/local.sh --full runs each case at once).
+if sys.argv[1:] == ["--list"]:
+    print("\n".join([case[0] for case in cases] + ["proofs"]))
+    sys.exit(0)
+proofs = True
 if sys.argv[1:]:
     selected = set(sys.argv[1:])
-    assert selected <= {case[0] for case in cases}, "unknown mutation"
+    assert selected <= {case[0] for case in cases} | {"proofs"}, "unknown mutation"
+    proofs = "proofs" in selected
     cases = [case for case in cases if case[0] in selected]
 
 with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPDIR"]) as tmp:
@@ -128,7 +135,7 @@ with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPD
     snapshot = run(["bash", "-c", '. tests/snapshot.sh\nsnapshot "$1" engine/core engine/wire engine/sync engine/renderer app platforms/headless tests/app tests/engine Quiet.lean assets', "snapshot", str(base)], ROOT, "snapshot")
     assert snapshot.returncode == 0, "snapshot failed"
     assert run(["lake", "build", "component_demand", "op_components", "net_join"], base, "baseline-build").returncode == 0, "baseline build failed"
-    for exe in ["component_demand", "op_components", "net_join"]:
+    for exe in sorted({case[1] for case in cases}):
         p = run([str(base / ".lake/build/bin" / exe), str(LOGS / "baseline")], base, "baseline-" + exe)
         assert p.returncode == 0 and no_runtime_crash(p), "baseline failed"
     for name, exe, changes, expected in cases:
@@ -147,7 +154,7 @@ with tempfile.TemporaryDirectory(prefix="demand-negative-", dir=os.environ["TMPD
             shutil.rmtree(work)
     source = base / "engine/renderer/Demand.lean"
     original = source.read_text()
-    for name, old, new, theorem in [
+    for name, old, new, theorem in [] if not proofs else [
         ("stale-publication", "if p.current t then some value else none", "some value", "complete_retired"),
         ("reused-ticket", "tickets := keys.zipIdx.map fun (k, i) => (p.ticket k).getD ⟨k, p.next + i⟩", "tickets := keys.zipIdx.map fun (k, i) => (p.ticket k).getD ⟨k, 0⟩", "reconcile_ticket_origin"),
     ]:

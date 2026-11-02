@@ -4,7 +4,7 @@
     "theorem": "App.withNav_cache",
     "witness": "Vacuity.Nav.cache",
     "module": "tests.vacuity.Nav",
-    "detail": "Its premise, distinct ids among the ops the log is rebuilt from, holds of every log holding only nav ops, which is every log the app reaches: the log starts empty and nav is its one ephemeral op type, so each change of page rebuilds it from the new nav op alone (Vacuity.Nav.placed_navOnly). App.St holds IO handles, so no concrete St is built in the kernel; the headless host program checks the conclusion on the running app after a switch, a back and a channel open (platforms/headless/Host.lean: the page shown is the log's newest nav op)."
+    "detail": "Its premise, distinct ids among the ops the log is rebuilt from, holds of every log holding only nav ops, as the app's does before any draft is written: the log starts empty, so each change of page rebuilds it from the new nav op alone (Vacuity.Nav.placed_navOnly); with drafts beside it, it holds when SHA-256 has no collision on the log's ops (distinct_of_collisionFree). App.St holds IO handles, so no concrete St is built in the kernel; the headless host program checks the conclusion on the running app after a switch, a back and a channel open (platforms/headless/Host.lean: the page shown is the log's newest nav op)."
   },
   "placeIn_newest": {
     "status": "kernel-witness",

@@ -65,7 +65,7 @@ engine/         what holds for every op type, sync and the Merkle tree among it
 platforms/      the shells and the headless twin
 ```
 
-Planned ops (`channel`, `draft`, `emoji`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
+Planned ops (`channel`, `emoji`) are marked as planned in the tree and in the workspace. Existing ops keep their tags and codecs: the wire golden test (`tests/engine/WireGolden.lean`) pins every op type's bytes, ids and verdicts to main's before the cutover.
 
 ### Recorded exceptions
 

@@ -26,7 +26,7 @@ if [ "$mode" = stage ]; then exit; fi
 platforms/windows/native.sh
 share=$vm/shared/lean-quiet-windows
 mkdir -p "$share/toolchain" "$share/results"
-rsync -a --include='/bin/***' --include='/include/***' --include='/lib/' --include='/lib/lean/' --include='/lib/lean/*.a' --include='/lib/clang/***' --include='/lib/*.a' --include='/lib/*.o' --exclude='*' out/toolchain/lean-4.34.0-windows/ "$share/toolchain/"
+rsync -a --include='/bin/***' --include='/include/***' --include='/lib/' --include='/lib/lean/' --include='/lib/lean/*.a' --include='/lib/clang/***' --include='/lib/*.a' --include='/lib/*.o' --exclude='*' out/toolchain/lean-4.35.0-windows/ "$share/toolchain/"
 rsync -a out/windows/stage/ "$share/stage/"
 python3 "$vm/vm.py" start
 python3 "$vm/vm.py" exec platforms/windows/build.ps1 --timeout 1800 >out/windows/build.log 2>&1 || { cat out/windows/build.log; exit 1; }

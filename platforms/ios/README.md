@@ -29,9 +29,9 @@ Linux box and do the Mac's part over SSH.
 
 - **Here:** the Lean toolchain (`ELAN_HOME`, default `/mnt/storage/elan`)
   and the repository, built by lake. You also need Lean's source at the toolchain's version
-  (`LEAN_SRC`, default `/mnt/storage/holmes-wt/lean-src/lean4`, tag
-  v4.34.0) and libuv v1.51.0 (`UV_SRC`, default
-  `/mnt/storage/holmes-wt/lean-src/libuv`). The engine's Rust crypto needs
+  (`LEAN_SRC`, default `/mnt/storage/holmes-wt/lean-src-435/lean4`, tag
+  v4.35.0) and libuv v1.51.0 (`UV_SRC`, default
+  `/mnt/storage/holmes-wt/lean-src-435/libuv`). The engine's Rust crypto needs
   cargo with the targets `aarch64-apple-ios` and `aarch64-apple-ios-sim`
   (`rustup target add`); it builds here, and the Mac only links it.
   `assets/` comes from `tools/fetch_assets.sh`. Init's C goes to `out/initc`
