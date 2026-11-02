@@ -63,8 +63,9 @@ audit and the evidence inventory passes (732 entries; the 16 declarations
 main leaves pending are unchanged). This suite passes 52
 checks, all five controls and restoration. Compatibility: normal suspend 51
 with three controls and boot admission 13 with two, all restored;
-lifecycle-node 40/0 with its controls (main's `accept-revoked-act` control
-has a stale anchor since `eadcee3`). Failed-runner passed 77 checks with
+lifecycle-node 40/0 with 18 of its 20 controls (since `eadcee3`, main's own
+`accept-revoked-act` anchor is stale and its `commit-on-frame` mutant
+survives). Failed-runner passed 77 checks with
 seven controls on the merge with main `149943e`; since main's reader-act
 sends (`eadcee3`) its baseline hangs on main itself, with replay blocked
 in `Writer.submit` and the fixture in its queue-gate cleanup. The lifecycle fixture's late-boot case now stops a runner the
