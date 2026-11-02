@@ -129,6 +129,9 @@ def children (dir : String) (ck : Checks) : IO Unit := do
   let initial ← App.start sm.io (← sm.viewport.get) (dir ++ "/quiet.db")
   let (_, final) ← (show M Unit from do
     found "child queries" "Ann"
+    -- founding is a reader act: the community and its key are here once it
+    -- is written and listed (Cont.found)
+    waitIdle sm
     openPage .chat
     discard <| sendText "First message"
     let me := (← get).me
