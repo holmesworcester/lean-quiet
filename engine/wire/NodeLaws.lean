@@ -80,8 +80,8 @@ variable {F : Type}
 
 variable (fam : Family F)
 
-theorem items_mk (rooms : List (Id × RoomTree)) (r : Id) :
-    Index.items ⟨rooms⟩ r = ((rooms.find? fun p => Decidable.decide (p.1 = r)).map (·.2.items)).getD [] := by
+theorem items_mk (rooms : List (Id × RoomTree)) (byId : Std.HashMap Id (Id × List Id)) (r : Id) :
+    Index.items ⟨rooms, byId⟩ r = ((rooms.find? fun p => Decidable.decide (p.1 = r)).map (·.2.items)).getD [] := by
   unfold Index.items Index.room?
   cases rooms.find? fun p => Decidable.decide (p.1 = r) <;> rfl
 
@@ -92,7 +92,7 @@ theorem items_mk (rooms : List (Id × RoomTree)) (r : Id) :
 theorem items_add (ix : Index) (o : Op) (r : Id) :
     (ix.add fam o).items r =
       if fam.room o = some r then ins (keyOf fam o, o.id) (ix.items r) else ix.items r := by
-  obtain ⟨rooms⟩ := ix
+  obtain ⟨rooms, byId⟩ := ix
   unfold Index.add
   cases hr : fam.room o with
   | none => simp

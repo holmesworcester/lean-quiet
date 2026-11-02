@@ -478,6 +478,10 @@ lean_exe simplify where
 lean_exe newest where
   root := `tests.engine.Newest
 
+-- A windowed node gets its window and its requirements in one round
+lean_exe window_sync where
+  root := `tests.engine.WindowSync
+
 -- T-fresh: a fresh post's latency while a backlog syncs, simulated time
 lean_exe fresh where
   root := `tests.engine.Fresh

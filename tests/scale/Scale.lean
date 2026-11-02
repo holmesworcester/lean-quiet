@@ -166,7 +166,7 @@ def main (args : List String) : IO UInt32 := do
       let x := openingTM (m := Counted) Prod.fst Prod.snd sha256 P (keep i (ix.tree room)) w
       return (Counted.val x, Counted.cost x)
     let lw := opening Prod.fst Prod.snd sha256 P sorted w
-    t.ok s!"n={n}: the running opening is the list opening (Index.opening_eq)" (claimEq ow lw && claimEq (ix.opening P room w) lw)
+    t.ok s!"n={n}: the running opening is the list opening (Index.opening_eq)" (claimEq ow lw && claimEq (ix.opening P room 0 w) lw)
     t.ok s!"n={n}: an opening hashes {owc.hashes}, within 2·height = {2 * ht} (openingTM_hashes)" (owc.hashes ≤ 2 * ht)
     -- a claim the room disagrees with: cut into pieces
     let c : Claim := .fp w 1 .empty
@@ -175,7 +175,7 @@ def main (args : List String) : IO UInt32 := do
       return (Counted.val x, Counted.cost x)
     let (la, tListAns) ← timeV fun i => do
       return answer Prod.fst Prod.snd sha256 P (keep i sorted) c
-    t.ok s!"n={n}: the running answer is the list answer (Index.answer_eq)" (outsEq aw la && outsEq (ix.answer P room c) la)
+    t.ok s!"n={n}: the running answer is the list answer (Index.answer_eq)" (outsEq aw la && outsEq (ix.answer P room 0 c) la)
     t.ok s!"n={n}: an answer hashes {awc.hashes}, within 2·(fan + 1)·height = {2 * (P.fan + 1) * ht} (answerTM_hashes)"
       (awc.hashes ≤ 2 * (P.fan + 1) * ht)
     IO.println s!"room n={n}: height {ht}; opening {owc.hashes} hashes in {ms tOpen} ms; a cut answer {awc.hashes} hashes in {ms tAns} ms, the list answer {ms tListAns} ms"

@@ -19,15 +19,16 @@ def claim : Claim := .fp wide 1 .empty
 
 theorem sortedXs : Sorted Prod.fst xs := by unfold Sorted xs a b c; decide
 
--- The running answer and opening of a room built by inserts, out of order,
--- are the list functions' over its items in key order.
-theorem answerAgrees : ix.answer P room claim =
-    answer Prod.fst Prod.snd sha256 P (ix.items room) claim :=
-  Index.answer_eq P ix room claim
+-- The running answer and opening of a full round (floor 0) in a room built
+-- by inserts, out of order, are the list functions' over its items in key
+-- order.
+theorem answerAgrees : ix.answer P room 0 claim =
+    answer Prod.fst Prod.snd sha256 P (ix.items room) claim := by
+  rw [Index.answer_eq, Index.over_full _ _ _ _ (by decide)]
 
-theorem openingAgrees : ix.opening P room wide =
-    opening Prod.fst Prod.snd sha256 P (ix.items room) wide :=
-  Index.opening_eq P ix room wide
+theorem openingAgrees : ix.opening P room 0 wide =
+    opening Prod.fst Prod.snd sha256 P (ix.items room) wide := by
+  rw [Index.opening_eq, Index.over_full _ _ _ _ (by decide)]
 
 -- The treap's answer over sorted items, cut into pieces (count 3 against
 -- a claimed 1, more than a leaf of 1), is `answer`'s.

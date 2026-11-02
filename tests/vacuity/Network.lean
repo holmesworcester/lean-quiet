@@ -34,15 +34,13 @@ theorem shared : ∃ ids,
     msg.id ∈ ids ∧ ∃ o r, held.db.ops msg.id = some o ∧ fam.room o = some r ∧
       has conn.rooms r = true := by
   obtain ⟨ids, hm, hi⟩ := filedWitness
-  exact ⟨ids, hm, hi, offer_shared fam cfg conn [msg.id] held room msg.id ids
-    (List.mem_append_left _ hm) hi⟩
+  exact ⟨ids, hm, hi, offer_shared fam cfg conn [msg.id] held room msg.id ids hm hi⟩
 
 theorem storedOffer : ∃ ids,
     (Msg.hold room ids).op ∈ ((conn.filed fam cfg [msg.id] : HeldM Unit Step) held).1.send ∧
     msg.id ∈ ids ∧ ∃ o, held.db.ops msg.id = some o := by
   obtain ⟨ids, hm, hi⟩ := filedWitness
-  exact ⟨ids, hm, hi, offer_stored fam cfg conn [msg.id] held room msg.id ids
-    (List.mem_append_left _ hm) hi⟩
+  exact ⟨ids, hm, hi, offer_stored fam cfg conn [msg.id] held room msg.id ids hm hi⟩
 
 /-- Nonempty wanted queue, actually stored and shown. -/
 def queued : Conn := { conn with owed := [msg.id], owing := ({} : Std.HashSet Id).insert msg.id }
@@ -117,7 +115,7 @@ theorem receiveTakeable : Takeable fam conn msg :=
   recv_take fam cfg {} conn msg.bytes 100 held.db _ (by rw [messageTaken]; simp)
 
 -- Authorize a real requested id using the shown-room index, then queue it.
-def ix : Index := ⟨[(room, RoomTree.ofList [(⟨0, 0⟩, msg.id)])]⟩
+def ix : Index := { rooms := [(room, RoomTree.ofList [(⟨0, 0⟩, msg.id)])] }
 theorem ix_items : ix.items room = [(⟨0, 0⟩, msg.id)] := by
   simp [ix, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins]
 theorem authorized : msg.id ∈ authorize ix conn [msg.id] := by
