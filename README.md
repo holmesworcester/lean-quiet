@@ -2233,7 +2233,7 @@ opportunities and full native delivery remain open.
 [`erase_tick`]: engine/core/CostErase.lean#L47-L47
 [`val_erase`]: engine/core/CostErase.lean#L55-L56
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
-[`offerM`]: app/Screen.lean#L388-L394
+[`offerM`]: app/Screen.lean#L389-L395
 [`Symbolic.sym`]: engine/wire/NoiseModel.lean#L42-L55
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
@@ -2305,8 +2305,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 555 kernel witnesses, 192 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 48 of 826 linked declarations still pending.**
+**Coverage: 556 kernel witnesses, 192 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 48 of 827 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -3140,7 +3140,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`erase_tick`](engine/core/CostErase.lean#L47-L47) | **kernel-witness**: [Vacuity.Core.eraseTick](tests/vacuity/Core.lean). Nonzero meter charges and action value 42; composed action returns 43, reads=2 and work=3. |
 | [`val_erase`](engine/core/CostErase.lean#L55-L56) | **kernel-witness**: [Vacuity.Core.valueErased](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
-| [`offerM`](app/Screen.lean#L388-L394) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
+| [`offerM`](app/Screen.lean#L389-L395) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
 | [`Symbolic.sym`](engine/wire/NoiseModel.lean#L42-L55) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
 | [`Sync.popW`](engine/wire/Lanes.lean#L132-L135) | **kernel-witness**: [Vacuity.WireMore.popsWrite](tests/vacuity/WireMore.lean). Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`Engine.runJ`](engine/core/WindowLaws.lean#L148-L151) | **kernel-witness**: [Vacuity.WireMore.runJFiles](tests/vacuity/WireMore.lean). Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic. |
