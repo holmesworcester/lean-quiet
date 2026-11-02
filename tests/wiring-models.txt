@@ -81,29 +81,13 @@ Live.Board.seen_take
 Engine.Sync.exchange_complete
 
 # engine.sync.RoundRun
-Engine.Sync.RoundRun.advance_empty
-Engine.Sync.RoundRun.answer_rank
 Engine.Sync.RoundRun.collisionCheck_sound
-Engine.Sync.RoundRun.discovers
-Engine.Sync.RoundRun.discovers_wire
 Engine.Sync.RoundRun.execute_runs
 Engine.Sync.RoundRun.filter_in_subsets
-Engine.Sync.RoundRun.holds_announced
 Engine.Sync.RoundRun.initial_asks
 Engine.Sync.RoundRun.initial_claim
 Engine.Sync.RoundRun.initial_ready
-Engine.Sync.RoundRun.next_mem
-Engine.Sync.RoundRun.pending_source
-Engine.Sync.RoundRun.ready_next
-Engine.Sync.RoundRun.run_bounded
-Engine.Sync.RoundRun.run_empty
 Engine.Sync.RoundRun.sound_of_check
-Engine.Sync.RoundRun.successor
-Engine.Sync.RoundRun.terminates
-Engine.Sync.RoundRun.wants_seen
-Engine.Sync.conn_answers_claims
-Engine.Sync.conn_returns_claims
-Engine.Sync.conn_round_continues
 Engine.Sync.conn_runs_exchange
 
 # engine.sync.SharedLog

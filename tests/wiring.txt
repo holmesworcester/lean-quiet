@@ -255,6 +255,7 @@ bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
 bridge Engine.Sync.RoundRun.State.result Engine.Sync.RoundRun.result_eq
 bridge Engine.Sync.RoundRun.State.items Engine.Sync.RoundRun.items_eq
+bridge Engine.Sync.RoundRun.State.advance Engine.Sync.RoundRun.advance_eq
 # The bytes a validator checks a signature over (each op type's
 # `signedBy o b.unsigned`, the family's `signed` by `signedBy_ofX`) are the
 # bytes the writer signs (`toSign`, in `sig`).

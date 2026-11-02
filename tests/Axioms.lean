@@ -1378,6 +1378,7 @@ end cost
 #print axioms Engine.Sync.conn_returns_claims
 #print axioms Engine.Sync.RoundRun.result_eq
 #print axioms Engine.Sync.RoundRun.items_eq
+#print axioms Engine.Sync.RoundRun.advance_eq
 #print axioms Engine.Sync.RoundRun.successor
 #print axioms Engine.Sync.RoundRun.next_pending
 #print axioms Engine.Sync.RoundRun.piece_misses
