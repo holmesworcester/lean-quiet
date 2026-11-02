@@ -1,6 +1,7 @@
 {
   "name": "quiet-workspace-prototype",
   "private": true,
+  "license": "AGPL-3.0-or-later",
   "type": "module",
   "scripts": {
     "build": "python3 tools/build.py",

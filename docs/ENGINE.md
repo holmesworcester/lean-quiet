@@ -260,7 +260,7 @@ user's `removal.byUser`.
     mise run check         # build proofs, audit axioms (standard only)
     mise run test:engine   # scenario, differential, querydiff, linkcheck, lifecycle, wire, syncpair, syncworld, noise_check, purge, crash
 
-Needs `ELAN_HOME` with Lean 4.34.0, and SQLite and libsodium (headers
+Needs `ELAN_HOME` with Lean 4.35.0, and SQLite and libsodium (headers
 for SQLite). The CI workflow runs both tasks; this repo has no remote
 yet.
 
@@ -388,7 +388,7 @@ session keys are not clean.
   can be replayed.
 - `derivable_clean`, `derivable_sealed` (every ciphertext under a secret
   key that the attacker can take apart was sealed by an honest party,
-  in a call `O` allows), `exposed_parts`.
+  in a call `O` allows).
 
 What the symbolic model does not cover: computational security (no
 reduction to X25519's gap-DH, ChaCha20-Poly1305's IND-CPA and INT-CTXT,

@@ -291,7 +291,7 @@ def observe (d : Driver) : App.M Unit := do
       for i in [0:ordered.size] do
         let (id, _, _) := ordered[i]!
         let old := ((s.memberIds.findIdx? (· == id)).bind fun j => s.members[j]?).map (·.1) |>.getD "…"
-        let name ← if s.dim.px 186 + (i + 1) * s.dim.px 30 ≤ d.height - s.dim.px 48 then
+        let name ← if sidebarShift s + s.dim.px 186 + (i + 1) * s.dim.px 30 ≤ d.height - s.dim.px 48 then
           pure (← Component.author ⟨owner ++ ["author".toUTF8, id], true⟩ s.me.c id (old, false)).1
           else pure old
         names := names.push (name, id == s.me.user)

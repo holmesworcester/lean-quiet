@@ -2,7 +2,7 @@
 
 The UI's pixels now come from Lean's TrueType reader and rasterizer.
 `Font.glyph?` chooses Noto and `Font.adv` supplies rounded hmtx advances;
-`Paint.Bitmap.glyph` composites the cached coverage. `Text.lean`, its
+`Paint.Bitmap.glyph` composites the memoized coverage. `Text.lean`, its
 laws, `Row.layout`, and the row laws are unchanged. App.start's only
 change passes screen density to Font.load.
 
@@ -27,7 +27,7 @@ pixels. At the host's 420 DPI, the cell and em are 48 px. The Unifont
 fallback is resampled from its original cell. Emoji retain their existing
 size. Rasterization also supports 1–256 px em sizes independently.
 
-## Reader and cache
+## Reader and memo
 
 `Ttf/Bytes.lean` uses proof-checked ByteArray indexing and Option-valued
 big-endian reads. Offsets use unbounded Nat arithmetic. Each table is
@@ -38,8 +38,8 @@ on-curve points, scaled/transformed components, signed translations and
 point attachments are decoded in Lean.
 
 There is no partial recursion, unchecked indexing, unsafe code, native
-parser or added axiom in the byte reader, cmap, outline reader or rasterizer.
-The new memoization bridge uses unsafeBaseIO, as described below. Composite ancestry detects cycles;
+parser or added axiom in the byte reader, cmap, outline reader, rasterizer
+or glyph memo. Composite ancestry detects cycles;
 a depth bound of 32 and a shared budget of 4096 visits also bound work.
 Each glyph has at most 8192 points and 64 components; files are capped at
 32 MiB. These are supported-format limits: excessive or unsupported
@@ -49,10 +49,9 @@ first paint instead; `raster` then validates the requested outline and
 its component graph. An invalid unused glyph is not scanned at startup. It is not an OpenType sanitizer: it does
 not validate checksums, hint programs, or unsupported layout tables.
 
-A `Noto.Cached` face owns a private, fresh identity, a pixel size, and its
-immutable font bytes and a pure thunk for header parsing. Metrics never rasterize. All app instances and paint tasks
-in a process share the bounded FIFO cache described below; font loading
-does not allocate one permanently memoizing thunk per glyph any more.
+A `Noto.Cached` face (`Ttf.Memo.Source`) holds a pure thunk for header
+parsing, shared by all its sizes, a pixel size, and its own lazy glyph
+table, described below. Metrics never rasterize.
 
 ## Raster and proofs
 
@@ -118,8 +117,8 @@ into 128 chords and samples the same grid. Tolerances are at most 32/255
 per pixel and at most 1/255 mean error per glyph. It checks 390 glyph
 bitmaps at 16, 32 and 48 px, 11 full script lines through Text and Paint,
 all cmap/metric pairs, synthetic composite transforms/point attachment,
-both cmap formats, density changes, clipping, fallback, and cache object
-identity. Only the cache identity *test* uses unsafe pointer equality.
+both cmap formats, density changes, clipping, fallback, and memo object
+identity. Only the memo identity *tests* use unsafe pointer equality.
 `out/noto/scripts.ppm` is the script sheet; `out/host/*.ppm` are app screens.
 
 Truncation at header and table boundaries, oversized offsets in every
@@ -246,61 +245,42 @@ shared Han may have SC forms. Locale-aware Han typography is not claimed.
 The four routed sample lines and the fast-scroll screenshots are in
 `out/cjk/scripts.ppm` and `out/cjk-after/`.
 
-### Bounded cache
+### Glyph memo
 
-`Ttf.Cache` is the actual insertion/eviction code used by `Ttf.Memo`.
-It uses 1,024 ring slots and a hash index containing slot numbers, not
-extra bitmap copies. FIFO eviction keeps the newest insertion. A hit
-shares the retained pixel object; oversized glyphs are drawn without
-being retained. The global key is (fresh font-instance identity, glyph,
-size, cell), so reloads, faces and sizes cannot reuse another's glyph.
+Until 2026-11-01 the memo was a bounded FIFO cache (`Ttf.Cache`, 4 MiB,
+1,024 entries) behind one `unsafeBaseIO` function, `@[implemented_by]`
+for `Source.bitmap`; its equality with the raster was tested, not proven.
+It is replaced by plain Lean, proven:
 
-The fixed charge budget is **4,194,304 bytes**:
-`16*1024 + Σ(2*bitmap.pixels.size + 512)` for occupied slots. A compact
-coverage copy has exact requested buffer capacity; the doubled payload
-and per-entry charge allow buffer/metadata overhead. The formal bound is
-on this charge and on retained coverage-byte counts, with at most 1,024
-index entries. It is not a theorem about the Lean allocator or process
-RSS: loaded font data, transient raster work, in-flight paint values,
-and allocator overhead are outside the cache-state theorem.
+- A `Ttf.Memo.Table f` holds pages of 64 thunks, made when a key on them
+  is first read, and a law (`exact`): entry `j` of page `i` is
+  `f (i * 64 + j)`. `Table.get` reads the entry, or computes `f k` past
+  the table; `Table.get_eq` proves `t.get k = f k`.
+- Each `Source` (a face at one size) carries a table over the face's
+  glyphs (its `loca` count), of `raster … |>.map compact`. `compact` copies
+  coverage into an exact-capacity array (`ByteArray.extract`, whose
+  `copySlice` into an empty array allocates exactly the length);
+  `compact_eq` proves it changes nothing.
+- `Source.bitmap` is the raster (`uncached`). `bitmap_eq_fast`
+  (`@[csimp]`) proves it equal to `bitmapFast`, the table lookup, and the
+  compiler runs `bitmapFast` wherever `bitmap` is called. So the laws
+  about painting are about the code that runs, and whatever was read
+  before, every field and byte is the raster's.
+- The table's type names its face, size and cell, so a size cannot use
+  another size's table: `sized` and `fresh` build new tables.
 
-`Ttf.Memo.Source.bitmap` is the **single memoization seam**, implemented
-by private bitmapImpl/bitmapIO with `unsafeBaseIO`. Its contract is exact
-equality with `Source.uncached`: the same Option result, origin, dimensions,
-advance, cell, all four overhangs and every coverage byte. Hits, eviction,
-fresh font instances, different sizes, failed parsing/rasterization and
-concurrent calls must not change that result. Source's constructor,
-identity, font thunk, size and cell are private; callers cannot substitute
-another face while retaining an identity. Shared state is private too.
+Lean's runtime evaluates a thunk once, thread-safely, and keeps the
+value: each glyph is rastered at most once per Source. Nothing is global.
+What a table keeps it keeps for its Source's life, and there is no
+eviction. `Font.sizes` makes each pixel size 1..256 once, on first use,
+so an app size the loader never listed is memoized too (it was rastered
+afresh on every `atSize` call before). The app empties every table on
+suspend (`Font.fresh`, keeping the parsed faces) and builds new ones on
+a density change (`Font.load`). Glyph memory between those points, the
+allocator and process RSS are not theorems.
 
-This is the review's permitted isolated, tested-contract option. Threading
-an explicit cache through this renderer would change Bitmap.glyph/line,
-Row.paint, Composer, Arrival, Sheet and the page painters, plus their
-callers in App. Keeping one isolated function preserves those pure APIs
-and the existing laws during the layout cutover. The README seam section
-states the limitation: compiled memo/spec equivalence is **not proved**.
-Kernel proofs establish bounds on the **same Cache.put called by bitmapIO**;
-fresh identities and mutex/compiler behavior remain trusted and tested.
-
-Parsing and raster work run outside the cache lock; concurrent misses may
-compute the same glyph before publication. Eviction can cause re-rasterization.
-The compact copy changes buffer capacity only; the contract compares its
-whole value with the original raster result.
-
-Five new audited statements, in `engine/renderer/Ttf/Cache.lean`:
-
-- `empty_valid`: `Valid empty`.
-- `checked_valid (s)`: `Valid (checked s)`.
-- `put_bound (s key bitmap)`: for `r := put s key bitmap`,
-  `bytes r ≤ budget ∧ r.slots.size = capacity ∧ r.index.size ≤ capacity ∧ r.hand < capacity`.
-- `payload_le_bytes (s)`: `payload s ≤ bytes s`.
-- `put_payload_bound (s key bitmap)`: `payload (put s key bitmap) ≤ budget`.
-
-Here payload is the sum of occupied slots' coverage lengths, capacity is
-1,024, and Valid is exactly the four conjuncts of put_bound. Empty-state
-validity and the positive insertion/lookup/eviction tests give witnesses.
-All 98 prior app theorems remain unchanged; the app audit now passes 103.
-Text.lean, its laws, Row.layout and RowLaws.lean have no edits.
+The negative control `shifted` (a table one key off) is refused by the
+table's law (`shifted_not_exact`).
 
 ### Tests and performance
 
@@ -315,18 +295,21 @@ SHA, weight and fontTools version. The tolerance is unchanged:
 24/255 over 1,068,277 glyph pixels, mean 0.02929/255; routed lines:
 15/255 maximum over 585,000 RGB pixels.
 
-Cache tests perform 2,200 insertions, assert the new entry survives every
-eviction, reject oversized retention, check the index, fill the real
-runtime cache with 1,800 requests, compare a reloaded glyph, and compare
-concurrent results from eight workers with direct rasterization. Runtime
-stress reached 4,194,284 charged bytes; the scroll reached exactly the
-4,194,304-byte budget. It never exceeded the budget.
+Memo tests read 1,800 CJK glyphs twice: each equals its raster in every
+field and byte, and the second read is the kept object (by pointer, with
+the glyph number read through IO so the compiler cannot merge the reads;
+a raster read twice is two objects, the control). `Font.fresh` gives the
+same bytes as new objects, kept again, while the old font keeps its own;
+an unlisted size keeps its glyphs across `atSize` calls; eight workers
+compare concurrent results with direct rasterization. The font contract
+also checks 1,798 kept CJK glyphs.
 
-Nine source mutations were detected and reverted (`tests/app/cjk_negative.py`):
-invalid empty-state capacity; removed validation; bypassed put validation;
-zero byte charge; disabled eviction; bypassed the bound in the runtime
-hook; omitted font identity; changed Han priority; restored the old cmap
-segment cap. The Korean subset has 4,889 segments, so the old arbitrary
+Source mutations are detected and reverted (`tests/app/cjk_negative.py`):
+a size keeping another size's table (a type error); the memo not run
+(`@[csimp]` removed: no second read is the kept glyph); changed Han
+priority; the old cmap segment cap. Until 2026-11-01 it also mutated the
+retired cache: capacity, validation, charge, eviction, runtime bound and
+font identity. The Korean subset has 4,889 segments, so the old arbitrary
 4,096-segment cap was a real reader bug. The new cap is the maximum that
 fits a format-4 table's 16-bit length; existing checked table reads remain.
 A changed source-font hash was also refused. The old core-script crop
@@ -373,8 +356,11 @@ measured runs were 2,621–18,315 µs. An eager-loader negative control took
 Seven review controls were caught and reverted: instancing Thin instead of
 Regular; retaining a Thin family name; comparing against a Thin reference; reinstating eager whole-font
 validation; changing compact advances; corrupting only cache-hit metadata;
-and corrupting only cache-miss metadata. The last two demonstrate why
-comparing only coverage pixels was insufficient. These are reproducible
+and corrupting only cache-miss metadata. The last two demonstrated why
+comparing only coverage pixels was insufficient. With the proven memo
+they became proof controls: a kept bitmap that differs from the raster
+breaks `compact_eq`, and a table entry one key off breaks the table's law;
+neither module builds. These are reproducible
 with `tests/app/font_review_negative.py`.
 
 The 500-post CJK corpus samples all four sets with the same signed app
@@ -442,6 +428,9 @@ No device, emulator, Mac or network service was used.
 
 ### Final gate and handoff
 
+The cache laws and figures in this and the next sections describe the
+bounded cache that the proven glyph memo replaced on 2026-11-01.
+
 All **103 app theorems** pass `mise run check` on standard axioms; the
 review fixes add no new theorem statements or axioms. The five cache laws
 above and the existing Text/Row/Paint/Noto laws are unchanged. README proof
@@ -485,7 +474,7 @@ are separate files):
 | Destination directory | Files |
 |---|---|
 | `engine/renderer/` | `Cjk.lean`, `Noto.lean` |
-| `engine/renderer/Ttf/` | `Blit.lean`, `Bytes.lean`, `Cache.lean`, `Cmap.lean`, `Index.lean`, `Laws.lean`, `Memo.lean`, `Raster.lean`, `Read.lean` |
+| `engine/renderer/Ttf/` | `Blit.lean`, `Bytes.lean`, `Cmap.lean`, `Index.lean`, `Laws.lean`, `Memo.lean`, `Raster.lean`, `Read.lean` |
 | `platforms/headless/` | `Cjk.lean`, `CjkScroll.lean`, `FontContract.lean`, `FontLoad.lean`, `Noto.lean` |
 | `tests/app/` | `cjk.sh`, `cjk_negative.py`, `cjk_reference.py`, `font_contract.sh`, `font_review_negative.py`, `noto.sh`, `noto_kern.lean`, `noto_negative.py`, `noto_reference.py` |
 | `tools/` | `NOTO-LICENSE.txt`, `cjk-manifest.json`, `cjk-subsets.sha256`, `cjk_assets.sh`, `cjk_fonts.tsv`, `cjk_sets.py`, `cjk_subset.py`, `noto-index.sha256`, `noto.sha256`, `noto_assets.sh`, `noto_index.py` |
