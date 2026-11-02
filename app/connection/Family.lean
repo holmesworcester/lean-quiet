@@ -597,7 +597,7 @@ theorem reads_live_of (c : Id) (rows : List (Pos × Fact)) : (live c rows).Reads
       · exact ih
     | _ => exact ih
 
-include hD hV in
+include hV in
 theorem reads_usersKeep_of (c x : Id) (f : Approve.Fact) (rows : List (Pos × Fact)) :
     (usersKeep c x f rows).Reads P := by
   induction rows with
@@ -623,7 +623,7 @@ theorem reads_usersKeep_of (c x : Id) (f : Approve.Fact) (rows : List (Pos × Fa
 
 include hD hV in
 theorem reads_kept_of (c x : Id) (f : Approve.Fact) : (kept c x f).Reads P :=
-  .list (hD [c, f.dev]) fun a => reads_usersKeep_of hR hD hV c x f a.rows
+  .list (hD [c, f.dev]) fun a => reads_usersKeep_of hR hV c x f a.rows
 
 include hD hQ hV in
 theorem reads_counts_of (c : Id) : ∀ (k : Nat) (x : Id) (f : Approve.Fact), (counts c k x f).Reads P
