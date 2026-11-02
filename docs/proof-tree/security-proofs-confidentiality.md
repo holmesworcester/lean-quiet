@@ -411,7 +411,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1345">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
+<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1336">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/community/key/wrap/Proofs.lean#L11">Engine.View.always_bind</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L629">Connection.Noise.Symbolic.kk_secret</a> · 29 below</summary><ul>

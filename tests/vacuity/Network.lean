@@ -1,4 +1,4 @@
-import engine.sync.Witnesses
+import tests.vacuity.SyncWitnesses
 import engine.sync.ConnLaws
 
 /-! Concrete sync fixtures. The payload and room are synthetic. The running
@@ -203,6 +203,6 @@ theorem keepaliveHistory :
     let c := fun now => (((Conn.open false [] 0 0).conn.recv fam config {}
       (Msg.hold .empty []).op.bytes now : HeldM Unit Step) {}).1.conn
     ∀ now, (((c now).tick fam config {} now : HeldM Unit Step) {}).1.drop = false :=
-  live_runs fam
+  SyncWitnesses.live_runs fam
 
 end Vacuity.Network
