@@ -6,7 +6,8 @@ private opaque SocketAbortImpl : NonemptyType
 def SocketAbort := SocketAbortImpl.type
 
 /-- Capture before starting any client read/write task. The capability owns
-one Lean reference to the exact native socket whose descriptor was captured. -/
+one Lean reference to the exact native socket whose descriptor was captured.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_socket_abort_capture"]
 private opaque captureNative (socket : @& Std.Internal.UV.TCP.Socket) : IO (Option SocketAbort)
 
@@ -18,17 +19,22 @@ def SocketAbort.capture (client : Std.Async.TCP.Socket.Client) : IO (Option Sock
   captureNative client.native
 
 /-- Shuts down both directions, retaining libuv's descriptor ownership.
-The capability keeps the descriptor's native socket alive throughout the call. -/
+The capability keeps the descriptor's native socket alive throughout the call.
+Contract: its effect is the OS's, which Lean does not state; what it
+returns is taken as it comes. -/
 @[extern "lq_socket_abort"]
 opaque SocketAbort.abort (capability : @& SocketAbort) : IO Bool
 
 /-- Shuts down only the sending direction: a FIN after every byte already
-written. Reading stays open, so a peer still writing meets no reset. -/
+written. Reading stays open, so a peer still writing meets no reset.
+Contract: its effect is the OS's, which Lean does not state; what it
+returns is taken as it comes. -/
 @[extern "lq_socket_finish_write"]
 opaque SocketAbort.finishWrite (capability : @& SocketAbort) : IO Bool
 
 /-- Wait for the SDK callback's tail after its promise was published. This
-uses the SDK's UV mutex from the dedicated writer task, not from a UV callback. -/
+uses the SDK's UV mutex from the dedicated writer task, not from a UV callback.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_socket_abort_barrier"]
 opaque SocketAbort.barrier (capability : @& SocketAbort) : IO Unit
 

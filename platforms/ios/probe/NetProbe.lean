@@ -33,16 +33,18 @@ open Mdns Std.Async Std.Net
 
 namespace Sd
 
-/-- Registers `name` of `type` on `port` with the system's responder. -/
+/-- Registers `name` of `type` on `port` with the system's responder.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_sd_register"] opaque register (name type : @& String) (port : UInt16) : IO Unit
 
 /-- Browses `type`: every service found is resolved to its host, port and
-IPv4 addresses (as events). -/
+IPv4 addresses (as events). Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_sd_browse"] opaque browse (type : @& String) : IO Unit
 
 /-- The events since the last call, each `#[kind, name, host, port, addr]`:
 "registered" (name), "found" (name, host, port, one address), "error"
-(name = what failed, host = dns_sd's code). -/
+(name = what failed, host = dns_sd's code).
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_sd_poll"] opaque poll : IO (Array (Array String))
 
 end Sd

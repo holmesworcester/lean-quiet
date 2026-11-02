@@ -24,9 +24,10 @@ namespace Engine
 
 abbrev Id := ByteArray
 
-/-- SHA-256 (libsodium, through native/glue.c). The proofs treat it as
+/-- SHA-256 (the sha2 crate, through native/crypto.c). The proofs treat it as
 an unknown function: wherever they need two ops' ids to differ, they
-assume it has no collision on those ops' bytes (`Distinct`). -/
+assume it has no collision on those ops' bytes (`Distinct`).
+Contract: `Trust.Sha256Size` (engine/core/Trust.lean). -/
 @[extern "le_sha256"] opaque sha256 (b : @& ByteArray) : ByteArray
 
 /-- An op: its type, the ops it requires in slot order, and its body.
