@@ -32,7 +32,6 @@ Connection.Execution.production_step_unique
 Connection.Execution.production_write_receives
 Connection.Execution.world_step_history
 Connection.Execution.world_step_moves
-Connection.Execution.world_step_unique
 Connection.Execution.world_trace_history
 Connection.Execution.world_trace_moves
 Connection.Execution.write_store_tape
@@ -107,9 +106,6 @@ Engine.Sync.Tree.fold_congr
 
 # engine.sync.Witnesses
 Engine.Sync.secrecy_runs
-
-# engine.wire.RetryOrderLaws
-Engine.Sync.RetryOrder.Run.nodup
 
 # engine.wire.mdns.Laws
 Mdns.decode_encode
