@@ -260,13 +260,10 @@ def tallyRows : SqlM F (Nat × Nat × Nat) := do
 
 /-- One write turn, atomically: the capped turn (`turnCapped`: the job
 and its urgent closure judged ahead, then at most `drainCap` queued;
-engine/core/TurnLaws.lean). An idle turn (no ops) with nothing queued
-takes no write lock. -/
-def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit := do
-  if ops.isEmpty then
-    if (← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'queue'") == 0 then return
-  transact do
-    let _ ← turnCapped (m := SqlM F) fam drainCap ops
+engine/core/TurnLaws.lean). A tick's idle turn (no ops) carries what is
+queued; with nothing queued it changes no row. -/
+def receive [Codec F] [SortKey F] (fam : Family F) (ops : List Op) : SqlM F Unit :=
+  transact (turnCapped (m := SqlM F) fam drainCap ops >>= fun _ => pure ())
 
 /-! ## Purging -/
 

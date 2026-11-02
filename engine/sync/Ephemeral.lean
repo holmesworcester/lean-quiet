@@ -7,7 +7,7 @@ It is a held store rebuilt from its live ops whenever one changes
 long the app runs.
 
 Laws: `ofOps_reach` (the log is an engine history of exactly its ops),
-`ofOps_rest` (judging has settled), `ofOps_inv` (the engine's invariant),
+`ofOps_waiting` (no urgent work undone), `ofOps_inv` (the engine's invariant),
 `ofOps_valid` (an op of the log that cites nothing is Valid with what its
 validator gives), `ofOps_from` (every op the log judged Valid is one of
 its ops, with what its validator gave), and `run_eval` (a view run on the
@@ -40,10 +40,11 @@ theorem ofOps_reach (fam : Family F) (L : List Op) :
   have := same o
   simpa [Held.ofOps, turn_apply] using this
 
-/-- **Judging the log has settled,** its ops' ids distinct. -/
-theorem ofOps_rest (fam : Family F) {L : List Op} (hd : Distinct L) :
-    (Held.ofOps fam L).db.queue = [] :=
-  turn_settles fam L {} (held_empty_reachable fam) (by simpa using hd)
+/-- **Judging the log leaves no urgent work undone** (every op not shared
+is urgent, and the log's are ephemeral): a capped turn from empty
+(`turn_waiting`). -/
+theorem ofOps_waiting (fam : Family F) (L : List Op) : UrgentWaiting fam (Held.ofOps fam L).db :=
+  turn_waiting_held fam L {} (held_empty_reachable fam) waiting_empty
 
 /-- **The log keeps the engine's invariant.** -/
 theorem ofOps_inv (fam : Family F) (L : List Op) : Inv fam (Held.ofOps fam L).db := by
@@ -62,9 +63,18 @@ validator gives. -/
 theorem ofOps_valid (fam : Family F) {L : List Op} (hd : Distinct L) {o : Op} (ho : o ∈ L)
     (hr : o.reqs = []) {f : F} (hv : fam.validate o [] = some f) :
     (Held.ofOps fam L).db.status o.id = some (.valid f) := by
-  rw [status_iff_spec (ofOps_inv fam L) (ofOps_rest fam hd)]
-  refine ⟨1, ?_⟩
-  simp only [specAt, (ofOps_ops fam hd o.id o).2 ⟨ho, rfl⟩, hr, List.map_nil, judge, anyInvalid, allValid, hv, Bool.false_eq_true, ite_false]
+  have hstored := (ofOps_ops fam hd o.id o).2 ⟨ho, rfl⟩
+  have hspec : Spec fam (Held.ofOps fam L).db.ops o.id (.valid f) := ⟨1, by
+    simp only [specAt, hstored, hr, List.map_nil, judge, anyInvalid, allValid, hv, Bool.false_eq_true, ite_false]⟩
+  -- The turn's job decides it: it cites nothing.
+  have hs : ((Held.ofOps fam L).db.status o.id).isSome := by
+    show ((turnCappedS fam drainCap L DB.empty).status o.id).isSome
+    refine turn_nil_reqs drainCap L (List.mem_map.2 ⟨o, ho, rfl⟩) ?_ hr
+    have := hstored
+    change (turnCappedS fam drainCap L DB.empty).ops o.id = some o at this
+    rwa [turnCappedS_ops] at this
+  obtain ⟨w, hw⟩ := Option.isSome_iff_exists.1 hs
+  rw [hw, spec_det ((ofOps_inv fam L).sound _ _ hw) hspec]
 
 /-- **Every op the log judged Valid is one of its ops,** with what its
 validator gave for some facts. -/

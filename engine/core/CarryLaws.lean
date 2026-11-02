@@ -320,6 +320,50 @@ theorem grows_turn (cap : Nat) (ops : List Op) (s : DB F) : Grows s (turnCappedS
       | cons y xs => exact (grows_judgeAhead true y t).trans (ih _ _)
   exact g1.trans ((g2 _ _).trans ((g3 _ _ _).trans (grows_drain _ _)))
 
+theorem grows_judgeJob : ∀ (xs : List Id) (t : DB F), Grows t (judgeJobS fam xs t).2
+  | [], t => Grows.refl t
+  | y :: ys, t => (grows_judgeAhead false y t).trans (grows_judgeJob ys _)
+
+theorem grows_urgentClose : ∀ (n : Nat) (xs : List Id) (t : DB F), Grows t (urgentCloseS fam n xs t)
+  | 0, _, t => Grows.refl t
+  | _ + 1, [], t => Grows.refl t
+  | n + 1, y :: ys, t => (grows_judgeAhead true y t).trans (grows_urgentClose n _ _)
+
+/-- An op that cites nothing, judged ahead, is decided. -/
+theorem judgeAhead_nil_reqs {s : DB F} {x : Id} {o : Op} (ho : s.ops x = some o) (hr : o.reqs = []) :
+    ((judgeAheadS fam false x s).2.status x).isSome := by
+  have hj : (judge fam o (o.reqs.map s.status)).isSome := by
+    rw [hr]; simp [judge, anyInvalid, allValid]
+  unfold judgeAheadS
+  cases hs : s.status x with
+  | some _ => simp [hs]
+  | none =>
+    simp only [ho, Bool.false_and, Bool.false_eq_true, ite_false]
+    cases hjv : judge fam o (o.reqs.map s.status) with
+    | none => rw [hjv] at hj; cases hj
+    | some v =>
+      obtain ⟨-, h2, -⟩ := decideS_fields (fam := fam) x v s
+      simp only
+      rw [h2]; simp
+
+/-- **A turn's job decides every op of it that cites nothing.** -/
+theorem judgeJob_nil_reqs : ∀ (xs : List Id) {s : DB F} {x : Id} {o : Op}, x ∈ xs → s.ops x = some o →
+    o.reqs = [] → ((judgeJobS fam xs s).2.status x).isSome
+  | [], _, _, _, h, _, _ => by cases h
+  | y :: ys, s, x, o, hx, ho, hr => by
+    show ((judgeJobS fam ys (judgeAheadS fam false y s).2).2.status x).isSome
+    by_cases hyx : y = x
+    · subst hyx
+      exact (grows_judgeJob ys _).isSome (judgeAhead_nil_reqs ho hr)
+    · have hx' : x ∈ ys := (List.mem_cons.1 hx).resolve_left fun e => hyx e.symm
+      exact judgeJob_nil_reqs ys hx' (by rw [judgeAheadS_ops]; exact ho) hr
+
+theorem turn_nil_reqs (cap : Nat) (ops : List Op) {s : DB F} {x : Id} {o : Op}
+    (hx : x ∈ ops.map (·.id)) (ho : (ops.foldl (fun s o => ingestS o s) s).ops x = some o)
+    (hr : o.reqs = []) : ((turnCappedS fam cap ops s).status x).isSome := by
+  have h1 := judgeJob_nil_reqs (fam := fam) (ops.map (·.id)) hx ho hr
+  exact (grows_drain (fam := fam) cap _).isSome ((grows_urgentClose (fam := fam) _ _ _).isSome h1)
+
 /-! ## Runs of turns -/
 
 variable (fam) in

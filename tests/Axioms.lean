@@ -232,6 +232,9 @@ open Engine Community
 #print axioms Engine.drain_bounded
 #print axioms Trust.receive_as_model
 #print axioms Trust.receive_shows_model
+#print axioms Trust.receive_model
+#print axioms Trust.turnCapped_sim
+#print axioms Trust.purgeCapped_sim
 #print axioms Trust.receive_refused
 #print axioms Trust.purge_as_model
 #print axioms Engine.step_budget
@@ -1052,7 +1055,7 @@ end cost
 #print axioms App.stash_use
 #print axioms Engine.Sync.run_eval
 #print axioms Engine.Sync.ofOps_reach
-#print axioms Engine.Sync.ofOps_rest
+#print axioms Engine.Sync.ofOps_waiting
 #print axioms Engine.Sync.ofOps_inv
 #print axioms Engine.Sync.ofOps_ops
 #print axioms Engine.Sync.ofOps_valid

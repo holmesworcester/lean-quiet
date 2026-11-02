@@ -6,10 +6,11 @@ The proofs run the engine on the model. The app runs the same generic
 code (`ingest`, `step`, `drain`) on SQLite, inside `receive`'s one
 transaction. These laws carry the contract, one operation at a time,
 through that code: if a write turn on SQLite commits, the database holds
-the tables the same turn leaves on the model (`receive_as_model`), and
-its rows show them (`receive_shows_model`). A refused write turn changes
-no table (`receive_refused`). So the model's laws about a write turn
-(`drain_bounded`: it empties the queue) are laws about SQLite's.
+the tables the same turn leaves on the model (`receive_as_model`): the
+capped turn's (`receive_model`), and its rows show them
+(`receive_shows_model`). A refused write turn changes no table
+(`receive_refused`). So the model's laws about a write turn
+(`turn_waiting`, `carry_bounded`) are laws about SQLite's.
 
 `Sim holds x y` reads: `x` on SQLite runs as `y` on the model. It is
 built from three facts: `pure` runs as `pure`, a bind runs as a bind of
@@ -17,6 +18,7 @@ parts that do, and each store operation runs as the model's (the
 contract).
 -/
 import engine.core.StoreTrust
+import engine.core.TurnLaws
 
 namespace Trust
 open Engine
@@ -235,28 +237,77 @@ theorem Sim.transact (h : SqliteStore F holds) {α : Type} {act : SqlM F α} {y 
 
 /-! ## A write turn -/
 
+theorem judgeAhead_sim (h : SqliteStore F holds) (fam : Family F) (b : Bool) (x : Id) :
+    Sim holds (judgeAhead (m := SqlM F) fam b x) (judgeAhead (m := Model F) fam b x) := by
+  unfold judgeAhead
+  refine Sim.bind (Sim.op h (.getStatus x)) fun st => ?_
+  cases st with
+  | some _ => exact Sim.pure
+  | none =>
+    refine Sim.bind (Sim.op h (.getOp x)) fun r => ?_
+    cases r with
+    | none => exact Sim.pure
+    | some o =>
+      refine Sim.ite _ Sim.pure ?_
+      refine Sim.bind (statuses_sim h o.reqs) fun sts => ?_
+      cases judge fam o sts with
+      | some v =>
+        exact Sim.bind (Sim.op h (.waiters x)) fun _ => Sim.bind (decide_sim h fam x v) fun _ => Sim.pure
+      | none => exact Sim.bind (waitOn_sim h x o.reqs) fun _ => Sim.pure
+
+theorem judgeJob_sim (h : SqliteStore F holds) (fam : Family F) :
+    ∀ xs : List Id, Sim holds (judgeJob (m := SqlM F) fam xs) (judgeJob (m := Model F) fam xs)
+  | [] => by unfold judgeJob; exact Sim.pure
+  | x :: xs => by
+    unfold judgeJob
+    exact Sim.bind (judgeAhead_sim h fam false x) fun _ =>
+      Sim.bind (judgeJob_sim h fam xs) fun _ => Sim.pure
+
+theorem urgentClose_sim (h : SqliteStore F holds) (fam : Family F) :
+    ∀ (n : Nat) (xs : List Id), Sim holds (urgentClose (m := SqlM F) fam n xs) (urgentClose (m := Model F) fam n xs)
+  | 0, _ => by unfold urgentClose; exact Sim.pure
+  | _ + 1, [] => by unfold urgentClose; exact Sim.pure
+  | n + 1, x :: xs => by
+    unfold urgentClose
+    exact Sim.bind (judgeAhead_sim h fam true x) fun _ =>
+      Sim.bind (urgentClose_sim h fam n _) fun _ => Sim.pure
+
+theorem turnCapped_sim (h : SqliteStore F holds) (fam : Family F) (cap : Nat) (ops : List Op) :
+    Sim holds (turnCapped (m := SqlM F) fam cap ops) (turnCapped (m := Model F) fam cap ops) := by
+  unfold turnCapped
+  exact Sim.bind (Sim.forIn ops _ fun o _ => Sim.bind (ingest_sim h o) fun _ => Sim.pure) fun _ =>
+    Sim.bind (judgeJob_sim h fam _) fun _ => Sim.bind (Sim.op h .countOps) fun _ =>
+      Sim.bind (urgentClose_sim h fam _ _) fun _ => Sim.bind (drain_sim h fam cap) fun _ => Sim.pure
+
+/-- The model's write turn, as `receive` runs it: the capped turn. -/
+def receiveM (fam : Family F) (ops : List Op) : Model F Unit :=
+  turnCapped (m := Model F) fam drainCap ops >>= fun _ => pure ()
+
 /-- **A write turn on SQLite runs as the model's.** `receive` takes in
-`ops` and judges with the budget it reads, in one transaction. If it
-commits, the database holds the tables that the same code leaves on the
-model: each op ingested, then `drain` with the model's budget. -/
+`ops` and runs the capped turn, in one transaction. If it commits, the
+database holds the tables that the same code leaves on the model. -/
 theorem receive_as_model (h : SqliteStore F holds) (fam : Family F) (ops : List Op) :
-    Sim holds (receive fam ops)
-      (do for o in ops do ingest (F := F) (m := Model F) o
-          drain (m := Model F) fam (← budgetM)) := by
-  unfold receive
-  exact Sim.transact h <|
-    Sim.bind (Sim.forIn ops _ fun o _ => Sim.bind (ingest_sim h o) fun _ => Sim.pure) fun _ =>
-      Sim.bind h.budget fun n => drain_sim h fam n
+    Sim holds (receive fam ops) (receiveM fam ops) := by
+  unfold receive receiveM
+  exact Sim.transact h (Sim.bind (turnCapped_sim h fam drainCap ops) fun _ => Sim.pure)
+
+/-- **The model's write turn is the capped turn on the tables**
+(`turnCappedS`). -/
+theorem receive_model (fam : Family F) (ops : List Op) (s : DB F) :
+    (receiveM fam ops s).2 = turnCappedS fam drainCap ops s := by
+  unfold receiveM
+  rw [model_bind, model_pure]
+  exact run_turnCapped drainCap ops s
 
 /-- **After a write turn commits, SQLite's rows show the model's write
-turn**: the five tables, as the dumps read them, are the model's tables
-after the same turn. -/
+turn**: the five tables, as the dumps read them, are the capped turn's
+on the model. -/
 theorem receive_shows_model (h : SqliteStore F holds) (fam : Family F) (ops : List Op)
     {db : Db} {w w' : Void IO.RealWorld} {s : DB F} (hs : holds db w s)
     (hr : receive fam ops db w = .ok () w') :
-    ShowsAt db w' ((do for o in ops do ingest (F := F) (m := Model F) o
-                       drain (m := Model F) fam (← budgetM)) s).2 :=
-  h.shows _ _ _ (receive_as_model h fam ops db w s hs () w' hr).2
+    ShowsAt db w' (turnCappedS fam drainCap ops s) := by
+  rw [← receive_model fam ops s]
+  exact h.shows _ _ _ (receive_as_model h fam ops db w s hs () w' hr).2
 
 /-- **A refused write turn changes no table**: if `receive` fails, the
 database holds the tables it held before. -/
@@ -321,29 +372,39 @@ theorem scrub_sim (h : SqliteStore F holds) (vacuum : Bool) :
   rw [hx] at this
   exact ⟨rfl, this⟩
 
+theorem purgeCapped_sim (h : SqliteStore F holds) (fam : Family F) (cap : Nat) (ids : List Id) :
+    Sim holds (purgeCapped (m := SqlM F) fam cap ids) (purgeCapped (m := Model F) fam cap ids) := by
+  unfold purgeCapped
+  refine Sim.bind (purge_sim h fam ids) fun r => ?_
+  cases r with
+  | none => exact Sim.pure
+  | some p =>
+    exact Sim.bind (Sim.op h .countOps) fun _ => Sim.bind (urgentClose_sim h fam _ _) fun _ =>
+      Sim.bind (drain_sim h fam cap) fun _ => Sim.pure
+
 /-- **A purge on SQLite runs as the model's purge.** `purgeSql` runs the
-engine's `purge` and then `drain`, in one transaction, then (with
-`scrub`) rewrites the file. If it returns, the database holds the tables
-the same purge and drain leave on the model. -/
+engine's capped purge (`purgeCapped`: the purge, the urgent closure over
+what it requeued, then at most `drainCap` queued) in one transaction,
+then (with `scrub`) rewrites the file. If it returns, the database holds
+the tables the same capped purge leaves on the model (`purgeCappedS`,
+`run_purgeCapped`). -/
 theorem purge_as_model (h : SqliteStore F holds) (fam : Family F) (ids : List Id) (scrub : Bool) :
     Sim holds (purgeSql fam ids scrub)
-      (do match ← purge (m := Model F) fam ids with
-          | some _ => drain (m := Model F) fam (← budgetM)
-          | none => pure ()) := by
+      (purgeCapped (m := Model F) fam drainCap ids >>= fun _ => pure ()) := by
   have key : Sim holds (purgeSql fam ids scrub)
-      ((do match ← purge (m := Model F) fam ids with
-            | some g => do drain (m := Model F) fam (← budgetM); pure g
+      ((do match ← purgeCapped (m := Model F) fam drainCap ids with
+            | some g => pure g
             | none => pure ([] : List Id)) >>= fun _ => pure ()) := by
     unfold purgeSql purgeTx
-    refine Sim.bind (Sim.transact h (Sim.bind (purge_sim h fam ids) fun r => ?_)) fun _ => ?_
+    refine Sim.bind (Sim.transact h (Sim.bind (purgeCapped_sim h fam drainCap ids) fun r => ?_)) fun _ => ?_
     · cases r with
-      | some g => exact Sim.bind h.budget fun n => Sim.bind (drain_sim h fam n) fun _ => Sim.pure
+      | some g => exact Sim.pure
       | none => exact Sim.throw _
     · cases scrub
       · exact Sim.pure
       · exact scrub_sim h _
   refine Sim.congr (fun s => ?_) key
   simp only [model_bind]
-  cases (purge (m := Model F) fam ids s).1 <;> rfl
+  cases (purgeCapped (m := Model F) fam drainCap ids s).1 <;> rfl
 
 end Trust
