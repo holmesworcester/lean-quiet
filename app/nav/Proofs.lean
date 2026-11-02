@@ -61,10 +61,6 @@ end Nav
 namespace Data
 open Engine Engine.Sync
 
-/-- The ops the log is rebuilt from when this window is placed. -/
-def placed (h : Held SF) (gen page : Nat) (stack : List Nat) : List Op :=
-  h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack]
-
 /-- **A change of page is the log's newest nav op.** Once the log is
 rebuilt with the nav op for `page` over `stack` (its ops' ids distinct),
 this window's place read from it is exactly that op's. -/

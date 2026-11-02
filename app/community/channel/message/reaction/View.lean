@@ -18,29 +18,12 @@ def uniq {α : Type} [DecidableEq α] : List α → List α
 termination_by l => l.length
 decreasing_by all_goals (simp_wf; exact Nat.lt_succ_of_le (Nat.le_trans (List.length_filter_le _ _) (by simp)))
 
-/-- Reactions (emoji, reactor) into tallies: each emoji once, in the order
-it first arrived, with the distinct people who reacted with it. Laws
-(RowLaws): `tally_nodup`, `tally_mem`. -/
-def tally (xs : List (String × Id)) : List (String × List Id) :=
-  (uniq (xs.map (·.1))).map fun e => (e, uniq ((xs.filter fun p => decide (p.1 = e)).map (·.2)))
 variable {m : Type → Type} [Monad m] [Reads m]
 
 /-- The reaction block discovers distinct emoji identities, not counts. -/
 def emojis (c msg : Id) : m (List String × Array Q) :=
   readSet (react.byMessage.query [c, msg] (desc := false))
     (fun | .react _ _ _ e _ => String.fromUTF8? e | _ => none) #[]
-
-/-- A message's reactions, tallied: the first 500 reaction facts only
-(the rest are dropped, and the list's `inRange` and `total` are not
-read), so a tally can be short. `tally_mem` is about `tally` over any
-list, not about this read. Nothing that runs calls it; the running
-Reader uses `emojis` and `one`, which are not capped. -/
-def read (c msg me : Id) (deps : Array Q) : m (List Row.Tally × Array Q) := do
-  let (a, _, deps) ← readList (react.byMessage.query [c, msg] (limit := some 500) (desc := false)) deps
-  let xs := a.rows.filterMap fun (_, f) => match f with
-    | .react _ who _ e _ => some ((String.fromUTF8? e).getD "?", who)
-    | _ => none
-  return ((tally xs).map fun (e, us) => ⟨e, us.length, us.any (fun x => decide (x = me))⟩, deps)
 
 /-- One emoji component owns its set of reactors. Duplicate ops by one
 person count once; membership gives the current user's selected state. -/
@@ -87,34 +70,6 @@ theorem uniq_nodup {α : Type} [DecidableEq α] : ∀ l : List α, (uniq l).Nodu
     simp
 termination_by l => l.length
 decreasing_by all_goals (simp_wf; exact Nat.lt_succ_of_le (Nat.le_trans (List.length_filter_le _ _) (by simp)))
-
-/-- **A pill's reactors are distinct**, so its count is how many people
-reacted with its emoji, not how many reactions; and **each emoji has one
-pill.** -/
-theorem tally_nodup (xs : List (String × Id)) :
-    ((tally xs).map (·.1)).Nodup ∧ ∀ p ∈ tally xs, p.2.Nodup := by
-  refine ⟨?_, ?_⟩
-  · simpa [tally, Function.comp_def] using uniq_nodup (xs.map (·.1))
-  · intro p hp
-    simp only [tally, List.mem_map] at hp
-    obtain ⟨e, _, rfl⟩ := hp
-    exact uniq_nodup _
-
-/-- **A pill's reactors are exactly who reacted with its emoji**, and
-every emoji reacted with has a pill. -/
-theorem tally_mem (xs : List (String × Id)) (e : String) (w : Id) :
-    (∃ us, (e, us) ∈ tally xs ∧ w ∈ us) ↔ (e, w) ∈ xs := by
-  simp only [tally, List.mem_map, Prod.mk.injEq]
-  constructor
-  · rintro ⟨us, ⟨e', _, rfl, rfl⟩, hw⟩
-    rw [uniq_mem] at hw
-    simp only [List.mem_map, List.mem_filter, decide_eq_true_eq] at hw
-    obtain ⟨⟨e'', w'⟩, ⟨hm, rfl⟩, rfl⟩ := hw
-    exact hm
-  · intro h
-    refine ⟨_, ⟨e, ?_, rfl, rfl⟩, ?_⟩
-    · rw [uniq_mem]; exact List.mem_map.2 ⟨(e, w), h, rfl⟩
-    · rw [uniq_mem]; exact List.mem_map.2 ⟨(e, w), List.mem_filter.2 ⟨h, by simp⟩, rfl⟩
 
 /-- **The row's clock is the message's claimed time** (or "pending"
 while its op waits in the outbox): what layout places is `oneLine` of it. -/
@@ -172,7 +127,7 @@ theorem name_starts (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData)
     exact (flush_start _ h').1
 
 /-- **The row is labelled "⚠ Duplicate" exactly when its name has a
-namesake** (the row's `namesake`, read as NamesakeLaws.row_marked says),
+namesake** (the row's `namesake`, the author component's: ViewLaws.row_marked),
 after the name and before the time. -/
 theorem twin_shown (f : Font.Font) (dm : Dim) (W : Nat) (d : RowData) :
     (layout f dm W d).twin.map (·.2) = if d.namesake && d.clump.isNone then some (Text.oneLine (f.atSize (dm.px 16)) (min ((W - dm.textX - dm.pad) / 3) (dm.cell * 8 + dm.px 12) - dm.px 12) twinText) else none := by

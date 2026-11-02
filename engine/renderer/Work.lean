@@ -114,16 +114,26 @@ private partial def run (p : Pool K V) : IO Unit := do
         set { s with stats := { stats with cancelled := stats.cancelled + 1 } }
   run p
 
+/-- A request's plan, under the pool's lock: the need declared (as it is,
+if it already was). -/
+def State.planFor (s : State K V) (need : Demand.Need K) : Demand.Plan K :=
+  if s.plan.needs.contains need then s.plan else
+    s.plan.reconcile (need :: s.plan.needs.filter (fun n => !(n.owner == need.owner && n.key == need.key)))
+
+/-- The handle already held for a ticket: a request that finds one starts
+no job (`request_again`). -/
+def State.held (s : State K V) (t : Demand.Ticket K) : Option (Handle K V) :=
+  s.handles.find? (fun h => h.ticket == t)
+
 /-- Declare an owned request and start it once. The end-of-frame
 reconciliation removes declarations not made by any mounted component.
 `action` is a thunk: even constructing an unused request performs no IO. -/
 def Pool.request (p : Pool K V) (need : Demand.Need K) (action : Action V) : IO (Handle K V) := do
   let (handle, start) ← p.state.atomically do
     let s ← get
-    let plan := if s.plan.needs.contains need then s.plan else
-      s.plan.reconcile (need :: s.plan.needs.filter (fun n => !(n.owner == need.owner && n.key == need.key)))
+    let plan := s.planFor need
     let some ticket := plan.ticket need.key | throw (IO.userError "missing declared demand")
-    if let some handle := s.handles.find? (fun h => h.ticket == ticket) then
+    if let some handle := s.held ticket then
       set { s with plan }
       return (handle, false)
     let promise : IO.Promise (Option V) ← IO.Promise.new
@@ -140,5 +150,27 @@ def Pool.request (p : Pool K V) (need : Demand.Need K) (action : Action V) : IO 
 
 def Handle.value (h : Handle K V) : IO (Option V) := do
   if ← IO.hasFinished h.result then return h.result.get else return none
+
+/-- **A request again reuses the job the first one started**: after a
+request for a need starts a job (the plan that declares the need, its
+handle for the need's ticket first), the same request finds that plan
+as it is and that handle, so it starts no second job (one decode of a
+picture per ticket, however often its component asks). -/
+theorem request_again (s : State K V) (need : Demand.Need K) (t : Demand.Ticket K) (h : Handle K V)
+    (hn : (need == need) = true) (ht : (t == t) = true) (hh : h.ticket = t)
+    (htk : (s.planFor need).ticket need.key = some t)
+    (jobs : List (Job K V)) (running : Bool) (stats : Stats) :
+    let s' : State K V := { s with plan := s.planFor need, jobs, handles := h :: s.handles, running, stats }
+    s'.planFor need = s'.plan ∧ s'.plan.ticket need.key = some t ∧ s'.held t = some h := by
+  intro s'
+  have hc : (s.planFor need).needs.contains need = true := by
+    unfold State.planFor
+    split
+    · assumption
+    · simp [Demand.Plan.reconcile, List.contains_cons, hn]
+  refine ⟨?_, htk, ?_⟩
+  · show (if (s.planFor need).needs.contains need then s.planFor need else _) = s.planFor need
+    simp only [hc, ↓reduceIte]
+  · simp [State.held, s', hh, ht]
 
 end Work

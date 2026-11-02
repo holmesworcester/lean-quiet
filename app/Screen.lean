@@ -8,6 +8,7 @@ import engine.renderer.Label
 import app.Commands
 import Std.Data.HashMap.Lemmas
 import engine.renderer.Image
+import engine.renderer.pic.Fit
 import engine.core.Core
 import app.community.Screen
 import app.community.member.join.accept.View
@@ -196,8 +197,9 @@ At offset zero the newest message stays pinned. If an anchor is no longer
 readable, the app falls back to the newest message.
 
 `unmounted_quiet` and `old_quiet` prove the running effect gate issues no
-read, paint or write for a revoked lease. `subscriptions_exact` describes
-the query projection used to prune the live cache. `resize_anchor` proves
+read, paint or write for a revoked lease. `live_exact` proves the reader's
+pruning (`Live.keep` by the reads its current wants hold) keeps exactly
+those reads in the live cache. `resize_anchor` proves
 the offset correction. `restore_checkpoint` proves the journal codec's
 round trip; SQLite's atomic commit remains in the tested native seam.
 -/
@@ -214,25 +216,13 @@ structure Lease where
 structure Mount where
   generation : Nat := 0
   mounted : Bool := true
-  /-- Component ids: root = empty bytes; rows use their message ids. -/
-  tree : List (Id × List Q) := []
   deriving Inhabited
 
 def Mount.lease (m : Mount) : Lease := ⟨m.generation⟩
 def Mount.allows (m : Mount) (l : Lease) : Bool :=
   m.mounted && decide (l.generation = m.generation)
-def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false, []⟩
+def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false⟩
 def Mount.mount (m : Mount) : Mount := { m with mounted := true }
-
-def Mount.track (m : Mount) (owner : Id) (q : Q) : Mount :=
-  let old := ((m.tree.find? (·.1 == owner)).map (·.2)).getD []
-  { m with tree := (owner, if old.contains q then old else q :: old) :: m.tree.filter (·.1 != owner) }
-
-def Mount.forget (m : Mount) (owner : Id) : Mount :=
-  { m with tree := m.tree.filter (·.1 != owner) }
-
-def Mount.queries (m : Mount) : List Q := m.tree.flatMap (·.2)
-def Mount.subscriptions (m : Mount) : List ByteArray := m.queries.map fun q => (q.win default).key
 
 /-- All page effects pass this gate, including queued event callbacks. -/
 def owned {m : Type → Type} [Monad m] {α : Type} (s : Mount) (l : Lease) (action : m α) : m (Option α) :=
@@ -246,24 +236,14 @@ theorem old_quiet {m : Type → Type} [Monad m] {α : Type}
     (s : Mount) (action : m α) : owned s.unmount.mount s.lease action = pure none := by
   simp [owned, Mount.allows, Mount.unmount, Mount.mount, Mount.lease]
 
-theorem subscriptions_exact (s : Mount) (k : ByteArray) :
-    k ∈ s.subscriptions ↔ ∃ node ∈ s.tree, ∃ q ∈ node.2, (q.win default).key = k := by
-  simp only [Mount.subscriptions, Mount.queries, List.mem_map, List.mem_flatMap]
-  constructor
-  · rintro ⟨q, ⟨node, hn, hq⟩, hk⟩
-    exact ⟨node, hn, q, hq, hk⟩
-  · rintro ⟨node, hn, q, hq, hk⟩
-    exact ⟨q, ⟨node, hn, hq⟩, hk⟩
-
-/-- The actual live-cache pruning called at the end of an app turn. -/
-def prune (l : Live) (s : Mount) : Live := l.keep fun q => s.queries.contains q
-
-/-- Every mounted query has an answer after a successful read turn.
-Pruning then leaves exactly those queries in the live cache. -/
-theorem live_exact (l : Live) (s : Mount)
-    (complete : ∀ q ∈ s.queries, l.entries[q]?.isSome = true) (q : Q) :
-    (prune l s).entries[q]?.isSome = true ↔ q ∈ s.queries := by
-  simp only [prune, Live.keep, Std.HashMap.getElem?_filter']
+/-- **The live cache keeps exactly the reads the wants hold.** When the
+wants move (an unmount drops its wants), the reader prunes its live cache
+with `Live.keep`, by the reads its current wants hold. An entry it keeps
+is held; and every held read that has an answer stays. -/
+theorem live_exact (l : Live) (want : Q → Bool)
+    (complete : ∀ q, want q = true → l.entries[q]?.isSome = true) (q : Q) :
+    (l.keep want).entries[q]?.isSome = true ↔ want q = true := by
+  simp only [Live.keep, Std.HashMap.getElem?_filter']
   cases h : l.entries[q]? with
   | none =>
     simp only [Option.filter_none, Option.isSome_none, Bool.false_eq_true, false_iff]
@@ -884,44 +864,6 @@ instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
   a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
     a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
 
-/-- The frame's wants: the window, its rows, the pictures, the counts,
-then the frame's lists. -/
-def Want.ofFrame (idsW : Want) (rows pics : Array Want) (countW : Want) (lists : Array Want) : Array Want :=
-  #[idsW] ++ rows ++ pics ++ #[countW] ++ lists
-
-/-- The frame's first wants, before it knows its rows: the window and
-the counts about the anchor, and the rest as last set. When both are
-wanted already, the wants are left as they are, so a steady frame does
-not move the generation (`withView_ofFrame`). -/
-def Want.withView (ws : Array Want) (idsW countW : Want) : Array Want :=
-  if ws.contains idsW && ws.contains countW then ws
-  else #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- **A steady frame keeps its wants**: the first set leaves the wants
-the last frame set as they were, so with the same anchor, rows and
-lists neither set moves the generation and the reader rests. -/
-theorem Want.withView_ofFrame (idsW countW : Want) (rows pics lists : Array Want) :
-    withView (ofFrame idsW rows pics countW lists) idsW countW = ofFrame idsW rows pics countW lists := by
-  simp [withView, ofFrame]
-
-/-- The mutant: the window first and the counts last, every frame. -/
-def Want.withViewLast (ws : Array Want) (idsW countW : Want) : Array Want :=
-  #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- The mutant moves the wants of every frame with a list: the counts
-go last, then back before the lists, so the reader never rests. -/
-theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Want) (hl : lists ≠ #[])
-    (hc : countW ∉ lists) :
-    withViewLast (ofFrame idsW rows pics countW lists) idsW countW ≠ ofFrame idsW rows pics countW lists := by
-  intro h
-  have := congrArg (fun a : Array Want => a.back?) h
-  simp [withViewLast, ofFrame, Array.back?_append] at this
-  cases hb : lists.back? with
-  | none => exact hl (by simpa using hb)
-  | some x =>
-    rw [hb] at this
-    exact hc (this ▸ Array.mem_of_back? hb)
-
 /-- What a want reads as. -/
 inductive Val where
   /-- The window's positions, newest first, and how many of them are
@@ -1189,9 +1131,8 @@ def eval : Want → RM (Val × Array Q)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
   | .author c u => do
-    let (who, deps) ← Kinds.Profile.read c u #[]
-    let (twin, deps) ← Kinds.Profile.namesake c u who.name deps
-    return (.author who.name twin, deps)
+    let ((name, twin), deps) ← Kinds.Profile.author c u
+    return (.author name twin, deps)
   | .attachments c msg => do
     let (ids, deps) ← Kinds.File.ids c msg
     return (.ids ids, deps)
@@ -1227,12 +1168,6 @@ not every pass, reads it again. -/
 def evalLogged (w : Want) : RM Val := do
   modify fun s => { s with log := #[] }
   return (← eval w).1
-
-/-- The index after w's reads move from `old` to `new`. -/
-def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
-    Std.HashMap Q (Array Want) :=
-  let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
-  new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
 
 /-- Position an admitted message exactly as the ordered views do.
 Saturated counters use this device's receipt, including a receipt in this
@@ -1383,7 +1318,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       return false
     -- the wants moved: the new ones are marked, the gone ones forgotten,
     -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
-    -- Screen.screen_subs: what is watched is what the wants read)
+    -- Lifecycle.live_exact and watched_held: what is watched is what the
+    -- wants hold)
     let moved := gen != s.gen
     if moved then
       let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
@@ -1394,7 +1330,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       let dirty := fresh.foldl (·.insert ·) (s.dirty.filter want.contains)
       let deps := s.deps.filter fun w _ => want.contains w
       let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
-      let rev := deps.fold (fun acc w qs => reindex acc w #[] qs) {}
+      let rev := deps.fold (fun acc w qs => _root_.Live.reindex acc w #[] qs) {}
+      -- the live cache keeps exactly the held reads (Lifecycle.live_exact)
       modify fun s => { s with gen, wantSet := want, dirty, deps, rev, last := wants,
                                live := s.live.keep held.contains }
     -- the reads this pass's filings and notes reach (Live.hit, exact per
@@ -1413,10 +1350,12 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- inv_passActs, and with no act RestLaws', are about this pass
     let s ← get
     let rev := fun q => (s.rev.getD q #[]).toList
-    let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
+    let marked := (_root_.Live.Index.notice ⟨s.deps, s.dirty, s.rev⟩ s.wantSet hit).dirty
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
     let ready := _root_.Live.pickActs wants.toList touched marked wants.size
-    sh.queue.modify (Demand.reconcile ready)
+    -- the user's acts first: their wants ahead of any backlog
+    -- (Demand.take_first; as shipped, reconcile alone: shipped_late)
+    sh.queue.modify (Demand.reconcileFirst touched.contains ready)
     modify fun s => { s with dirty := marked }
     let start ← IO.monoMsNow
     let mut published := 0
@@ -1429,15 +1368,17 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       unless ← sh.current ticket do
         modify fun s => { s with retired := s.retired + 1 }
         continue
-      let old := (← get).deps.getD w #[]
       let enabled := (← get).enabled
       modify fun s => { s with enabled := do return (← enabled) && (← sh.current ticket) }
       let v ← try evalLogged w finally modify fun s => { s with enabled }
       unless (← enabled) && (← sh.current ticket) do
         modify fun s => { s with retired := s.retired + 1 }
         continue
+      -- its reads recorded, clean, the index moved (Live.Index.record:
+      -- record_indexed, marked_complete)
       modify fun s =>
-        { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
+        let r := _root_.Live.Index.record ⟨s.deps, s.dirty, s.rev⟩ w s.log
+        { s with deps := r.deps, dirty := r.dirty, rev := r.rev }
       -- Publish each finished value promptly; a later, slow want cannot
       -- hold an already-read visible row behind the rest of the batch.
       sh.publish ticket v
@@ -3475,7 +3416,7 @@ def syncText : M Unit := do
       s.io.setText t
       modify fun s => { s with native := t }
 
-/-- Message m's row: its view (Kinds.Message.read: the claimed time, in
+/-- Message m's row: its view (Kinds.Message.readOwn: the claimed time, in
 UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
@@ -3733,14 +3674,18 @@ def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
 /-- The window's rows' bottoms (bottom-anchored), newest first, and the
 content's height: the messages newer and older than the window at `est`
-each, below and above it. -/
-def bottoms (s : St) : Array Nat × Nat := Id.run do
-  let mut out := Array.mkEmpty s.ids.size
-  let mut y := bottomPad + s.newer * est
-  for (_, x) in s.ids do
-    out := out.push y
-    y := y + heightOf s x
-  return (out, y + s.older * est + 16)
+each, below and above it. Each row's bottom is the heights below it
+(PlaceLaws.bottoms_eq). -/
+def bottoms (s : St) : Array Nat × Nat :=
+  let (out, y) := s.ids.foldl (fun (acc : Array Nat × Nat) (p : Pos) => (acc.1.push acc.2, acc.2 + heightOf s p.2))
+    (Array.mkEmpty s.ids.size, bottomPad + s.newer * est)
+  (out, y + s.older * est + 16)
+
+/-- The row whose span, stacked up from y (newest first), holds offset
+p, and p's distance below that row's top. -/
+def rowFrom (h : Id → Nat) (p : Nat) : Nat → List Pos → Option (Id × Nat)
+  | _, [] => none
+  | y, (_, x) :: t => if y ≤ p && p < y + h x then some (x, y + h x - 1 - p) else rowFrom h p (y + h x) t
 
 /-! ## Mounting, measuring, painting -/
 
@@ -4128,15 +4073,11 @@ def composer (s : St) : Bitmap :=
 
 /-! ## Events and commands -/
 
-/-- The row at content position p, and p's row within it (top down). -/
-def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
-  let (bots, _) := bottoms s
-  for i in [0:s.ids.size] do
-    let bot := bots[i]!
-    let x := s.ids[i]!.2
-    let h := heightOf s x
-    if bot ≤ p && p < bot + h then return some (x, bot + h - 1 - p)
-  return none
+/-- The row at content position p, and p's row within it (top down):
+the row whose span (from its bottom in `bottoms`) holds p
+(PlaceLaws.rowAt_iff). -/
+def rowAt (s : St) (p : Nat) : Option (Id × Nat) :=
+  rowFrom (heightOf s) p (bottomPad + s.newer * est) s.ids.toList
 
 /-! ## Pages and communities -/
 
@@ -4643,11 +4584,6 @@ cache relies on to keep a page drawn earlier. -/
 theorem drawPage_key (f : Font) (bg : ByteArray) (cam : Option Bitmap) {k k' : PageIn} (h : k = k') :
     drawPage f bg cam k = drawPage f bg cam k' := by rw [h]
 
-/-- **The current entry is in the key.** Two states on different entries
-(acceptances) have different keys, whatever their names: a switch always
-redraws. -/
-theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw [h]
-
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
   { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, stage := s.Hs - s.insetTop - s.insetBot,
@@ -4669,6 +4605,13 @@ def pageIn (s : St) : PageIn :=
     removeWhy := match s.removal with | .failed _ why => why | _ => "",
     keepSync := if s.canKeep then some s.keepSync else none,
     notifyLevel := s.notifyLevel }
+
+/-- **The current entry is in the key.** Two states with the same page
+key (`pageIn`, what the frame draws a page from) are on the same entry
+(acceptance), whatever else they share: a switch always redraws. -/
+theorem pageIn_acc {s s' : St} (h : pageIn s = pageIn s') : s.me.acc = s'.me.acc := by
+  have := congrArg (fun k : PageIn => k.me.acc) h
+  simpa [pageIn, Kinds.Accepted.Me.key] using this
 
 /-- Write the removal of user u (the engine's intent). -/
 def removeWrite (u : Id) : M Bool := do
@@ -4924,10 +4867,12 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     if !queued then
       if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
-/-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
+/-- A photo prepared for sending: at most `Pic.attachEdge` (2048) px a
+side, sized by `Pic.fit` (kept if it fits; else its longer side exactly
+the edge, the other to the nearest pixel: Pic.fit_*), as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
 def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Composer.Chip :=
-  let (w, h) := if src.w ≤ 2048 && src.h ≤ 2048 then (src.w, src.h) else Image.fit src 2048 2048
+  let (w, h) := Pic.fit src.w src.h Pic.attachEdge
   let px := Chaos.cropPx src 0 0 src.w src.h w h
   let bytes := Image.encode w h px
   let raw := w * h * 4
@@ -5721,7 +5666,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let idsW := Reader.Want.clumps s.me.c none s.anchor half half
   let countW := Reader.Want.clumpCount s.me.c none s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
-  -- moves no generation, Reader.Want.withView_ofFrame)
+  -- keeps each held want's ticket, so it starts no new read,
+  -- Demand.retained_ticket)
   discard <| query ⟨["community".toUTF8, s.me.c, "messages".toUTF8], true⟩ idsW
   discard <| query ⟨["community".toUTF8, s.me.c, "count".toUTF8], false⟩ countW
   discard <| query ⟨["community".toUTF8, s.me.c, "people".toUTF8], false⟩ (.people s.me.c)
