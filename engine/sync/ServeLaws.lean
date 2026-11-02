@@ -287,7 +287,7 @@ theorem eraseDups_length_le {α} [BEq α] (l : List α) : l.eraseDups.length ≤
 
 theorem authorize_mem (ix : Index) (c : Conn) (ids : List Id) (i : Id) :
     i ∈ authorize ix c ids ↔ i ∈ ids ∧ ∃ r ∈ c.rooms, ∃ a ∈ ix.items r, a.2 = i := by
-  simp only [authorize, List.mem_filter, List.any_eq_true, decide_eq_true_eq]
+  simp only [authorize, List.mem_filter, List.any_eq_true, List.any_map, decide_eq_true_eq, Function.comp_def]
 
 /-! ## The want queue -/
 

@@ -122,6 +122,14 @@ wired Nav.depth
 wired NavLaws.backs_nav
 wired Engine.Sync.top_perm
 wired Engine.Sync.lbl_perm
+spec Engine.Sync.lows The items below a key: what a split's left half holds.
+spec Engine.Sync.pres The byte strings a label hashes, for stating collision freedom.
+spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
+spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
+spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
+spec Engine.Sync.delta The items on one side only.
+spec Engine.Sync.Treap.height A tree's height: the measure its cost bounds are in.
+spec Engine.Sync.height The height of a list's canonical treap: the measure the depth hypothesis is about (tests/scale measures it).
 ## Component demand: these laws must keep naming running decisions.
 bridge Demand.Plan.held Demand.heldIndex_agrees
 wired Demand.heldIndex_agrees
@@ -234,6 +242,7 @@ instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
 instrument Engine.CostT.lift Engine.CostT.erase_lift
 instrument Engine.Counted.val Engine.Counted.val_erase
 instrument Engine.Counted.cost Engine.Counted.cost_run
+instrument Engine.cr Engine.cr_erase
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
@@ -243,6 +252,11 @@ bridge Engine.ingestAll Engine.run_ingestEach
 # (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+bridge Engine.Sync.answerT Engine.Sync.val_answerTM
+bridge Engine.Sync.openingT Engine.Sync.val_openingTM
+bridge Engine.Sync.rangeT Engine.Sync.val_rangeTM
+bridge Engine.Sync.Treap.insert Engine.Sync.val_insertM
+bridge Engine.Sync.Treap.split Engine.Sync.val_splitM
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
@@ -312,7 +326,7 @@ spec Engine.Win.has Whether a window holds a row filed under a key at a position
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
-subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.named Engine.Sync.chunks
 
 ## The World: the running node's code, two nodes (engine/wire/World.lean),
 ## over a modelled network and plain transport

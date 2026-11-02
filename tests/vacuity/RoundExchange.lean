@@ -17,8 +17,12 @@ def bob1 : Id := "bob-history-message-000000000001".toUTF8
 def bob2 : Id := "bob-history-message-000000000002".toUTF8
 def xs : List Item := [(⟨1, 1⟩, alice)]
 def ys : List Item := [(⟨2, 2⟩, bob1), (⟨3, 3⟩, bob2)]
-def ix : Index := { rooms := [(room, xs)] }
-def iy : Index := { rooms := [(room, ys)] }
+def ix : Index := { rooms := [(room, RoomTree.ofList xs)] }
+def iy : Index := { rooms := [(room, RoomTree.ofList ys)] }
+theorem ixItems : ix.items room = xs := by
+  simp [ix, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins, xs]
+theorem iyItems : iy.items room = ys := by
+  simp [iy, Index.items, Index.room?, RoomTree.ofList_items, Sync.ins, ys]; decide
 def cfg : Config := { params := { leaf := 1, fan := 2 }, maxKnown := 8, maxIds := 1 }
 def times (n : Nat) : Nat := n * 10
 -- The responder reads ix at even steps, the dialer iy at odd ones.
@@ -45,11 +49,13 @@ theorem full (t : Nat) : Full (states t).receiving ∧ Full (states t).waiting :
 theorem itemsAt (n : Nat) : (states n).items cfg room 1 = if n % 2 = 0 then xs else ys := by
   rw [items_full _ _ _ _ (full n).1]
   cases n with
-  | zero => rfl
+  | zero => exact ixItems
   | succ n =>
     change (ixs (n + 1)).items room = _
     unfold ixs
-    split <;> rfl
+    split
+    · exact ixItems
+    · exact iyItems
 
 theorem itemsX (t : Nat) : (states (2 * t)).items cfg room 1 = xs := by
   rw [itemsAt, if_pos (by omega)]
@@ -69,9 +75,7 @@ theorem structY : within Prod.fst structureRange ys = [] := by decide
 theorem startsFingerprint : (states 0).pending =
     [.ids structureRange [], .fp timedRange 2 (lbl Prod.fst Prod.snd sha256 ys)] := by
   change (initial cfg room ix iy 0).pending = _
-  rw [initial_claim]
-  change [opening Prod.fst Prod.snd sha256 cfg.params ys structureRange,
-    opening Prod.fst Prod.snd sha256 cfg.params ys timedRange] = _
+  rw [initial_claim, iyItems]
   simp only [opening, withinY, structY]
   simp [cfg, fp, ys]
 
@@ -215,10 +219,11 @@ theorem closureDelivered (checked : collisionCheck (hashInputs xs ++ hashInputs 
     · exact sound
     · exact sound.symm
   have none : ∀ y, iy.next room y = [] := by intro y; simp [Index.next, iy]
-  have overY : ∀ b ∈ iy.over cfg.params.depth room 2, b ∈ ys := fun b hb => Index.over_sub _ _ _ _ hb
+  have overY : ∀ b ∈ iy.over cfg.params.depth room 2, b ∈ ys := fun b hb => by
+    have := Index.over_sub _ _ _ _ hb; rwa [iyItems] at this
   have member : opening Prod.fst Prod.snd sha256 cfg.params ys timedRange ∈ (states 0).pending := by
     change _ ∈ (initial cfg room ix iy 0).pending
-    rw [initial_claim]
+    rw [initial_claim, iyItems]
     exact List.mem_cons_of_mem _ (List.mem_singleton_self _)
   exact closure_delivered_under_bound cfg room 1 7 times states run current capacity (by decide)
     (xs ++ ys) sub sorted Z hZ named' sound' ranks mine
@@ -230,7 +235,7 @@ theorem closureDelivered (checked : collisionCheck (hashInputs xs ++ hashInputs 
     (fun x j hx => by
       have h0 : Near (iy.next room) (iy.windowIds room 2) 0 x := Near.of_none (iy.next room) none hx
       exact Near.mono (iy.next room) 4 h0)
-    a (by decide) 0 (show bob1 ∈ iy.windowIds room 2 by decide) _ member timedRange
+    a (by rw [iyItems]; decide) 0 (show bob1 ∈ iy.windowIds room 2 by unfold Index.windowIds; rw [iyItems]; decide) _ member timedRange
     (opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys timedRange)
     (by decide)
 
@@ -261,7 +266,7 @@ def exchangeCertificate :=
         ready itemsX itemsY sortedX sortedY named sound emptyAsks.1 emptyAsks.2 ranks
       have member : opening Prod.fst Prod.snd sha256 cfg.params ys timedRange ∈ (states 0).pending := by
         change _ ∈ (initial cfg room ix iy 0).pending
-        rw [initial_claim]
+        rw [initial_claim, iyItems]
         exact List.mem_cons_of_mem _ (List.mem_singleton_self _)
       have honest := opening_honest (key := Prod.fst) (ident := Prod.snd) (h := sha256) (P := cfg.params) ys timedRange
       have enough : (within Prod.fst timedRange xs).length + (within Prod.fst timedRange ys).length < 4 := by decide
