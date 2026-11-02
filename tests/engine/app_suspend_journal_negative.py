@@ -69,8 +69,8 @@ missing = [
 ]
 controls = [
     ('replay-only-parked', 'failure', lambda value: once(value,
-        '(replayStoppedNodeWrites s.netBoot s.net s.wr s.queuedWrites)',
-        '(replayStoppedNodeWrites s.netBoot s.net s.wr (s.toNode.toList.flatten.map Op.bytes))'), missing),
+        's.netOwner.retire s.wr s.queuedWrites false',
+        's.netOwner.retire s.wr (s.toNode.toList.flatten.map Op.bytes) false'), missing),
     ('replay-before-loop-completion', 'failure', lambda value: once(value,
         '  if let some r := net then discard <| IO.wait r.done\n',
         '  if let some _ := net then pure ()\n'),

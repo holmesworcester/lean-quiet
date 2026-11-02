@@ -4,7 +4,7 @@
 
 How the laws compose: each law opens to the laws its proof uses. The headlines are the laws the [README](../README.md#what-is-proven)'s guarantee rows cite, each a tree in the file of its table group. A law is drawn whole once, and links there (↪) elsewhere; *n below* counts the distinct laws a law builds on.
 
-✅ wired: about running code (1348) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
+✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
 
 ## Scoreboard
 
@@ -12,14 +12,14 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 | | |
 |---|---|
-| Laws | 3706 |
+| Laws | 3707 |
 | Edges (a proof uses a law) | 9818 |
-| Roots (no law uses them) | 1105 (29.8%) |
-| Isolated (roots that use no law) | 532 (14.4%) |
+| Roots (no law uses them) | 1106 (29.8%) |
+| Isolated (roots that use no law) | 533 (14.4%) |
 | Deepest chain | 23 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 631 |
-| Laws the headlines build on, or are | 2504 (67.6%) |
+| Headlines (laws the README's guarantee rows cite) | 632 |
+| Laws the headlines build on, or are | 2505 (67.6%) |
 
 ## Headlines
 
@@ -31,9 +31,9 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 63 | 158 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 67 | 205 |
 | [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 147 | 440 |
-| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 208 | 385 |
+| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 386 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 16 | 45 |
-| [Also cited](proof-tree/also-cited.md) | 89 | 119 |
+| [Also cited](proof-tree/also-cited.md) | 90 | 119 |
 
 ## Uncited roots
 
@@ -78,7 +78,7 @@ Laws no law uses and the README does not cite: 707, 425 of them isolated (they u
 | app/nav | 11 | 2 | 2 |
 | app/settings/appearance | 14 | 3 | 2 |
 | engine/core | 742 | 113 | 78 |
-| engine/renderer | 401 | 132 | 89 |
+| engine/renderer | 402 | 132 | 89 |
 | engine/renderer/Ttf | 16 | 7 | 6 |
 | engine/renderer/qr | 58 | 5 | 4 |
 | engine/sync | 589 | 66 | 29 |
@@ -87,13 +87,13 @@ Laws no law uses and the README does not cite: 707, 425 of them isolated (they u
 | engine/world | 272 | 17 | 8 |
 
 <details><summary><b>app</b> · 68</summary><ul>
-<li>✅ <a href="../app/Screen.lean#L3817">App.composer_no_selection</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L3812">App.composer_pending_feedback</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4066">App.composer_no_selection</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4061">App.composer_pending_feedback</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1535">App.screenChanged_insets</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1529">App.screenChanged_size</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1924">Appearance.selected_check</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1582">ClumpList.cells_bounded</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1588">ClumpList.extent_cells</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L2007">Appearance.selected_check</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1665">ClumpList.cells_bounded</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1671">ClumpList.extent_cells</a> · isolated</li>
 <li>▫️ <a href="../app/Proofs.lean#L2496">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3212">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3214">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>
@@ -133,7 +133,7 @@ Laws no law uses and the README does not cite: 707, 425 of them isolated (they u
 <li>✅ <a href="../app/Proofs.lean#L3539">Connection.secret_unfiled</a> · isolated</li>
 <li>🧪 <a href="../app/Proofs.lean#L3846">Connection.shipped_retired_misses</a> · 4 below</li>
 <li>✅ <a href="../app/Commands.lean#L619">Data.overlay_total</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L279">Lifecycle.follow_away</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L280">Lifecycle.follow_away</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1359">NavLaws.draft_open</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1371">NavLaws.inv_back</a> · 1 below</li>
 <li>✅ <a href="../app/Proofs.lean#L1374">NavLaws.inv_switch</a> · 2 below</li>

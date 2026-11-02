@@ -40,7 +40,7 @@ mutants = [
     ("lose-resize-keyboard", "app/Screen.lean", "if s.active && s.surface && s.life.mounted && inputPage == (s.page, s.cur) then", "if false then", "suite"),
     ("stale-home-count", "app/Screen.lean", "people := ms.size, ", "", "two"),
     ("truncate-dump-path", "platforms/headless/host.c", "dump(line + 6);", "dump(strndup(line + 6, 63));", "twin"),
-    ("drop-parked-writes", "app/Screen.lean", "net := none, netBoot := none, restoreAnchor := s.mark.isSome", "net := none, netBoot := none, toNode := #[], restoreAnchor := s.mark.isSome", "suite"),
+    ("drop-parked-writes", "app/Screen.lean", "modify fun s => { s with restoreAnchor := s.mark.isSome }", "modify fun s => { s with toNode := #[], restoreAnchor := s.mark.isSome }", "suite"),
     ("lose-reader-barrier", "app/Screen.lean", "  stopReader\n  retirePaints s", "  retirePaints s", "suite"),
     ("retain-picture-wants", "app/Screen.lean", "picWants := #[], retryWants := {}, lastSlices := none }", "picWants := s.picWants, retryWants := s.retryWants, lastSlices := s.lastSlices }", "suite"),
     ("lose-producer-writes", "app/Screen.lean", "toNode := s.toNode ++ jobs.map (·.ops)", "toNode := s.toNode", "suite"),

@@ -1,0 +1,9 @@
+{
+  "FrameTimes.bounded": {
+    "status": "kernel-witness",
+    "theorem": "FrameTimes.bounded",
+    "witness": "Vacuity.FrameTimes.nonempty",
+    "module": "tests.vacuity.FrameTimes",
+    "detail": "A full 600-sample history and an oversized 900-sample history, each of 17000 us samples, receive a 23000 us sample. The kernel computes that both results hold 301 samples and applies the theorem to each. The helper is the one both actual App frame paths (pages and chat) call; that both call sites use it is checked by the native app-frame-times suite with two compiling controls, not by this law. This bounds retained diagnostic entries only, not heap use, Nat payload size or the frame counter."
+  }
+}
