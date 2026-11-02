@@ -546,7 +546,7 @@ extern le_ed_sk_to_x none The Ed25519 to X25519 conversion of a secret key: a fi
 extern le_ed_pk_to_x none The same conversion of a public key (empty if not a point): no law assumes anything of what it returns.
 extern le_random none The OS's random bytes, as many as asked, or a failure. The laws hold for whatever bytes come back; sizes are checked where they are read (`Bytes.expect`). That they are unpredictable is a security assumption, not a Lean statement.
 # SQLite (engine/native/glue.c): engine/core/StoreTrust.lean
-extern le_sql_open prop:Trust.SqliteStore Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's, and the catalog's reads change no table (`receive_as_model`, `purge_as_model`, `sql_run_step`).
+extern le_sql_open prop:Trust.SqliteStore SQLITE_BUSY and SQLITE_LOCKED come back as `IO.Error.resourceBusy` (`Store.busy`), every other failure as a user error. Every database the app opens holds some model tables, and the store's operations, write turns, budget and list queries answer as the model's, and the catalog's reads change no table (`receive_as_model`, `purge_as_model`, `sql_run_step`).
 extern le_sql_exec prop:Trust.SqliteStore = le_sql_open
 extern le_sql_query prop:Trust.SqliteStore = le_sql_open
 # The runner's TCP seam (engine/native/listener.h)
@@ -607,3 +607,7 @@ extern lq_stop_probe_wait test Waits for the probe's release.
 extern lq_stop_probe_entered test Reports that the probe's thread entered.
 extern lq_stop_probe_done test Reports that the probe's thread finished.
 extern lq_stop_probe_injected test Whether the probe injected its fault.
+
+# A busy store slows the runner, never stops it (engine/core/Busy.lean)
+wired Engine.Store.attempt_never_busy
+control Engine.Store.attemptShipped The runner as shipped: a store call ran as it was, so SQLite's "database is locked" ended the node's networking (shipped_busy_escapes).

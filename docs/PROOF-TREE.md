@@ -4,7 +4,7 @@
 
 How the laws compose: each law opens to the laws its proof uses. The headlines are the laws the [README](../README.md#what-is-proven)'s guarantee rows cite, each a tree in the file of its table group. A law is drawn whole once, and links there (↪) elsewhere; *n below* counts the distinct laws a law builds on.
 
-✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2125)
+✅ wired: about running code (1353) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (34) · ▫️ lemma: not audited (2125)
 
 ## Scoreboard
 
@@ -12,14 +12,14 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 | | |
 |---|---|
-| Laws | 3702 |
-| Edges (a proof uses a law) | 9836 |
-| Roots (no law uses them) | 1099 (29.7%) |
-| Isolated (roots that use no law) | 529 (14.3%) |
+| Laws | 3707 |
+| Edges (a proof uses a law) | 9839 |
+| Roots (no law uses them) | 1101 (29.7%) |
+| Isolated (roots that use no law) | 530 (14.3%) |
 | Deepest chain | 23 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 634 |
-| Laws the headlines build on, or are | 2516 (68.0%) |
+| Headlines (laws the README's guarantee rows cite) | 638 |
+| Laws the headlines build on, or are | 2520 (68.0%) |
 
 ## Headlines
 
@@ -28,7 +28,7 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Identity and membership](proof-tree/security-proofs-identity-and-membership.md) | 24 | 61 |
 | [Security proofs › Confidentiality](proof-tree/security-proofs-confidentiality.md) | 60 | 228 |
 | [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 60 | 243 |
-| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 66 | 173 |
+| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 70 | 177 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 65 | 200 |
 | [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 151 | 448 |
 | [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 386 |
@@ -37,7 +37,7 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 ## Uncited roots
 
-Laws no law uses and the README does not cite: 699, 421 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
+Laws no law uses and the README does not cite: 700, 422 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
 
 | Folder | Laws | Uncited roots | Isolated |
 |---|---|---|---|
@@ -77,7 +77,7 @@ Laws no law uses and the README does not cite: 699, 421 of them isolated (they u
 | app/connection/send | 4 | 3 | 1 |
 | app/nav | 11 | 2 | 2 |
 | app/settings/appearance | 14 | 3 | 2 |
-| engine/core | 742 | 113 | 78 |
+| engine/core | 747 | 114 | 79 |
 | engine/renderer | 402 | 132 | 89 |
 | engine/renderer/Ttf | 16 | 7 | 6 |
 | engine/renderer/qr | 58 | 5 | 4 |
@@ -470,7 +470,7 @@ Laws no law uses and the README does not cite: 699, 421 of them isolated (they u
 <li>▫️ <a href="../app/settings/appearance/View.lean#L29">Settings.Appearance.pick_nil</a> · isolated</li>
 </ul></details>
 
-<details><summary><b>engine/core</b> · 113</summary><ul>
+<details><summary><b>engine/core</b> · 114</summary><ul>
 <li>✅ <a href="../engine/core/Crypto.lean#L39">Engine.Bytes.of?_none</a> · isolated</li>
 <li>✅ <a href="../engine/core/CodecCost.lean#L331">Engine.Codec.cost_decBytesFromM_at</a> · 37 below</li>
 <li>✅ <a href="../engine/core/Codec.lean#L868">Engine.Codec.decode_eq_fast</a> · 7 below</li>
@@ -525,6 +525,7 @@ Laws no law uses and the README does not cite: 699, 421 of them isolated (they u
 <li>▫️ <a href="../engine/core/Core.lean#L50">Engine.Op.make_reqs</a> · isolated</li>
 <li>▫️ <a href="../engine/core/WindowIndex.lean#L44">Engine.Pos.lt_of_le_lt</a> · 19 below</li>
 <li>▫️ <a href="../engine/core/Decl.lean#L34">Engine.Rel.comap_args</a> · isolated</li>
+<li>🧪 <a href="../engine/core/BusyLaws.lean#L42">Engine.Store.shipped_busy_escapes</a> · isolated</li>
 <li>▫️ <a href="../engine/core/View.lean#L60">Engine.View.eval_pure</a> · isolated</li>
 <li>▫️ <a href="../engine/core/View.lean#L71">Engine.View.eval_read</a> · isolated</li>
 <li>▫️ <a href="../engine/core/ListCost.lean#L90">Engine.View.listsAt_read</a> · isolated</li>

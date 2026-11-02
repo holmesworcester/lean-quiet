@@ -242,3 +242,37 @@ lo, hi = span(bad, 'sql_run_step')
 if code == 0 or not errs or not (lo <= errs[0] <= hi):
     raise SystemExit(f'mutation control did not fail at sql_run_step: a sweep that pops the queue\n{out[:3000]}')
 print('rejected mutation: a sweep that pops the queue as it reads (fails sql_run_step)')
+
+# A busy store (engine/core/Busy.lean). Over a copy of `attempt` that lets a
+# busy error through, its laws' own proofs must fail; and every store call
+# of the runner (engine/wire/Tcp.lean) goes through RunState.store, which
+# retries: a direct `.run st.db` is a bypass, and a seeded one is caught.
+BUSY = (ROOT / 'engine/core/Busy.lean').read_text()
+BLAWS = (ROOT / 'engine/core/BusyLaws.lean').read_text()
+BLAWS_BODY = BLAWS[BLAWS.index('namespace Engine.Store'):]
+def busy_copy(text):
+    return text + '\n' + BLAWS_BODY
+old = '  tryCatch (do let a ← act; pure (some a)) fun e => if busy e then pure none else throw e\n'
+new = '  tryCatch (do let a ← act; pure (some a)) fun e => throw e\n'
+assert BUSY.count(old) == 1, 'busy anchor must occur once'
+code, out = lean(busy_copy(BUSY), 'quiet-mutation-base-')
+if code != 0:
+    raise SystemExit(f'mutation control base does not compile: the busy store\n{out[:3000]}')
+bad = busy_copy(BUSY.replace(old, new, 1))
+code, out = lean(bad, 'quiet-mutation-')
+errs = [int(m.group(1)) for m in re.finditer(r'Control\.lean:(\d+):\d+: error', out)]
+lo, hi = span(bad, 'attempt_busy')
+if code == 0 or not errs or not (lo <= errs[0] <= hi):
+    raise SystemExit(f'mutation control did not fail at attempt_busy: an attempt that lets busy through\n{out[:3000]}')
+print('rejected mutation: an attempt that lets a busy error through (fails attempt_busy)')
+
+TCP = (ROOT / 'engine/wire/Tcp.lean').read_text()
+def bypasses(text):
+    return [l.strip() for l in text.splitlines()
+            if '.run st.db' in l and 'Store.retrying (act.run st.db)' not in l]
+if bypasses(TCP):
+    raise SystemExit('runner store calls outside RunState.store (no busy retry): ' + '; '.join(bypasses(TCP)))
+seeded = TCP.replace('st.store (store.commit ticket)', '(store.commit ticket).run st.db', 1)
+if seeded == TCP or not bypasses(seeded):
+    raise SystemExit('runner store-call check: the seeded bypass was not caught')
+print('runner store calls: all through RunState.store; a seeded bypass is caught')

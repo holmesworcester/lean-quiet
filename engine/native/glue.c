@@ -17,6 +17,17 @@ static lean_obj_res io_error(const char* msg) {
 
 // ---- SQLite ------------------------------------------------------------------
 
+// SQLITE_BUSY and SQLITE_LOCKED (and their extended codes) mean another
+// connection holds a lock past the busy timeout: the call changed nothing
+// and may be tried again. They come back as IO.Error.resourceBusy, every
+// other failure as a user error (Engine.Store.busy tells them apart).
+static lean_obj_res sql_error(int rc, const char* msg) {
+  int primary = rc & 0xff;
+  if (primary == SQLITE_BUSY || primary == SQLITE_LOCKED)
+    return lean_io_result_mk_error(lean_mk_io_error_resource_busy((uint32_t)rc, lean_mk_string(msg)));
+  return io_error(msg);
+}
+
 static lean_external_class* db_class;
 
 static void db_finalize(void* p) { sqlite3_close_v2((sqlite3*)p); }
@@ -38,8 +49,9 @@ LEAN_EXPORT lean_obj_res le_sql_open(b_lean_obj_arg path) {
 
 LEAN_EXPORT lean_obj_res le_sql_exec(b_lean_obj_arg o, b_lean_obj_arg sql) {
   char* err = NULL;
-  if (sqlite3_exec(db_of(o), lean_string_cstr(sql), NULL, NULL, &err) != SQLITE_OK) {
-    lean_obj_res e = io_error(err ? err : "sqlite exec failed");
+  int rc = sqlite3_exec(db_of(o), lean_string_cstr(sql), NULL, NULL, &err);
+  if (rc != SQLITE_OK) {
+    lean_obj_res e = sql_error(rc, err ? err : "sqlite exec failed");
     sqlite3_free(err);
     return e;
   }
@@ -51,8 +63,9 @@ LEAN_EXPORT lean_obj_res le_sql_exec(b_lean_obj_arg o, b_lean_obj_arg sql) {
 LEAN_EXPORT lean_obj_res le_sql_query(b_lean_obj_arg o, b_lean_obj_arg sql, b_lean_obj_arg args) {
   sqlite3*      db = db_of(o);
   sqlite3_stmt* st;
-  if (sqlite3_prepare_v2(db, lean_string_cstr(sql), -1, &st, NULL) != SQLITE_OK) {
-    return io_error(sqlite3_errmsg(db));
+  int prc = sqlite3_prepare_v2(db, lean_string_cstr(sql), -1, &st, NULL);
+  if (prc != SQLITE_OK) {
+    return sql_error(prc, sqlite3_errmsg(db));
   }
   size_t n = lean_array_size(args);
   for (size_t i = 0; i < n; i++) {
@@ -72,7 +85,7 @@ LEAN_EXPORT lean_obj_res le_sql_query(b_lean_obj_arg o, b_lean_obj_arg sql, b_le
     rows = lean_array_push(rows, row);
   }
   if (rc != SQLITE_DONE) {
-    lean_obj_res e = io_error(sqlite3_errmsg(db));
+    lean_obj_res e = sql_error(rc, sqlite3_errmsg(db));
     sqlite3_finalize(st);
     lean_dec(rows);
     return e;

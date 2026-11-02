@@ -97,6 +97,7 @@ import engine.core.Project
 import app.connection.Family
 import engine.wire.EgressLaws
 import engine.core.SqliteLaws
+import engine.core.BusyLaws
 import Lean
 
 /-! Every law of the repository, each of which must rest on Lean's
@@ -239,6 +240,11 @@ open Engine Community
 #print axioms Community.found_travels
 #print axioms Engine.drain_bounded
 #print axioms Trust.receive_as_model
+#print axioms Engine.Store.attempt_ok
+#print axioms Engine.Store.attempt_busy
+#print axioms Engine.Store.attempt_other
+#print axioms Engine.Store.attempt_never_busy
+#print axioms Engine.Store.shipped_busy_escapes
 #print axioms Trust.receive_shows_model
 #print axioms Trust.receive_refused
 #print axioms Trust.purge_as_model

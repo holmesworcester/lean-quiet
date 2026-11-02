@@ -595,7 +595,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1577 rest on Lean's standard axioms only, and about nine tenths of its theorems (1349 of 1487, not counting 57 proof steps and 33 negative controls) are about the code that runs; another 69 run the
+hypotheses. All 1582 rest on Lean's standard axioms only, and about nine tenths of its theorems (1353 of 1491, not counting 57 proof steps and 34 negative controls) are about the code that runs; another 69 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -653,6 +653,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊 | **mDNS packets and `leanquiet://` links read back:** a hostile mDNS packet decodes to a well-formed value or to nothing, and what the mDNS and link encoders write reads back. Not yet: the app does not run mDNS, and nothing running writes `leanquiet://` links. | [`Mdns.decode_valid`], [`Mdns.decode_encode`], [`decode_roundtrip`], [`parse_uri`] |
 | ✅ | 🥊🥊🥊 | **Attachments authenticate themselves.** Any peer may relay a chunk, but it is Valid only if it is its file's own slice; progress counts exactly the chunks held, and together they are the file. A Valid attachment and its chunks claim their message's time, so sync's ranges carry a photo with its message. Assumes no SHA-256 collision between what a file's root hashes and what checking its chunks hashed (concrete bytes; checked on real SHA-256 in the attachment tests). | [`chunk_is_slice`], [`verify_sound`], [`complete_assembles`], [`chunk_unique`], [`progress_exact`], [`chunks_in_window`], [`assumptions_hold`] |
 | ✅ | 🥊🥊🥊 | **Judging cannot be hung.** From any state, judging empties its queue within a budget read off the tables. Assumes no SHA-256 collision among the ops received. | [`drain_bounded`], [`drain_terminates`], [`step_budget`] |
+| 🟡 | 🥊🥊 | **A busy store slows the node down, never stops it.** When another connection holds SQLite's lock past the busy timeout (a checkpoint, a prune, the app's writer), the store call fails as busy (`resourceBusy`, from the glue) and the runner tries it again after a pause, from the same node state, instead of ending its networking; any other failure still stops it. Not yet: that `retrying`'s loop throws only what `attempt` throws is read, not proven (a partial def), and that every runner store call goes through it is a source check (tests/vacuity/controls.py), not a law. | [`attempt_never_busy`], [`attempt_busy`], [`attempt_other`], [`attempt_ok`] |
 | ✅ | 🥊🥊🥊 | **Authenticate before parsing:** a sealed frame's payload is decoded only after its AEAD check passes, under the receive key of the session the frame names. A frame that fails leaves the node and its store as they were, and sends nothing. | [`sealed_auth`], [`openFrame_auth`], [`onFrame_sealed`], [`sealed_unopened`] |
 | 🟡 | 🥊🥊 | **Bounded buffering:** inbound frames wait in a bounded queue, each at most 1 MiB, whatever the peer's length fields say, and sockets are capped. Proven of the running step (`frames`) over any run of reads: `keeps` is the buffers the reader's loop keeps, each read `frames (buf ++ chunk)`'s rest or a close (Tcp.reader). Not yet: a law that the loop is that fold (it is written so, and read so). | [`buffer_bounded`], [`frames_kept`], [`frames_tooBig`], [`admit_bounded`] |
 | ✅ | 🥊🥊 | **No amplification:** a decoded op is exactly its bytes, so no larger. A bundle's payloads are together smaller than it. Linear decoding time is not proven. | [`Op.decode_exact`], [`Op.decode_parts`], [`decode_sum`] |
@@ -762,11 +763,11 @@ law's statement names only the record. A negative control in
 note and checks that the law turns to a model only because of the field.
 
 <!-- wiring:begin -->
-**1349 of 1487 laws are about running code;** another 69 run its node code in a World, and 69 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 57 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 33 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1353 of 1491 laws are about running code;** another 69 run its node code in a World, and 69 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 57 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 34 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 190 | 182 |  | 8 |
+| Engine | 194 | 186 |  | 8 |
 | Sync | 318 | 302 |  | 16 |
 | The n-node World | 43 | 8 | 35 |  |
 | mDNS | 3 | 0 |  | 3 |
@@ -1642,6 +1643,10 @@ opportunities and full native delivery remain open.
 [`drain_bounded`]: engine/core/Budget.lean#L163-L168
 [`drain_terminates`]: engine/core/Termination.lean#L84-L87
 [`step_budget`]: engine/core/Budget.lean#L124-L126
+[`attempt_never_busy`]: engine/core/BusyLaws.lean#L30-L33
+[`attempt_busy`]: engine/core/BusyLaws.lean#L14-L18
+[`attempt_other`]: engine/core/BusyLaws.lean#L23-L25
+[`attempt_ok`]: engine/core/BusyLaws.lean#L9-L10
 [`sealed_auth`]: app/connection/Proofs.lean#L153-L164
 [`openFrame_auth`]: app/connection/Proofs.lean#L105-L112
 [`onFrame_sealed`]: engine/wire/NodeLaws.lean#L52-L58

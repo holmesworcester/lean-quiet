@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Security proofs › Hostile input**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2125)
+✅ wired: about running code (1353) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (34) · ▫️ lemma: not audited (2125)
 
 <ul>
 <li><a id="law-Engine.Codec.encode_decode"></a>✅ <a href="../../engine/core/Codec.lean#L775">Engine.Codec.encode_decode</a></li>
@@ -488,6 +488,14 @@
 <li>▫️ <a href="../../engine/core/Proofs.lean#L26">Engine.waitOnS_queue</a></li>
 <li>▫️ <a href="../../engine/core/Proofs.lean#L22">Engine.waitOnS_status</a></li>
 </ul></details></li>
+<li><details><summary><a id="law-Engine.Store.attempt_never_busy"></a>✅ <a href="../../engine/core/BusyLaws.lean#L33">Engine.Store.attempt_never_busy</a> · 3 below</summary><ul>
+<li>✅ <a href="../../engine/core/BusyLaws.lean#L17">Engine.Store.attempt_busy</a></li>
+<li>✅ <a href="../../engine/core/BusyLaws.lean#L10">Engine.Store.attempt_ok</a></li>
+<li>✅ <a href="../../engine/core/BusyLaws.lean#L24">Engine.Store.attempt_other</a></li>
+</ul></details></li>
+<li><a id="law-Engine.Store.attempt_busy"></a>✅ <a href="../../engine/core/BusyLaws.lean#L17">Engine.Store.attempt_busy</a></li>
+<li><a id="law-Engine.Store.attempt_other"></a>✅ <a href="../../engine/core/BusyLaws.lean#L24">Engine.Store.attempt_other</a></li>
+<li><a id="law-Engine.Store.attempt_ok"></a>✅ <a href="../../engine/core/BusyLaws.lean#L10">Engine.Store.attempt_ok</a></li>
 <li><details><summary><a id="law-Connection.sealed_auth"></a>✅ <a href="../../app/connection/Proofs.lean#L160">Connection.sealed_auth</a> · 8 below</summary><ul>
 <li>✅ <a href="#law-Connection.openFrame_auth">Connection.openFrame_auth</a> ↪ · 2 below</li>
 <li><details><summary><a id="law-Connection.openFrame_reads"></a>✅ <a href="../../app/connection/Proofs.lean#L102">Connection.openFrame_reads</a> · 2 below</summary><ul>

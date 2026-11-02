@@ -1523,6 +1523,34 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | hq | `s.queue = x :: q` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+## 🟡 A busy store slows the node down, never stops it.
+
+**`Engine.Store.attempt_never_busy`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Store.attempt act w = EST.Out.error e w'` | [discharged] |
+
+**`Engine.Store.attempt_busy`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `act w = EST.Out.error e w'` | [discharged] |
+| hb | `Engine.Store.busy e = true` | [discharged] |
+
+**`Engine.Store.attempt_other`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `act w = EST.Out.error e w'` | [discharged] |
+| hb | `Engine.Store.busy e = false` | [discharged] |
+
+**`Engine.Store.attempt_ok`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `act w = EST.Out.ok a w'` | [discharged] |
+
 ## ✅ Authenticate before parsing:
 
 Rests on: `Engine.Model.run`

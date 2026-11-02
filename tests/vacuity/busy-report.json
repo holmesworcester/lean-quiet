@@ -1,0 +1,37 @@
+{
+  "attempt_ok": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Store.attempt_ok",
+    "witness": "Vacuity.Busy.returns",
+    "module": "tests.vacuity.Busy",
+    "detail": "A store call that returns 3 gives some 3 through attempt, in the kernel; on a real SQLite file every runner store call that returns goes through it (the store trust executable's retry checks)."
+  },
+  "attempt_busy": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Store.attempt_busy",
+    "witness": "Vacuity.Busy.busyRetried",
+    "module": "tests.vacuity.Busy",
+    "detail": "A call failing with SQLite's \"database is locked\" as the glue reports it (resourceBusy) comes back as none, to be tried again. On a real SQLite file (StoreTrust), a second connection holds the write lock past the busy timeout: the glue's error is busy and the attempt comes back none."
+  },
+  "attempt_other": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Store.attempt_other",
+    "witness": "Vacuity.Busy.otherThrown",
+    "module": "tests.vacuity.Busy",
+    "detail": "A call failing with an I/O error that is not busy is thrown unchanged: the runner still stops on a real failure. On a real file, a statement that is not SQL fails through attempt."
+  },
+  "attempt_never_busy": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Store.attempt_never_busy",
+    "witness": "Vacuity.Busy.thrownNotBusy",
+    "module": "tests.vacuity.Busy",
+    "detail": "Applied to the error an attempt does throw (an I/O error): it is not busy. On a real file, retrying gets through once the second connection releases its lock, and the write is made once."
+  },
+  "shipped_busy_escapes": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Store.shipped_busy_escapes",
+    "witness": "Vacuity.Busy.shippedEscapes",
+    "module": "tests.vacuity.Busy",
+    "detail": "The control: the shipped runner's run-as-is call, on the same locked call, fails busy, which reached Tcp.runLoop's catch and ended networking (net_link under load, holmes-80's A/B)."
+  }
+}

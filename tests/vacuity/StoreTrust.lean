@@ -1,5 +1,6 @@
 import tests.engine.Lib
 import engine.core.SqliteLaws
+import engine.core.Busy
 import engine.sync.SweepRun
 
 /-! The store's trust file (engine/core/StoreTrust.lean), from both sides.
@@ -272,6 +273,27 @@ def main : IO UInt32 := do
     | none => pure ()
   let s3 := (purged s2).2
   t.ok "a purge's rows show the model's purge" (showsOn (← rows) s3 ids (keysOf fam s3 ids))
+  -- A busy store (engine/core/Busy.lean): a second connection holds the
+  -- write lock past the busy timeout. The glue reports it as busy, an
+  -- attempt comes back to be tried again, and `retrying` gets through once
+  -- the lock is released, the write made once.
+  let other ← Db.openAt path
+  other.exec "BEGIN IMMEDIATE"
+  let insert := db.exec "CREATE TABLE IF NOT EXISTS busy_probe (n INTEGER); INSERT INTO busy_probe VALUES (1)"
+  let raw ← insert.toBaseIO
+  t.ok "a write under another connection's lock fails as busy" (match raw with | .error e => Store.busy e | .ok _ => false)
+  let tried ← (Store.attempt insert).toBaseIO
+  t.ok "an attempt under the lock comes back to be tried again" (tried matches .ok none)
+  let release ← IO.asTask do
+    IO.sleep 6000
+    other.exec "COMMIT"
+  let retried ← (Store.retrying insert).toBaseIO
+  discard <| IO.wait release
+  t.ok "retrying gets through once the lock is released" (retried matches .ok ())
+  let rows ← db.query "SELECT COUNT(*) FROM busy_probe" #[]
+  t.ok "the write is made once" (rows == #[#["1".toUTF8]])
+  let notSql ← (Store.attempt (db.exec "NOT SQL")).toBaseIO
+  t.ok "a failure that is not busy is thrown as it was" (notSql matches .error _)
   t.finish "store trust file: satisfied by SQLite, operation by operation"
 
 end Vacuity.StoreTrust

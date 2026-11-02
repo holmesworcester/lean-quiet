@@ -56,6 +56,7 @@ import engine.wire.Reserved
 import engine.wire.IngressIO
 import engine.wire.ExpiryGrace
 import engine.wire.JobOwners
+import engine.core.Busy
 
 namespace Engine.Sync
 open Std Std.Async Std.Net
@@ -537,6 +538,12 @@ def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (
     return (st, none)
   return ({ st with socks := s :: st.socks, next := sid + 1 }, some sid)
 
+/-- A store call of the runner's, tried again for as long as SQLite is
+busy (`Store.retrying`): a lock another connection holds slows the node
+down and never stops it (`Store.attempt_never_busy`). -/
+def RunState.store {α : Type} (st : RunState) (act : SqlM F α) : IO α :=
+  Store.retrying (act.run st.db)
+
 /-- Every socket end notifies the node, then stops the socket's reader
 and writer; the writer releases its slot when it ends. -/
 def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) (linger : Bool := false) :
@@ -544,7 +551,7 @@ def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) (ling
   match st.sockOf (·.id == sid) with
   | none => return (st, {})
   | some s =>
-    let (node, e) ← (st.node.step x (.close s.addr) now).run st.db
+    let (node, e) ← st.store (st.node.step x (.close s.addr) now)
     s.stopped.request
     if let some input := s.input then st.ingress.retire input
     if drain then s.drain linger else s.stop
@@ -592,7 +599,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
         if fs.length < cfg.queue then
           st := { st with pending := st.pending.map fun (a, fs) => if a == addr then (a, fs ++ [b]) else (a, fs) }
         else
-          let (node, more) ← (st.node.step x (.close addr) now).run st.db
+          let (node, more) ← st.store (st.node.step x (.close addr) now)
           st ← ({ st with node, pending := st.pending.map fun (a, fs) => if a == addr then (a, []) else (a, fs) }).apply cfg more now
       | none =>
         if st.pending.length < cfg.maxPending then
@@ -615,7 +622,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
 
 /-- Run a node step on the store. -/
 def RunState.node? (st : RunState) (f : Node → SqlM F (Node × Effects)) : IO (RunState × Effects) := do
-  let (n, e) ← (f st.node).run st.db
+  let (n, e) ← st.store (f st.node)
   return ({ st with node := n }, e)
 
 /-- A close can also produce couriers or new sessions; carry those
@@ -692,12 +699,12 @@ def RunState.handle (cfg : RunConfig) (st : RunState) (ev : Event) (now : Nat) :
   | .accepted c peer => return some (← st.addSock ch cfg c peer now).1
   | .dialed addr none =>
     st.slots.release addr
-    let (node, e) ← (st.node.step x (.close addr) now).run st.db
+    let (node, e) ← st.store (st.node.step x (.close addr) now)
     some <$> ({ st with node, pending := st.pending.filter (·.1 != addr), waiting := st.waiting.filter (· != addr) }).apply x ch notify cfg e now
   | .dialed addr (some c) =>
     let (st, sid) ← st.addSock ch cfg c addr now
     let some sid := sid | do
-      let (node, e) ← (st.node.step x (.close addr) now).run st.db
+      let (node, e) ← st.store (st.node.step x (.close addr) now)
       return some (← ({ st with
         node
         pending := st.pending.filter (·.1 != addr)
@@ -722,7 +729,7 @@ def RunState.shutdown (cfg : RunConfig) (writes : Std.CloseableChannel.Sync (Lis
   for s in socks do
     st := (← st.close x s.id now).1
   for (_, addr) in st.node.addrs do
-    let (node, _) ← (st.node.step x (.close addr) now).run st.db
+    let (node, _) ← st.store (st.node.step x (.close addr) now)
     st := { st with node }
   for s in socks do
     while !(← IO.hasFinished s.done) && (← IO.monoMsNow) < now + cfg.stopMs do
@@ -736,7 +743,7 @@ def RunState.ackRetries (st : RunState) : IO Unit := do
   for s in st.socks do
     let done ← s.out.atomically do return (← getThe Outbox).retry.completed?
     if let some ticket := done then
-      (store.commit ticket).run st.db
+      st.store (store.commit ticket)
       s.out.atomically (modify fun o =>
         if o.retry.completed? = some ticket then { o with retry := o.retry.acknowledged } else o)
 
@@ -862,7 +869,7 @@ def Runner.start {F : Type} [Codec F] [SortKey F] (x : Sync F (SqlM F)) (db : Db
     (port : UInt16) (notify : List Id → IO Unit := fun _ => pure ()) (cfg : RunConfig := {}) :
     IO Runner := do
   let x := { x with catalog := some (Catalog.sql (F := F)), retryStore := some (RetryStore.sql (F := F)), deferredRetries := true }
-  let node := Node.boot x.fam (← (dumpOps (F := F)).run db) floor
+  let node := Node.boot x.fam (← Store.retrying ((dumpOps (F := F)).run db)) floor
   let ch ← eventChannel cfg
   let (ingress, _) ← Ingress.Hub.new cfg.maxSocks
   let writes ← Std.CloseableChannel.Sync.new (some cfg.queue)

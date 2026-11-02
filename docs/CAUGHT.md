@@ -127,6 +127,25 @@ catches it next time. The aim is no escapes.
 
 ## Found otherwise, pinned by a law afterwards
 
+- **A busy store ended a node's networking for good** (found by
+  `net_link --strict` under load: holmes-80's A/B, 2 of 8 runs on main
+  7a100547, diagnosed by holmes-df, 2026-11-01). When another connection
+  (a checkpoint, the journal prune, the app's writer) held SQLite's lock
+  past the 5 s busy timeout, the runner's store call failed with
+  "database is locked", which reached `Tcp.runLoop`'s catch: "network
+  runner stopped", and the node synced no more until restarted. Now the
+  glue reports SQLITE_BUSY and SQLITE_LOCKED as `IO.Error.resourceBusy`,
+  and every runner store call goes through `Store.retrying`, which tries
+  a busy call again after a pause, from the same node state. `Store.attempt`
+  never fails busy (`attempt_never_busy`; `attempt_busy`,
+  `attempt_other`). The shipped run-as-is call is kept as the control
+  `Store.attemptShipped` (`shipped_busy_escapes`). tests/vacuity/StoreTrust.lean
+  holds a second connection's write lock past the timeout on a real file:
+  the glue's error is busy, and `retrying` gets through once the lock is
+  released, the write made once. A mutant `attempt` that lets busy through
+  fails `attempt_busy`, and a seeded runner call that bypasses the retry
+  is caught (tests/vacuity/controls.py).
+
 - **A room shown mid-session waited for the dialer's 30 s timer**
   (seen by the user as slow syncing "in some cases. maybe because the
   connecting peer", 2026-11-01). Until event rounds, only the dialer
