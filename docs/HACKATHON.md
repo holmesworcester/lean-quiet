@@ -26,6 +26,13 @@ line. [ci/proof-links.py](../ci/proof-links.py) writes that line from
 [tests/Wiring.lean](../tests/Wiring.lean), and the gate checks it against
 the code (`mise run readme:links`).
 
+Submissions closed on 2026-11-01 at 16:30 PDT. The submitted commit is
+the tag `vibecheck-submission` ([`5825ebc3`][5825ebc3]). At that tag the
+script gives 1,075 of 1,409 laws about running code, 299 not yet, and 25
+negative controls (`python3 ci/hackathon.py --head vibecheck-submission`).
+The block below is computed at a later head, so it also counts the work
+listed under "Changed after the submission".
+
 <!-- hackathon:begin -->
 Computed by `ci/hackathon.py` from git alone, at [`9fd07c18c164`](https://github.com/holmesworcester/lean-quiet/commit/9fd07c18c1643404f08d7279e520f3c157a876dd) (committed 2026-11-01 18:46 -0800), against the base [`89914bea346d`](https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797) (main at the start, 2026-10-31 10:00 PDT).
 
@@ -317,6 +324,7 @@ changed with it:
 the admission with its key id too.
 
 [89914bea]: https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797
+[5825ebc3]: https://github.com/holmesworcester/lean-quiet/commit/5825ebc37eb1fdd38c7d00408d91da3148fa2749
 [74dea236]: https://github.com/holmesworcester/lean-quiet/commit/74dea2361edfe17ea860812302b6617f271e6fd5
 [b8387523]: https://github.com/holmesworcester/lean-quiet/commit/b83875239ee0574e43acdb09b2be40b888c26394
 [5c1d4036]: https://github.com/holmesworcester/lean-quiet/commit/5c1d40361e707a8006442bf939ccef7572fc0c66
