@@ -66,7 +66,7 @@ with three controls and boot admission 13 with two, all restored;
 lifecycle-node 40/0 with its controls (main's `accept-revoked-act` control
 has a stale anchor since `eadcee3`). Failed-runner passed 77 checks with
 seven controls on the merge with main `149943e`; since main's reader-act
-sends (`eadcee3`) its baseline hangs on main itself (the fixture's cleanup
-releases its queue gate while replay waits on it). The lifecycle fixture's late-boot case now stops a runner the
+sends (`eadcee3`) its baseline hangs on main itself, with replay blocked
+in `Writer.submit` and the fixture in its queue-gate cleanup. The lifecycle fixture's late-boot case now stops a runner the
 App failed to stop before waiting for replay, so that control fails at its
 assertion instead of hanging.
