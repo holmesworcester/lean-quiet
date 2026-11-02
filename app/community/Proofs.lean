@@ -2517,7 +2517,9 @@ theorem approveReq_wrap_admits (s : DB Fact) (c req myAdm : Id) (d : Device) (es
         ∃ k esk' e, (currentKey c).eval s = some k ∧
           ((approveReq c req myAdm d esk).eval s).ops = [ok, adm, wrapKey c myAdm adm.id d k esk' e] := by
   simp only [approveReq, View.eval_bind, View.eval_read]
-  refine ⟨_, _, ?_⟩
+  refine ⟨(upOf c (Engine.eval s { key := opKey myAdm, limit := some 1 })
+      (Engine.eval s { key := opKey c, limit := some 1 })).eval s,
+    ((approval.byDev.read [c, d.pk] (some 1)).eval s).rows.head?.map (·.1.2), ?_⟩
   split
   · simp only [View.eval_pure]
     split

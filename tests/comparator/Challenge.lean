@@ -53,7 +53,7 @@ theorem no_impersonation {C : Community.Crypto} {ops : Id → Option Op}
     (h : V C ops x (.message c u d k t n tm clump)) :
     ∃ o s, ops x = some o ∧ (decode o.body : Option Body) = some (.post k t n tm s) ∧
       Signed d (signed o (.post k t n tm s)) ∧
-      ∃ y e z oz bz, V C ops y (.admission c u d e) ∧
+      ∃ y e ka z oz bz, V C ops y (.admission c u d e ka) ∧
         (z = y ∨ ∃ oy, ops y = some oy ∧ oy.reqs.getD 1 .empty = z) ∧ ops z = some oz ∧
         (decode oz.body : Option Body) = some bz ∧ Signed d (signed oz bz) := by
   sorry
@@ -63,19 +63,19 @@ theorem no_impersonation {C : Community.Crypto} {ops : Id → Option Op}
 founder's, or cites a valid request for that device and one valid
 approval of it, by an admitted device other than the requester's. -/
 theorem admission_needs_approval {C : Community.Crypto} {ops : Id → Option Op}
-    (hk : Keyed ops) {y c u : Id} {d e : Community.Key}
-    (h : V C ops y (.admission c u d e)) :
+    (hk : Keyed ops) {y c u : Id} {d e kid : Community.Key}
+    (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
-    ∃ o r x a l da ea ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
-      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) ∧ da ≠ d ∧
-      (l = true → a = u) := by
+    ∃ o r x l ea ka ra, ∃ g : Approve.Fact, ops y = some o ∧ o.reqs = [c, r, x] ∧
+      V C ops r (.request c u d e l) ∧ V C ops x (.ofApproval g) ∧ g.c = c ∧ g.req = r ∧
+      V C ops ra (.admission c g.u g.dev ea ka) ∧ g.dev ≠ d ∧ (l = true → g.u = u) := by
   sorry
 
 -- law Community.removal_authorized
 /-- **Only admins remove others.** A valid removal of user t by user u
 is a self-removal, or u is an admin. -/
 theorem removal_authorized {C : Community.Crypto} {ops : Id → Option Op} {x c t u : Id}
-    (h : V C ops x (.removal c t u)) : t = u ∨ IsAdmin C ops c u := by
+    {k : List (Community.Key × Id × Nat)} (h : V C ops x (.removal c t u k)) : t = u ∨ IsAdmin C ops c u := by
   sorry
 
 -- law Community.removed_stays
@@ -87,10 +87,11 @@ theorem removed_stays {C : Community.Crypto} {ops ops' : Id → Option Op}
 -- law Community.connect_iff
 /-- **The node connects to exactly the live members.** At rest, the trust
 rule, read from the node's tables, accepts node key e for community c
-exactly when a live device is admitted under e. -/
+exactly when a live device has a trusted admission under e: the root's,
+or one an approval that counts admitted. -/
 theorem connect_iff {s : DB Community.Fact} {C : Community.Crypto} (h : Inv (family C) s)
     (hq : s.queue = []) (c : Id) (e : Community.Key) :
-    (allowPeer c e).eval s = true ↔ ∃ u d, Admitted C s.ops c u d e ∧ Live C s.ops c d := by
+    (allowPeer c e).eval s = true ↔ ∃ u d, Trusted C s.ops c u d e ∧ Live C s.ops c d := by
   sorry
 
 end
