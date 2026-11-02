@@ -14,7 +14,7 @@ Take rooms (docs/TAKE-ROOM.md), proven of `Conn`'s code:
   empty id claim per window range.
 - `take_round_offers`: the peer that syncs the room answers that opening
   by ending the round and offering, as haves, every id it holds in the
-  window; `recv_takes_taken`: a take room's ops received are taken. So a
+  window, newest first; `recv_takes_taken`: a take room's ops received are taken. So a
   take room learns all the peer may show it: a joiner learns of its
   admission.
 -/
@@ -126,7 +126,7 @@ theorem onRbsr_take_blank (ix : Index) (c : Conn) {r : Id} (k now : Nat) (cs : L
   simp only [List.mem_cons, List.mem_append] at ho
   rcases ho with rfl | ho | ho
   · refine ⟨_, rfl, fun cl hcl => ?_⟩
-    simp only [List.mem_filterMap, List.mem_flatMap] at hcl
+    simp only [claimsOf, List.mem_filterMap, List.mem_flatMap] at hcl
     obtain ⟨out, ⟨cl', _, hout⟩, e⟩ := hcl
     obtain ⟨q, rfl⟩ := hv cl' out hout
     cases e; exact ⟨q, rfl⟩
@@ -135,7 +135,7 @@ theorem onRbsr_take_blank (ix : Index) (c : Conn) {r : Id} (k now : Nat) (cs : L
     simp only [List.mem_flatMap] at hi
     obtain ⟨out, ⟨cl', _, hout⟩, hi⟩ := hi
     obtain ⟨q, rfl⟩ := hv cl' out hout
-    simp at hi
+    simp [holdIds] at hi
   · exfalso
     obtain ⟨i, hi⟩ := chunks_some cfg ho
     obtain ⟨j, hj⟩ := admitAsks_some hi
@@ -160,25 +160,22 @@ theorem take_opens (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
   simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map]
   exact ⟨r, hm, by rw [hv]⟩
 
-/-- An answer batch's claims, haves and wants, as `onRbsr` sends them. -/
-def outClaims (outs : List Out) : List Claim := outs.filterMap fun | .claim x => some x | _ => none
-def outHolds (outs : List Out) : List Id := outs.flatMap fun | .hold xs => xs | _ => []
+/-- An answer batch's wants, as `onRbsr` reads them. -/
 def outWants (outs : List Out) : List Id := outs.flatMap fun | .want xs => xs | _ => []
 
 theorem blank_claims (P : Params) (Y : List Item) : ∀ w : List Range,
-    outClaims ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) = []
+    claimsOf ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) = []
   | [] => rfl
-  | q :: t => by simpa [outClaims, answer] using blank_claims P Y t
+  | q :: t => by simpa [claimsOf, answer] using blank_claims P Y t
 
 theorem blank_holds (P : Params) (Y : List Item) : ∀ w : List Range,
-    outHolds ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) =
-      w.flatMap fun q => (within Prod.fst q Y).map Prod.snd
+    ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)).flatMap holdIds =
+      w.flatMap fun q => ((within Prod.fst q Y).map Prod.snd).reverse
   | [] => rfl
   | q :: t => by
     have ih := blank_holds P Y t
     have ht : (within Prod.fst q Y).filter (fun _ => true) = within Prod.fst q Y := List.filter_eq_self.2 (by simp)
-    simp only [outHolds] at ih ⊢
-    simp [answer, ht, ih]
+    simp [answer, holdIds, ht, ih]
 
 theorem blank_wants (P : Params) (Y : List Item) : ∀ w : List Range,
     outWants ((w.map fun q => Claim.ids q []).flatMap (answer Prod.fst Prod.snd sha256 P Y)) = []
@@ -194,7 +191,7 @@ theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : Li
     (hr : has p.rooms r = true) (fresh : p.oldRound r k = false) (hw : w ≠ []) :
     (p.onRbsr cfg ix r k (w.map fun q => .ids q []) now).send =
       (Msg.rbsr r k []).op ::
-        (chunks cfg (w.flatMap fun q => (within Prod.fst q (ix.items r)).map Prod.snd) (.hold r) ++
+        (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.items r)).map Prod.snd).reverse) (.hold r) ++
           chunks cfg [] .want) := by
   have hc : (w.map fun q => Claim.ids q []).isEmpty = false := by
     cases w with
@@ -203,18 +200,18 @@ theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : Li
   simp only [Conn.onRbsr, Conn.has_carried_eq, hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
     ite_false, fresh, hc, Conn.answer_shown hr, Index.answer_fun]
   have e : (Msg.rbsr r k []).op ::
-      (chunks cfg (w.flatMap fun q => (within Prod.fst q (ix.items r)).map Prod.snd) (.hold r) ++
+      (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.items r)).map Prod.snd).reverse) (.hold r) ++
         chunks cfg [] .want) =
-      (Msg.rbsr r k (outClaims ((w.map fun q => Claim.ids q []).flatMap
+      (Msg.rbsr r k (claimsOf ((w.map fun q => Claim.ids q []).flatMap
           (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))).op ::
-        (chunks cfg (outHolds ((w.map fun q => Claim.ids q []).flatMap
-            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r)))) (.hold r) ++
+        (chunks cfg (((w.map fun q => Claim.ids q []).flatMap
+            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).flatMap holdIds) (.hold r) ++
           chunks cfg (admitAsks cfg.maxKnown p.asked (outWants ((w.map fun q => Claim.ids q []).flatMap
             (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))) .want) := by
     rw [blank_claims, blank_holds, blank_wants]
     simp [admitAsks]
   rw [e]
-  dsimp only [outClaims, outHolds, outWants]
+  dsimp only [outWants]
   split <;> rfl
 
 end

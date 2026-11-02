@@ -333,7 +333,7 @@ theorem Conn.answer_blank {P : Params} {ix : Index} {c : Conn} {r : Id} (h : has
     · rw [ite_eq_right hx] at ho; exact ⟨q, List.mem_singleton.1 ho⟩
   | fp q n l =>
     simp only [answerTake, Engine.Sync.answer, within, List.filter_nil, List.length_nil, Nat.zero_le,
-      ite_true, List.map_nil] at ho
+      ite_true, List.map_nil, List.reverse_nil] at ho
     by_cases hf : fp Prod.fst Prod.snd sha256 ([] : List Item) = (n, l)
     · rw [ite_eq_left hf] at ho; cases ho
     · rw [ite_eq_right hf] at ho; exact ⟨q, List.mem_singleton.1 ho⟩
