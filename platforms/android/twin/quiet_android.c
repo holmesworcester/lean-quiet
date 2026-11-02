@@ -537,6 +537,15 @@ lean_obj_res lq_poll(void) {
   return lean_io_result_mk_ok(evs);
 }
 
+lean_obj_res lq_notify(b_lean_obj_arg json) {
+  ba_notify(lean_string_cstr(json));
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_service(uint8_t on) {
+  return lean_io_result_mk_ok(lean_box(ba_service(on != 0) ? 1 : 0));
+}
+
 lean_obj_res lq_links(void) {
   lean_object* links = lean_mk_empty_array();
   char* url;

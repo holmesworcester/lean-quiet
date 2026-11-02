@@ -4,7 +4,7 @@
 
 How the laws compose: each law opens to the laws its proof uses. The headlines are the laws the [README](../README.md#what-is-proven)'s guarantee rows cite, each a tree in the file of its table group. A law is drawn whole once, and links there (↪) elsewhere; *n below* counts the distinct laws a law builds on.
 
-✅ wired: about running code (1209) · 🌐 world: the node's code in a World (46) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (286) · 🧪 control: a negative control (31) · ▫️ lemma: not audited (2106)
+✅ wired: about running code (1236) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (286) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2159)
 
 ## Scoreboard
 
@@ -12,14 +12,14 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 | | |
 |---|---|
-| Laws | 3678 |
-| Edges (a proof uses a law) | 9757 |
-| Roots (no law uses them) | 1097 (29.8%) |
-| Isolated (roots that use no law) | 524 (14.2%) |
+| Laws | 3781 |
+| Edges (a proof uses a law) | 9968 |
+| Roots (no law uses them) | 1135 (30.0%) |
+| Isolated (roots that use no law) | 546 (14.4%) |
 | Deepest chain | 23 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 517 |
-| Laws the headlines build on, or are | 2322 (63.1%) |
+| Headlines (laws the README's guarantee rows cite) | 567 |
+| Laws the headlines build on, or are | 2410 (63.7%) |
 
 ## Headlines
 
@@ -27,23 +27,24 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 |---|---|---|
 | [Security proofs › Identity and membership](proof-tree/security-proofs-identity-and-membership.md) | 24 | 61 |
 | [Security proofs › Confidentiality](proof-tree/security-proofs-confidentiality.md) | 58 | 219 |
-| [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 59 | 248 |
-| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 59 | 150 |
-| [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 67 | 245 |
-| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 36 | 156 |
-| [Quality proofs](proof-tree/quality-proofs.md) | 50 | 204 |
-| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 159 | 326 |
+| [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 59 | 246 |
+| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 63 | 157 |
+| [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 67 | 205 |
+| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 36 | 157 |
+| [Quality proofs](proof-tree/quality-proofs.md) | 78 | 274 |
+| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 177 | 348 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 17 | 47 |
-| [Also cited](proof-tree/also-cited.md) | 87 | 127 |
+| [Also cited](proof-tree/also-cited.md) | 91 | 125 |
 
 ## Uncited roots
 
-Laws no law uses and the README does not cite: 746, 440 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
+Laws no law uses and the README does not cite: 762, 451 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
 
 | Folder | Laws | Uncited roots | Isolated |
 |---|---|---|---|
-| app | 397 | 68 | 38 |
-| app/community | 220 | 48 | 12 |
+| app | 359 | 70 | 41 |
+| app/community | 240 | 49 | 12 |
+| app/community/caughtUp | 3 | 3 | 1 |
 | app/community/channel/message | 28 | 12 | 9 |
 | app/community/channel/message/attachment | 76 | 35 | 17 |
 | app/community/channel/message/attachment/chunk | 10 | 5 | 1 |
@@ -64,6 +65,7 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 | app/community/member/join/joining/abandon | 5 | 4 | 3 |
 | app/community/member/remove | 12 | 3 | 1 |
 | app/community/name | 5 | 3 | 1 |
+| app/community/notice | 8 | 4 | 2 |
 | app/community/profile | 11 | 5 | 3 |
 | app/connection | 64 | 5 | 3 |
 | app/connection/connection | 5 | 3 | 1 |
@@ -81,124 +83,127 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 | engine/renderer/Ttf | 16 | 7 | 6 |
 | engine/renderer/pic | 19 | 5 | 3 |
 | engine/renderer/qr | 58 | 5 | 4 |
-| engine/sync | 585 | 60 | 25 |
-| engine/wire | 528 | 92 | 75 |
+| engine/sync | 585 | 59 | 24 |
+| engine/wire | 529 | 92 | 75 |
 | engine/wire/mdns | 43 | 5 | 4 |
-| engine/world | 163 | 10 | 2 |
+| engine/world | 272 | 17 | 8 |
 
-<details><summary><b>app</b> · 68</summary><ul>
-<li>✅ <a href="../app/Screen.lean#L3796">App.composer_no_selection</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L3791">App.composer_pending_feedback</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1534">App.screenChanged_insets</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1528">App.screenChanged_size</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1937">Appearance.selected_check</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1630">ClumpList.cells_bounded</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1636">ClumpList.extent_cells</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L2667">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
-<li>▫️ <a href="../app/Proofs.lean#L3390">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
-<li>▫️ <a href="../app/Proofs.lean#L3392">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>
-<li>📐 <a href="../app/Proofs.lean#L3345">Connection.Execution.HistoryStep.catalog_read</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L3353">Connection.Execution.HistoryStep.ceiling_mono</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L2148">Connection.Execution.M.pure_apply</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L3619">Connection.Execution.Run.history</a> · 231 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2994">Connection.Execution.Run.shared_retained</a> · 153 below</li>
-<li>📐 <a href="../app/Proofs.lean#L3607">Connection.Execution.empty_trace_history</a> · 234 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2911">Connection.Execution.production_step_reachable</a> · 143 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2905">Connection.Execution.production_step_retains</a> · 151 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2918">Connection.Execution.production_step_settled</a> · 175 below</li>
-<li>📐 <a href="../app/Proofs.lean#L3307">Connection.Execution.production_write_receives</a> · 165 below</li>
-<li>▫️ <a href="../app/Proofs.lean#L2200">Connection.Execution.rooms_held</a> · 1 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2434">Connection.Progress.Exchange.answer_constructed</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L2472">Connection.Progress.Exchange.initiator_accepts</a> · 29 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2454">Connection.Progress.Exchange.opened_accepts</a> · 29 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2448">Connection.Progress.Exchange.reply_accepts</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L2441">Connection.Progress.Exchange.request_accepts</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L2430">Connection.Progress.Exchange.request_constructed</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L2462">Connection.Progress.Exchange.responder_accepts</a> · 29 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2551">Connection.Progress.answer_ready</a> · 40 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2486">Connection.Progress.honest_exchange</a> · 38 below</li>
-<li>✅ <a href="../app/Proofs.lean#L2535">Connection.Progress.react_contains_answer</a> · 47 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2610">Connection.ProgressTape.answer_ready</a> · 37 below</li>
-<li>📐 <a href="../app/Proofs.lean#L2600">Connection.ProgressTape.run_arrivedFrom</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L2585">Connection.ProgressTape.run_bind</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L2588">Connection.ProgressTape.run_count</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L2604">Connection.ProgressTape.run_fresh</a> · isolated</li>
-<li>📐 <a href="../app/Proofs.lean#L2591">Connection.ProgressTape.run_get</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1068">Connection.reconnect_dials_each</a> · 37 below</li>
-<li>✅ <a href="../app/Proofs.lean#L1049">Connection.rejoin_dials_each</a> · 37 below</li>
-<li>▫️ <a href="../app/Proofs.lean#L777">Connection.resendConns_send</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L4002">Connection.retired_open</a> · 6 below</li>
-<li>✅ <a href="../app/Proofs.lean#L3719">Connection.secret_unfiled</a> · isolated</li>
-<li>🧪 <a href="../app/Proofs.lean#L4026">Connection.shipped_retired_misses</a> · 4 below</li>
+<details><summary><b>app</b> · 70</summary><ul>
+<li>✅ <a href="../app/Screen.lean#L3872">App.composer_no_selection</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L3867">App.composer_pending_feedback</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1535">App.screenChanged_insets</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1529">App.screenChanged_size</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1983">Appearance.selected_check</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1641">ClumpList.cells_bounded</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1647">ClumpList.extent_cells</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L2496">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L3219">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L3221">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>
+<li>📐 <a href="../app/Proofs.lean#L3174">Connection.Execution.HistoryStep.catalog_read</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L3182">Connection.Execution.HistoryStep.ceiling_mono</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L2174">Connection.Execution.M.pure_apply</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L3446">Connection.Execution.Run.history</a> · 230 below</li>
+<li>📐 <a href="../app/Proofs.lean#L2823">Connection.Execution.Run.shared_retained</a> · 152 below</li>
+<li>📐 <a href="../app/Proofs.lean#L3434">Connection.Execution.empty_trace_history</a> · 233 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L2190">Connection.Execution.lawful</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L2740">Connection.Execution.production_step_reachable</a> · 142 below</li>
+<li>📐 <a href="../app/Proofs.lean#L2734">Connection.Execution.production_step_retains</a> · 150 below</li>
+<li>📐 <a href="../app/Proofs.lean#L2747">Connection.Execution.production_step_settled</a> · 174 below</li>
+<li>📐 <a href="../app/Proofs.lean#L3136">Connection.Execution.production_write_receives</a> · 164 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L2195">Connection.Execution.reads_meta</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L2200">Connection.Execution.save_meta</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L2263">Connection.Progress.Exchange.answer_constructed</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L2301">Connection.Progress.Exchange.initiator_accepts</a> · 29 below</li>
+<li>✅ <a href="../app/Proofs.lean#L2283">Connection.Progress.Exchange.opened_accepts</a> · 29 below</li>
+<li>✅ <a href="../app/Proofs.lean#L2277">Connection.Progress.Exchange.reply_accepts</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L2270">Connection.Progress.Exchange.request_accepts</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L2259">Connection.Progress.Exchange.request_constructed</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L2291">Connection.Progress.Exchange.responder_accepts</a> · 29 below</li>
+<li>✅ <a href="../app/Proofs.lean#L2380">Connection.Progress.answer_ready</a> · 40 below</li>
+<li>✅ <a href="../app/Proofs.lean#L2315">Connection.Progress.honest_exchange</a> · 38 below</li>
+<li>✅ <a href="../app/Proofs.lean#L2364">Connection.Progress.react_contains_answer</a> · 47 below</li>
+<li>📐 <a href="../app/Proofs.lean#L2439">Connection.ProgressTape.answer_ready</a> · 37 below</li>
+<li>📐 <a href="../app/Proofs.lean#L2429">Connection.ProgressTape.run_arrivedFrom</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L2414">Connection.ProgressTape.run_bind</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L2417">Connection.ProgressTape.run_count</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L2433">Connection.ProgressTape.run_fresh</a> · isolated</li>
+<li>📐 <a href="../app/Proofs.lean#L2420">Connection.ProgressTape.run_get</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1069">Connection.reconnect_dials_each</a> · 37 below</li>
+<li>✅ <a href="../app/Proofs.lean#L1050">Connection.rejoin_dials_each</a> · 37 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L778">Connection.resendConns_send</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L3829">Connection.retired_open</a> · 6 below</li>
+<li>✅ <a href="../app/Proofs.lean#L3546">Connection.secret_unfiled</a> · isolated</li>
+<li>🧪 <a href="../app/Proofs.lean#L3853">Connection.shipped_retired_misses</a> · 4 below</li>
 <li>✅ <a href="../app/Commands.lean#L618">Data.overlay_total</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L295">Lifecycle.follow_away</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1358">NavLaws.draft_open</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1370">NavLaws.inv_back</a> · 1 below</li>
-<li>✅ <a href="../app/Proofs.lean#L1373">NavLaws.inv_switch</a> · 2 below</li>
-<li>🧪 <a href="../app/Proofs.lean#L1419">NavLaws.shipped_back_open_fails</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4239">Pages.getStarted_taps</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4245">Pages.startTaps_rows</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4196">Pages.start_centred</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4204">Pages.start_column_inside</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4186">Pages.start_phone</a> · isolated</li>
-<li>▫️ <a href="../app/Proofs.lean#L4226">Pages.start_rows_apart</a> · 2 below</li>
-<li>▫️ <a href="../app/Proofs.lean#L4211">Pages.start_rows_in_card</a> · 3 below</li>
+<li>✅ <a href="../app/Screen.lean#L299">Lifecycle.follow_away</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1359">NavLaws.draft_open</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1371">NavLaws.inv_back</a> · 1 below</li>
+<li>✅ <a href="../app/Proofs.lean#L1374">NavLaws.inv_switch</a> · 2 below</li>
+<li>🧪 <a href="../app/Proofs.lean#L1420">NavLaws.shipped_back_open_fails</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4125">Pages.getStarted_taps</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4131">Pages.startTaps_rows</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4082">Pages.start_centred</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4090">Pages.start_column_inside</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4072">Pages.start_phone</a> · isolated</li>
+<li>▫️ <a href="../app/Proofs.lean#L4112">Pages.start_rows_apart</a> · 2 below</li>
+<li>▫️ <a href="../app/Proofs.lean#L4097">Pages.start_rows_in_card</a> · 3 below</li>
 <li>✅ <a href="../app/Family.lean#L54">Quiet.node_settings</a> · 2 below</li>
-<li>📐 <a href="../app/Screen.lean#L905">Reader.Want.withViewLast_moves</a> · isolated</li>
-<li>📐 <a href="../app/Screen.lean#L895">Reader.Want.withView_ofFrame</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1502">RemovedLaws.forget_clears</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1492">RemovedLaws.landing_listed</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1456">RemovedLaws.listed_iff</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1482">RemovedLaws.not_replayed</a> · 1 below</li>
-<li>✅ <a href="../app/Proofs.lean#L1464">RemovedLaws.told_once</a> · 1 below</li>
-<li>✅ <a href="../app/Proofs.lean#L1558">ThemeLaws.cleared</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1572">ThemeLaws.content</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1567">ThemeLaws.palette</a> · isolated</li>
-<li>✅ <a href="../app/Proofs.lean#L1585">ThemeLaws.text</a> · 5 below</li>
+<li>📐 <a href="../app/Screen.lean#L912">Reader.Want.withViewLast_moves</a> · isolated</li>
+<li>📐 <a href="../app/Screen.lean#L902">Reader.Want.withView_ofFrame</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1503">RemovedLaws.forget_clears</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1493">RemovedLaws.landing_listed</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1457">RemovedLaws.listed_iff</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1483">RemovedLaws.not_replayed</a> · 1 below</li>
+<li>✅ <a href="../app/Proofs.lean#L1465">RemovedLaws.told_once</a> · 1 below</li>
+<li>✅ <a href="../app/Proofs.lean#L1559">ThemeLaws.cleared</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1573">ThemeLaws.content</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1568">ThemeLaws.palette</a> · isolated</li>
+<li>✅ <a href="../app/Proofs.lean#L1586">ThemeLaws.text</a> · 5 below</li>
 </ul></details>
 
-<details><summary><b>app/community</b> · 48</summary><ul>
-<li>▫️ <a href="../app/community/Family.lean#L1242">Community.All2.comp</a> · isolated</li>
-<li>▫️ <a href="../app/community/Family.lean#L835">Community.Fact.decFrom_of</a> · 3 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L826">Community.Fact.dec_of</a> · isolated</li>
+<details><summary><b>app/community</b> · 49</summary><ul>
+<li>▫️ <a href="../app/community/Family.lean#L1315">Community.All2.comp</a> · isolated</li>
+<li>▫️ <a href="../app/community/Family.lean#L885">Community.Fact.decFrom_of</a> · 3 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L876">Community.Fact.dec_of</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L222">Community.Root.Body.enc_tag</a> · 24 below</li>
 <li>▫️ <a href="../app/community/Op.lean#L238">Community.Root.Fact.enc_tag</a> · 24 below</li>
 <li>▫️ <a href="../app/community/Op.lean#L246">Community.Root.all_args</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L243">Community.Root.byDevice_args</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L253">Community.Root.byKey_args</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L249">Community.Root.byUser_args</a> · isolated</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L1858">Community.always_bindM</a> · 1 below</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L1855">Community.always_list</a> · isolated</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1764">Community.anchor_read</a> · 82 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1950">Community.approveReq_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1319">Community.approveReq_ops</a> · 1 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1739">Community.count_partition</a> · 13 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1878">Community.found_authored</a> · 3 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1931">Community.introduce_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1895">Community.inviteTo_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1908">Community.join_authored</a> · 4 below</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L1825">Community.mkOp_reqs</a> · isolated</li>
-<li>✅ <a href="../app/community/Commands.lean#L295">Community.named_signs</a> · 1 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1964">Community.react_reqs_le</a> · isolated</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L1510">Community.readable_listed</a> · 83 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1027">Community.removals_at</a> · 63 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1941">Community.removeMember_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1983">Community.send_authored</a> · 47 below</li>
-<li>🧪 <a href="../app/community/Proofs.lean#L1398">Community.shipped_introduce_unnamed</a> · isolated</li>
-<li>▫️ <a href="../app/community/Family.lean#L952">Community.signedBy_ofApprove</a> · 24 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L950">Community.signedBy_ofAttach</a> · 31 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L946">Community.signedBy_ofGrant</a> · 24 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L944">Community.signedBy_ofInvite</a> · 26 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L953">Community.signedBy_ofName</a> · 31 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L948">Community.signedBy_ofPost</a> · 31 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L949">Community.signedBy_ofProfile</a> · 31 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L951">Community.signedBy_ofReact</a> · 31 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L947">Community.signedBy_ofRemove</a> · 24 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L945">Community.signedBy_ofRequest</a> · 24 below</li>
-<li>▫️ <a href="../app/community/Family.lean#L943">Community.signedBy_ofRoot</a> · 24 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L618">Community.signed_eq</a> · isolated</li>
-<li>✅ <a href="../app/community/Proofs.lean#L1958">Community.stopWaiting_authored</a> · isolated</li>
-<li>🧪 <a href="../app/community/Proofs.lean#L1421">Community.wrapAll_over</a> · 2 below</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L1906">Community.always_bindM</a> · 1 below</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L1903">Community.always_list</a> · isolated</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1765">Community.anchor_read</a> · 82 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1998">Community.approveReq_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1320">Community.approveReq_ops</a> · 1 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1740">Community.count_partition</a> · 13 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1926">Community.found_authored</a> · 3 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1979">Community.introduce_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1943">Community.inviteTo_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1956">Community.join_authored</a> · 4 below</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L1873">Community.mkOp_reqs</a> · isolated</li>
+<li>✅ <a href="../app/community/Commands.lean#L430">Community.named_signs</a> · 1 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2012">Community.react_reqs_le</a> · isolated</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L1511">Community.readable_listed</a> · 83 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1028">Community.removals_at</a> · 63 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L1989">Community.removeMember_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2031">Community.send_authored</a> · 47 below</li>
+<li>🧪 <a href="../app/community/Proofs.lean#L1399">Community.shipped_introduce_unnamed</a> · isolated</li>
+<li>▫️ <a href="../app/community/Family.lean#L1008">Community.signedBy_ofApprove</a> · 24 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1006">Community.signedBy_ofAttach</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1002">Community.signedBy_ofGrant</a> · 24 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1000">Community.signedBy_ofInvite</a> · 26 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1009">Community.signedBy_ofName</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1010">Community.signedBy_ofNotice</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1004">Community.signedBy_ofPost</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1005">Community.signedBy_ofProfile</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1007">Community.signedBy_ofReact</a> · 31 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1003">Community.signedBy_ofRemove</a> · 24 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L1001">Community.signedBy_ofRequest</a> · 24 below</li>
+<li>▫️ <a href="../app/community/Family.lean#L999">Community.signedBy_ofRoot</a> · 24 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L619">Community.signed_eq</a> · isolated</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2006">Community.stopWaiting_authored</a> · isolated</li>
+<li>🧪 <a href="../app/community/Proofs.lean#L1422">Community.wrapAll_over</a> · 2 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L407">Kinds.Accepted.read_known</a> · 1 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L606">PeopleLaws.deviceCut_removal</a> · 2 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L528">PeopleLaws.presentCount_complete</a> · 3 below</li>
@@ -206,6 +211,12 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>✅ <a href="../app/community/Screen.lean#L506">PeopleLaws.presentW_prefix</a> · 7 below</li>
 <li>📐 <a href="../app/community/Screen.lean#L719">PeopleLaws.present_scans</a> · 7 below</li>
 <li>🧪 <a href="../app/community/Screen.lean#L634">PeopleLaws.shipped_removed_without_removal</a> · 1 below</li>
+</ul></details>
+
+<details><summary><b>app/community/caughtUp</b> · 3</summary><ul>
+<li>▫️ <a href="../app/community/caughtUp/Op.lean#L24">Community.CaughtUp.Body.enc_tag</a> · 31 below</li>
+<li>▫️ <a href="../app/community/caughtUp/Op.lean#L37">Community.CaughtUp.Fact.enc_tag</a> · 31 below</li>
+<li>▫️ <a href="../app/community/caughtUp/Op.lean#L44">Community.CaughtUp.byCommunity_args</a> · isolated</li>
 </ul></details>
 
 <details><summary><b>app/community/channel/message</b> · 12</summary><ul>
@@ -387,6 +398,13 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>▫️ <a href="../app/community/name/Op.lean#L22">Community.Rename.Body.enc_tag</a> · 31 below</li>
 <li>▫️ <a href="../app/community/name/Op.lean#L38">Community.Rename.Fact.enc_tag</a> · 31 below</li>
 <li>▫️ <a href="../app/community/name/Op.lean#L47">Community.Rename.current_args</a> · isolated</li>
+</ul></details>
+
+<details><summary><b>app/community/notice</b> · 4</summary><ul>
+<li>▫️ <a href="../app/community/notice/Op.lean#L32">Community.Notice.Body.enc_tag</a> · 31 below</li>
+<li>▫️ <a href="../app/community/notice/Op.lean#L50">Community.Notice.Fact.enc_tag</a> · 31 below</li>
+<li>▫️ <a href="../app/community/notice/Op.lean#L75">Community.Notice.Level.ofCode_code</a> · isolated</li>
+<li>▫️ <a href="../app/community/notice/Op.lean#L58">Community.Notice.byRecipient_args</a> · isolated</li>
 </ul></details>
 
 <details><summary><b>app/community/profile</b> · 5</summary><ul>
@@ -782,7 +800,7 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>▫️ <a href="../engine/renderer/qr/Bits.lean#L97">Qr.readBits_short</a> · isolated</li>
 </ul></details>
 
-<details><summary><b>engine/sync</b> · 60</summary><ul>
+<details><summary><b>engine/sync</b> · 59</summary><ul>
 <li>▫️ <a href="../engine/sync/Conn.lean#L625">Engine.Sync.Conn.ask_take</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/Conn.lean#L683">Engine.Sync.Conn.onAsk_dialer</a> · 1 below</li>
 <li>▫️ <a href="../engine/sync/Conn.lean#L679">Engine.Sync.Conn.onAsk_given</a> · 1 below</li>
@@ -824,7 +842,6 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>✅ <a href="../engine/sync/RetryLaws.lean#L14">Engine.Sync.known_forgets</a> · isolated</li>
 <li>✅ <a href="../engine/sync/Fp.lean#L407">Engine.Sync.lbl_perm</a> · 37 below</li>
 <li>✅ <a href="../engine/sync/RoundRun.lean#L72">Engine.Sync.noteEpoch_bounded</a> · isolated</li>
-<li>✅ <a href="../engine/sync/ServeLaws.lean#L351">Engine.Sync.onWant_bounded_owed</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/ServeLaws.lean#L342">Engine.Sync.onWant_drop</a> · isolated</li>
 <li>✅ <a href="../engine/sync/OfferLaws.lean#L460">Engine.Sync.open_keeps</a> · isolated</li>
 <li>✅ <a href="../engine/sync/SessionLaws.lean#L141">Engine.Sync.open_session</a> · isolated</li>
@@ -846,7 +863,7 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 </ul></details>
 
 <details><summary><b>engine/wire</b> · 92</summary><ul>
-<li>🧪 <a href="../engine/wire/NoiseSymbolic.lean#L1107">Connection.Noise.Symbolic.read1Slip_forged</a> · 1 below</li>
+<li>🧪 <a href="../engine/wire/NoiseSymbolic.lean#L1108">Connection.Noise.Symbolic.read1Slip_forged</a> · 1 below</li>
 <li>▫️ <a href="../engine/wire/Noise.lean#L242">Connection.Noise.split_valid</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L85">Engine.Sync.Acts.append_def</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L88">Engine.Sync.Acts.empty_append</a> · isolated</li>
@@ -896,8 +913,8 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>▫️ <a href="../engine/wire/Reserved.lean#L75">Engine.Sync.RetrySlot.successful_write_waits_for_ack</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/Reserved.lean#L69">Engine.Sync.RetrySlot.take_queued</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/LaneLaws.lean#L433">Engine.Sync.Tick.waiting</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L748">Engine.Sync.World.run_net</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L422">Engine.Sync.bundles_one</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L791">Engine.Sync.World.run_net</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L465">Engine.Sync.bundles_one</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L72">Engine.Sync.cut_progress</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L260">Engine.Sync.frame_next</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L241">Engine.Sync.framesFor_mem</a> · isolated</li>
@@ -916,25 +933,25 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L137">Engine.Sync.push_over</a> · isolated</li>
 <li>✅ <a href="../engine/wire/WorldLaws.lean#L45">Engine.Sync.remember_fits</a> · 1 below</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L215">Engine.Sync.room_window</a> · 1 below</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L320">Engine.Sync.sealRetries_nil</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L363">Engine.Sync.sealRetries_nil</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/LaneLaws.lean#L531">Engine.Sync.sends_serve</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/EgressLaws.lean#L164">Engine.Sync.sent_afterActs</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L233">Engine.Sync.shut_live</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L535">Engine.Sync.split_urgent</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L227">Engine.Sync.stall_closes</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L214">Engine.Sync.sync_cfg</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L223">Engine.Sync.sync_closing</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L226">Engine.Sync.sync_dial</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L227">Engine.Sync.sync_established</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L213">Engine.Sync.sync_fam</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L221">Engine.Sync.sync_onGiven</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L215">Engine.Sync.sync_openFrame</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L222">Engine.Sync.sync_outbox</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L225">Engine.Sync.sync_react</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L219">Engine.Sync.sync_recv</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L224">Engine.Sync.sync_retired</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L218">Engine.Sync.sync_rooms</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/WorldLaws.lean#L216">Engine.Sync.sync_sealFor</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L257">Engine.Sync.sync_cfg</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L266">Engine.Sync.sync_closing</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L269">Engine.Sync.sync_dial</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L270">Engine.Sync.sync_established</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L256">Engine.Sync.sync_fam</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L264">Engine.Sync.sync_onGiven</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L258">Engine.Sync.sync_openFrame</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L265">Engine.Sync.sync_outbox</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L268">Engine.Sync.sync_react</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L262">Engine.Sync.sync_recv</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L267">Engine.Sync.sync_retired</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L261">Engine.Sync.sync_rooms</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/WorldLaws.lean#L259">Engine.Sync.sync_sealFor</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/LoopLaws.lean#L27">Engine.Sync.Loop.run_bind</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/LoopLaws.lean#L30">Engine.Sync.Loop.run_map</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/LoopLaws.lean#L33">Engine.Sync.Loop.run_pure</a> · isolated</li>
@@ -948,9 +965,16 @@ Laws no law uses and the README does not cite: 746, 440 of them isolated (they u
 <li>▫️ <a href="../engine/wire/mdns/Laws.lean#L196">Mdns.u32_toNat_toUInt32</a> · isolated</li>
 </ul></details>
 
-<details><summary><b>engine/world</b> · 10</summary><ul>
-<li>▫️ <a href="../engine/world/World.lean#L230">Engine.World.Exec.reachable</a> · isolated</li>
-<li>▫️ <a href="../engine/world/Link.lean#L42">Engine.World.Plain.enter_sends</a> · 1 below</li>
+<details><summary><b>engine/world</b> · 17</summary><ul>
+<li>▫️ <a href="../engine/world/Good.lean#L148">Engine.World.Keeps.and</a> · isolated</li>
+<li>▫️ <a href="../engine/world/Good.lean#L139">Engine.World.Local.and</a> · isolated</li>
+<li>▫️ <a href="../engine/world/Pieces.lean#L67">Engine.World.MetaOnly.bind'</a> · isolated</li>
+<li>▫️ <a href="../engine/world/Pieces.lean#L64">Engine.World.MetaOnly.pure'</a> · isolated</li>
+<li>▫️ <a href="../engine/world/Pieces.lean#L290">Engine.World.Next.call</a> · isolated</li>
+<li>▫️ <a href="../engine/world/InvIx.lean#L489">Engine.World.Plain.ix_covers</a> · 183 below</li>
+<li>▫️ <a href="../engine/world/InvIx.lean#L478">Engine.World.Plain.owes_queued</a> · 144 below</li>
+<li>▫️ <a href="../engine/world/Inv.lean#L70">Engine.World.Plain.reads_meta</a> · isolated</li>
+<li>▫️ <a href="../engine/world/Drain.lean#L42">Engine.World.Waits.mono</a> · isolated</li>
 <li>▫️ <a href="../engine/world/Asks.lean#L95">Engine.World.admitAsks_sub</a> · 1 below</li>
 <li>▫️ <a href="../engine/world/Epidemic.lean#L239">Engine.World.chain_of</a> · 11 below</li>
 <li>▫️ <a href="../engine/world/Epidemic.lean#L219">Engine.World.converge_all</a> · 9 below</li>

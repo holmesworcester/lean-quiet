@@ -50,6 +50,7 @@ import engine.sync.SweepRun
 import engine.sync.SharedLog
 import engine.world.Link
 import engine.world.InvIx
+import engine.world.Send
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -433,6 +434,34 @@ open Engine Community
 #print axioms Engine.World.Plain.deliver_queues
 #print axioms Engine.World.Plain.owes_queued_start
 #print axioms Engine.World.Plain.ix_covers_start
+#print axioms Engine.World.Plain.want_reaches
+#print axioms Engine.World.Plain.drain
+#print axioms Engine.World.Plain.want_to_op
+#print axioms Engine.World.Plain.op_hop
+#print axioms Engine.World.Plain.write_hop
+#print axioms Engine.World.Plain.step_waits
+#print axioms Engine.World.Plain.owed_bounded_start
+#print axioms Engine.World.Plain.good_always
+#print axioms Engine.World.Plain.good_keeps
+#print axioms Engine.World.Plain.moves_always
+#print axioms Engine.World.Plain.verdicts_spec
+#print axioms Engine.World.Plain.agree
+#print axioms Engine.World.Keeps.always
+#print axioms Engine.World.Guar.always
+#print axioms Engine.World.sent_keeps
+#print axioms Engine.World.dial_mutant_unindexed
+#print axioms Engine.World.onTick_keeps
+#print axioms Engine.World.onFrame_keeps
+#print axioms Engine.World.onWrite_keeps
+#print axioms Engine.World.onClose_keeps
+#print axioms Engine.World.Plain.managed_pieces
+#print axioms Engine.World.Plain.oq_pieces
+#print axioms Engine.World.Plain.ix_pieces
+#print axioms Engine.World.Plain.bounded_pieces
+#print axioms Engine.World.onTick_moves
+#print axioms Engine.World.onSealed_waits
+#print axioms Engine.World.serve_moves
+#print axioms Engine.World.recv_appends
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
@@ -1764,3 +1793,27 @@ end cost
 #print axioms Connection.Execution.world_trace_unique
 #print axioms Connection.Execution.empty_trace_unique
 #print axioms Connection.Execution.Run.unique
+
+-- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
+#print axioms Community.notice_signed
+#print axioms Community.notice_local
+#print axioms Community.caughtUp_local
+#print axioms Community.target_roundtrip
+#print axioms Notify.own_silent
+#print axioms Notify.notifies_iff
+#print axioms Notify.can_alert
+#print axioms Notify.once
+#print axioms Notify.step_quiet
+#print axioms Notify.step_removed
+#print axioms Notify.step_read
+#print axioms Notify.step_keeps
+#print axioms Notify.step_post
+#print axioms Notify.marks_le
+#print axioms App.syncs_kept
+#print axioms App.syncs_off
+#print axioms App.keepSync_keeps
+#print axioms App.keepSync_set
+#print axioms App.unmount_keeps_node
+#print axioms App.target_opens
+#print axioms App.targetOf_member
+#print axioms Community.noticeRecipients_own

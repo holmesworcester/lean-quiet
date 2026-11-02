@@ -137,7 +137,6 @@ catches it next time. The aim is no escapes.
   without final frames never lingers) and `stopped_never_lingers`, of the
   `Outbox.lingers` the writer reads, all in tests/Axioms.lean.
 
-=======
 - **A removed member could miss its removal notice** (found as a gate
   "flake", 2026-11-01: expiry-grace's "actual retirement writer drains
   the signed removal notice to its peer" failed about one run in six

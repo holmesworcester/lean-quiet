@@ -695,6 +695,11 @@ lean_obj_res lq_poll(void) {
   for(size_t i=0;i<n;i++) v[i]=batch[i].unsignedIntValue;
   lean_obj_res result=words(v,n);free(v);return result;
 }
+// Notifications and background sync are Android's (docs/NOTIFICATIONS.md):
+// this shell has neither.
+lean_obj_res lq_notify(b_lean_obj_arg json) { (void)json; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_service(uint8_t on) { (void)on; return lean_io_result_mk_ok(lean_box(0)); }
+
 lean_obj_res lq_links(void) {
   NSArray<NSString*> *batch;
   @synchronized(links) { batch=[links copy]; [links removeAllObjects]; }
