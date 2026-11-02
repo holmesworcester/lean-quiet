@@ -18,7 +18,7 @@ def message (n : Nat) := post rootOp.id rootOp.id author "catalog".toUTF8
 def cid := sha256 "catalog-retry-session".toUTF8
 
 def setup (authorized : Bool := true) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { live := 1000000000, every := 1, maxKnown := 1, maxIds := 1 },
+  { fam, cfg := { live := 1000000000, safety := 1000000000, maxKnown := 1, maxIds := 1 },
     hooks := {
       rooms := fun _ => pure (if authorized then [.sync rootOp.id] else [])
       sealFor := plainSeal
@@ -80,8 +80,8 @@ def retryChecks (ck : Checks) : IO Unit := do
     let (next, out) ← (a.onFrame x "receiver".toUTF8 frame 0).run source
     a := next
     opening := opening + out.send.length
-  ck.ok "real opening was emitted then lost, leaving its snapshot active"
-    (opening > 0 && (a.conn? cid).any (! ·.snaps.isEmpty))
+  ck.ok "real opening was emitted then lost, leaving its round active"
+    (opening > 0 && (a.conn? cid).any (! ·.active.isEmpty))
   let target := message 7
   let mut targetCopies := 0
   let mut progressedWhileWriting := false

@@ -67,7 +67,7 @@ def make (dir : String) (name : String) (address : ByteArray) (live idle : Nat) 
   IO.FS.createDirAll dir
   let db ← Db.openAt (dir ++ "/" ++ name ++ ".db")
   let x : Sync F (SqlM F) := {
-    fam := JoinFair.fam, cfg := { live, every := 30000, askTime := 20000 },
+    fam := JoinFair.fam, cfg := { live, askTime := 20000 },
     hooks := hooks JoinFair.fam sodium address,
     catalog := some Catalog.sql, retryStore := some RetryStore.sql, deferredRetries := true }
   let cfg : RunConfig := { tickMs := 20, idle, stallMs := 5000, stopMs := 250, maxSocks := 4 }

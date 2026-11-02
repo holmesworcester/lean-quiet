@@ -57,7 +57,7 @@ def run (t : Checks) : IO Unit := do
   t.ok "production shared-room authorization permits every authenticated session" authorized
   let x : Sync Connection.F (SqlM Connection.F) := {
     fam, hooks := Connection.hooks fam sodium "127.0.0.1:7499".toUTF8,
-    cfg := { live := 1000000000, every := 1000000000 },
+    cfg := { live := 1000000000, safety := 1000000000 },
     catalog := some Catalog.sql, retryStore := some RetryStore.sql, deferredRetries := true,
     retryRoom := fun _ => some maxFrame }
   let (initial, _) ← ((Node.boot fam ops 0).finish x {} 100).run db

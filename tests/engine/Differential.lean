@@ -49,6 +49,16 @@ def runSql (fam : Family Fact) (db : Db) (acts : List Act) : IO Unit := do
     | .commit => db.exec "COMMIT"; db.exec "BEGIN IMMEDIATE"
   db.exec "COMMIT"
 
+/-- The tally rows the write turn's budget reads are the tables' counts
+(scanned) and the model's: its queue, its undecided stored ops, its
+stored ops. -/
+def tallyChecks (t : Checks) (tag : String) (db : Db) (m : DB Fact) : IO Unit := do
+  let rows ← (tallyRows (F := Fact)).run db
+  let scan ← (budgetScan (F := Fact)).run db
+  t.ok s!"{tag}: the tally rows are the tables' counts" (rows == scan)
+  t.ok s!"{tag}: and the model's queue, undecided and stored"
+    (rows == (m.queue.length, (m.stored.filter fun x => (m.status x).isNone).length, m.stored.length))
+
 def main (args : List String) : IO UInt32 := do
   let dir := args.headD "out/differential"
   let seeds := (args.drop 1).head?.bind String.toNat? |>.getD 12
@@ -75,6 +85,7 @@ def main (args : List String) : IO UInt32 := do
       let half := acts.take (acts.length / 3)
       runSql fam db half
       sameTables t s!"seed {seed} run {run} midway" db (runModel fam half) ids0
+      tallyChecks t s!"seed {seed} run {run} midway" db (runModel fam half)
       -- The writer's budget, read from SQLite, is the proven one; and on
       -- the model it empties the queue.
       let got := half.filterMap fun | .ingest o => some o | _ => none
@@ -87,6 +98,18 @@ def main (args : List String) : IO UInt32 := do
       runSql fam db (acts.drop (acts.length / 3))
       let m := runModel fam acts
       sameTables t s!"seed {seed} run {run} at rest" db m ids0
+      tallyChecks t s!"seed {seed} run {run} at rest" db m
+      -- A database from before the tally (its rows gone), opened again:
+      -- opening seeds them from the tables.
+      db.exec "DELETE FROM tally"
+      let gone ← (tallyRows (F := Fact)).run db
+      t.ok s!"seed {seed} run {run}: without its rows the tally is off (the reopen's control)"
+        (gone != (← (budgetScan (F := Fact)).run db))
+      let db2 ← Db.openAt path
+      tallyChecks t s!"seed {seed} run {run} reopened" db2 m
+      -- and an open that finds them leaves them as the triggers kept them
+      let db3 ← Db.openAt path
+      tallyChecks t s!"seed {seed} run {run} reopened again" db3 m
       t.ok s!"seed {seed} run {run}: queue empty at rest" m.queue.isEmpty
       t.ok s!"seed {seed} run {run}: verdicts equal the spec's"
         (ids0.all fun x => m.status x == specOf fam m.ops ops.length x)

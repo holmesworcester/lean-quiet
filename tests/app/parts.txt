@@ -20,7 +20,11 @@ network	inkless	.lake/build/bin/inkless && tests/app/inkless_negative.sh
 network	nodequeue	.lake/build/bin/nodequeue
 network	host	.lake/build/bin/host "${MESSAGES:-500}" out/host
 network	two-nodes	.lake/build/bin/two_nodes out/two
+network	notify	mise run host:notify
+network	notify-negative	mise run host:notify-negative
+network	link-devices	.lake/build/bin/link_devices out/link
 network	net-join	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP net_join (TCP sandbox; built)"; else mise run host:net-join; fi
+network	net-link	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP net_link (TCP sandbox; built)"; else mise run host:net-link; fi
 network	cross	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP cross (TCP sandbox; built)"; else .lake/build/bin/cross out/cross; fi
 network	arrival	.lake/build/bin/arrival out/arrival
 network	attach	if [ "${SKIP_TCP:-0}" = 1 ]; then echo "SKIP attach (TCP sandbox; built)"; else .lake/build/bin/attach out/attach; fi

@@ -239,7 +239,7 @@ def fixture (n : Nat) : Fixture := Id.run do
   let mut files := []
   for i in [0:(n + 999) / 1000] do
     let p := sealedPost c c d k ((Bytes.fit 24 (sha256 s!"post nonce {i}".toUTF8))) s!"file {i}".toUTF8 (i + 1) (10 + i)
-    let (a, cs) := attach c c p.id d k (fileOf i (min 1000 (n - 1000 * i)))
+    let (a, cs) := attach c c p.id (10 + i) d k (fileOf i (min 1000 (n - 1000 * i)))
     files := files ++ [([p, a], cs)]
   let post := sealedPost c c d k ((Bytes.fit 24 (sha256 "fresh post nonce".toUTF8))) "fresh".toUTF8 1000 100000
   return { c, base := w.ops, files, post }
@@ -260,7 +260,7 @@ def side (x : Sync Fact (SqlM Fact)) (ops : List Op) (addr : String) : IO Side :
   return { db, node := Node.boot x.fam (← (dumpOps (F := Fact)).run db) 0, addr := addr.toUTF8 }
 
 def sync (rooms : List Id) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { every := 30000, askTime := 20000 },
+  { fam, cfg := { askTime := 20000 },
     hooks := { rooms := fun _ => pure (rooms.map .sync), sealFor := plainSeal, openFrame := plainOpen } }
 
 /-- Which node writes the post: the one sending the backlog (a), or the

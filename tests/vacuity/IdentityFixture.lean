@@ -44,6 +44,14 @@ def renamed := setName c c c [] 1 alice "Vacuity test community".toUTF8
 
 def before : List Op := [r, invitation, requestB, approval, admission, message, grantB, renamed]
 def after : List Op := before ++ [removeB, removeA]
+-- Alice's second device, by a device link she issued and approved.
+def alice2 := Device.named "vacuity-alice-2"
+def linkBearer := Device.named "vacuity-device-link"
+def linkInvitation := invite c c alice linkBearer.pk true
+def requestA2 := request c linkInvitation.id alice2 (keyOf alice2) linkBearer.sk
+def linkApproval := approve c requestA2.id c alice
+def linkAdmission := admit c requestA2.id linkApproval.id
+def linked : List Op := before ++ [linkInvitation, requestA2, linkApproval, linkAdmission]
 def rootFact := Fact.admission c c alice.pk (keyOf alice) keyId
 def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob) keyId
 def messageFact := Fact.message c requestB.id bob.pk keyId

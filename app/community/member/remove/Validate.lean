@@ -16,13 +16,15 @@ def cutOf (c : Id) : List Id → List Approve.Fact → Option (List (Key × Id �
 /-- It cites the community, its author's admission, its authority, and
 an admission of the user it removes, then the approval chain heads it
 keeps (its cut; none if one is not an approval). A self-removal needs
-no admin, but its authority slot must be a shared fact (`shared`: a
-shared op never reads this device's own state); otherwise the author
-must be admin (`admin`, read by the family; issue #6). -/
+no admin, but its authority must be its author's own admission: the
+same op as its author-admission citation (`own`, read by the family);
+otherwise the author must be admin (`admin`, read by the family; issue
+#6). So every removal is anchored on admissions: its author's, the
+removed user's, and a self-removal's authority too. -/
 def check (C : Crypto) (o : Op) : Body → Root.Fact → Root.Fact → Bool → Bool → Root.Fact →
     Option (List Approve.Fact) → Option Fact
-  | ⟨s⟩, ⟨c, u0, _, _, _⟩, ⟨c1, u, d, _, _⟩, shared, admin, ⟨c2, t, _, _, _⟩, heads =>
-    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ ((t = u ∧ shared = true) ∨ admin = true) ∧
+  | ⟨s⟩, ⟨c, u0, _, _, _⟩, ⟨c1, u, d, _, _⟩, own, admin, ⟨c2, t, _, _, _⟩, heads =>
+    if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ ((t = u ∧ own = true) ∨ admin = true) ∧
       C.verify d (signedBy o (Body.unsigned ⟨s⟩)) s
     then (heads.bind (cutOf c (o.reqs.drop 4))).map fun k => ⟨c, t, u, k⟩ else none
 

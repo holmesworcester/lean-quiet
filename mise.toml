@@ -15,6 +15,11 @@ run = "tests/check.sh"
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/engine/run.sh"
 
+[tasks."test:scale"]
+description = "Scaling: a round's work at 1k, 10k and 100k items in one room against the proven bounds, with negative controls (tests/scale/run.sh)"
+depends = ["crypto"]
+run = "tests/scale/run.sh"
+
 [tasks."test:fresh"]
 description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
 run = "tests/engine/fresh.sh"
@@ -69,12 +74,12 @@ depends = ["crypto"]
 run = "bash tests/engine/reader_prune.sh"
 
 [tasks."test:ref-publications"]
-description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap"
 depends = ["crypto"]
 run = "bash tests/engine/ref_publications.sh"
 
 [tasks."test:native-lifetimes"]
-description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+description = "Real connect/reader lifetime checks and deterministic SDK stop overlap; nine compiling controls"
 depends = ["crypto"]
 run = "bash tests/engine/native_lifetime.sh"
 
@@ -102,7 +107,7 @@ description = "Build Lean/Init/Std from source with phone options for x86_64 Lin
 run = "tests/engine/run.sh --phone-runtime"
 
 [tasks."test:app"]
-description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival, host:attach and host:ux"
+description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:link-devices, host:net-join, host:net-link, host:cross, host:arrival, host:attach and host:ux"
 run = "tests/app/run.sh"
 
 [tasks."host:component-demand"]
@@ -137,8 +142,8 @@ description = "The bootstrap model: its laws built, the scene on the real engine
 run = "tests/net/check.sh"
 
 [tasks."readme:links"]
-description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
-run = "python3 ci/proof-links.py --check"
+description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built); the proof tree (docs/PROOF-TREE.md) is drawn from that run's graph (ci/proof-tree.py, its tests first)"
+run = "python3 tests/proof_tree_test.py && python3 ci/proof-links.py --check && python3 ci/proof-tree.py --check --graph out/proof-graph.json"
 
 [tasks."hackathon:refresh"]
 description = "Just before the Vibecheck submission, at main's head: write docs/HACKATHON.md's generated numbers from git (ci/hackathon.py), commit that file alone, then run the self-test and the check"
@@ -270,10 +275,34 @@ description = "Two apps, each its own database, joined by link through their own
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
 
+[tasks."host:link-devices"]
+description = "Linked devices, four apps by memory transport: a device link shown and scanned, pasted on Get started's Link devices, approved only by the issuer's user, admitted into it with no profile of its own; posts both ways; removing a user cuts both of its devices"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build link_devices && .lake/build/bin/link_devices out/link"
+
+[tasks."host:net-link"]
+description = "Linked devices over TCP on loopback, four apps each with its own node: link, approve, sync both ways, only the issuer's user asked, removal cuts (a sibling-only linked device: GAP until the pre-admission rooms land; --strict fails it)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_link && .lake/build/bin/net_link out/net-link"
+
 [tasks."host:net-join"]
 description = "Two actual apps join through their pages over TCP, then commit, read back and paint local writes during sustained incoming sync"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+
+[tasks."host:notify"]
+description = "Notifications on the headless twin: two apps joined by link; cards, quiet, levels, links, Sync in the background, removal, and libquiet's 20,736 reference-policy cases (docs/NOTIFICATIONS.md)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build notify && .lake/build/bin/notify out/notify"
+
+[tasks."host:notify-negative"]
+description = "Notifications' negative controls in a snapshot: ten runtime mutants fail their checks, eight proof mutants break their laws"
+depends = ["crypto"]
+run = "python3 tests/app/notify_negative.py"
+
+[tasks."host:notify-oracle"]
+description = "Regenerate tests/app/notify-policy.txt from libquiet's own policy.rs (local clone, rustc, no network)"
+run = "python3 tests/app/notify_oracle.py"
 
 [tasks."host:write-admission"]
 description = "Actual app Send rejects unframable posts and exhausted pending queues, preserves drafts, and commits after capacity clears"
@@ -520,11 +549,11 @@ depends = ["android:phone-apk"]
 run = "python3 tests/app/pixel_scroll.py"
 
 [tasks."test:stateless"]
-description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+description = "Full and windowed syncs on real Nodes/SQLite (a window at depth 1 gets its closure in the round; at depth 0 its reactions stay Missing), peaks and negative controls"
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
-description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, event-driven rounds (a joiner's room opens a round within a tick, none before the safety period, no per-round copy at a hub), secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
 
 [tasks."test:read-plan"]
@@ -577,6 +606,11 @@ run = "tests/app/skeleton.sh"
 [tasks."host:mobile-switcher"]
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
+
+[tasks."test:window"]
+depends = ["crypto"]
+description = "Windows and order (docs/SYNC.md): a message's photos sort with it; the negative controls (chunks at time 0, unchecked times) in a scratch snapshot"
+run = "tests/engine/window.sh"
 
 [tasks."test:headline"]
 description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"

@@ -12,7 +12,7 @@ import tests.engine.Lib
 open Engine Community Tests
 
 /-- `--print`: two invites' links and URIs only (site/test.py and the
-Android link e2e use them). -/
+Android link e2e use them); `--print-device`: a device link and its URI. -/
 def main (args : List String) : IO UInt32 := do
   let t ← Checks.new
   let f := Device.named "founder"
@@ -26,6 +26,9 @@ def main (args : List String) : IO UInt32 := do
     -- two invitations of the community: their links, then their URIs
     let (_, other) := issue c c f (keyOf f) (sha256 "second seed".toUTF8) ["192.168.4.77:7001".toUTF8]
     IO.println text; IO.println other.text; IO.println link.uri; IO.println other.uri; return 0
+  let (dinv, dlink) := issue c c f (keyOf f) (sha256 "device seed".toUTF8) ["192.168.4.77:7001".toUTF8] (link := true)
+  if args == ["--print-device"] then
+    IO.println dlink.text; IO.println dlink.uri; return 0
   IO.println s!"link: {text.length} characters"
   t.ok "the link is valid" (decide link.Valid)
   t.ok "it reads as the join page, the fields after #"
@@ -49,7 +52,7 @@ def main (args : List String) : IO UInt32 := do
     | none => pure ()
   t.ok "no truncation parses to the link or to anything invalid" (odd == 0)
   -- The old scheme, another site's page and a query instead of a fragment are not links.
-  let code := text.drop 50
+  let code := (text.drop 50).toString
   for g in ["", "leanquiet://join/", "leanquiet://join/!!!", "hello", "leanquiet://join/0",
       "https://holmesworcester.github.io/lean-quiet/join#", "quiet://join/" ++ code,
       "https://example.com/join#" ++ code, "https://holmesworcester.github.io/lean-quiet/join?" ++ code,
@@ -86,4 +89,51 @@ def main (args : List String) : IO UInt32 := do
   let m2 := modelRun fam [r, inv, forged.request j (keyOf j)]
   t.ok "a request from a link with the wrong seed is invalid"
     (m2.status (forged.request j (keyOf j)).id == some .invalid)
+  -- A device link: its own page and scheme, the same fields, kind 2.
+  let dtext := dlink.text
+  let dcode := (dtext.drop 50).toString
+  t.ok "a device link reads as the link page" (dtext.startsWith "https://holmesworcester.github.io/lean-quiet/link#")
+  t.ok "and parses back, a device link" (Invite.parse dtext == some dlink && dlink.link)
+  t.ok "its URI is leanquiet://link/ and the same fields"
+    (dlink.uri == "leanquiet://link/" ++ dcode && Invite.parse dlink.uri == some dlink)
+  t.ok "its bare code parses, a device link" (Invite.parse dcode == some dlink)
+  t.ok "behind the join page it is refused (parse_other_kind)"
+    (Invite.parse ("https://holmesworcester.github.io/lean-quiet/join#" ++ dcode) == none &&
+     Invite.parse ("leanquiet://join/" ++ dcode) == none)
+  t.ok "and a member's link behind the link page"
+    (Invite.parse ("https://holmesworcester.github.io/lean-quiet/link#" ++ code) == none &&
+     Invite.parse ("leanquiet://link/" ++ code) == none)
+  let dcs := dtext.toList.toArray
+  let mut flipped := 0
+  for _ in [0:5000] do
+    let (i, g1) := g.below dcs.size
+    let (k, g2) := g1.below 62
+    g := g2
+    match Invite.parse (String.ofList (dcs.set! i (Base62.charOf k)).toList) with
+    | some inv' =>
+      if !decide inv'.Valid then t.ok "a device link mutant parsed to an invalid invite" false
+      if !inv'.link then flipped := flipped + 1
+    | none => pure ()
+  t.ok s!"no mutant of the device link page parses to a member's link ({flipped})" (flipped == 0)
+  -- The engine: a device link's request names the issuer's user; another
+  -- member's approval of it is invalid, the issuer's admits the device
+  -- into the issuer's user.
+  let some dparsed := Invite.parse dtext | t.ok "parse" false; return 1
+  let f2 := Device.named "founder-2"
+  let dreq := dparsed.request f2 (keyOf f2)
+  let a1 := Device.named "alice"
+  let invA := invite c c f (Device.named "bearer-a").pk false
+  let reqA := request c invA.id a1 (keyOf a1) (Device.named "bearer-a").sk
+  let okA := approve c reqA.id c f
+  let admA := admit c reqA.id okA.id
+  let byAlice := approve c dreq.id admA.id a1
+  let byFounder := approve c dreq.id c f
+  let dadm := admit c dreq.id byFounder.id
+  let m3 := modelRun fam [r, inv, invA, reqA, okA, admA, dinv, dreq, byAlice, byFounder, dadm]
+  let valid3 (o : Op) := match m3.status o.id with | some (.valid _) => true | _ => false
+  t.ok "the device link's request is valid" (valid3 dreq)
+  t.ok "another user's approval of it is invalid (link_approved_by_issuer)" (m3.status byAlice.id == some .invalid)
+  t.ok "the issuer's approval admits it" (valid3 byFounder && valid3 dadm)
+  t.ok "into the issuer's user (link_admits_issuer)"
+    (match m3.status dadm.id with | some (.valid (.admission _ u _ _)) => u == c | _ => false)
   t.finish "linkcheck"

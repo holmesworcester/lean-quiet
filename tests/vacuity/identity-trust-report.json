@@ -216,5 +216,12 @@
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Alice's actual remover flow over the store she had seen writes the removal of Bob citing his chain head; settled store, the write, the extension, the stored op, the heads cap, Bob's places below 2^64 and his unforked chain are all checked from the store, and the law keeps Bob's approval of Dave inside the cut. Universal correctness of Ed25519 signatures for every message remains open; the named theorem is applied conditionally on it, as removeMember_valid is.",
     "exercise": true
+  },
+  "removal_anchored": {
+    "status": "runtime-witness",
+    "theorem": "Community.removal_anchored",
+    "witness": "Vacuity.IdentityTrust.removalAnchored",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob's signed self-removal citing his own admission as its authority is judged Valid on the Reach-built signed store, and the theorem is applied to it. Controls: the same self-removal citing his message (which the old rule, any shared fact, took) and one citing Alice's admission are refused. Synthetic signed fixture, real crypto."
   }
 }

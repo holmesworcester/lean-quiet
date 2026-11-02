@@ -345,9 +345,9 @@ HKDF, AEAD and pairs), private exponents are names, and the only DH
 equation is DH(i, j) = DH(j, i) for names i and j. The attacker
 (`Derivable O K`) is Dolev-Yao and active: it hands honest parties
 anything it derives and learns what they read, and what they send in
-the calls `O` allows (`AllCalls` for every call). Honest parties
-may be any names, in any number of runs, and take their payloads from
-the attacker, as Quiet's are public. Proof: what the attacker derives
+the calls `O` allows. Honest parties may be any names, in any number
+of runs, and take their payloads from the attacker, as Quiet's are
+public. Proof: what the attacker derives
 stays `Clean` (no secret name, no DH value of two secret names), and the
 session keys are not clean.
 - `good`, `kk_runs`: the symbolic suite satisfies the correctness laws'

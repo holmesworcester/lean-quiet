@@ -59,7 +59,7 @@ with the setup's. -/
 
 /-- Attach file f: its root, every chunk's proof, and the chunk ops. -/
 @[noinline] def attachFile (c : Id) (d : Device) (k : Key32) (f : NewFile) (_ : Nat) : Nat :=
-  let (a, cs) := attach c c c d k f
+  let (a, cs) := attach c c c 1 d k f
   cs.foldl (fun n o => n + o.id.size) a.id.size
 
 /-- n rows newest first, as each list of a union reads them. -/

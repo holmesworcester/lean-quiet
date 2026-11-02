@@ -1,5 +1,6 @@
 import app.community.Family
 import app.community.member.invite.request.approve.admit.Proofs
+import app.community.member.invite.request.Commands
 
 namespace Community
 open Engine Codec
@@ -77,5 +78,13 @@ theorem endpoint_signed {ops : Id → Option Op} {y c u : Id} {d e kid : Key}
     obtain ⟨or, br, fsr, hor, hbr, _, hvr⟩ := valid_inv hrv
     obtain ⟨cs, bs, _, _, _, _, _, rfl, _, _, _, hcs, _⟩ := check_request hvr
     exact ⟨r, or, _, cs, Or.inr ⟨o, hx, by rw [hreq]; rfl⟩, hor, hbr, Or.inr ⟨bs, rfl⟩, hcs⟩
+
+/-- **A device link's request is asked only of its issuer's user**
+(`asks_link`): the requests page lists it for user me only when me is
+the request's user, the link's issuer; any member's request is listed
+for every member. -/
+theorem asks_link {me c u : Id} {d e : Key} {l : Bool} :
+    asks me (.request c u d e l) = true ↔ (l = true → u = me) := by
+  cases l <;> simp [asks]
 
 end Community

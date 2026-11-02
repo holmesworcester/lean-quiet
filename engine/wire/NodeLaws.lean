@@ -80,16 +80,19 @@ variable {F : Type}
 
 variable (fam : Family F)
 
-theorem items_mk (rooms : List (Id × List Item)) (r : Id) :
-    Index.items ⟨rooms⟩ r = ((rooms.find? fun p => Decidable.decide (p.1 = r)).map (·.2)).getD [] := by
-  unfold Index.items
+theorem items_mk (rooms : List (Id × RoomTree)) (byId : Std.HashMap Id (Id × List Id)) (r : Id) :
+    Index.items ⟨rooms, byId⟩ r = ((rooms.find? fun p => Decidable.decide (p.1 = r)).map (·.2.items)).getD [] := by
+  unfold Index.items Index.room?
   cases rooms.find? fun p => Decidable.decide (p.1 = r) <;> rfl
+
+@[simp] theorem items_empty (r : Id) : ({} : Index).items r = [] := by
+  simp [Index.items, Index.room?]
 
 /-- **Adding an op files it under its room only.** -/
 theorem items_add (ix : Index) (o : Op) (r : Id) :
     (ix.add fam o).items r =
       if fam.room o = some r then ins (keyOf fam o, o.id) (ix.items r) else ix.items r := by
-  obtain ⟨rooms⟩ := ix
+  obtain ⟨rooms, byId⟩ := ix
   unfold Index.add
   cases hr : fam.room o with
   | none => simp
@@ -98,8 +101,8 @@ theorem items_add (ix : Index) (o : Op) (r : Id) :
     split
     · rename_i hany
       rw [items_mk, items_mk, List.find?_map]
-      have e : ((fun p : Id × List Item => Decidable.decide (p.1 = r)) ∘
-          fun p => if p.1 = c then (p.1, ins (keyOf fam o, o.id) p.2) else p) =
+      have e : ((fun p : Id × RoomTree => Decidable.decide (p.1 = r)) ∘
+          fun p => if p.1 = c then (p.1, p.2.add (keyOf fam o, o.id)) else p) =
           fun p => Decidable.decide (p.1 = r) := by
         funext p; simp only [Function.comp]; split <;> rfl
       rw [e]
@@ -118,7 +121,7 @@ theorem items_add (ix : Index) (o : Op) (r : Id) :
         simp only [decide_eq_true_eq] at hpr
         simp only [Option.map_some, Option.getD_some]
         by_cases hc : c = r
-        · subst hc; simp [hpr]
+        · subst hc; simp [hpr, RoomTree.items_add]
         · have : ¬ p.1 = c := fun e => hc (e ▸ hpr)
           simp [this, hc]
     · rename_i hany
@@ -130,7 +133,7 @@ theorem items_add (ix : Index) (o : Op) (r : Id) :
           apply List.find?_eq_none.2
           intro p hp hpc
           exact hany (List.any_eq_true.2 ⟨p, hp, hpc⟩)
-        simp [hn, ins]
+        simp [hn, ins, RoomTree.items_add]
       · simp [hc]
 
 theorem mem_ins_of {a b : Item} {l : List Item} (h : b ∈ ins a l) : b = a ∨ b ∈ l := by
@@ -276,7 +279,7 @@ theorem cached_items {n : Node} {s : DB F} (hi : Inv fam s) (hc : Cached fam n s
   constructor
   · intro h
     rcases mem_items_foldl fam h with h | ⟨o, ho, rfl, hr⟩
-    · simp [Index.items] at h
+    · simp at h
     · obtain ⟨x, _, hx⟩ := List.mem_filterMap.1 ho
       have := hi.key x o hx
       subst this
@@ -285,7 +288,7 @@ theorem cached_items {n : Node} {s : DB F} (hi : Inv fam s) (hc : Cached fam n s
     have hs : a.2 ∈ s.stored := (hi.stored _).2 (by rw [ho]; rfl)
     obtain ⟨b, hb, e⟩ := items_foldl_key fam (ix := {}) (List.mem_filterMap.2 ⟨a.2, hs, ho⟩) hr
     rcases mem_items_foldl fam hb with h | ⟨p, hp, rfl, _⟩
-    · simp [Index.items] at h
+    · simp at h
     · obtain ⟨x, _, hx⟩ := List.mem_filterMap.1 hp
       have hpx := hi.key x p hx
       have hoa := hi.key _ o ho
