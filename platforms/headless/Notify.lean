@@ -103,7 +103,7 @@ def settle : M Bool := do
   for _ in [0:60000] do
     let s ← get
     if (← s.wr.busy.get) == 0 && (← s.wr.jobs.get).isEmpty && s.out.isEmpty && s.toNode.isEmpty &&
-        s.doneQ.isEmpty && (← s.sh.acts.get).isEmpty && (← readerCaughtUp) then
+        s.doneQ.isEmpty && (← s.sh.acts.get).isEmpty && (← s.sh.done.get).isEmpty && (← readerCaughtUp) then
       steps 2
       return true
     discard <| step []
@@ -115,6 +115,11 @@ read through the store, not the frame (it runs in the background too). -/
 def heldTotal : M Nat := do
   let (a, _) ← readView (Community.readable (← get).me.c (limit := some 0)) #[]
   return a.total
+
+/-- How many ops the store has committed (SQL, outside any read snapshot). -/
+def opsCount : M Nat := do
+  let rows ← (← get).rd.query "SELECT CAST(count(*) AS TEXT) FROM ops" #[]
+  return (rows[0]? >>= (·[0]?) >>= fun b => (String.fromUTF8? b).bind String.toNat?).getD 0
 
 /-- Steps until the store holds more than `n` posts (the carried ones
 are committed), at most `k` steps. -/
@@ -287,12 +292,13 @@ def main (args : List String) : IO UInt32 := do
     -- at a time, each committed before the next (an act can still refuse)
     let before ← heldTotal
     for k in [0:120] do
-      -- a refused act leaves nothing written: send again until it is held
-      let held ← heldTotal
+      -- a refused act leaves nothing written: send again until the store
+      -- has committed one more op (counted in SQL, as two_nodes does)
+      let ops0 ← opsCount
       for _ in [0:20] do
         discard <| sendText s!"history {k}"
         discard <| settle
-        if (← heldTotal) > held then break
+        if (← opsCount) > ops0 then break
     let sent := (← heldTotal) - before
     check s!"A sends 120 more posts ({sent})" (sent == 120)
     discard <| settle
