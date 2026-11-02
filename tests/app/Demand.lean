@@ -384,6 +384,9 @@ def appPaintChurn (ck : Checks) : IO Unit := do
   let initial ← App.start sm.io (← sm.viewport.get) (dir ++ "/quiet.db")
   let (_, final) ← (show App.M Unit from do
     App.found "Paint progress" "Alice"
+    -- founding is a reader act: the community is current once it is
+    -- written and listed (Cont.found); only then is its chat there to open
+    waitIdle sm
     App.openPage .chat
     waitIdle sm
     let writer := (← get).wr

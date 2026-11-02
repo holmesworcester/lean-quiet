@@ -1290,7 +1290,12 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     for (id, intent) in acts do
       if !(← (← get).enabled) then break
       let r ← try
-          let w ← intent
+          -- the intent reads with no cache: the outbox has this pass's
+          -- earlier acts, which no notice has reached yet (the pass
+          -- notices after its acts, to mark what they touch)
+          let cached := (← get).live
+          modify fun s => { s with live := {} }
+          let w ← try intent finally modify fun s => { s with live := cached }
           if !(← (← get).enabled) then pure none
           else match App.WriteAdmission.refusal {} (queued ++ admitted) w.ops with
             | some why => do sh.refusals.modify (·.push (id, why)); pure none
@@ -2371,6 +2376,9 @@ structure St where
   doneQ : Array (Id × Option Community.Write) := #[]
   /-- An acceptance to make current once the communities list it. -/
   awaitAcc : Option Id := none
+  /-- The placements of done presenting acts, taken with their results
+  (the reader publishes both in one pass). -/
+  placedQ : Std.HashMap Id (Array (Id × Id × Pos × Pos)) := {}
   /-- Maintenance refused: not tried again before this frame. -/
   maintenanceRetry : Std.HashMap Id Nat := {}
   /-- The journal's newest row this app has taken notice of. -/
@@ -2995,6 +3003,8 @@ def retirePaints (s : St) : M Unit := do
 /-- Acts already judged by the reader belong to the store. Retiring a
 page never discards their writes or runs their UI continuations. -/
 def parkDone (sh : Reader.Shared) : M Unit := do
+  let pl ← sh.placed.modifyGet fun a => (a, #[])
+  modify fun s => { s with placedQ := pl.foldl (fun q (id, ps) => q.insert id ps) s.placedQ }
   let done ← sh.done.modifyGet fun ds => (ds, #[])
   -- an act still registered runs its continuation (applyDone): after a
   -- page change, the act it was for; after suspension, nothing (`suspend`
@@ -3571,6 +3581,10 @@ def act (intent : Reader.RM Community.Write) : M Id := do
 own are (`submit`), in order; what each wrote, for its continuation. -/
 def takeDone : M (Array (Id × Option Community.Write)) := do
   syncReader
+  -- placements first: the pass publishes a presenting act's placement
+  -- before its result, so each result taken has its placement here
+  let pl ← (← get).sh.placed.modifyGet fun a => (a, #[])
+  modify fun s => { s with placedQ := pl.foldl (fun q (id, ps) => q.insert id ps) s.placedQ }
   let ds ← (← get).sh.done.modifyGet fun a => (a, #[])
   for (_, w?) in ds do
     if let some w := w? then submit ⟨w.ops, true⟩
@@ -4383,7 +4397,6 @@ def applyDone : M Unit := do
   let ds := (← get).doneQ
   modify fun s => { s with doneQ := #[] }
   let why ← (← get).sh.refusals.modifyGet fun a => (a, #[])
-  let placed ← (← get).sh.placed.modifyGet fun a => (a, #[])
   for (id, w?) in ds do
     let k := ((← get).conts[id]?).getD .none
     modify fun s => { s with conts := s.conts.erase id }
@@ -4417,7 +4430,9 @@ def applyDone : M Unit := do
       -- present this device's own messages of the write, as placed
       let s ← get
       let mut own := s.ownSends
-      for (c, user, root, position) in ((placed.find? (·.1 == id)).map (·.2)).getD #[] do
+      let places := (s.placedQ[id]?).getD #[]
+      modify fun s => { s with placedQ := s.placedQ.erase id }
+      for (c, user, root, position) in places do
         if c == s.me.c && user == s.me.user then
           if let some next := own.offer ⟨s.cur, c, root, position⟩ then own := next
       modify fun s => { s with ownSends := own }
@@ -4433,7 +4448,9 @@ def applyDone : M Unit := do
         if (← get).text.trimAscii.toString == t then
           modify fun s => { s with text := "", sel := #[0, 0, 0, 0] }
         modify fun s => { s with chips := #[], chromeKey := "", editorContent := s.editorContent + (if photos then 0 else 1) }
-    | .send (some action) _, none => discard <| (← get).io.editorIo.action action.ticket 2
+    | .send (some action) _, none =>
+      modify fun s => { s with placedQ := s.placedQ.erase id }
+      discard <| (← get).io.editorIo.action action.ticket 2
     | _, _ => pure ()
   -- a new acceptance becomes current once the communities list it
   if let some a := (← get).awaitAcc then
@@ -5917,7 +5934,9 @@ def backgroundStep : M Unit := do
   flushNode
   if !(← get).life.mounted then modify fun s => { s with life := s.life.mount }
   resumeReader
-  let _ ← takeDone
+  -- results wait for the next frame's continuations (applyDone)
+  let ds ← takeDone
+  modify fun s => { s with doneQ := s.doneQ ++ ds }
   notifyStep
   readerPass
 

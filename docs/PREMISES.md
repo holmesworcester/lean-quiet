@@ -4444,6 +4444,29 @@ Rests on: `NodeOffer.offerM`
 |---|---|---|
 | (stated over) | `NodeOffer.offerM` | [env] |
 
+## 🟡 Your own write shows without the frame touching the store.
+
+**`Live.fresh_notice`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq W` | [discharged] |
+| inst | `LawfulHashable W` | [discharged] |
+| inst | `LawfulBEq Q` | [discharged] |
+| inst | `LawfulHashable Q` | [discharged] |
+| inst | `LawfulBEq V` | [discharged] |
+| hi | `Live.Indexed i` | [discharged] |
+| h | `Live.Fresh eval i b wanted` | [discharged] |
+| stable | `∀ (w : W) (qs : Array Q), i.deps[w]? = some qs → (∀ (q : Q), q ∈ qs → ¬q ∈ hit) → eval' w = eval w` | [discharged] |
+
+**`Demand.take_first`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| inst | `LawfulBEq K` | [discharged] |
+| hs | `Demand.FirstSorted first q` | [discharged] |
+| hx | `∃ x, x ∈ q ∧ first x = true` | [discharged] |
+
 ## ✅ A screen need re-read only what changed.
 
 Rests on: `Engine.Model.run`
