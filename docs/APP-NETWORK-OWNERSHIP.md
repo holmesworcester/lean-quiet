@@ -61,9 +61,12 @@ On the merged source (origin/main `eadcee3` plus the stop-UI, frame-time
 and Reader ownership repairs), all 1,435 audited laws pass the standard-axiom
 audit and the evidence inventory passes (732 entries; the 16 declarations
 main leaves pending are unchanged). This suite passes 52
-checks, all five controls and restoration. Compatibility on the same source:
-failed-runner 77 checks with seven controls, normal suspend 51 with three,
-boot admission 13 with two, all restored; lifecycle-node 40/0 with all of
-its controls. The lifecycle fixture's late-boot case now stops a runner the
+checks, all five controls and restoration. Compatibility: normal suspend 51
+with three controls and boot admission 13 with two, all restored;
+lifecycle-node 40/0 with its controls (main's `accept-revoked-act` control
+has a stale anchor since `eadcee3`). Failed-runner passed 77 checks with
+seven controls on the merge with main `149943e`; since main's reader-act
+sends (`eadcee3`) its baseline hangs on main itself (the fixture's cleanup
+releases its queue gate while replay waits on it). The lifecycle fixture's late-boot case now stops a runner the
 App failed to stop before waiting for replay, so that control fails at its
 assertion instead of hanging.
