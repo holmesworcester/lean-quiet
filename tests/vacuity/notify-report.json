@@ -1,0 +1,86 @@
+{
+  "own_silent": {
+    "status": "kernel-witness",
+    "theorem": "Notify.own_silent",
+    "witness": "Vacuity.Notifications.ownSilent",
+    "module": "tests.vacuity.Notify",
+    "detail": "A post whose author device is this device (both the same 1-byte id), at the default settings: its premise holds by rfl, and the law gives it never alerts."
+  },
+  "step_post": {
+    "status": "kernel-witness",
+    "theorem": "Notify.step_post",
+    "witness": "Vacuity.Notifications.posted",
+    "module": "tests.vacuity.Notify",
+    "detail": "One community, one post from another device and user (Bea's \"hi\", minute 10) above this device's mark (5), nothing on screen, nothing read, default level: the running turn (Notify.step, evaluated by the kernel) posts exactly that post's card, discharging the premise; the law then gives the post is one the rule admits."
+  },
+  "step_read": {
+    "status": "kernel-witness",
+    "theorem": "Notify.step_read",
+    "witness": "Vacuity.Notifications.notRead",
+    "module": "tests.vacuity.Notify",
+    "detail": "That card standing, a turn with its community held, nothing on screen and no read: the kernel evaluates the turn and the card still stands, discharging the premise."
+  },
+  "step_removed": {
+    "status": "kernel-witness",
+    "theorem": "Notify.step_removed",
+    "witness": "Vacuity.Notifications.held",
+    "module": "tests.vacuity.Notify",
+    "detail": "The same standing card after the same turn: its community is held (the premise, by evaluation)."
+  },
+  "step_keeps": {
+    "status": "kernel-witness",
+    "theorem": "Notify.step_keeps",
+    "witness": "Vacuity.Notifications.kept",
+    "module": "tests.vacuity.Notify",
+    "detail": "The card is active before the turn, and the turn's gone does not name it (both premises by evaluation): it stays."
+  },
+  "marks_le": {
+    "status": "kernel-witness",
+    "theorem": "Notify.marks_le",
+    "witness": "Vacuity.Notifications.markLe",
+    "module": "tests.vacuity.Notify",
+    "detail": "A community read for the first time (no mark yet) at minute 7: the running marks function writes (c, 7), discharging the premise."
+  },
+  "noticeRecipients_own": {
+    "status": "kernel-witness",
+    "theorem": "Community.noticeRecipients_own",
+    "witness": "Vacuity.Notifications.recipient",
+    "module": "tests.vacuity.Notify",
+    "detail": "Rows read by user u: one admission of u's other device (node key 7); a read (all = false) written on node 2 is sealed to that key, discharging the premise by evaluation."
+  },
+  "target_roundtrip": {
+    "status": "kernel-witness",
+    "theorem": "Community.target_roundtrip",
+    "witness": "Vacuity.Notifications.roundtrip",
+    "module": "tests.vacuity.Notify",
+    "detail": "A link to a message with three 32-byte ids and no thread root: Target.Valid holds by decide before the law is applied."
+  },
+  "targetOf_member": {
+    "status": "kernel-witness",
+    "theorem": "App.targetOf_member",
+    "witness": "Vacuity.Notifications.member",
+    "module": "tests.vacuity.Notify",
+    "detail": "One admitted entry (adm 32 bytes, not removed) in the link's community: the running targetOf finds it (by rfl), discharging the premise."
+  },
+  "notice_signed": {
+    "status": "runtime-witness",
+    "theorem": "Community.notice_signed",
+    "witness": "Vacuity.NotifyRuntime.noticeSigned",
+    "module": "tests.vacuity.NotifyRuntime",
+    "detail": "vacuity_notify_runtime: Bob signs a notice sealed to his node key with his admitted device in the synthetic signed community (real Ed25519); it is Valid, which certifies the premise before the law is applied. A notice signed by Mallory while citing Bob's admission is refused."
+  },
+  "syncs_kept": {
+    "status": "runtime-witness",
+    "theorem": "App.syncs_kept",
+    "witness": "Vacuity.NotifyRuntime.kept",
+    "module": "tests.vacuity.NotifyRuntime",
+    "detail": "vacuity_notify_runtime: a real headless App.start state (SQLite, refs, tasks) on the twin, which has the service, with Sync in the background turned on through the running keepSyncSt: the premise holds, and out of the front it syncs."
+  },
+  "syncs_off": {
+    "status": "runtime-witness",
+    "theorem": "App.syncs_off",
+    "witness": "Vacuity.NotifyRuntime.stopped",
+    "module": "tests.vacuity.NotifyRuntime",
+    "detail": "The same real state with it turned off: the premise holds, and out of the front it does not sync."
+  }
+}
