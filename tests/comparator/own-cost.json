@@ -1,0 +1,13 @@
+{
+  "challenge_module": "tests.comparator.own.CostChallenge",
+  "solution_module": "tests.comparator.own.CostSolution",
+  "theorem_names": [
+    "Engine.ingest_costs"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

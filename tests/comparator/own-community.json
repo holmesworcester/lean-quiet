@@ -1,0 +1,19 @@
+{
+  "challenge_module": "tests.comparator.own.CommunityChallenge",
+  "solution_module": "tests.comparator.own.CommunitySolution",
+  "theorem_names": [
+    "Community.no_impersonation",
+    "Community.admission_needs_approval",
+    "Community.removal_authorized",
+    "Community.connect_iff",
+    "Connection.sealed_auth",
+    "Switch.select_tapped_dedupe",
+    "Community.approveReq_ops"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}
