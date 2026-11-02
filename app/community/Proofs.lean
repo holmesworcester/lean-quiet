@@ -1707,8 +1707,8 @@ theorem letIn_iff (h : Inv (family C) s) (hq : s.queue = []) {r : Rel Fact} (hr 
 
 /-- **Who we connect to.** At rest, the `allowPeer` view, read over the
 node's persisted tables, accepts node key e for community c exactly when
-a live device has a trusted admission under e: the root's, or one an
-approval that counts admitted (`Trusted`). -/
+a live device has a trusted admission under e: the root's, or one
+admitted by an approval that counts (`Trusted`). -/
 theorem connect_iff (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (e : Key) :
     (allowPeer c e).eval s = true ↔ ∃ u d, Trusted C s.ops c u d e ∧ Live C s.ops c d := by
   simp only [allowPeer, View.eval_bind, View.eval_read, View.eval_pure, List.any_eq_true,

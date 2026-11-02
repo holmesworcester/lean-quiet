@@ -692,3 +692,15 @@ lean_exe runner_ownership where
 
 lean_exe node_uniqueness where
   root := `tests.engine.NodeUnique
+
+lean_exe app_network_ownership where
+  root := `tests.engine.AppNetworkOwnership
+
+lean_exe app_stop_ui where
+  root := `tests.engine.AppStopUi
+
+lean_exe app_frame_times where
+  root := `tests.engine.AppFrameTimes
+
+lean_exe app_reader_ownership where
+  root := `tests.engine.AppReaderOwnership

@@ -4,7 +4,7 @@
 
 How the laws compose: each law opens to the laws its proof uses. The headlines are the laws the [README](../README.md#what-is-proven)'s guarantee rows cite, each a tree in the file of its table group. A law is drawn whole once, and links there (↪) elsewhere; *n below* counts the distinct laws a law builds on.
 
-✅ wired: about running code (1373) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2176)
+✅ wired: about running code (1377) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2174)
 
 ## Scoreboard
 
@@ -12,14 +12,14 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 | | |
 |---|---|
-| Laws | 3788 |
-| Edges (a proof uses a law) | 10252 |
-| Roots (no law uses them) | 1121 (29.6%) |
-| Isolated (roots that use no law) | 537 (14.2%) |
+| Laws | 3785 |
+| Edges (a proof uses a law) | 10249 |
+| Roots (no law uses them) | 1120 (29.6%) |
+| Isolated (roots that use no law) | 538 (14.2%) |
 | Deepest chain | 26 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 653 |
-| Laws the headlines build on, or are | 2531 (66.8%) |
+| Headlines (laws the README's guarantee rows cite) | 655 |
+| Laws the headlines build on, or are | 2572 (68.0%) |
 
 ## Headlines
 
@@ -30,10 +30,10 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 73 | 286 |
 | [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 63 | 157 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 67 | 200 |
-| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 146 | 439 |
-| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 208 | 386 |
+| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 147 | 440 |
+| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 387 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 16 | 45 |
-| [Also cited](proof-tree/also-cited.md) | 91 | 123 |
+| [Also cited](proof-tree/also-cited.md) | 90 | 119 |
 
 ## Uncited roots
 
@@ -78,22 +78,22 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 | app/nav | 11 | 2 | 2 |
 | app/settings/appearance | 14 | 3 | 2 |
 | engine/core | 742 | 113 | 78 |
-| engine/renderer | 401 | 132 | 89 |
+| engine/renderer | 402 | 132 | 89 |
 | engine/renderer/Ttf | 16 | 7 | 6 |
 | engine/renderer/qr | 58 | 5 | 4 |
 | engine/sync | 589 | 66 | 29 |
-| engine/wire | 529 | 86 | 72 |
+| engine/wire | 525 | 86 | 72 |
 | engine/wire/mdns | 43 | 5 | 4 |
 | engine/world | 272 | 17 | 8 |
 
 <details><summary><b>app</b> · 68</summary><ul>
-<li>✅ <a href="../app/Screen.lean#L3822">App.composer_no_selection</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L3817">App.composer_pending_feedback</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4071">App.composer_no_selection</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4066">App.composer_pending_feedback</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1536">App.screenChanged_insets</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1530">App.screenChanged_size</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1929">Appearance.selected_check</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1587">ClumpList.cells_bounded</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1593">ClumpList.extent_cells</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L2012">Appearance.selected_check</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1670">ClumpList.cells_bounded</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1676">ClumpList.extent_cells</a> · isolated</li>
 <li>▫️ <a href="../app/Proofs.lean#L2497">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3214">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3216">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>
@@ -133,7 +133,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>✅ <a href="../app/Proofs.lean#L3541">Connection.secret_unfiled</a> · isolated</li>
 <li>🧪 <a href="../app/Proofs.lean#L3848">Connection.shipped_retired_misses</a> · 4 below</li>
 <li>✅ <a href="../app/Commands.lean#L619">Data.overlay_total</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L279">Lifecycle.follow_away</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L280">Lifecycle.follow_away</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1360">NavLaws.draft_open</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1372">NavLaws.inv_back</a> · 1 below</li>
 <li>✅ <a href="../app/Proofs.lean#L1375">NavLaws.inv_switch</a> · 2 below</li>
@@ -849,7 +849,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../engine/wire/Reserved.lean#L240">Engine.Sync.Reserved.queued_marked_inflight</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/Reserved.lean#L236">Engine.Sync.Reserved.queued_next_batch</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/Reserved.lean#L135">Engine.Sync.Reserved.rejected_push_preserves</a> · isolated</li>
-<li>📐 <a href="../engine/wire/RetryOrderLaws.lean#L214">Engine.Sync.RetryOrder.Run.nodup</a> · 3 below</li>
+<li>✅ <a href="../engine/wire/RetryOrderLaws.lean#L214">Engine.Sync.RetryOrder.Run.nodup</a> · 3 below</li>
 <li>✅ <a href="../engine/wire/RetryOrderLaws.lean#L17">Engine.Sync.RetryOrder.claim_busy</a> · isolated</li>
 <li>✅ <a href="../engine/wire/RetryOrderLaws.lean#L56">Engine.Sync.RetryOrder.offered_length</a> · 1 below</li>
 <li>✅ <a href="../engine/wire/RetryOrderLaws.lean#L62">Engine.Sync.RetryOrder.offered_none</a> · isolated</li>
@@ -859,7 +859,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../engine/wire/Reserved.lean#L57">Engine.Sync.RetrySlot.offer_busy</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/Reserved.lean#L75">Engine.Sync.RetrySlot.successful_write_waits_for_ack</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/Reserved.lean#L69">Engine.Sync.RetrySlot.take_queued</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L433">Engine.Sync.Tick.waiting</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L270">Engine.Sync.Tick.waiting</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L791">Engine.Sync.World.run_net</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L465">Engine.Sync.bundles_one</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L72">Engine.Sync.cut_progress</a> · isolated</li>
@@ -868,23 +868,23 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L246">Engine.Sync.framesFor_only</a> · isolated</li>
 <li>✅ <a href="../engine/wire/Frame.lean#L200">Engine.Sync.frames_frame</a> · 4 below</li>
 <li>✅ <a href="../engine/wire/Frame.lean#L189">Engine.Sync.frames_size</a> · 2 below</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L523">Engine.Sync.heat_addrs</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L521">Engine.Sync.heat_conns</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L526">Engine.Sync.heat_dropped</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L527">Engine.Sync.heat_floor</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L525">Engine.Sync.heat_fresh</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L524">Engine.Sync.heat_ix</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L360">Engine.Sync.heat_addrs</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L358">Engine.Sync.heat_conns</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L363">Engine.Sync.heat_dropped</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L364">Engine.Sync.heat_floor</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L362">Engine.Sync.heat_fresh</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L361">Engine.Sync.heat_ix</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/NodeLaws.lean#L189">Engine.Sync.items_foldl</a> · 70 below</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L518">Engine.Sync.lane_hold_one</a> · 2 below</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L355">Engine.Sync.lane_hold_one</a> · 2 below</li>
 <li>✅ <a href="../engine/wire/NodeLaws.lean#L62">Engine.Sync.onSealed_none</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L137">Engine.Sync.push_over</a> · isolated</li>
 <li>✅ <a href="../engine/wire/WorldLaws.lean#L45">Engine.Sync.remember_fits</a> · 1 below</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L215">Engine.Sync.room_window</a> · 1 below</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L363">Engine.Sync.sealRetries_nil</a> · isolated</li>
-<li>▫️ <a href="../engine/wire/LaneLaws.lean#L531">Engine.Sync.sends_serve</a> · isolated</li>
+<li>▫️ <a href="../engine/wire/LaneLaws.lean#L368">Engine.Sync.sends_serve</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/EgressLaws.lean#L164">Engine.Sync.sent_afterActs</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L233">Engine.Sync.shut_live</a> · isolated</li>
-<li>✅ <a href="../engine/wire/LaneLaws.lean#L535">Engine.Sync.split_urgent</a> · isolated</li>
+<li>✅ <a href="../engine/wire/LaneLaws.lean#L372">Engine.Sync.split_urgent</a> · isolated</li>
 <li>✅ <a href="../engine/wire/LaneLaws.lean#L227">Engine.Sync.stall_closes</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L257">Engine.Sync.sync_cfg</a> · isolated</li>
 <li>▫️ <a href="../engine/wire/WorldLaws.lean#L266">Engine.Sync.sync_closing</a> · isolated</li>
