@@ -74,12 +74,12 @@ depends = ["crypto"]
 run = "bash tests/engine/reader_prune.sh"
 
 [tasks."test:ref-publications"]
-description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap"
 depends = ["crypto"]
 run = "bash tests/engine/ref_publications.sh"
 
 [tasks."test:native-lifetimes"]
-description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+description = "Real connect/reader lifetime checks and deterministic SDK stop overlap; nine compiling controls"
 depends = ["crypto"]
 run = "bash tests/engine/native_lifetime.sh"
 
@@ -607,6 +607,10 @@ run = "tests/engine/window.sh"
 [tasks."test:headline"]
 description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"
 run = "tests/headline.sh"
+
+[tasks."test:headline-own"]
+description = "The headline laws under their own names: each can be stated with definitions only, and lake comparator (v4.35) accepts every own-name group (tests/comparator/own-*.json)"
+run = "tests/headline.sh --own"
 
 [tasks."test:vacuity"]
 depends = ["crypto"]

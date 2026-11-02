@@ -9,8 +9,9 @@ tests/comparator/Challenge.lean.
 - Check.lean checks that each statement is the law's own
   (`#same_statement`), and prints each theorem's axioms (`#audit_axioms`),
   which tests/headline.sh requires to be Lean's standard three.
-- comparator.json is `lake comparator`'s config (Lean v4.35):
-  `lake comparator --config tests/comparator/comparator.json`.
+- comparator.json is `lake comparator`'s config (Lean v4.35), written
+  here and at the repository's root, so that a plain `lake comparator`
+  judges every headline law as `Headline.<law>`.
 - Weak.lean and comparator-weak.json are Comparator's negative control:
   the challenge with one statement weakened, which it must reject.
 - own/<Group>Challenge.lean, own/<Group>Solution.lean and
@@ -100,37 +101,53 @@ def files(challenge: str) -> dict:
     body = challenge[challenge.index('\nimport ') + 1:] if challenge.startswith('/-') else challenge
     weak = WEAK_HEADER + body.replace(WEAK[0], WEAK[1])
     weak_config = config.replace(f'"{MODULE}.Challenge"', f'"{MODULE}.Weak"')
+    # the root config, so that a plain `lake comparator` judges the headline laws
     return {'Solution.lean': solution, 'Check.lean': check, 'comparator.json': config,
-            'Weak.lean': weak, 'comparator-weak.json': weak_config}
+            '../../comparator.json': config, 'Weak.lean': weak, 'comparator-weak.json': weak_config}
 
 
 # Under the laws' own names. A challenge then cannot import the module
 # that holds a law, or one that imports it (the name would be declared
 # twice), so each group imports only modules that define what its
-# statements name (`#challenge_imports` in tests/SpecSurface.lean finds
-# them, and the laws that cannot be stated so yet). One group per
-# challenge whose imports reach none of its laws' modules.
+# statements name. tests/comparator/Feasible.lean prints these groups
+# (`#challenge_imports`, first fit): the fewest whose imports reach none
+# of their own laws.
 OWN = [
     ("Community",
      [("no_impersonation", "app.community.Proofs"),
       ("admission_needs_approval", "app.community.member.invite.Proofs"),
       ("removal_authorized", "app.community.member.Proofs"),
+      ("removed_stays", "app.community.member.remove.Proofs"),
       ("connect_iff", "app.community.Proofs"),
-      ("sealed_auth", "app.connection.Proofs"),
-      ("select_tapped_dedupe", "app.community.Screen"),
-      ("approveReq_ops", "app.community.Proofs")],
-     ["app.community.Family", "app.community.Op", "engine.core.Codec", "engine.core.Core",
-      "app.community.member.admin.Proofs", "app.community.Commands",
-      "app.community.member.remove.Proofs", "engine.core.Model", "engine.core.Proofs",
-      "engine.core.View", "app.connection.Commands", "app.connection.Family",
-      "engine.core.Families", "engine.core.Held", "engine.sync.Sweep", "engine.wire.Node",
-      "engine.wire.Noise", "app.community.member.join.accept.View",
-      "app.community.key.wrap.Proofs"]),
-    ("Agree", [("same_ops_same_verdicts", "engine.core.Termination")],
-     ["engine.core.Core", "engine.core.Model", "engine.core.Proofs", "engine.core.Run"]),
+      ("kk_secret", "engine.wire.NoiseSymbolic"),
+      ("kk_authentic", "engine.wire.NoiseSymbolic"),
+      ("display_agrees", "app.community.channel.message.Proofs"),
+      ("covered", "engine.renderer.Cover"),
+      ("approveReq_ops", "app.community.Proofs"),
+      ("deviceCut_removal", "app.community.Screen")],
+     ["app.community.Commands", "app.community.Family", "app.community.Op",
+      "app.community.channel.message.receipt.Proofs", "app.community.key.wrap.Proofs",
+      "app.community.member.admin.Proofs", "app.community.member.remove.Commands",
+      "engine.core.Codec", "engine.core.Core", "engine.core.Decl", "engine.core.Model",
+      "engine.core.Proofs", "engine.core.Query", "engine.core.SpecLemmas", "engine.core.View",
+      "engine.renderer.CoverSeen", "engine.wire.Noise", "engine.wire.NoiseModel"]),
+    ("App",
+     [("removal_reaches_session", "app.Proofs"), ("back_open", "app.Proofs")],
+     ["app.Commands", "app.Screen", "app.community.Family", "app.connection.Family",
+      "app.connection.Proofs", "engine.core.Catalog", "engine.core.Core", "engine.core.Families",
+      "engine.core.Held", "engine.renderer.Presentation", "engine.sync.Sweep",
+      "engine.wire.EgressLaws", "engine.wire.Node", "engine.wire.Noise", "engine.wire.WorldLaws"]),
+    ("Engine",
+     [("recv_send", "engine.sync.ConnLaws"), ("same_ops_same_verdicts", "engine.core.Termination")],
+     ["engine.core.Core", "engine.core.Model", "engine.core.Proofs", "engine.core.Run",
+      "engine.sync.Conn"]),
+    ("Connection",
+     [("sealed_auth", "app.connection.Proofs"), ("select_tapped_dedupe", "app.community.Screen")],
+     ["app.community.Family", "app.community.member.join.accept.View", "app.connection.Commands",
+      "app.connection.Family", "engine.core.Core", "engine.core.Families", "engine.core.Held",
+      "engine.sync.Sweep", "engine.wire.Node", "engine.wire.Noise"]),
     ("Cost", [("ingest_costs", "engine.core.IngestCost")],
      ["engine.core.Core", "engine.core.Cost", "engine.core.CostStore"]),
-    ("Back", [("back_open", "app.Proofs")], ["app.Screen", "engine.renderer.Presentation"]),
 ]
 OWN_HEADER = '''/-
 Generated by tests/comparator/solution.py from Challenge.lean: do not
@@ -195,15 +212,21 @@ def own_files(challenge: str) -> dict:
 def main() -> int:
     challenge = (HERE / 'Challenge.lean').read_text()
     out = files(challenge) | own_files(challenge)
+    # own-name files of groups no longer planned
+    extra = sorted(str(p.relative_to(HERE)) for p in
+                   list((HERE / 'own').glob('*.lean')) + list(HERE.glob('own-*.json'))
+                   if str(p.relative_to(HERE)) not in out)
     if '--check' in sys.argv[1:]:
         stale = [name for name, text in out.items()
-                 if not (HERE / name).exists() or (HERE / name).read_text() != text]
+                 if not (HERE / name).exists() or (HERE / name).read_text() != text] + extra
         if stale:
             print(f'tests/comparator: {", ".join(stale)} stale: run tests/comparator/solution.py',
                   file=sys.stderr)
             return 1
         return 0
     (HERE / 'own').mkdir(exist_ok=True)
+    for name in extra:
+        (HERE / name).unlink()
     for name, text in out.items():
         (HERE / name).write_text(text)
     return 0

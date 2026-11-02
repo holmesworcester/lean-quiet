@@ -75,6 +75,10 @@ def Listed (C : Crypto) (ops : Id → Option Op) (c x : Id) (sk : ByteArray) : P
   (∃ u d kid sealed n tm clump, V C ops x (.message c u d kid sealed n tm clump) ∧ n < countCap ∧ sk = msgKey n tm) ∨
     ∃ z kid k clump, V C ops z (.received c kid x k clump) ∧ sk = recKey k x
 
+/-- Post x claims counter n and time tm: its op's body says so. -/
+def Posted (ops : Id → Option Op) (x : Id) (n tm : Nat) : Prop :=
+  ∃ o kid sealed sig, ops x = some o ∧ (decode o.body : Option Body) = some (.post kid sealed n tm sig)
+
 /-- A receipt's sort key names its message. -/
 theorem recMsg_recKey (k : Nat) (m : Id) : recMsg (recKey k m) = m := by
   unfold recMsg

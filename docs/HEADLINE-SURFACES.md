@@ -144,6 +144,14 @@ names and its spec-only, assumed and bridged parts.
 
 </details>
 
+## PeopleLaws.deviceCut_removal
+
+<details><summary>Of the app: 92 definitions</summary>
+
+`Community.Abandon.Fact`, `Community.Accept.Fact`, `Community.Approve.Fact`, `Community.Attach.Fact`, `Community.B`, `Community.CaughtUp.Fact`, `Community.CaughtUp.sortKey`, `Community.Chunk.Fact`, `Community.Chunk.sortKey`, `Community.ContentKey.Fact`, `Community.Draft.Fact`, `Community.Draft.sortKey`, `Community.Endpoint.Fact`, `Community.Fact`, `Community.Fact.admission?`, `Community.Fact.removal?`, `Community.Grant.Fact`, `Community.Invitation.Fact`, `Community.Joining.Fact`, `Community.Key`, `Community.Notice.Fact`, `Community.Notice.sortKey`, `Community.Post.Fact`, `Community.Post.sortKey`, `Community.Profile.Fact`, `Community.Profile.sortKey`, `Community.React.Fact`, `Community.React.sortKey`, `Community.Receive.Fact`, `Community.Receive.sortKey`, `Community.Remove.Fact`, `Community.Remove.byUser`, `Community.Rename.Fact`, `Community.Rename.sortKey`, `Community.Request.Fact`, `Community.Root.Fact`, `Community.Root.byDevice`, `Community.Secret.Fact`, `Community.Wrap.Fact`, `Community.admission.byDevice`, `Community.be64`, `Community.countCap`, `Community.deviceCut`, `Community.instSortKeyFact`, `Community.msgKey`, `Community.recKey`, `Community.removal.byUser`, `Community.removals`, `Community.sortOf`, `Community.timeCap`, `Community.unremoved`, `Engine.Answer`, `Engine.Codec`, `Engine.Codec.contDigitsInto`, `Engine.Codec.contDigitsLoop`, `Engine.Codec.decBytesFrom`, `Engine.Codec.decBytesFromM`, `Engine.Codec.decBytesL`, `Engine.Codec.decLenFromM`, `Engine.Codec.decListF`, `Engine.Codec.decListFrom`, `Engine.Codec.decNat`, `Engine.Codec.decPair`, `Engine.Codec.decPairFrom`, `Engine.Codec.encBytesL`, `Engine.Codec.encList`, `Engine.Codec.encListInto`, `Engine.Codec.encNat`, `Engine.Codec.encNatInto`, `Engine.Codec.encode`, `Engine.Codec.instByteArray`, `Engine.Codec.instList`, `Engine.Codec.instProd`, `Engine.DB`, `Engine.Id`, `Engine.ListQ`, `Engine.Meter`, `Engine.Pos`, `Engine.Rel`, `Engine.Rel.comap`, `Engine.Rel.key`, `Engine.Rel.query`, `Engine.Rel.read`, `Engine.SortKey`, `Engine.Tick`, `Engine.Tick.free`, `Engine.View`, `Engine.View.bind`, `Engine.View.instMonad`, `Engine.View.read`, `Engine.eval`, `Engine.instTickId`
+
+</details>
+
 ## The other laws' surfaces
 
 #### Engine.Op.id_decode
@@ -303,14 +311,6 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 Named in the statement: `Community.Admitted`, `Community.Crypto`, `Community.Fact`, `Community.Key`, `Community.Live`, `Community.family`, `Community.instSortKeyFact`, `Engine.DB`, `Engine.Id`, `Engine.Inv`, `Engine.View.eval`, `Kinds.Profile.present`.
 
 Spec-only, to review: predicates: `Community.Admitted`, `Community.Live`, `Community.Removed`, `Community.V`, `Engine.Codec.At`, `Engine.Inv`, `Engine.Spec`; definitions: `Community.Fact.admission`, `Community.Fact.removal`, `Engine.specAt`.
-
-Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
-
-#### PeopleLaws.deviceCut_removal
-
-Named in the statement: `Community.Fact`, `Community.Fact.admission`, `Community.Key`, `Community.admission.byDevice`, `Community.deviceCut`, `Community.instSortKeyFact`, `Community.removals`, `Engine.Answer`, `Engine.DB`, `Engine.Id`, `Engine.Pos`, `Engine.Rel.read`, `Engine.View.eval`, `Engine.eval`.
-
-Spec-only, to review: predicates: `Engine.Codec.At`; definitions: `Community.Fact.admission`.
 
 Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
