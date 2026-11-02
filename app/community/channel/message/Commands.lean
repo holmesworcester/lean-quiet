@@ -42,7 +42,7 @@ def fact (id : Id) : View Fact (Option Fact) := do
 of the same user can continue a clump. An intervening author starts a new
 root even when an older clump of ours is still within the time window. -/
 def choose (c myAdm : Id) (now : Nat) : View Fact (Option Id) := do
-  let some (.admission ac me _ _) ← fact myAdm | return none
+  let some (.admission ac me _ _ _) ← fact myAdm | return none
   if ac != c then return none
   let last ← message.all.read [c] (limit := some 1)
   let some ((_, id), .message lc author _ _ _ _ time parent) := last.rows.head? | return none

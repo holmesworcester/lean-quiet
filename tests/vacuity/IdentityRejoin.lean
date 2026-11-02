@@ -23,7 +23,7 @@ def joiningRows := [((sortOf (.joining c Vacuity.IdentityConnection.pkA [Vacuity
 
 def rejoinFresh := do
   let ⟨had⟩ ← certifyDB oldOps admission bobFact
-  let ⟨hrem⟩ ← certifyDB oldOps removeB (.removal c requestB.id c)
+  let ⟨hrem⟩ ← certifyDB oldOps removeB removeBFact
   if hq : (run oldOps).queue = [] then
     if hk : nodeKey.eval (run oldOps) = some (pkB, Bytes.fit 32 staticB) then
       if ha : (eval (run oldOps) (accepted.all.query [])).rows = acceptedRows then
@@ -38,7 +38,7 @@ def rejoinFresh := do
                 have hf := congrArg Prod.snd (List.mem_singleton.1 hp)
                 have hd := (Fact.accepted.inj hf).2
                 subst d
-                exact ⟨requestB.id,keyOf bob,⟨admission.id,had⟩,⟨removeB.id,c,hrem⟩⟩)
+                exact ⟨requestB.id,keyOf bob,⟨admission.id,_,had⟩,⟨removeB.id,c,[],hrem⟩⟩)
               (by
                 intro x k hs req nm d n hv
                 have hp := at_row (r := joining.all) (by simp [rels]) (runInv oldOps) hq hv (as := []) (desc := true) rfl
@@ -46,7 +46,7 @@ def rejoinFresh := do
                 have hf := congrArg Prod.snd (List.mem_singleton.1 hp)
                 have hd := (Fact.joining.inj hf).2.2.2.2.2.1
                 subst d
-                exact ⟨requestB.id,keyOf bob,admission.id,had⟩)
+                exact ⟨requestB.id,keyOf bob,admission.id,_,had⟩)
               (by
                 intro u e had'
                 have hh := (admitted_total (runInv oldOps) hq c (Device.ofSeed freshSeed).pk).2 ⟨u,e,had'⟩
@@ -75,7 +75,7 @@ def joinNewDevice : Option (PLift (∀ u e, ¬ Admitted ed25519 (run oldOps).ops
   else none
 
 def removedStaysRemoved := do
-  let ⟨hr⟩ ← certifyDB oldOps removeB (.removal c requestB.id c)
+  let ⟨hr⟩ ← certifyDB oldOps removeB removeBFact
   if hq : (run extendedOps).queue = [] then
     if he : oldOps.all (fun o => decide ((run extendedOps).ops o.id = some o)) = true then
       pure (PLift.up (removed_stays_removed (runInv extendedOps) hq (s := run oldOps)
@@ -84,7 +84,7 @@ def removedStaysRemoved := do
           obtain ⟨hm,hi⟩ := reach_stored (runReach oldOps) x o ho
           have hh := of_decide_eq_true ((List.all_eq_true.1 he) o hm)
           rw [hi] at hh; exact hh)
-        (show Removed ed25519 (run oldOps).ops c requestB.id from ⟨removeB.id,c,hr⟩)))
+        (show Removed ed25519 (run oldOps).ops c requestB.id from ⟨removeB.id,c,[],hr⟩)))
     else none
   else none
 
@@ -98,7 +98,7 @@ def main : IO UInt32 := do
   t.ok "fresh rejoin emits precisely fresh join ops" (((join pendingInvite freshSeed freshName unusedFresh).eval (run oldOps)).ops == freshOps)
   t.ok "old seed cannot request cut Bob again" (((join pendingInvite (sha256 "vacuity-bob".toUTF8) "Bob".toUTF8 unusedFresh).eval (run oldOps)).ops.isEmpty)
   t.ok "new signed request validates under invitation" ((run extendedOps).status freshRequest.id == some (.valid (.request c freshRequest.id carol.pk pkB false)))
-  t.ok "new admission actually validates" ((run extendedOps).status freshAdmission.id == some (.valid (.admission c freshRequest.id carol.pk pkB)))
+  t.ok "new admission actually validates" ((run extendedOps).status freshAdmission.id == some (.valid (.admission c freshRequest.id carol.pk pkB keyId)))
   t.ok "old Bob remains cut after same node rejoins" (!(deviceLive c bob.pk).eval (run extendedOps))
   t.ok "new Carol is live on same node key" ((deviceLive c carol.pk).eval (run extendedOps) && (allowPeer c pkB).eval (run extendedOps))
   t.ok "rejoin user and device differ from removed user and device" (freshRequest.id != requestB.id && carol.pk != bob.pk)

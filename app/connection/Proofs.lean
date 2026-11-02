@@ -473,18 +473,18 @@ theorem refuse_nonmember_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id
   rw [view_node h hq (Community.reads_allowPeer c e)]
   exact Community.refuse_nonmember (community_inv h hq) hq c e hd
 
-/-- **Whom the node dials:** the live devices. -/
+/-- **Whom the node dials:** the live devices with a trusted admission. -/
 theorem members_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (d : Community.Key) :
     d ∈ ((Community.members c).liftL : View F (List Community.Key)).eval s ↔
-      Community.Live C (community C s).ops c d := by
+      (∃ u e, Community.Trusted C (community C s).ops c u d e) ∧ Community.Live C (community C s).ops c d := by
   rw [view_node h hq (Community.reads_members c)]
   exact Community.members_iff (community_inv h hq) hq c d
 
 /-- **Who the node seals a content key to:** the node keys of live
-devices. -/
+devices' trusted admissions. -/
 theorem recipients_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (e : Community.Key) :
     e ∈ ((Community.recipients c).liftL : View F (List Community.Key)).eval s ↔
-      ∃ u d, Admitted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
+      ∃ u d, Community.Trusted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
   rw [view_node h hq (Community.reads_recipients c)]
   exact Community.recipients_iff (community_inv h hq) hq c e
 
@@ -628,11 +628,12 @@ variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
 
 /-- **Which nodes the node lets in.** At rest, the node's `allowPeer`
-accepts node key e for c exactly when a device admitted under e is live
-(admitted, into no removed user) among the Community ops it holds. -/
+accepts node key e for c exactly when a live device (admitted, into no
+removed user) has a trusted admission under e (`Trusted`: the root's, or
+one an approval that counts admitted) among the Community ops it holds. -/
 theorem connect_iff_node (h : Inv (node C K) s) (hq : s.queue = []) (c : Id) (e : Community.Key) :
     ((Community.allowPeer c e).liftL : View F Bool).eval s = true ↔
-      ∃ u d, Admitted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
+      ∃ u d, Community.Trusted C (community C s).ops c u d e ∧ Community.Live C (community C s).ops c d := by
   rw [view_node h hq (Community.reads_allowPeer c e)]
   exact Community.connect_iff (community_inv h hq) hq c e
 

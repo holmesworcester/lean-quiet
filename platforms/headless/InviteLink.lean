@@ -18,7 +18,8 @@ def main (args : List String) : IO UInt32 := do
   let d := Device.ofSeed seed
   -- this node's key: what the link names, and what the root names as enc
   let key := cryptoSeal.pub (← App.newSized 32)
-  let r := root d key
+  -- the link only: this root's community posts nothing, so it names no key
+  let r := root d key .empty
   let (_, i) := issue r.id r.id d key bearer ["10.0.2.2:47100".toUTF8]
   IO.FS.writeFile (out ++ "/invite") i.text
   let some b := Link.qr i.text 1000 | IO.eprintln "no QR for the link"; return 1

@@ -120,6 +120,10 @@ description = "Reject stale publication, obsolete work, wrong priority and missi
 depends = ["host:component-demand"]
 run = "python3 tests/app/demand_negative.py"
 
+[tasks."test:community-key-negative"]
+description = "Community key mutation controls: take out the wrap's signature, a post's or attachment's key id, the admission's key id, unwrap's key check, or currentKey's and the approval's root key id; a proof of the running code must reject each"
+run = "python3 tests/app/community_key_negative.py"
+
 [tasks."test:shipped"]
 description = "Build and check the SQLite configuration and native C twin; kill system-SQLite, wrong-threading and broken-keyboard mutants"
 depends = ["crypto"]
@@ -572,6 +576,10 @@ run = "tests/engine/read_plan.sh"
 [tasks."test:claim-tree"]
 description = "Actual RBSR at logarithmic depth, its checked laws, and runtime mutation controls"
 run = "tests/engine/claim_tree.sh"
+
+[tasks."test:cut"]
+description = "The causal cut of removals on SQLite (cut_check), and its mutants (bare counter, no cut, no chain to the founder), each failing cut_check and refused by its law"
+run = "tests/engine/cut.sh"
 
 [tasks."test:people-reader"]
 description = "Bounded people header, full membership list, cached removal invalidation and controls"

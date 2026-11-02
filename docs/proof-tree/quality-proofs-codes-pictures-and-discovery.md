@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › Codes, pictures and discovery**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2125)
+✅ wired: about running code (1377) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2175)
 
 <ul>
 <li><details><summary><a id="law-Qr.parse_segsBits"></a>✅ <a href="../../engine/renderer/qr/SegLaws.lean#L159">Qr.parse_segsBits</a> · 21 below</summary><ul>
@@ -78,24 +78,24 @@
 <li>▫️ <a href="../../engine/renderer/qr/Format.lean#L61">Qr.hd_comm</a></li>
 <li>▫️ <a href="../../engine/renderer/qr/Format.lean#L83">Qr.version_distance</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.parse_text"></a>✅ <a href="../../app/community/member/invite/Proofs.lean#L327">Community.parse_text</a> · 57 below</summary><ul>
+<li><details><summary><a id="law-Community.parse_text"></a>✅ <a href="../../app/community/member/invite/Proofs.lean#L336">Community.parse_text</a> · 57 below</summary><ul>
 <li>▫️ <a href="security-proofs-hostile-input.md#law-Community.parse_code">Community.parse_code</a> ↪ · 48 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.unprefix_webLink">Community.unprefix_webLink</a> ↪ · 4 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.unprefix_web">Community.unprefix_web</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L239">Community.webLink_not_ws</a></li>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L235">Community.web_not_ws</a></li>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L248">Community.webLink_not_ws</a></li>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L244">Community.web_not_ws</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.Base62.decode_encode"></a>✅ <a href="../../app/community/member/invite/Proofs.lean#L220">Community.Base62.decode_encode</a> · 7 below</summary><ul>
-<li><details><summary><a id="law-Community.Base62.bytesOf_natOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L209">Community.Base62.bytesOf_natOf</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Community.Base62.peel_natOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L204">Community.Base62.peel_natOf</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L189">Community.Base62.peel_foldl</a></li>
+<li><details><summary><a id="law-Community.Base62.decode_encode"></a>✅ <a href="../../app/community/member/invite/Proofs.lean#L229">Community.Base62.decode_encode</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Community.Base62.bytesOf_natOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L218">Community.Base62.bytesOf_natOf</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Community.Base62.peel_natOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L213">Community.Base62.peel_natOf</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L198">Community.Base62.peel_foldl</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.Base62.mapM_digitOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L212">Community.Base62.mapM_digitOf</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L159">Community.Base62.digitOf_charOf</a></li>
+<li><details><summary><a id="law-Community.Base62.mapM_digitOf"></a>▫️ <a href="../../app/community/member/invite/Proofs.lean#L221">Community.Base62.mapM_digitOf</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L168">Community.Base62.digitOf_charOf</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L174">Community.Base62.go_lt</a></li>
-<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L163">Community.Base62.ofDigits_go</a></li>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L183">Community.Base62.go_lt</a></li>
+<li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L172">Community.Base62.ofDigits_go</a></li>
 </ul></details></li>
 <li><a id="law-Pic.fit_small"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L28">Pic.fit_small</a></li>
 <li><details><summary><a id="law-Pic.fit_long"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L62">Pic.fit_long</a> · 2 below</summary><ul>

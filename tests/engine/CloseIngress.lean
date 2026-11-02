@@ -51,7 +51,7 @@ def notice (dir : String) : IO (Peer × Peer × Id × Op × Sock) := do
     return !o.ready && o.since.isNone
   unless settled do throw (IO.userError "setup writer did not settle")
   let adms ← view a0 (admission.byDevice.read [c, (JoinFair.device "B").pk])
-  let some (_, .admission _ user _ _) := adms.rows.head? | throw (IO.userError "missing removal member")
+  let some (_, .admission _ user _ _ _) := adms.rows.head? | throw (IO.userError "missing removal member")
   let removal ← view a0 (removeMember c user (JoinFair.device "A"))
   let some op := removal.ops.head? | throw (IO.userError "missing signed removal")
   submit a0 removal.ops
@@ -203,7 +203,7 @@ def localRemoval (t : Checks) (dir : String) : IO Unit := do
   let some source := sock.input | throw (IO.userError "missing founder source")
   let some (cid, _) := a0.state.value.node.conns.head? | throw (IO.userError "missing founder session")
   let members ← view a0 (admission.byDevice.read [c, (JoinFair.device "B").pk])
-  let some (_, .admission _ user _ _) := members.rows.head? | throw (IO.userError "missing removed member")
+  let some (_, .admission _ user _ _ _) := members.rows.head? | throw (IO.userError "missing removed member")
   let removal ← view a0 (removeMember c user (JoinFair.device "A"))
   stop b
   t.ok "local removal fixture reaches a real transport failure with admitted peer data"

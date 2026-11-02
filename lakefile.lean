@@ -185,6 +185,9 @@ lean_exe sqlite_build where
 lean_exe scenario where
   root := `tests.engine.Scenario
 
+lean_exe cut_check where
+  root := `tests.engine.Cut
+
 lean_exe differential where
   root := `tests.engine.Differential
 
@@ -546,6 +549,9 @@ lean_lib Comparator where
 
 lean_exe vacuity_identity_trust where
   root := `tests.vacuity.IdentityTrustMain
+
+lean_exe vacuity_community_key where
+  root := `tests.vacuity.CommunityKeyMain
 
 lean_exe vacuity_core where
   root := `tests.vacuity.CoreRuntimeMain

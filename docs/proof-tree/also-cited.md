@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README cites outside its guarantee rows. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1349) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2125)
+✅ wired: about running code (1377) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2175)
 
 ## What is proven
 
@@ -37,7 +37,7 @@
 <li>✅ <a href="security-proofs-hostile-input.md#law-Merkle.assumptions_hold">Merkle.assumptions_hold</a> ↪ · 3 below</li>
 <li>✅ <a href="security-proofs-confidentiality.md#law-Community.cryptoSeal_good">Community.cryptoSeal_good</a> ↪</li>
 <li>✅ <a href="security-proofs-connections.md#law-Connection.Noise.suite_good">Connection.Noise.suite_good</a> ↪ · 3 below</li>
-<li><a id="law-Community.ofSeed_signs"></a>✅ <a href="../../app/community/Commands.lean#L424">Community.ofSeed_signs</a></li>
+<li><a id="law-Community.ofSeed_signs"></a>✅ <a href="../../app/community/Commands.lean#L578">Community.ofSeed_signs</a></li>
 <li><details><summary><a id="law-Trust.receive_as_model"></a>✅ <a href="../../engine/core/SqliteLaws.lean#L242">Trust.receive_as_model</a> · 53 below</summary><ul>
 <li><details><summary><a id="law-Trust.drain_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L187">Trust.drain_sim</a> · 48 below</summary><ul>
 <li><details><summary><a id="law-Trust.step_sim"></a>▫️ <a href="../../engine/core/SqliteLaws.lean#L167">Trust.step_sim</a> · 47 below</summary><ul>
@@ -751,19 +751,19 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 <li>▫️ <a href="../../engine/wire/IOLaws.lean#L10">Engine.Sync.io_lawful</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3884">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3886">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.NodeUnique.step_valid">Engine.Sync.NodeUnique.step_valid</a> ↪ · 64 below</li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L76">Engine.Sync.NodeUnique.Ensures.state</a></li>
 </ul></details></li>
 <li>🌐 <a href="quality-proofs-sync.md#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
-<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3944">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3946">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
 <li>🌐 <a href="quality-proofs-sync.md#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3953">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3955">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
 <li>🌐 <a href="#law-Connection.Execution.world_trace_unique">Connection.Execution.world_trace_unique</a> ↪ · 69 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3961">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3963">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
 <li>🌐 <a href="quality-proofs-sync.md#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>

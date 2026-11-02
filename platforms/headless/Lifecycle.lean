@@ -285,8 +285,8 @@ private def readerRequest (dir : String) (ck : Tests.Checks) : IO Unit := do
   let db ← openDb path
   db.filings
   let d := Device.named "reader request snapshot"
-  let r := root d (Tests.keyOf d)
   let k := Bytes.digest "reader request key".toUTF8
+  let r := root d (Tests.keyOf d) (kidOf cryptoSeal k)
   let msg := sealedPost r.id r.id d k ⟨ByteArray.mk (Array.replicate 24 7), rfl⟩
     "a committed message before navigation".toUTF8 1 1234
   (receive fam (intake fam true [r, contentKey r.id k, msg])).run db

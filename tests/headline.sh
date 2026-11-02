@@ -119,7 +119,8 @@ cat >"$tmp/Weak.lean" <<'EOF'
 import tests.SpecSurface
 import app.community.member.Proofs
 theorem Headline.removal_authorized {C : Community.Crypto} {ops : Engine.Id → Option Engine.Op}
-    {x c t u : Engine.Id} (h : Community.V C ops x (.removal c t u)) : t = u ∨ True := Or.inr trivial
+    {x c t u : Engine.Id} {k : List (Community.Key × Engine.Id × Nat)}
+    (h : Community.V C ops x (.removal c t u k)) : t = u ∨ True := Or.inr trivial
 #same_statement Headline.removal_authorized Community.removal_authorized
 EOF
 caught "$tmp/Weak.lean" "a weakened restatement of removal_authorized"

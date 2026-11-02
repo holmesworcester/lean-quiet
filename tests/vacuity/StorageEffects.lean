@@ -113,12 +113,12 @@ def removedActions (s : Scenario) : List Action := s.completed ++ [.write .a (re
 stored rows; `Inv` rules out a verdict on an unstored id. -/
 def ownedBy (st : DB Connection.F) (e : Community.Key) (u x : Id) : Bool :=
   match st.status x with
-  | some (.valid (.inl (.admission c' u' _ e'))) => decide ((c' = c ∧ e' = e) → u' = u)
+  | some (.valid (.inl (.admission c' u' _ e' _))) => decide ((c' = c ∧ e' = e) → u' = u)
   | _ => true
 
 theorem owned {st : DB Connection.F} (hi : Inv Connection.Execution.family st)
     {e : Community.Key} {u : Id} (hb : st.stored.all (ownedBy st e u) = true)
-    {x u' : Id} {d : Community.Key} (hx : st.status x = some (.valid (.inl (.admission c u' d e)))) :
+    {x u' : Id} {d k : Community.Key} (hx : st.status x = some (.valid (.inl (.admission c u' d e k)))) :
     u' = u := by
   obtain ⟨o, _, ho, _⟩ := spec_valid_inv (hi.sound x _ hx)
   have hs : x ∈ st.stored := (hi.stored x).2 (by rw [ho]; rfl)
@@ -128,10 +128,10 @@ theorem owned {st : DB Connection.F} (hi : Inv Connection.Execution.family st)
 
 /-- The op's own verdict at the peer is a Valid removal of user u from c. -/
 def removedIn (st : DB Connection.F) (o : Op) (u : Id) :
-    Option (PLift (∃ x r, st.status x = some (.valid (.inl (.removal c u r))))) :=
+    Option (PLift (∃ x r k, st.status x = some (.valid (.inl (.removal c u r k))))) :=
   match hst : st.status o.id with
-  | some (.valid (.inl (.removal c' u' r))) =>
-    if h : c' = c ∧ u' = u then some (PLift.up ⟨o.id, r, by rw [hst, h.1, h.2]⟩) else none
+  | some (.valid (.inl (.removal c' u' r k))) =>
+    if h : c' = c ∧ u' = u then some (PLift.up ⟨o.id, r, k, by rw [hst, h.1, h.2]⟩) else none
   | _ => none
 
 /-- An admitted member is allowed: Alice's trust rule takes Bob's node,
@@ -145,21 +145,21 @@ def admittedCertificateFor (acts : List Action) :=
 key, for user u. -/
 def admits (st : DB Connection.F) (u x : Id) : Bool :=
   match st.status x with
-  | some (.valid (.inl (.admission c' u' d e))) => decide (c' = c ∧ u' = u ∧ d = bob.pk ∧ e = keyB)
+  | some (.valid (.inl (.admission c' u' d e _))) => decide (c' = c ∧ u' = u ∧ d = bob.pk ∧ e = keyB)
   | _ => false
 
 theorem admits_status {st : DB Connection.F} {u x : Id} (h : admits st u x = true) :
-    st.status x = some (.valid (.inl (.admission c u bob.pk keyB))) := by
+    ∃ k, st.status x = some (.valid (.inl (.admission c u bob.pk keyB k))) := by
   unfold admits at h
   split at h
-  next _ _ _ _ hx => obtain ⟨rfl, rfl, rfl, rfl⟩ := of_decide_eq_true h; exact hx
+  next _ _ _ _ k hx => obtain ⟨rfl, rfl, rfl, rfl⟩ := of_decide_eq_true h; exact ⟨k, hx⟩
   next => cases h
 
 /-- Bob's admission is a stored Valid verdict at Alice, so `Admitted`. -/
 def admissionCertificateFor (acts : List Action) (u : Id) :=
   if h : (storeAfter acts .a).stored.any (admits (storeAfter acts .a) u) = true then
     some (PLift.up ((admitted_trace setup (entropy "alice") (entropy "bob") acts .a).2
-      (let ⟨x, _, hx⟩ := List.any_eq_true.1 h; ⟨x, admits_status hx⟩)))
+      (let ⟨x, _, hx⟩ := List.any_eq_true.1 h; let ⟨k, hk⟩ := admits_status hx; ⟨x, k, hk⟩)))
   else none
 
 /-- A removal stored and the removed key refused: Alice holds a Valid
@@ -173,7 +173,7 @@ def removalCertificateFor (acts : List Action) (o : Op) (u : Id) :=
       some (PLift.up (removal_cuts_off_trace setup (entropy "alice") (entropy "bob") acts .a
         ((removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr)
         fun u' d had => by
-          obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
+          obtain ⟨x, k, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
           rw [owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1 hb hx] at had
           exact ⟨keyB, had⟩))
     else none
@@ -189,7 +189,7 @@ def refuseCertificateFor (acts : List Action) (o : Op) (u : Id) :=
       let hd : ∀ u' d, Admitted ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c u' d keyB →
           Community.Cut ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c d :=
         fun u' d had => by
-          obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
+          obtain ⟨x, k, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
           have hu := owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1 hb hx
           subst hu
           exact ⟨u', keyB, had, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr⟩

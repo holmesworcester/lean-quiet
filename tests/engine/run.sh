@@ -3,7 +3,8 @@
 # (sqlite_build), the codec that runs against its specification on random
 # values and their mutants (codecdiff), the community family's bytes, ids
 # and verdicts against main's before the op split (wiregolden), the scenario (real Ed25519,
-# SQLite), the SQLite-vs-model differential, list queries against their
+# SQLite), the causal cut of removals over the trust rule's views
+# (cut_check), the SQLite-vs-model differential, list queries against their
 # meaning (querydiff), ops as wire bytes against a lying peer (wire), two
 # nodes syncing through the driver (syncpair), in the pure world the
 # stream law is proven over (syncworld), and over localhost TCP through
@@ -40,7 +41,7 @@ if [ "${1:-}" = --phone-runtime ]; then
   bin=$PWD/out/phone-runtime/bin
   out=out/phone-runtime/tests
 else
-  lake build sqlite_build codecdiff wiregolden poolstarve scenario differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check newest window_sync
+  lake build sqlite_build codecdiff wiregolden poolstarve scenario cut_check differential crash querydiff linkcheck lifecycle wire syncpair syncworld tcppair noise_check connection_check purge jointcp merkle_check costcheck window_check newest window_sync
   bin=$PWD/.lake/build/bin
   out=out
 fi
@@ -51,6 +52,7 @@ mkdir -p "$out"
 if [ -x "$bin"/wiregolden ]; then "$bin"/wiregolden | diff - tests/engine/wire-golden.txt && echo "wiregolden: identical"; fi
 if [ "${SKIP_TCP:-0}" != 1 ]; then "$bin"/poolstarve; else echo "SKIP poolstarve (TCP sandbox)"; fi
 "$bin"/scenario "$out"/scenario
+"$bin"/cut_check "$out"/cut
 "$bin"/differential "$out"/differential "${SEEDS:-12}"
 "$bin"/querydiff
 "$bin"/linkcheck

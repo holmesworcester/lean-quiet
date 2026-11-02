@@ -216,7 +216,7 @@ Laws (each in the folder of the deepest ops it names: `channel/message/Proofs.le
 | Which nodes do we connect to? | `connect_iff` (a node key, while a live device is admitted under it), `deviceLive_iff`, `refuse_nonmember` |
 | Whom do we dial? | `members_iff` (the live devices) |
 | Do we connect to approved devices' nodes, and only those? | `connect_admitted`, `connect_approved` (a pending request never connects) |
-| Who is a new content key sealed to? | `recipients_iff`: exactly the keys `allowPeer` lets in |
+| Which key is a post sealed under, and who gets it? | `post_community_key`, `currentKey_community`, `send_community_key` (the one key whose id the root names); `wrap_signed` (a Valid wrap: an admitted device's, to an admitted node), `unwrap_community` (no other key is taken), `approveReq_wrap_admits` (an approval wraps it to the device it admits); `recipients_iff` names exactly the keys `allowPeer` lets in, but no wrap writer reads it yet |
 | What does a removal cut off? | `removal_cuts_off`, `cut_stays`, `cut_consented`, `connect_agree`: every device of the removed user, for good, at every node that has received the removal |
 | How is a node's key tied to its devices? | `endpoint_signed`, `endpoint_derives`, `connect_iff` |
 | Does a removed node keep the community? Can it rejoin? | `mine_not_removed`, `rejoin_fresh`, `join_new_device`, `removed_stays_removed` |

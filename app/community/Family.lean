@@ -98,10 +98,18 @@ A community, after libquiet's DESIGN.md ("A user is its origin op",
   names a content key by id and carries the nonce and ciphertext
   (`Community.Keys`). Its header is clear: the key id, the time, the
   signature, which covers the sealed bytes. Validators read only the
-  header, so a keyless node judges a post as a member does.
+  header, so a keyless node judges a post as a member does. Its key id
+  is the community's (an attachment's too).
+- A community has one content key, made at founding (keys do not rotate
+  yet). The root names its id (`kidOf`, a hash of the key), and every
+  admission copies it, so every member agrees which key it is.
 - A content key is local (`key`): this node's copy of a community's
-  key. A wrap delivers one to a node's X25519 key, sealed so that only
-  that node opens it. A wrap admits nobody, so it needs no author.
+  key, filed under its id, which its validator computes from the key.
+  A wrap delivers the community's key to an admitted node's X25519 key,
+  sealed so that only that node opens it. An admitted device writes and
+  signs it, citing its own admission and the recipient's; its key id is
+  the root's. The recipient takes the key only if it hashes to that id
+  (`unwrap`), so no member can plant another key under it.
 - A post claims two numbers: a counter, which orders its channel, and
   a time, wall-clock minutes since the Unix epoch, which is shown (the
   user's decision, 2026-10-28: "don't hack order onto time"). A
@@ -208,17 +216,17 @@ inductive Body where
 
 /-! ## Each op type's fact and body by its fields, as laws and views match them -/
 
-@[match_pattern] abbrev Fact.admission (c : Id) (u : Id) (device : Key) (enc : Key) : Fact := .ofAdmission ⟨c, u, device, enc⟩
+@[match_pattern] abbrev Fact.admission (c : Id) (u : Id) (device : Key) (enc : Key) (kid : ByteArray) : Fact := .ofAdmission ⟨c, u, device, enc, kid⟩
 @[match_pattern] abbrev Fact.invitation (c : Id) (issuer : Id) (bearer : Key) (link : Bool) : Fact := .ofInvitation ⟨c, issuer, bearer, link⟩
 @[match_pattern] abbrev Fact.admin (c : Id) (u : Id) : Fact := .ofAdmin ⟨c, u⟩
-@[match_pattern] abbrev Fact.removal (c : Id) (u : Id) (by_ : Id) : Fact := .ofRemoval ⟨c, u, by_⟩
+@[match_pattern] abbrev Fact.removal (c : Id) (u : Id) (by_ : Id) (cut : List (Key × Id × Nat)) : Fact := .ofRemoval ⟨c, u, by_, cut⟩
 @[match_pattern] abbrev Fact.message (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id := none) : Fact := .ofMessage ⟨c, u, device, ckey, text, n, time, clump⟩
 @[match_pattern] abbrev Fact.wrap (c : Id) (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Fact := .ofWrap ⟨c, ckey, recipient, box⟩
 @[match_pattern] abbrev Fact.profile (c : Id) (u : Id) (name : ByteArray) (time : Nat) : Fact := .ofProfile ⟨c, u, name, time⟩
 @[match_pattern] abbrev Fact.attachment (c : Id) (msg : Id) (u : Id) (root : Id) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) : Fact := .ofAttachment ⟨c, msg, u, root, len, time, kid, sealed⟩
 @[match_pattern] abbrev Fact.react (c : Id) (u : Id) (target : Id) (emoji : ByteArray) (time : Nat) : Fact := .ofReact ⟨c, u, target, emoji, time⟩
 @[match_pattern] abbrev Fact.request (c : Id) (u : Id) (device : Key) (enc : Key) (link : Bool) : Fact := .ofRequest ⟨c, u, device, enc, link⟩
-@[match_pattern] abbrev Fact.approval (c : Id) (req : Id) (u : Id) : Fact := .ofApproval ⟨c, req, u⟩
+@[match_pattern] abbrev Fact.approval (c : Id) (req : Id) (u : Id) (dev : Key) (ru : Id) (rd : Key) (re : Key) (up : Id) (depth : Nat) (prev : Id) (n : Nat) : Fact := .ofApproval ⟨c, req, u, dev, ru, rd, re, up, depth, prev, n⟩
 @[match_pattern] abbrev Fact.secret (pk : ByteArray) (seed : ByteArray) : Fact := .ofSecret ⟨pk, seed⟩
 @[match_pattern] abbrev Fact.accepted (c : Id) (device : Key) : Fact := .ofAccepted ⟨c, device⟩
 @[match_pattern] abbrev Fact.joining (c : Id) (inviter : Key) (hints : List ByteArray) (req : Id) (name : ByteArray) (device : Key) (epoch : Nat) : Fact := .ofJoining ⟨c, inviter, hints, req, name, device, epoch⟩
@@ -231,13 +239,13 @@ inductive Body where
 @[match_pattern] abbrev Fact.notice (c : Id) (u : Id) (recipient : ByteArray) (box : ByteArray) (time : Nat) : Fact := .ofNotice ⟨c, u, recipient, box, time⟩
 @[match_pattern] abbrev Fact.caughtUp (c : Id) (mark : Nat) : Fact := .ofCaughtUp ⟨c, mark⟩
 
-@[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, sig⟩
+@[match_pattern] abbrev Body.root (device : ByteArray) (enc : ByteArray) (kid : ByteArray) (sig : ByteArray) : Body := .ofRoot ⟨device, enc, kid, sig⟩
 @[match_pattern] abbrev Body.invite (bearer : Key) (link : Bool) (sig : ByteArray) : Body := .ofInvite ⟨bearer, link, sig⟩
 @[match_pattern] abbrev Body.request (device : ByteArray) (enc : ByteArray) (consent : ByteArray) (bearerSig : ByteArray) : Body := .ofRequest ⟨device, enc, consent, bearerSig⟩
 @[match_pattern] abbrev Body.grant (sig : ByteArray) : Body := .ofGrant ⟨sig⟩
 @[match_pattern] abbrev Body.remove (sig : ByteArray) : Body := .ofRemove ⟨sig⟩
 @[match_pattern] abbrev Body.post (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (sig : ByteArray) : Body := .ofPost ⟨ckey, text, n, time, sig⟩
-@[match_pattern] abbrev Body.wrap (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) : Body := .ofWrap ⟨ckey, recipient, box⟩
+@[match_pattern] abbrev Body.wrap (box : ByteArray) (sig : ByteArray) : Body := .ofWrap ⟨box, sig⟩
 @[match_pattern] abbrev Body.profile (name : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofProfile ⟨name, time, sig⟩
 @[match_pattern] abbrev Body.attach (root : ByteArray) (len : Nat) (time : Nat) (kid : ByteArray) (sealed : ByteArray) (sig : ByteArray) : Body := .ofAttach ⟨root, len, time, kid, sealed, sig⟩
 @[match_pattern] abbrev Body.react (emoji : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofReact ⟨emoji, time, sig⟩
@@ -255,11 +263,11 @@ inductive Body where
 @[match_pattern] abbrev Body.notice (recipient : ByteArray) (box : ByteArray) (time : Nat) (sig : ByteArray) : Body := .ofNotice ⟨recipient, box, time, sig⟩
 @[match_pattern] abbrev Body.caughtUp (c : Id) (mark : Nat) : Body := .ofCaughtUp ⟨c, mark⟩
 
-theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) :
-    (Fact.admission c u device enc = Fact.admission c' u' device' enc') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc') := by
+theorem Fact.admission.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (kid : ByteArray) (c' : Id) (u' : Id) (device' : Key) (enc' : Key) (kid' : ByteArray) :
+    (Fact.admission c u device enc kid = Fact.admission c' u' device' enc' kid') = (c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ kid = kid') := by
   simp [Fact.admission]
-theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {c' : Id} {u' : Id} {device' : Key} {enc' : Key}
-    (hinj : Fact.admission c u device enc = Fact.admission c' u' device' enc') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' := by
+theorem Fact.admission.inj {c : Id} {u : Id} {device : Key} {enc : Key} {kid : ByteArray} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {kid' : ByteArray}
+    (hinj : Fact.admission c u device enc kid = Fact.admission c' u' device' enc' kid') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ kid = kid' := by
   rw [Fact.admission.injEq] at hinj; exact hinj
 theorem Fact.invitation.injEq (c : Id) (issuer : Id) (bearer : Key) (link : Bool) (c' : Id) (issuer' : Id) (bearer' : Key) (link' : Bool) :
     (Fact.invitation c issuer bearer link = Fact.invitation c' issuer' bearer' link') = (c = c' ∧ issuer = issuer' ∧ bearer = bearer' ∧ link = link') := by
@@ -273,11 +281,11 @@ theorem Fact.admin.injEq (c : Id) (u : Id) (c' : Id) (u' : Id) :
 theorem Fact.admin.inj {c : Id} {u : Id} {c' : Id} {u' : Id}
     (hinj : Fact.admin c u = Fact.admin c' u') : c = c' ∧ u = u' := by
   rw [Fact.admin.injEq] at hinj; exact hinj
-theorem Fact.removal.injEq (c : Id) (u : Id) (by_ : Id) (c' : Id) (u' : Id) (by_' : Id) :
-    (Fact.removal c u by_ = Fact.removal c' u' by_') = (c = c' ∧ u = u' ∧ by_ = by_') := by
+theorem Fact.removal.injEq (c : Id) (u : Id) (by_ : Id) (cut : List (Key × Id × Nat)) (c' : Id) (u' : Id) (by_' : Id) (cut' : List (Key × Id × Nat)) :
+    (Fact.removal c u by_ cut = Fact.removal c' u' by_' cut') = (c = c' ∧ u = u' ∧ by_ = by_' ∧ cut = cut') := by
   simp [Fact.removal]
-theorem Fact.removal.inj {c : Id} {u : Id} {by_ : Id} {c' : Id} {u' : Id} {by_' : Id}
-    (hinj : Fact.removal c u by_ = Fact.removal c' u' by_') : c = c' ∧ u = u' ∧ by_ = by_' := by
+theorem Fact.removal.inj {c : Id} {u : Id} {by_ : Id} {cut : List (Key × Id × Nat)} {c' : Id} {u' : Id} {by_' : Id} {cut' : List (Key × Id × Nat)}
+    (hinj : Fact.removal c u by_ cut = Fact.removal c' u' by_' cut') : c = c' ∧ u = u' ∧ by_ = by_' ∧ cut = cut' := by
   rw [Fact.removal.injEq] at hinj; exact hinj
 theorem Fact.message.injEq (c : Id) (u : Id) (device : ByteArray) (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : Nat) (clump : Option Id) (c' : Id) (u' : Id) (device' : ByteArray) (ckey' : ByteArray) (text' : ByteArray) (n' : Nat) (time' : Nat) (clump' : Option Id) :
     (Fact.message c u device ckey text n time clump = Fact.message c' u' device' ckey' text' n' time' clump') = (c = c' ∧ u = u' ∧ device = device' ∧ ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ clump = clump') := by
@@ -315,11 +323,17 @@ theorem Fact.request.injEq (c : Id) (u : Id) (device : Key) (enc : Key) (link : 
 theorem Fact.request.inj {c : Id} {u : Id} {device : Key} {enc : Key} {link : Bool} {c' : Id} {u' : Id} {device' : Key} {enc' : Key} {link' : Bool}
     (hinj : Fact.request c u device enc link = Fact.request c' u' device' enc' link') : c = c' ∧ u = u' ∧ device = device' ∧ enc = enc' ∧ link = link' := by
   rw [Fact.request.injEq] at hinj; exact hinj
-theorem Fact.approval.injEq (c : Id) (req : Id) (u : Id) (c' : Id) (req' : Id) (u' : Id) :
-    (Fact.approval c req u = Fact.approval c' req' u') = (c = c' ∧ req = req' ∧ u = u') := by
+theorem Fact.approval.injEq (c req u : Id) (dev : Key) (ru : Id) (rd re : Key) (up : Id) (depth : Nat) (prev : Id) (n : Nat)
+    (c' req' u' : Id) (dev' : Key) (ru' : Id) (rd' re' : Key) (up' : Id) (depth' : Nat) (prev' : Id) (n' : Nat) :
+    (Fact.approval c req u dev ru rd re up depth prev n = Fact.approval c' req' u' dev' ru' rd' re' up' depth' prev' n') =
+      (c = c' ∧ req = req' ∧ u = u' ∧ dev = dev' ∧ ru = ru' ∧ rd = rd' ∧ re = re' ∧ up = up' ∧ depth = depth' ∧
+        prev = prev' ∧ n = n') := by
   simp [Fact.approval]
-theorem Fact.approval.inj {c : Id} {req : Id} {u : Id} {c' : Id} {req' : Id} {u' : Id}
-    (hinj : Fact.approval c req u = Fact.approval c' req' u') : c = c' ∧ req = req' ∧ u = u' := by
+theorem Fact.approval.inj {c req u : Id} {dev : Key} {ru : Id} {rd re : Key} {up : Id} {depth : Nat} {prev : Id} {n : Nat}
+    {c' req' u' : Id} {dev' : Key} {ru' : Id} {rd' re' : Key} {up' : Id} {depth' : Nat} {prev' : Id} {n' : Nat}
+    (hinj : Fact.approval c req u dev ru rd re up depth prev n = Fact.approval c' req' u' dev' ru' rd' re' up' depth' prev' n') :
+    c = c' ∧ req = req' ∧ u = u' ∧ dev = dev' ∧ ru = ru' ∧ rd = rd' ∧ re = re' ∧ up = up' ∧ depth = depth' ∧
+      prev = prev' ∧ n = n' := by
   rw [Fact.approval.injEq] at hinj; exact hinj
 theorem Fact.secret.injEq (pk : ByteArray) (seed : ByteArray) (pk' : ByteArray) (seed' : ByteArray) :
     (Fact.secret pk seed = Fact.secret pk' seed') = (pk = pk' ∧ seed = seed') := by
@@ -381,11 +395,11 @@ theorem Fact.notice.injEq (c : Id) (u : Id) (recipient : ByteArray) (box : ByteA
 theorem Fact.caughtUp.injEq (c : Id) (mark : Nat) (c' : Id) (mark' : Nat) :
     (Fact.caughtUp c mark = Fact.caughtUp c' mark') = (c = c' ∧ mark = mark') := by
   simp [Fact.caughtUp]
-theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (sig' : ByteArray) :
-    (Body.root device enc sig = Body.root device' enc' sig') = (device = device' ∧ enc = enc' ∧ sig = sig') := by
+theorem Body.root.injEq (device : ByteArray) (enc : ByteArray) (kid : ByteArray) (sig : ByteArray) (device' : ByteArray) (enc' : ByteArray) (kid' : ByteArray) (sig' : ByteArray) :
+    (Body.root device enc kid sig = Body.root device' enc' kid' sig') = (device = device' ∧ enc = enc' ∧ kid = kid' ∧ sig = sig') := by
   simp [Body.root]
-theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {sig' : ByteArray}
-    (h : Body.root device enc sig = Body.root device' enc' sig') : device = device' ∧ enc = enc' ∧ sig = sig' := by
+theorem Body.root.inj {device : ByteArray} {enc : ByteArray} {kid : ByteArray} {sig : ByteArray} {device' : ByteArray} {enc' : ByteArray} {kid' : ByteArray} {sig' : ByteArray}
+    (h : Body.root device enc kid sig = Body.root device' enc' kid' sig') : device = device' ∧ enc = enc' ∧ kid = kid' ∧ sig = sig' := by
   rw [Body.root.injEq] at h; exact h
 theorem Body.invite.injEq (bearer : Key) (link : Bool) (sig : ByteArray) (bearer' : Key) (link' : Bool) (sig' : ByteArray) :
     (Body.invite bearer link sig = Body.invite bearer' link' sig') = (bearer = bearer' ∧ link = link' ∧ sig = sig') := by
@@ -417,11 +431,11 @@ theorem Body.post.injEq (ckey : ByteArray) (text : ByteArray) (n : Nat) (time : 
 theorem Body.post.inj {ckey : ByteArray} {text : ByteArray} {n : Nat} {time : Nat} {sig : ByteArray} {ckey' : ByteArray} {text' : ByteArray} {n' : Nat} {time' : Nat} {sig' : ByteArray}
     (h : Body.post ckey text n time sig = Body.post ckey' text' n' time' sig') : ckey = ckey' ∧ text = text' ∧ n = n' ∧ time = time' ∧ sig = sig' := by
   rw [Body.post.injEq] at h; exact h
-theorem Body.wrap.injEq (ckey : ByteArray) (recipient : ByteArray) (box : ByteArray) (ckey' : ByteArray) (recipient' : ByteArray) (box' : ByteArray) :
-    (Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') = (ckey = ckey' ∧ recipient = recipient' ∧ box = box') := by
+theorem Body.wrap.injEq (box : ByteArray) (sig : ByteArray) (box' : ByteArray) (sig' : ByteArray) :
+    (Body.wrap box sig = Body.wrap box' sig') = (box = box' ∧ sig = sig') := by
   simp [Body.wrap]
-theorem Body.wrap.inj {ckey : ByteArray} {recipient : ByteArray} {box : ByteArray} {ckey' : ByteArray} {recipient' : ByteArray} {box' : ByteArray}
-    (h : Body.wrap ckey recipient box = Body.wrap ckey' recipient' box') : ckey = ckey' ∧ recipient = recipient' ∧ box = box' := by
+theorem Body.wrap.inj {box : ByteArray} {sig : ByteArray} {box' : ByteArray} {sig' : ByteArray}
+    (h : Body.wrap box sig = Body.wrap box' sig') : box = box' ∧ sig = sig' := by
   rw [Body.wrap.injEq] at h; exact h
 theorem Body.profile.injEq (name : ByteArray) (time : Nat) (sig : ByteArray) (name' : ByteArray) (time' : Nat) (sig' : ByteArray) :
     (Body.profile name time sig = Body.profile name' time' sig') = (name = name' ∧ time = time' ∧ sig = sig') := by
@@ -1002,6 +1016,7 @@ def signed (o : Op) (b : Body) : ByteArray :=
 @[simp] theorem signedBy_ofGrant (o : Op) (b : Grant.Body) : signedBy o b.unsigned = signed o (.ofGrant b) := rfl
 @[simp] theorem signedBy_ofRemove (o : Op) (b : Remove.Body) : signedBy o b.unsigned = signed o (.ofRemove b) := rfl
 @[simp] theorem signedBy_ofPost (o : Op) (b : Post.Body) : signedBy o b.unsigned = signed o (.ofPost b) := rfl
+@[simp] theorem signedBy_ofWrap (o : Op) (b : Wrap.Body) : signedBy o b.unsigned = signed o (.ofWrap b) := rfl
 @[simp] theorem signedBy_ofProfile (o : Op) (b : Profile.Body) : signedBy o b.unsigned = signed o (.ofProfile b) := rfl
 @[simp] theorem signedBy_ofAttach (o : Op) (b : Attach.Body) : signedBy o b.unsigned = signed o (.ofAttach b) := rfl
 @[simp] theorem signedBy_ofReact (o : Op) (b : React.Body) : signedBy o b.unsigned = signed o (.ofReact b) := rfl
@@ -1021,7 +1036,7 @@ def Fact.isLocal : Fact → Bool
 /-- Whether a fact shows that user u of community c is admin: the
 founder's admission (the founder's user is the community), or a grant. -/
 def isAdmin (c u : Id) : Fact → Bool
-  | .admission c' u' _ _ => decide (c' = c ∧ u' = c ∧ u = c)
+  | .admission c' u' _ _ _ => decide (c' = c ∧ u' = c ∧ u = c)
   | .admin c' u' => decide (c' = c ∧ u' = u)
   | _ => false
 
@@ -1038,6 +1053,12 @@ def counterOk (c : Id) (n : Nat) (fs : List Fact) : Bool :=
   | some m => decide (n = m + 1)
   | none => false
 
+/-- These facts as approvals, if every one is. -/
+def approvals : List Fact → Option (List Approve.Fact)
+  | [] => some []
+  | .ofApproval p :: rest => (approvals rest).map (p :: ·)
+  | _ :: _ => none
+
 /-- An op's validator, by its body, over the facts its requirements
 produced (slot order): its op type's (each folder's Validate.lean), given
 the facts it cites, typed. Slot 0 is the community's root, whose fact is
@@ -1046,20 +1067,21 @@ def check (C : Crypto) (o : Op) : Body → List Fact → Option Fact
   | .ofRoot b, [] => (Root.check C o b).map .ofAdmission
   | .ofInvite b, [.ofAdmission r, .ofAdmission a] => (Invitation.check C o b r a).map .ofInvitation
   | .ofRequest b, [.ofAdmission r, .ofInvitation i] => (Request.check C o b r i).map .ofRequest
-  | .ofApprove b, [.ofAdmission r, .ofRequest q, .ofAdmission a] => (Approve.check C o b r q a).map .ofApproval
+  | .ofApprove b, .ofAdmission r :: .ofRequest q :: .ofAdmission a :: ls =>
+    (Approve.check C o b r q a (approvals ls)).map .ofApproval
   | .ofAdmit b, [.ofAdmission r, .ofRequest q, .ofApproval a] => (Admit.check o b r q a).map .ofAdmission
   | .ofGrant b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
     (Grant.check C o b r a (isAdmin r.c a.u auth) t).map .ofAdmin
-  | .ofRemove b, [.ofAdmission r, .ofAdmission a, auth, .ofAdmission t] =>
+  | .ofRemove b, .ofAdmission r :: .ofAdmission a :: auth :: .ofAdmission t :: hs =>
     (Remove.check C o b r a (decide (auth = .ofAdmission a) && decide (o.reqs[2]? = o.reqs[1]?))
-      (isAdmin r.c a.u auth) t).map .ofRemoval
+      (isAdmin r.c a.u auth) t (approvals hs)).map .ofRemoval
   | .ofPost b, [.ofAdmission r, .ofAdmission a] => (Post.check C o b r a none).map .ofMessage
   | .ofPost b, [.ofAdmission r, .ofAdmission a, .ofMessage p] => (Post.check C o b r a (some p)).map .ofMessage
   | .ofProfile b, [.ofAdmission r, .ofAdmission a] => (Profile.check C o b r a).map .ofProfile
   | .ofAttach b, [.ofAdmission r, .ofAdmission a, .ofMessage m] => (Attach.check C o b r a m).map .ofAttachment
   | .ofChunk b, [.ofAdmission r, .ofAttachment t] => (Chunk.check o b r t).map .ofChunk
   | .ofReact b, [.ofAdmission r, .ofAdmission a, .ofMessage m] => (React.check C o b r a m).map .ofReact
-  | .ofWrap b, [.ofAdmission r] => (Wrap.check o b r).map .ofWrap
+  | .ofWrap b, [.ofAdmission r, .ofAdmission a, .ofAdmission t] => (Wrap.check C o b r a t).map .ofWrap
   | .ofSecret b, [] => (Secret.check C b).map .ofSecret
   | .ofKey b, [] => (ContentKey.check b).map .ofKey
   | .ofEndpoint b, [] => (Endpoint.check b).map .ofEndpoint
@@ -1165,6 +1187,8 @@ end request
 
 namespace approval
 def byRequest : Rel Fact := Approve.byRequest.comap Fact.approval?
+def byDev : Rel Fact := Approve.byDev.comap Fact.approval?
+def byRequester : Rel Fact := Approve.byRequester.comap Fact.approval?
 end approval
 
 namespace secret
@@ -1208,7 +1232,7 @@ def rels : List (Rel Fact) :=
   [admission.byDevice, admission.all, admission.byUser, admission.byKey, removal.byUser, admin.byUser, message.all, message.byAuthor,
    message.byKey, received.byKey, received.all, received.byMsg,
    wrap.byContentKey, profile.byUser, profile.all, profile.byLook, react.byMessage, react.byMessageEmoji,
-   request.all, approval.byRequest, secret.byKey, secret.all, accepted.all, joining.all, named.current,
+   request.all, approval.byRequest, approval.byDev, approval.byRequester, secret.byKey, secret.all, accepted.all, joining.all, named.current,
    abandoned.byRequest, abandoned.byJoining, wrap.byRecipient, key.byCommunity, key.byId, attachment.byMessage,
    chunk.byAttachment, endpoint.all, message.rootsByKey, message.childrenByKey, received.rootsByKey, received.childrenByKey, draft.byAcc,
    notice.byRecipient, caughtUp.byCommunity]
@@ -1229,6 +1253,7 @@ def sortOf : Fact → ByteArray
   | .ofChunk f => Chunk.sortKey f
   | .ofReact f => React.sortKey f
   | .ofNamed f => Rename.sortKey f
+  | .ofApproval f => Approve.sortKey f
   | _ => .empty
 
 instance : SortKey Fact := ⟨sortOf⟩
@@ -1325,10 +1350,10 @@ variable (C : Crypto) (ops : Id → Option Op)
 def V (x : Id) (f : Fact) : Prop := Spec (family C) ops x (.valid f)
 
 /-- Device d is admitted into user u of community c, with key e. -/
-def Admitted (c u : Id) (d e : Key) : Prop := ∃ x, V C ops x (.admission c u d e)
+def Admitted (c u : Id) (d e : Key) : Prop := ∃ x kid, V C ops x (.admission c u d e kid)
 
 /-- User u of community c has been removed (by anyone allowed to). -/
-def Removed (c u : Id) : Prop := ∃ x r, V C ops x (.removal c u r)
+def Removed (c u : Id) : Prop := ∃ x r k, V C ops x (.removal c u r k)
 
 /-- A member: an admitted user not removed. -/
 def Member (c u : Id) : Prop := (∃ d e, Admitted C ops c u d e) ∧ ¬ Removed C ops c u
@@ -1341,6 +1366,56 @@ def Live (c : Id) (d : Key) : Prop :=
 
 /-- Device d is cut in c: admitted into a user that is removed. -/
 def Cut (c : Id) (d : Key) : Prop := ∃ u e, Admitted C ops c u d e ∧ Removed C ops c u
+
+/-! ## The causal cut: which approvals keep admitting
+
+A removal cites, for each device of the removed user its author holds,
+the head of that device's approval chain (`Approve.Fact.prev`). The
+approvals at or behind a head it cites are its cut: what its author had
+seen. Hashes fix them, so an approval its device signs later, even one
+naming an old place in the chain, is behind no head it cites. -/
+
+/-- Approval x is h, or behind h's previous approval: in h's chain, at
+or before h. -/
+inductive Behind (x : Id) : Id → Prop
+  | here : Behind x x
+  | back {h : Id} {f : Approve.Fact} : V C ops h (.ofApproval f) → 0 < f.n → Behind x f.prev → Behind x h
+
+/-- Approval x (fact f) is inside cut k: behind a head k names for x's
+device. -/
+def InCut (x : Id) (f : Approve.Fact) (k : List (Key × Id × Nat)) : Prop :=
+  ∃ h m, (f.dev, h, m) ∈ k ∧ Behind C ops x h
+
+/-- Approval x (fact f) is kept: inside the cut of every removal of every
+user its device is admitted into. Taking every removal's cut, not any,
+makes later removals only narrow it: a removed member cannot widen its
+own cut with a removal of its own (docs/REMOVAL.md). -/
+def Kept (c x : Id) (f : Approve.Fact) : Prop :=
+  ∀ u e z r k, Admitted C ops c u f.dev e → V C ops z (.removal c u r k) → InCut C ops x f k
+
+/-- Approval x counts in c: it is kept, and so is the approval that
+admitted its approver (`up`), and so on to the founder's device's. An
+approval of a removed member outside a cut counts for nothing, and
+neither does any approval above it. -/
+inductive Counts (c : Id) : Id → Prop
+  | founder {x : Id} {f : Approve.Fact} : V C ops x (.ofApproval f) → f.c = c → f.depth = 0 →
+      Kept C ops c x f → Counts c x
+  | up {x : Id} {f : Approve.Fact} : V C ops x (.ofApproval f) → f.c = c → 0 < f.depth →
+      Counts c f.up → Kept C ops c x f → Counts c x
+
+/-- Approval x is y, or above it: the approval that admitted y's
+approver (`up`), and so on toward the founder's device's. -/
+inductive Above (x : Id) : Id → Prop
+  | here : Above x x
+  | up {y : Id} {f : Approve.Fact} : V C ops y (.ofApproval f) → 0 < f.depth → Above x f.up → Above x y
+
+/-- Admission (c, u, d, e) is trusted: it is the root's, or an approval
+of a request for it counts. The trust rule lets a node key in only
+through a trusted admission of a live device (`connect_iff`). -/
+def Trusted (c u : Id) (d e : Key) : Prop :=
+  (∃ kid, V C ops c (.admission c u d e kid)) ∨
+    (Admitted C ops c u d e ∧ ∃ x f, V C ops x (.ofApproval f) ∧ f.c = c ∧ f.ru = u ∧ f.rd = d ∧
+      f.re = e ∧ Counts C ops c x)
 end
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -1379,7 +1454,7 @@ theorem op_of_valid {x : Id} {f : Fact} (h : V C ops x f) :
 request's two (its device's consent and the invitation bearer's), one
 for every other signed op, none for unsigned ones. -/
 def Body.sigs : Body → List ByteArray
-  | .root _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s
+  | .root _ _ _ s | .invite _ _ s | .grant s | .remove s | .post _ _ _ _ s | .wrap _ s
   | .profile _ _ s | .attach _ _ _ _ _ s | .react _ _ s | .approve s | .name _ _ s | .notice _ _ _ s => [s]
   | .request _ _ c b => [c, b]
   | _ => []
@@ -1612,7 +1687,7 @@ theorem at_row {r : Rel Fact} (hr : r ∈ rels) (h : Inv (family C) s) (hq : s.q
   exact ⟨y, _, rfl, hf.1, hf.2⟩
 
 theorem admission_byUser_args {c u : Id} {f : Fact} :
-    admission.byUser.args f = some [c, u] ↔ ∃ d e, f = .admission c u d e := by
+    admission.byUser.args f = some [c, u] ↔ ∃ d e kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byUser, eq_comm]
 
 /-- A row of a list read at rest is a Valid fact filed under it. -/
@@ -1630,7 +1705,7 @@ open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byDevice_args {c d : Id} {f : Fact} :
-    admission.byDevice.args f = some [c, d] ↔ ∃ u e, f = .admission c u d e := by
+    admission.byDevice.args f = some [c, d] ↔ ∃ u e kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byDevice, Root.byDevice, Rel.comap, Fact.admission?, eq_comm]
 open Engine
 section
@@ -1671,7 +1746,7 @@ open Engine
 variable {s : DB Fact} {C : Crypto}
 
 theorem byKey_args {c e : Id} {f : Fact} :
-    admission.byKey.args f = some [c, e] ↔ ∃ u d, f = .admission c u d e := by
+    admission.byKey.args f = some [c, e] ↔ ∃ u d kid, f = .admission c u d e kid := by
   cases f <;> (try (rename_i x; cases x)) <;> simp [admission.byKey, Root.byKey, Rel.comap, Fact.admission?, eq_comm]
 open Engine
 variable {C : Crypto}

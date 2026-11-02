@@ -31,7 +31,7 @@ requests, approvals and admissions; timed posts by them; reactions,
 some to old posts; one removal. Times start at 1000, 100 apart. -/
 def history (tag : String) (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named s!"{tag}-founder"
-  let r := root f (keyOf f)
+  let r := root f (keyOf f) "k".toUTF8
   let c := r.id
   let mut ops : Array Op := #[r]
   let mut adms : Array (Id × Device) := #[(c, f)]

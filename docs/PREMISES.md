@@ -26,14 +26,14 @@ Rests on: `Community.Unforgeable`
 | premise | statement | tag |
 |---|---|---|
 | hk | `Community.Keyed ops` | [discharged] |
-| h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+| h | `Community.V C ops y (Community.Fact.admission c u d e kid)` | [discharged] |
 
 **`Community.admission_approved`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | hk | `Community.Keyed ops` | [discharged] |
-| h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+| h | `Community.V C ops y (Community.Fact.admission c u d e kid)` | [discharged] |
 
 **`Community.request_invited`** (wired)
 
@@ -48,13 +48,13 @@ Rests on: `Community.Unforgeable`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops x (Community.Fact.removal c t u)` | [discharged] |
+| h | `Community.V C ops x (Community.Fact.removal c t u k)` | [discharged] |
 
 **`Community.removal_anchored`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops x (Community.Fact.removal c t u)` | [discharged] |
+| h | `Community.V C ops x (Community.Fact.removal c t u k)` | [discharged] |
 
 **`Community.admin_granted`** (wired)
 
@@ -85,7 +85,9 @@ Rests on: `Community.Unforgeable`
 | premise | statement | tag |
 |---|---|---|
 | hk | `Community.Keyed ops` | [discharged] |
-| hx | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
+| hx | `Community.V C ops x (Community.Fact.ofApproval g)` | [discharged] |
+| hgc | `g.c = c` | [discharged] |
+| hgr | `g.req = r` | [discharged] |
 | hr | `Community.V C ops r (Community.Fact.request c u d e true)` | [discharged] |
 
 **`Community.link_admits_issuer`** (wired)
@@ -93,7 +95,7 @@ Rests on: `Community.Unforgeable`
 | premise | statement | tag |
 |---|---|---|
 | hk | `Community.Keyed ops` | [discharged] |
-| h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+| h | `Community.V C ops y (Community.Fact.admission c u d e kid)` | [discharged] |
 
 **`Community.issue_link`** (wired)
 
@@ -139,7 +141,7 @@ Rests on: `Community.Unforgeable`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
+| h | `Community.V C ops x (Community.Fact.ofApproval f)` | [discharged] |
 
 **`Community.invitation_issued`** (wired)
 
@@ -157,7 +159,7 @@ Rests on: `Community.Unforgeable`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+| h | `Community.V C ops y (Community.Fact.admission c u d e kid)` | [discharged] |
 | (stated over) | `Community.Unforgeable` | [crypto] |
 
 **`Community.no_impersonation`** (wired)
@@ -176,37 +178,43 @@ Rests on: `Community.Unforgeable`
 | hx | `ops x = some o` | [discharged] |
 | hb | `Engine.Codec.decode o.body = some (Community.Body.remove s)` | [discharged] |
 | hkd | `o.kind = (Community.Body.remove s).tag` | [discharged] |
-| hreq | `o.reqs = [c, ra, au, ta]` | [discharged] |
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
-| hra | `Community.V C ops ra (Community.Fact.admission c u d e)` | [discharged] |
+| hreq | `o.reqs = c :: ra :: au :: ta :: ys` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
+| hra | `Community.V C ops ra (Community.Fact.admission c u d e ka)` | [discharged] |
 | hau | `Community.V C ops au auth` | [discharged] |
 | hadm | `Community.isAdmin c u auth = true` | [discharged] |
-| hta | `Community.V C ops ta (Community.Fact.admission c t d' e')` | [discharged] |
+| hta | `Community.V C ops ta (Community.Fact.admission c t d' e' kt)` | [discharged] |
+| hhs | `Engine.All2 (fun r g => Community.V C ops r g) ys (List.map Community.Fact.ofApproval ps)` | [discharged] |
+| hcut | `Community.Remove.cutOf c ys ps = some k` | [discharged] |
 | hs | `C.verify d (Community.signed o (Community.Body.remove s)) s = true` | [discharged] |
 
 **`Community.mutual_removal`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hx | `ops x = some ox` | [discharged] |
 | hbx | `Engine.Codec.decode ox.body = some (Community.Body.remove sx)` | [discharged] |
 | hkx | `ox.kind = (Community.Body.remove sx).tag` | [discharged] |
-| hrx | `ox.reqs = [c, rx, ax, tx]` | [discharged] |
-| hu | `Community.V C ops rx (Community.Fact.admission c u du eu)` | [discharged] |
+| hrx | `ox.reqs = c :: rx :: ax :: tx :: hsx` | [discharged] |
+| hu | `Community.V C ops rx (Community.Fact.admission c u du eu ku)` | [discharged] |
 | hgu | `Community.V C ops ax gu` | [discharged] |
 | hau | `Community.isAdmin c u gu = true` | [discharged] |
-| hvt | `Community.V C ops tx (Community.Fact.admission c v dv' ev')` | [discharged] |
-| hsx | `C.verify du (Community.signed ox (Community.Body.remove sx)) sx = true` | [discharged] |
+| hvt | `Community.V C ops tx (Community.Fact.admission c v dv' ev' kv')` | [discharged] |
+| hhx | `Engine.All2 (fun r g => Community.V C ops r g) hsx (List.map Community.Fact.ofApproval psx)` | [discharged] |
+| hcx | `Community.Remove.cutOf c hsx psx = some kx` | [discharged] |
+| hsx' | `C.verify du (Community.signed ox (Community.Body.remove sx)) sx = true` | [discharged] |
 | hy | `ops y = some oy` | [discharged] |
 | hby | `Engine.Codec.decode oy.body = some (Community.Body.remove sy)` | [discharged] |
 | hky | `oy.kind = (Community.Body.remove sy).tag` | [discharged] |
-| hry | `oy.reqs = [c, ry, ay, ty]` | [discharged] |
-| hv | `Community.V C ops ry (Community.Fact.admission c v dv ev)` | [discharged] |
+| hry | `oy.reqs = c :: ry :: ay :: ty :: hsy` | [discharged] |
+| hv | `Community.V C ops ry (Community.Fact.admission c v dv ev kv)` | [discharged] |
 | hgv | `Community.V C ops ay gv` | [discharged] |
 | hav | `Community.isAdmin c v gv = true` | [discharged] |
-| hut | `Community.V C ops ty (Community.Fact.admission c u du' eu')` | [discharged] |
-| hsy | `C.verify dv (Community.signed oy (Community.Body.remove sy)) sy = true` | [discharged] |
+| hut | `Community.V C ops ty (Community.Fact.admission c u du' eu' ku')` | [discharged] |
+| hhy | `Engine.All2 (fun r g => Community.V C ops r g) hsy (List.map Community.Fact.ofApproval psy)` | [discharged] |
+| hcy | `Community.Remove.cutOf c hsy psy = some ky` | [discharged] |
+| hsy' | `C.verify dv (Community.signed oy (Community.Body.remove sy)) sy = true` | [discharged] |
 
 **`Community.admit_admits`** (wired)
 
@@ -216,9 +224,11 @@ Rests on: `Community.Unforgeable`
 | hb | `Engine.Codec.decode o.body = some Community.Body.admit` | [discharged] |
 | hkd | `o.kind = Community.Body.admit.tag` | [discharged] |
 | hreq | `o.reqs = [c, r, x]` | [discharged] |
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hr | `Community.V C ops r (Community.Fact.request c u d e l)` | [discharged] |
-| hx | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
+| hx | `Community.V C ops x (Community.Fact.ofApproval g)` | [discharged] |
+| hgc | `g.c = c` | [discharged] |
+| hgr | `g.req = r` | [discharged] |
 
 **`Community.valid_stays`** (wired)
 
@@ -352,43 +362,94 @@ Rests on: `Engine.Model.run`
 
 ## 🟡 Messages are sealed to members only.
 
-Rests on: `Community.Seal.Good`, `Engine.Model.run`, `Trust.NativeCrypto`
+Rests on: `Community.Seal.Good`, `Community.Unforgeable`, `Engine.Model.run`, `Trust.NativeCrypto`
 
-**`Community.recipients_iff`** (model)
-
-| premise | statement | tag |
-|---|---|---|
-| h | `Engine.Inv (Community.family C) s` | [discharged] |
-| hq | `s.queue = []` | [discharged] |
-| (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Community.recipients` | [model] |
-
-**`Community.members_iff`** (model)
+**`Community.post_sealed_current`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
+| hk | `Engine.View.eval s (Community.currentKey c) = some k` | [discharged] |
+| hp | `Community.V C s.ops x (Community.Fact.message c u d kid t n tm clump)` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Community.members` | [model] |
 
-**`Connection.recipients_iff_node`** (model)
+**`Community.post_community_key`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Engine.Inv (Connection.node C K) s` | [discharged] |
-| hq | `s.queue = []` | [discharged] |
-| (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Community.recipients` | [model] |
+| h | `Community.V C ops x (Community.Fact.message c u d k t n tm clump)` | [discharged] |
 
-**`Connection.members_iff_node`** (model)
+**`Community.attach_community_key`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Engine.Inv (Connection.node C K) s` | [discharged] |
+| h | `Community.V C ops x (Community.Fact.attachment c m u root len tm kid sealed)` | [discharged] |
+
+**`Community.rootKid_unique`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.RootKid C ops c k` | [discharged] |
+| h' | `Community.RootKid C ops c k'` | [discharged] |
+
+**`Community.communityKid_root`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
+| hk | `Engine.View.eval s (Community.communityKid c) = some kid` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
-| (about) | `code that does not run: Community.members` | [model] |
+
+**`Community.currentKey_community`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hk | `Engine.View.eval s (Community.currentKey c) = some k` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.send_community_key`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hk | `Engine.View.eval s (Community.currentKey c) = some k` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.key_kid`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.key c kid k)` | [discharged] |
+
+**`Community.wrap_signed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.wrap c kid e bx)` | [discharged] |
+
+**`Community.no_wrap_forgery`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hU | `Community.Unforgeable C ops Signed` | [crypto] |
+| h | `Community.V C ops x (Community.Fact.wrap c kid e bx)` | [discharged] |
+
+**`Community.unwrap_community`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.approveReq_wrap_admits`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
 
 **`Community.member_reads`** (wired)
 
@@ -459,11 +520,41 @@ Rests on: `Community.Seal.Good`, `Engine.Model.run`, `Trust.NativeCrypto`
 | a | `g ∈ fs` | [discharged] |
 | a | `Community.check C o' b' fs' = some g` | [discharged] |
 
-**`Community.approveReq_wrap_admits`** (wired)
+**`Community.recipients_iff`** (model)
 
 | premise | statement | tag |
 |---|---|---|
-| (none) | | |
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (about) | `code that does not run: Community.recipients` | [model] |
+
+**`Community.members_iff`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (about) | `code that does not run: Community.members` | [model] |
+
+**`Connection.recipients_iff_node`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Connection.node C K) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (about) | `code that does not run: Community.recipients` | [model] |
+
+**`Connection.members_iff_node`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Connection.node C K) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (about) | `code that does not run: Community.members` | [model] |
 
 ## ✅ Sessions are secret,
 
@@ -766,7 +857,7 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hv | `Community.V C ops y (Community.Fact.admission c u d e)` | [discharged] |
+| hv | `Community.V C ops y (Community.Fact.admission c u d e kid)` | [discharged] |
 
 **`Community.endpoint_derives`** (wired)
 
@@ -807,6 +898,44 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.trusted_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.counts_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| a | `f.depth = n` | [discharged] |
+| a | `Community.V C s.ops x (Community.Fact.ofApproval f)` | [discharged] |
+| a | `f.c = c` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.kept_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hx | `Community.V C s.ops x (Community.Fact.ofApproval f)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.inCut_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hx | `Community.V C s.ops x (Community.Fact.ofApproval f)` | [discharged] |
+| hz | `Community.V C s.ops z (Community.Fact.removal c u r k)` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 **`Community.refuse_nonmember`** (wired)
@@ -892,7 +1021,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| h | `Community.V C ops x (Community.Fact.removal c t u)` | [discharged] |
+| h | `Community.V C ops x (Community.Fact.removal c t u k)` | [discharged] |
 
 **`Community.removed_stays`** (wired)
 
@@ -917,9 +1046,99 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
-## 🟡 A removed member's node stops holding the community, and can rejoin only as a new device.
+## ✅ A removed member's node stops holding the community, and can rejoin only as a new device a current member approves.
 
-Rests on: `Engine.Model.run`
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`
+
+**`Community.no_self_readmission`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hz | `Community.V C s.ops z (Community.Fact.removal c u r k)` | [discharged] |
+| hroot | `∀ (u' : Engine.Id) (d : Community.Key) (k : ByteArray), ¬Community.V C s.ops c (Community.Fact.admission c u' d e k)` | [discharged] |
+| hout | `∀ (x : Engine.Id) (f : Community.Approve.Fact), Community.V C s.ops x (Community.Fact.ofApproval f) → f.c = c → f.re = e → (∃ e', Community.Admitted C s.ops …` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.outside_cut_admits_none`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hz | `Community.V C ops z (Community.Fact.removal c u r k)` | [discharged] |
+| hx | `Community.V C ops x (Community.Fact.ofApproval f)` | [discharged] |
+| ha | `Community.Admitted C ops c u f.dev e` | [discharged] |
+| hout | `¬Community.InCut C ops x f k` | [discharged] |
+| a | `Community.Above C ops x y` | [discharged] |
+
+**`Community.inside_cut_stays`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| he | `Engine.Extends ops ops'` | [discharged] |
+| hc | `Community.Counts C ops c x` | [discharged] |
+| hkeep | `∀ (y : Engine.Id) (g : Community.Approve.Fact), Community.Above C ops y x → Community.V C ops y (Community.Fact.ofApproval g) → Community.Kept C ops' c y g` | [discharged] |
+
+**`Community.removeMember_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| hsig | `∀ (m : ByteArray), C.verify d.pk m (Engine.Crypto.edSign d.sk m) = true` | [discharged] |
+| ho | `o ∈ (Engine.View.eval s (Community.removeMember c t d)).ops` | [discharged] |
+| he | `Engine.Extends s.ops ops'` | [discharged] |
+| hs | `ops' o.id = some o` | [discharged] |
+| hcap | `(Engine.View.eval s (Community.headsOf c [] (Engine.eval s (Community.admission.byUser.query [c, t])).rows)).length ≤ Community.maxHeads` | [base] |
+| hx | `Community.V C s.ops x (Community.Fact.ofApproval f)` | [discharged] |
+| hfc | `f.c = c` | [discharged] |
+| hdt | `Community.Admitted C s.ops c t f.dev e` | [discharged] |
+| hsmall | `∀ (y : Engine.Id) (g : Community.Approve.Fact), Community.V C s.ops y (Community.Fact.ofApproval g) → g.c = c → g.dev = f.dev → g.n < 2 ^ 64` | [discharged] |
+| hone | `∀ (y y' : Engine.Id) (g g' : Community.Approve.Fact), Community.V C s.ops y (Community.Fact.ofApproval g) → Community.V C s.ops y' (Community.Fact.ofApproval…` | [discharged] |
+
+**`Community.trust_order_free`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hs | `Engine.Reach (Community.family C) L s` | [discharged] |
+| ht | `Engine.Reach (Community.family C) M t` | [discharged] |
+| hd | `Engine.Distinct (L ++ M)` | [crypto] |
+| hsame | `∀ (o : Engine.Op), o ∈ L ↔ o ∈ M` | [discharged] |
+| qs | `s.queue = []` | [discharged] |
+| qt | `t.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.trust_agree`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hs | `Engine.Inv (Community.family C) s` | [discharged] |
+| ht | `Engine.Inv (Community.family C) t` | [discharged] |
+| qs | `s.queue = []` | [discharged] |
+| qt | `t.queue = []` | [discharged] |
+| hops | `s.ops = t.ops` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Community.approval_links`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.ofApproval f)` | [discharged] |
+
+**`Community.removal_cut`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hz | `Community.V C ops z (Community.Fact.removal c u r k)` | [discharged] |
+| hm | `(dv, h, m) ∈ k` | [discharged] |
+
+**`Community.connect_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.Inv (Community.family C) s` | [discharged] |
+| hq | `s.queue = []` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
 
 **`Community.mine_not_removed`** (wired)
 
@@ -1003,7 +1222,7 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | h | `Engine.Inv (Connection.node C K) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
-| hme | `∀ (me : Connection.B), Engine.View.eval s (Connection.meV c) = some me → ∃ u d, Community.Admitted C (Connection.community C s).ops c u d me ∧ Community.Live…` | [discharged] |
+| hme | `∀ (me : Connection.B), Engine.View.eval s (Connection.meV c) = some me → ∃ u d, Community.Trusted C (Connection.community C s).ops c u d me ∧ Community.Live …` | [discharged] |
 | hpeer | `∀ (peer : Connection.B), peer ∈ Connection.peersOf (Engine.eval s (Connection.established.byConn.query [cid])) → ∃ u, Community.Removed C (Connection.communi…` | [base] |
 
 **`Connection.rooms_trusted`** (wired)
@@ -2349,7 +2568,7 @@ Rests on: `Engine.Model.run`
 | hb | `Engine.Codec.decode o.body = some (Community.Body.request d e cs bs)` | [discharged] |
 | hkd | `o.kind = (Community.Body.request d e cs bs).tag` | [discharged] |
 | hreq | `o.reqs = [c, i]` | [discharged] |
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hi | `Community.V C ops i (Community.Fact.invitation c issuer k l)` | [discharged] |
 | hcs | `C.verify d (Community.signed o (Community.Body.request d e cs bs)) cs = true` | [discharged] |
 | hbs | `C.verify k (Community.signed o (Community.Body.request d e cs bs)) bs = true` | [discharged] |
@@ -2361,10 +2580,12 @@ Rests on: `Engine.Model.run`
 | hx | `ops x = some o` | [discharged] |
 | hb | `Engine.Codec.decode o.body = some (Community.Body.approve s)` | [discharged] |
 | hkd | `o.kind = (Community.Body.approve s).tag` | [discharged] |
-| hreq | `o.reqs = [c, r, ra]` | [discharged] |
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hreq | `o.reqs = c :: r :: ra :: ys` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hr | `Community.V C ops r (Community.Fact.request c u d e l)` | [discharged] |
-| ha | `Community.V C ops ra (Community.Fact.admission c a da ea)` | [discharged] |
+| ha | `Community.V C ops ra (Community.Fact.admission c a da ea ka)` | [discharged] |
+| hys | `Engine.All2 (fun y g => Community.V C ops y g) ys (List.map Community.Fact.ofApproval ps)` | [discharged] |
+| hlk | `Community.Approve.links o c a da ea (decide (a = c ∧ da = d0 ∧ ea = e0)) ps = some t` | [discharged] |
 | hl | `l = true → a = u` | [discharged] |
 | hd | `da ≠ d` | [discharged] |
 | hs | `C.verify da (Community.signed o (Community.Body.approve s)) s = true` | [discharged] |
@@ -2377,9 +2598,11 @@ Rests on: `Engine.Model.run`
 | hb | `Engine.Codec.decode o.body = some Community.Body.admit` | [discharged] |
 | hkd | `o.kind = Community.Body.admit.tag` | [discharged] |
 | hreq | `o.reqs = [c, r, x]` | [discharged] |
-| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hc | `Community.V C ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hr | `Community.V C ops r (Community.Fact.request c u d e l)` | [discharged] |
-| hx | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
+| hx | `Community.V C ops x (Community.Fact.ofApproval g)` | [discharged] |
+| hgc | `g.c = c` | [discharged] |
+| hgr | `g.req = r` | [discharged] |
 
 **`Community.connect_admitted`** (wired)
 
@@ -2391,9 +2614,12 @@ Rests on: `Engine.Model.run`
 | hb | `Engine.Codec.decode o.body = some Community.Body.admit` | [discharged] |
 | hkd | `o.kind = Community.Body.admit.tag` | [discharged] |
 | hreq | `o.reqs = [c, r, x]` | [discharged] |
-| hc | `Community.V C s.ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
+| hc | `Community.V C s.ops c (Community.Fact.admission c c d0 e0 k0)` | [discharged] |
 | hr | `Community.V C s.ops r (Community.Fact.request c u d e l)` | [discharged] |
-| hx | `Community.V C s.ops x (Community.Fact.approval c r a)` | [discharged] |
+| hx | `Community.V C s.ops x (Community.Fact.ofApproval g)` | [discharged] |
+| hgc | `g.c = c` | [discharged] |
+| hgr | `g.req = r` | [discharged] |
+| hct | `Community.Counts C s.ops c x` | [discharged] |
 | hnr | `∀ (u' : Engine.Id) (e' : Community.Key), Community.Admitted C s.ops c u' d e' → ¬Community.Removed C s.ops c u'` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 

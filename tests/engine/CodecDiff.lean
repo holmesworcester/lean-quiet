@@ -121,13 +121,13 @@ def op : Gen Op := return Op.make (← byte) (← list id32) (← bytes)
 
 def cBody : Gen Community.Body := do
   match ← below 21 with
-  | 0 => return .root (← bytes) (← bytes) (← bytes)
+  | 0 => return .root (← bytes) (← bytes) (← bytes) (← bytes)
   | 1 => return .invite (← bytes) (← coin) (← bytes)
   | 2 => return .request (← bytes) (← bytes) (← bytes) (← bytes)
   | 3 => return .grant (← bytes)
   | 4 => return .remove (← bytes)
   | 5 => return .post (← bytes) (← bytes) (← nat) (← nat) (← bytes)
-  | 6 => return .wrap (← bytes) (← bytes) (← bytes)
+  | 6 => return .wrap (← bytes) (← bytes)
   | 7 => return .profile (← bytes) (← nat) (← bytes)
   | 8 => return .attach (← bytes) (← nat) (← nat) (← bytes) (← bytes) (← bytes)
   | 9 => return .react (← bytes) (← nat) (← bytes)
@@ -145,17 +145,17 @@ def cBody : Gen Community.Body := do
 
 def cFact : Gen Community.Fact := do
   match ← below 20 with
-  | 0 => return .admission (← id32) (← id32) (← bytes) (← bytes)
+  | 0 => return .admission (← id32) (← id32) (← bytes) (← bytes) (← bytes)
   | 1 => return .invitation (← id32) (← id32) (← bytes) (← coin)
   | 2 => return .admin (← id32) (← id32)
-  | 3 => return .removal (← id32) (← id32) (← id32)
+  | 3 => return .removal (← id32) (← id32) (← id32) (← list (return ((← bytes), (← id32), (← nat))))
   | 4 => return .message (← id32) (← id32) (← bytes) (← bytes) (← bytes) (← nat) (← nat)
   | 5 => return .wrap (← id32) (← bytes) (← bytes) (← bytes)
   | 6 => return .profile (← id32) (← id32) (← bytes) (← nat)
   | 7 => return .attachment (← id32) (← id32) (← id32) (← id32) (← nat) (← nat) (← bytes) (← bytes)
   | 8 => return .react (← id32) (← id32) (← id32) (← bytes) (← nat)
   | 9 => return .request (← id32) (← id32) (← bytes) (← bytes) (← coin)
-  | 10 => return .approval (← id32) (← id32) (← id32)
+  | 10 => return .approval (← id32) (← id32) (← id32) (← bytes) (← id32) (← bytes) (← bytes) (← id32) (← nat) (← id32) (← nat)
   | 11 => return .secret (← bytes) (← bytes)
   | 12 => return .accepted (← id32) (← bytes)
   | 13 => return .joining (← id32) (← bytes) (← list bytes) (← id32) (← bytes) (← bytes) (← nat)

@@ -8,7 +8,7 @@ open Engine Data Engine.Sync.Inbox
 -- Kernel witnesses establish the queue premises, not the cryptographic
 -- validity of these roots; the native regression checks their valid status.
 def job (name : String) (mine : Bool) : Job :=
-  ⟨[Community.root (Community.Device.named name) (sha256 name.toUTF8)], mine⟩
+  ⟨[Community.root (Community.Device.named name) (sha256 name.toUTF8) .empty], mine⟩
 
 def oldLocal := job "old local" true
 def nextLocal := job "next local" true

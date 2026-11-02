@@ -44,6 +44,115 @@ handshakes with a key of its own, not with a community device key.
   distinct users as another invitation's threshold counts. libquiet took
   the same decision on 2026-10-30.
 
+## Decisions (user, 2026-11-01): the causal cut
+
+- **A removal records which approvals its author had seen; those keep
+  admitting.** Any other approval by the removed user's devices admits
+  no one, and the device it admitted needs one fresh approval from a
+  current member. No cascade: nobody admitted inside the cut is cast
+  out. Trust is a function of the op set only, so every device reaches
+  the same answer. This is a wire change (approved).
+- **Not a counter or a timestamp.** The removed member holds its keys
+  and can sign a new approval with an old sequence number. The kept set
+  is named by hashes: per-device approval chains, and the removal cites
+  each removed device's chain head.
+- **The cut is part of the trust rule, not of op validity.** Removed
+  members' ops stay Valid (the 2026-10-31 decision).
+
+### How it is built
+
+**Approvals are hash-chained per device.** An approval cites the
+community, the request and its approver's admission, then:
+- `up`: the approval that admitted its approver (an approval of a
+  request for exactly that admission). The founder's device, admitted by
+  the root, cites none. Its fact carries `depth`: up's + 1, or 0.
+- `prev`: its device's previous approval, if any. Its fact carries `n`,
+  its place in the chain: prev's + 1, or 0.
+
+Both are requirements, so the op's id fixes them, and the validator
+reads `depth` and `n` off the cited facts: they are never claimed
+(`approval_links`). The approval fact also names the admission it gives
+(`ru`, `rd`, `re`), which is how the trust rule finds the approvals of a
+device's requests (`approval.byRequester`). A device's chain is listed
+by place (`approval.byDev`), and its newest approval is the head.
+
+**A removal cites each removed device's chain head.** After its four
+requirements, a removal cites the newest approval of every device of
+the target its author holds (`removeMember`, `headsOf`). Its fact
+carries its cut: each head's device, id and place (`removal_cut`). An
+approval x is inside cut k when k names a head h of x's device and x is
+h or behind it along `prev` (`Behind`, `InCut`). A fork, an approval
+signed later naming an old place, is behind no head, because the head's
+past is fixed by its hash.
+
+**What counts.** An approval x is kept when it is inside the cut of
+every removal of every user its device is admitted into (`Kept`): one
+device, two users, as for liveness. It counts when it is kept and its
+`up` counts, down to the founder's device's (`Counts`; by depth, so the
+walk is exact). An admission is trusted when it is the root's, or an
+approval of a request for it counts (`Trusted`). The trust rule lets a
+node key in when a live device has a trusted admission under it
+(`connect_iff`). The people list still shows every admitted live
+device (`present_iff`): an admission that is Valid but untrusted is
+shown, as a removed member's ops are, but not let onto the network.
+
+**Why every cut, not any.** With several Valid removals of one user, an
+approval must be inside each one's cut. Taking any one would let the
+removed member widen its own cut: a later self-removal, or a removal by
+a colluding removed admin, citing heads it signed after the first
+removal. Taking every cut means later removals only narrow what counts.
+
+**The cases.**
+- *Equivocation.* A removed device signs an approval naming an old
+  place (a fork): it is not behind the head the removal cites (`Behind`
+  follows `prev` ids, not numbers), so it admits no one. A bare
+  per-device counter would let it in (the `bare-counter` mutant).
+- *Concurrent removals.* Two admins remove the same user, each having
+  seen a different part of its chain: what counts is what both saw.
+  Approvals only one remover saw stop counting, and their admittees
+  need a fresh approval. That is the price of reaching one answer
+  without ordering the removals.
+- *Mutual removals.* Each removal keeps what its author saw of the
+  other's chain: both removed, and the members each had admitted, as
+  seen by the other, stay.
+- *A removal by an admin later removed.* It stands (Valid), and so does
+  its cut: the later removal of its author narrows the author's own
+  approvals, not the earlier removal's cut.
+- *Out of order.* A removal cites its heads, so it is not Valid until
+  they arrive; trust reads the op set only, so arrival order does not
+  matter (`trust_order_free`).
+- *Two steps.* A removed member's out-of-cut approval admits a fresh
+  user, who approves the removed member's new device: the second
+  approval's `up` is the first, which does not count, so neither does
+  the second (`outside_cut_admits_none`).
+- *Self-removal.* A member who leaves cites its own heads; leaving with
+  fewer cuts its own admittees, who then need a fresh approval.
+
+**The notice grows.** A removal's requirement closure now holds the
+heads it cites, their chains (`prev`) and the approvals up to the
+founder's (`up`), so the notice a removed node is given carries them
+too. All of it stays within the walk's budget (`cfg.walk`, 100000 ops,
+engine/sync/Conn.lean), far above any approval chain.
+
+**Citation bound.** The intake caps an op at 64 requirements; a removal
+cites four, then at most 60 heads (`maxHeads`), one per device of the
+removed user with an approval: the remover flow takes the first 60
+whatever the store holds (`removeMember_reqs_le`). An approval cites at
+most five (`approve_reqs_le`). A user
+with more than 60 approving devices loses, on removal, the approvals of
+the devices past the 60th the remover's list holds (their admittees need
+a fresh approval); a Merkle root over the heads would lift the bound.
+
+**Cost.** Each trust check walks an admission's approval up to the
+founder's: per step one list (`approval.byRequester`), plus the device's
+admissions (`admission.byDevice`) and each of its users' removals
+(`removal.byUser`), and, only for a removed user, the device's chain
+(`approval.byDev`, one list) walked in memory from the head down to the
+approval's place. So a check reads at most 2 + A·(H + 1)·(2 + 2D) lists,
+for A approvals of a device's requests, H the deepest approval and D a
+device's admissions; the walk reads no list. In a community with no
+removals the chain is never read.
+
 ## One device, two users
 
 A device key may be admitted into more than one user of a community: it
@@ -95,8 +204,9 @@ each of them is admitted into (`removalsAt`, `removals_at`). Holding
 them, that node judges its own devices cut.
 
 Devices are monotone and node keys are not. A node key whose devices
-are all cut is let in again once a new, live device is admitted under
-it: that is the rejoin.
+are all cut is let in again once a new, live device has a trusted
+admission under it: that is the rejoin, approved by a current member
+(the causal cut, above).
 
 ## A node's key (E3)
 
@@ -139,9 +249,11 @@ device admitted under key e is live (`connect_iff`; "One device, two
 users").
 `trusts c me peer` keeps its shape, with `me` this node's key while it
 is in c (`meV_node`). So a node whose key names a removed device is let
-in again once a device of a live user is admitted under the same key
+in again once a live device has a trusted admission under the same key
 (`connect_iff`: a removed device under the key does not block it). That is how a removed member's node rejoins: it
-writes a new device, the members approve it, and nothing else changes.
+writes a new device, a current member approves it, and nothing else
+changes. Its own approvals past its removal's cut do not count
+(`no_self_readmission`).
 `recipients c`, the keys content keys are wrapped to, is the same set
 of keys.
 
@@ -402,6 +514,10 @@ validators and the intents. All are theorems in the axiom audit.
 | Whose keys does the handshake run on? | `opened_endpoint`, `established_endpoint`, `endpoint_derives` |
 | How is a node key tied to a device? | `endpoint_signed` |
 | Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `meV_node`, `members_iff`, `recipients_iff` |
+| Can a removed member readmit itself? | `no_self_readmission`, `outside_cut_admits_none` |
+| Does a removal cast out whom its target admitted? | `inside_cut_stays`, `removeMember_keeps` (no cascade) |
+| Is trust the same on every node? | `trust_agree`, `trust_order_free` |
+| How is the cut read? | `trusted_iff`, `counts_iff`, `kept_iff`, `inCut_iff`, `approval_links`, `removal_cut` |
 | Which removals is a node owed? | `removals_at` |
 | Does a removed node still hold the community? | `mine_not_removed` |
 | How does it rejoin? | `rejoin_fresh`, `join_new_device` |
@@ -458,15 +574,21 @@ removal and not his message.
 
 ## Not covered
 
-- **A removed user is not yet kept off the network.** Its invitations
-  and approvals stay Valid (above), so it can invite and approve a new
-  device that names its own node's key. That device is a live new user,
-  so the trust rule (`connect_iff`) lets the
-  removed member's node back in, at every node those ops reach. One node
-  unaware of the removal, or one colluding member, is enough for them to
-  start spreading. `removed_stays_removed` still holds (the old user
-  stays removed, its devices cut), but it does not keep the node out.
-  The fix is the user's to choose; `scenario` pins today's behaviour.
+- **One colluding current member** can still approve a removed
+  member's new device, as it can approve anyone: the causal cut keeps a
+  removed user from readmitting itself (`no_self_readmission`), not
+  from being readmitted by consent.
+- **The honest remover's cut is complete only for chains it saw
+  unforked:** `removeMember` cites each device's newest approval, which
+  has every earlier one behind it when the device signed one chain
+  (`removeMember_keeps`, which takes that, places below 2^64 and at most
+  `maxHeads` approving devices as premises). An equivocating device's
+  other branch is not kept.
+- **Concurrent removals** keep only what every remover saw (above);
+  that is not a cascade from one removal, but it can cost an admittee a
+  fresh approval.
+- **The people list** shows every admitted live device, trusted or not
+  (`present_iff`); only the trust rule reads the cut.
 - The bare handshake replies an entry point sends: `answer_trusted` and
   `resend_trusted` are per step; that an entry point's bare frames are
   only those is read from the code. (The entry-point laws hold of the
@@ -479,5 +601,6 @@ removal and not his message.
 - Sync wire ops (round claims, have, want) name ids of synced rooms or
   ids the peer sent. That is tested, not proven (`have_shown` in
   SYNC.md).
-- A removed member's node keeps what it already holds; content keys are
-  not rotated.
+- A removed member's node keeps what it already holds, and can read new
+  posts that reach it some other way: content keys are not rotated.
+  Rotation is the next step.

@@ -8,19 +8,19 @@ open Engine Codec
 
 theorem check_invitation {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c issuer : Id}
     {k : Key} {l : Bool} (h : check C o b fs = some (.invitation c issuer k l)) :
-    ∃ s d0 e0 d e, b = .invite k l s ∧ fs = [.admission c c d0 e0, .admission c issuer d e] ∧
+    ∃ s d0 e0 k0 d e ka, b = .invite k l s ∧ fs = [.admission c c d0 e0 k0, .admission c issuer d e ka] ∧
       o.reqs.head? = some c ∧ C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
   rename_i b r a
-  rcases b with ⟨k', l', s⟩; rcases r with ⟨c0, u0, d0, e0⟩; rcases a with ⟨c', u, d, e⟩
+  rcases b with ⟨k', l', s⟩; rcases r with ⟨c0, u0, d0, e0, k0⟩; rcases a with ⟨c', u, d, e, ka⟩
   simp only [Invitation.check] at h
   split at h
   · rename_i hc
     simp only [Option.map_some, Option.some.injEq, Fact.ofInvitation.injEq, Invitation.Fact.mk.injEq] at h
     obtain ⟨rfl, rfl, rfl, rfl⟩ := h
     obtain ⟨h1, rfl, rfl, h5⟩ := hc
-    exact ⟨_, _, _, _, _, rfl, rfl, h1, h5⟩
+    exact ⟨_, _, _, _, _, _, _, rfl, rfl, h1, h5⟩
   · simp at h
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
@@ -28,12 +28,12 @@ variable {C : Crypto} {ops : Id → Option Op}
 /-- Every invitation was signed by a device admitted into its issuer. -/
 theorem invitation_issued {i c issuer : Id} {k : Key} {l : Bool}
     (h : V C ops i (.invitation c issuer k l)) :
-    ∃ o b s z d e, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
-      V C ops z (.admission c issuer d e) ∧ C.verify d (signed o b) s = true := by
+    ∃ o b s z d e k, ops i = some o ∧ (decode o.body : Option Body) = some b ∧
+      V C ops z (.admission c issuer d e k) ∧ C.verify d (signed o b) s = true := by
   obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
-  obtain ⟨s, d0, e0, d, e, rfl, rfl, _, hs⟩ := check_invitation hv
+  obtain ⟨s, d0, e0, k0, d, e, k, rfl, rfl, _, hs⟩ := check_invitation hv
   obtain ⟨_, z, _, _, hz⟩ := all2_two hr
-  exact ⟨o, _, s, z, d, e, hx, hb, hz, hs⟩
+  exact ⟨o, _, s, z, d, e, k, hx, hb, hz, hs⟩
 
 /-- **Nobody is admitted without a member's approval.** Every admission
 is the founder's (the root itself), or its admit cites exactly a Valid
@@ -41,57 +41,64 @@ request for that very device and one Valid approval of it. The approval
 was signed by a device admitted into the approving user, other than the
 requesting device, and for a device link the approving user is the
 request's own. The bearer key alone admits nobody. -/
-theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e : Key}
-    (h : V C ops y (.admission c u d e)) :
+theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e kid : Key}
+    (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
-    ∃ o r x a l da ea ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
-      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea) ∧ da ≠ d ∧
-      (l = true → a = u) := by
-  rcases admission_approved hk h with h | ⟨o, r, x, a, l, hy, _, hreq, hr, hx⟩
+    ∃ o r x l ea ka ra, ∃ g : Approve.Fact, ops y = some o ∧ o.reqs = [c, r, x] ∧
+      V C ops r (.request c u d e l) ∧ V C ops x (.ofApproval g) ∧ g.c = c ∧ g.req = r ∧
+      V C ops ra (.admission c g.u g.dev ea ka) ∧ g.dev ≠ d ∧ (l = true → g.u = u) := by
+  rcases admission_approved hk h with h | ⟨o, r, x, l, g, hy, _, hreq, hr, hx, hgc, hgr, hgu, hgd, hge⟩
   · exact Or.inl h
-  · obtain ⟨_, _, ra, u', d', e', l', da, ea, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+  · obtain ⟨_, _, ra, _, l', ea, ka, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+    rw [hgc, hgr, hgu, hgd, hge] at hr'
     have := spec_det hr hr'
-    simp only [Verdict.valid.injEq, Fact.request.injEq] at this
-    obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
-    exact Or.inr ⟨o, r, x, a, l, da, ea, ra, hy, hreq, hr, hx, hra, hd, hl⟩
+    simp only [Verdict.valid.injEq, Fact.ofRequest.injEq, Request.Fact.mk.injEq] at this
+    obtain ⟨_, _, _, _, rfl⟩ := this
+    rw [hgc] at hra
+    exact Or.inr ⟨o, r, x, l, ea, ka, ra, g, hy, hreq, hr, hx, hgc, hgr, hra, hgd ▸ hd, hgu ▸ hl⟩
 /-- **Only the issuer's user approves a device link's request**
 (`link_approved_by_issuer`). A Valid approval by user a of a Valid
 request that redeems a device link is by the request's own user, which
 is the issuer of the device link it redeems: a Valid invitation of c,
 with `link`, issued by a. The approval was signed by a device admitted
 into a, not the requesting one. -/
-theorem link_approved_by_issuer (hk : Keyed ops) {x r c a u : Id} {d e : Key}
-    (hx : V C ops x (.approval c r a)) (hr : V C ops r (.request c u d e true)) :
-    a = u ∧ (∃ o i k, ops r = some o ∧ o.reqs = [c, i] ∧ V C ops i (.invitation c a k true)) ∧
-      ∃ ra da ea, V C ops ra (.admission c a da ea) ∧ da ≠ d := by
-  obtain ⟨_, _, ra, u', d', e', l', da, ea, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+theorem link_approved_by_issuer (hk : Keyed ops) {x r c u : Id} {d e : Key} {g : Approve.Fact}
+    (hx : V C ops x (.ofApproval g)) (hgc : g.c = c) (hgr : g.req = r)
+    (hr : V C ops r (.request c u d e true)) :
+    g.u = u ∧ (∃ o i k, ops r = some o ∧ o.reqs = [c, i] ∧ V C ops i (.invitation c g.u k true)) ∧
+      ∃ ra ea ka, V C ops ra (.admission c g.u g.dev ea ka) ∧ g.dev ≠ d := by
+  obtain ⟨_, _, ra, _, l', ea, ka, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+  rw [hgc, hgr] at hr'
   have := spec_det hr hr'
-  simp only [Verdict.valid.injEq, Fact.request.injEq] at this
-  obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
-  have hau := hl rfl
-  subst hau
-  obtain ⟨o, _, i, issuer, k, _, _, ho, _, hreq, hi, hu, _, _⟩ := request_invited hk hr
-  rw [if_pos rfl] at hu
-  subst hu
-  exact ⟨rfl, ⟨o, i, k, ho, hreq, hi⟩, ra, da, ea, hra, hd⟩
+  simp only [Verdict.valid.injEq, Fact.ofRequest.injEq, Request.Fact.mk.injEq] at this
+  obtain ⟨_, hu, hdd, _, hll⟩ := this
+  subst hll
+  have hau : g.u = u := (hl rfl).trans hu.symm
+  obtain ⟨o, _, i, issuer, k, _, _, ho, _, hreq, hi, hiu, _, _⟩ := request_invited hk hr
+  rw [if_pos rfl] at hiu
+  subst hiu
+  rw [hgc] at hra
+  exact ⟨hau, ⟨o, i, k, ho, hreq, hau ▸ hi⟩, ra, ea, ka, hra, hdd ▸ hd⟩
 
 /-- **A linked device joins its issuer's user** (`link_admits_issuer`).
 Every admission is the founder's, or cites a Valid request and one Valid
 approval of it (`admission_needs_approval`); when that request redeems a
 device link, the admission is into the link's issuer, and the approval
 is that same user's, signed by another of its devices. -/
-theorem link_admits_issuer (hk : Keyed ops) {y c u : Id} {d e : Key}
-    (h : V C ops y (.admission c u d e)) :
+theorem link_admits_issuer (hk : Keyed ops) {y c u : Id} {d e kid : Key}
+    (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
     ∃ o r x l, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
       (l = true → (∃ or i k, ops r = some or ∧ or.reqs = [c, i] ∧ V C ops i (.invitation c u k true)) ∧
-        V C ops x (.approval c r u) ∧ ∃ ra da ea, V C ops ra (.admission c u da ea) ∧ da ≠ d) := by
-  rcases admission_needs_approval hk h with h | ⟨o, r, x, a, l, _, _, _, hy, hreq, hr, hx, _, _, _⟩
+        ∃ g : Approve.Fact, V C ops x (.ofApproval g) ∧ g.u = u ∧
+          ∃ ra ea ka, V C ops ra (.admission c u g.dev ea ka) ∧ g.dev ≠ d) := by
+  rcases admission_needs_approval hk h with h | ⟨o, r, x, l, _, _, _, g, hy, hreq, hr, hx, hgc, hgr, _, _, _⟩
   · exact Or.inl h
   · refine Or.inr ⟨o, r, x, l, hy, hreq, hr, fun hl => ?_⟩
     subst hl
-    obtain ⟨rfl, hi, ra', da', ea', hra', hd'⟩ := link_approved_by_issuer hk hx hr
-    exact ⟨hi, hx, ra', da', ea', hra', hd'⟩
+    obtain ⟨hgu, hi, ra', ea', ka', hra', hd'⟩ := link_approved_by_issuer hk hx hgc hgr hr
+    rw [hgu] at hi hra'
+    exact ⟨hi, g, hx, hgu, ra', ea', ka', hra', hd'⟩
 
 /-- **A device link is a link of its own kind, and carries no secret but
 its invitation's bearer seed** (`issue_link`). What `issue` writes for a
@@ -113,29 +120,31 @@ theorem issue_link (c issuerAdm : Id) (by_ : Device) (key secret : ByteArray)
 member may approve a device link's request. A negative control: never
 run. -/
 def Approve.checkAnyUser (C : Crypto) (o : Op) :
-    Approve.Body → Root.Fact → Request.Fact → Root.Fact → Option Approve.Fact
-  | ⟨s⟩, ⟨c, u0, _, _⟩, ⟨c1, _, d, _, _⟩, ⟨c2, a, da, _⟩ =>
+    Approve.Body → Root.Fact → Request.Fact → Root.Fact → Option (List Approve.Fact) → Option Approve.Fact
+  | ⟨s⟩, ⟨c, u0, d0, e0, _⟩, ⟨c1, u, d, e, _⟩, ⟨c2, a, da, ea, _⟩, ls =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c1 = c ∧ c2 = c ∧ da ≠ d ∧
       C.verify da (signedBy o (Approve.Body.unsigned ⟨s⟩)) s
-    then some ⟨c, o.reqs.getD 1 .empty, a⟩ else none
+    then (ls.bind (Approve.links o c a da ea (decide (a = c ∧ da = d0 ∧ ea = e0)))).map fun (up, depth, prev, n) =>
+      ⟨c, o.reqs.getD 1 .empty, a, da, u, d, e, up, depth, prev, n⟩
+    else none
 
 /-- **Without the link clause, another user approves a device link**
-(`anyUser_approves_link`): where the mutant takes user a's signed yes to
-user u's device link request, the running check refuses it. So
+(`anyUser_approves_link`): where the mutant takes the founder's signed
+yes to user u's device link request, the running check refuses it. So
 `link_approved_by_issuer` rests on that clause. -/
-theorem anyUser_approves_link (C : Crypto) (o : Op) (s : ByteArray) {c a u : Id} {d e d0 e0 da ea : Key}
-    (hc : o.reqs.head? = some c) (hau : a ≠ u) (hd : da ≠ d)
-    (hv : C.verify da (signed o (.approve s)) s = true) :
-    Approve.checkAnyUser C o ⟨s⟩ ⟨c, c, d0, e0⟩ ⟨c, u, d, e, true⟩ ⟨c, a, da, ea⟩ =
-      some ⟨c, o.reqs.getD 1 .empty, a⟩ ∧
-    Approve.check C o ⟨s⟩ ⟨c, c, d0, e0⟩ ⟨c, u, d, e, true⟩ ⟨c, a, da, ea⟩ = none := by
-  simp [Approve.checkAnyUser, Approve.check, hc, hau, hd, hv]
+theorem anyUser_approves_link (C : Crypto) (o : Op) (s : ByteArray) {c u : Id} {d e d0 e0 k0 : Key}
+    (hc : o.reqs.head? = some c) (hcu : c ≠ u) (hd : d0 ≠ d)
+    (hv : C.verify d0 (signed o (.approve s)) s = true) :
+    Approve.checkAnyUser C o ⟨s⟩ ⟨c, c, d0, e0, k0⟩ ⟨c, u, d, e, true⟩ ⟨c, c, d0, e0, k0⟩ (some []) =
+      some ⟨c, o.reqs.getD 1 .empty, c, d0, u, d, e, .empty, 0, .empty, 0⟩ ∧
+    Approve.check C o ⟨s⟩ ⟨c, c, d0, e0, k0⟩ ⟨c, u, d, e, true⟩ ⟨c, c, d0, e0, k0⟩ (some []) = none := by
+  simp [Approve.checkAnyUser, Approve.check, Approve.links, hc, hcu, hd, hv]
 
 /-- `Request.check` naming a new user for every request, a device link's
 too. A negative control: never run. -/
 def Request.checkNewUser (C : Crypto) (o : Op) :
     Request.Body → Root.Fact → Invitation.Fact → Option Request.Fact
-  | ⟨d, e, cs, bs⟩, ⟨c, u0, _, _⟩, ⟨c', _, k, l⟩ =>
+  | ⟨d, e, cs, bs⟩, ⟨c, u0, _, _, _⟩, ⟨c', _, k, l⟩ =>
     if o.reqs.head? = some c ∧ u0 = c ∧ c' = c ∧ C.verify d (signedBy o (Request.Body.unsigned ⟨d, e, cs, bs⟩)) cs ∧
       C.verify k (signedBy o (Request.Body.unsigned ⟨d, e, cs, bs⟩)) bs
     then some ⟨c, o.id, d, e, l⟩ else none
@@ -144,12 +153,12 @@ def Request.checkNewUser (C : Crypto) (o : Op) :
 on the same device link, the running check names the issuer's user and
 the mutant the request's own new one. So `link_admits_issuer` rests on
 `Request.check`'s `if l then issuer`. -/
-theorem newUser_links (C : Crypto) (o : Op) {d e cs bs : ByteArray} {c issuer : Id} {d0 e0 k : Key}
+theorem newUser_links (C : Crypto) (o : Op) {d e cs bs : ByteArray} {c issuer : Id} {d0 e0 k0 k : Key}
     (hc : o.reqs.head? = some c) (hi : issuer ≠ o.id)
     (hd : C.verify d (signed o (.request d e cs bs)) cs = true)
     (hk : C.verify k (signed o (.request d e cs bs)) bs = true) :
-    Request.check C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, issuer, d, e, true⟩ ∧
-    Request.checkNewUser C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, o.id, d, e, true⟩ ∧
+    Request.check C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0, k0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, issuer, d, e, true⟩ ∧
+    Request.checkNewUser C o ⟨d, e, cs, bs⟩ ⟨c, c, d0, e0, k0⟩ ⟨c, issuer, k, true⟩ = some ⟨c, o.id, d, e, true⟩ ∧
     issuer ≠ o.id := by
   simp [Request.check, Request.checkNewUser, hc, hd, hk, hi]
 

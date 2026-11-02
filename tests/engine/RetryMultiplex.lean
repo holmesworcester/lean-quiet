@@ -11,7 +11,7 @@ open Engine Engine.Sync Community Tests Std.Async Std.Net
 
 def fam : Family Fact := family ed25519
 def author := Device.named "multiplex-author"
-def rootOp := root author (keyOf author)
+def rootOp := root author (keyOf author) .empty
 def cid (i : Nat) := sha256 s!"multiplex-session-{i}".toUTF8
 def peer (i : Nat) := cryptoSeal.pub (Bytes.digest s!"multiplex-node-key-{i}".toUTF8)
 

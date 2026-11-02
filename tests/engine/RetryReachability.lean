@@ -10,7 +10,7 @@ open Engine Engine.Sync Community Tests Codec Connection
 
 def author := Device.named "multiplex-authenticated-author"
 def static (d : Device) := sha256 ("test node ".toUTF8 ++ d.pk)
-def rootOp := root author (keyOf author)
+def rootOp := root author (keyOf author) .empty
 def fam := Connection.node ed25519 sodium
 
 def run (t : Checks) : IO Unit := do

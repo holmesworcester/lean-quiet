@@ -27,13 +27,16 @@ def bob := Device.named "vacuity-bob"
 def carol := Device.named "vacuity-carol"
 def mallory := Device.named "vacuity-mallory"
 def bearer := Device.named "vacuity-invitation"
-def r := root alice (keyOf alice)
+/-- The community's content key, and its id, which the root names. -/
+def communityKey : Key32 := ⟨⟨Array.replicate 32 41⟩, rfl⟩
+def keyId := kidOf cryptoSeal communityKey
+def r := root alice (keyOf alice) keyId
 def c := r.id
 def invitation := invite c c alice bearer.pk false
 def requestB := request c invitation.id bob (keyOf bob) bearer.sk
 def approval := approve c requestB.id c alice
 def admission := admit c requestB.id approval.id
-def message := post c admission.id bob "content-key-1".toUTF8 "Hello Alice, this is Bob.".toUTF8 1 29880000
+def message := post c admission.id bob keyId "Hello Alice, this is Bob.".toUTF8 1 29880000
 def grantB := grant c c c admission.id alice
 def removeB := remove c c c admission.id alice
 def removeA := remove c admission.id grantB.id c bob
@@ -49,10 +52,15 @@ def requestA2 := request c linkInvitation.id alice2 (keyOf alice2) linkBearer.sk
 def linkApproval := approve c requestA2.id c alice
 def linkAdmission := admit c requestA2.id linkApproval.id
 def linked : List Op := before ++ [linkInvitation, requestA2, linkApproval, linkAdmission]
-def rootFact := Fact.admission c c alice.pk (keyOf alice)
-def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob)
-def messageFact := Fact.message c requestB.id bob.pk "content-key-1".toUTF8
+def rootFact := Fact.admission c c alice.pk (keyOf alice) keyId
+def bobFact := Fact.admission c requestB.id bob.pk (keyOf bob) keyId
+def messageFact := Fact.message c requestB.id bob.pk keyId
   "Hello Alice, this is Bob.".toUTF8 1 29880000
+/-- Alice's approval of Bob: the founder's device's first, so no links. -/
+def approvalF : Approve.Fact := ⟨c, requestB.id, c, alice.pk, requestB.id, bob.pk, keyOf bob, .empty, 0, .empty, 0⟩
+def approvalFact := Fact.ofApproval approvalF
+def removeBFact := Fact.removal c requestB.id c []
+def removeAFact := Fact.removal c c requestB.id []
 
 
 end Vacuity.Identity

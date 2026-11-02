@@ -9,7 +9,7 @@ namespace Vacuity.IdentityMessages
 open Engine Community Codec Tests Kinds Vacuity.Identity Vacuity.IdentityTrust
 set_option linter.defProp false
 
-def content : Key32 := ⟨⟨Array.replicate 32 41⟩, rfl⟩
+def content : Key32 := communityKey
 def nonce : Nonce24 := ⟨⟨Array.replicate 24 43⟩, rfl⟩
 def plaintext := "Hello Alice — a sealed message from Bob."
 def kid := kidOf cryptoSeal content
@@ -116,8 +116,9 @@ def main : IO UInt32 := do
     ((Profile.author (m := ViewLaws.Model) c d.author).run (run scene)).1.1 == "Bob")
   t.ok "owned row exact author, plaintext and time" (own.any fun (d,deps) =>
     d.author == requestB.id && d.text == plaintext && d.time == 29880000 && deps.size == 2)
+  -- the fixture's own post (counter 1) is under the community key too
   t.ok "readable includes both posts in counter order despite reverse times"
-    (visible.map (fun pf => pf.1.2) == [post1.id,post2.id])
+    (visible.length == 3 && (visible.map (fun pf => pf.1.2)).filter (· != message.id) == [post1.id,post2.id])
   t.ok "message comparator prioritizes counter" (Pos.cmp (sortOf fact1,post1.id) (sortOf fact2,post2.id) == .lt)
   t.ok "profile view names Bob" (((Profile.read (m := ViewLaws.Model) c requestB.id #[]).run (run scene)).1.name == "Bob")
   let noKey := run (before ++ [post1,bobName])

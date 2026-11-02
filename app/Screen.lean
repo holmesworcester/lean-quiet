@@ -628,7 +628,8 @@ def epoch : Nat := 29330000
 /-- The jobs that make a community of about n messages, their bodies
 sealed under the community's content key k; a few carry photos, each an
 attachment with its chunks (at most `maxFiles` files in all). -/
-def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) : Array Job := Id.run do
+def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat)
+    (up head : Option Id := none) : Array Job := Id.run do
   -- times rise with uneven gaps and end by `now` (wall-clock minutes);
   -- counters follow the channel's newest, `top`, so chaos goes at the end
   let start := now - min now (12 * n)
@@ -637,15 +638,19 @@ def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) :
   let mut g : Rng := ⟨seed.toUInt64 * 7919 + 17⟩
   let mut jobs : Array Job := #[]
   let mut batch : Array Op := #[]
-  -- people: invited by the founder, who approves each request (one approval admits)
+  -- people: invited by this device, which approves each request (one
+  -- approval admits), continuing its approval chain (`head`) and citing
+  -- the approval that admitted it (`up`, none for the founder's device)
   let nUsers := max 6 (min names.size (n / 20))
   let mut people : Array (Id × Device) := #[(me.adm, f)]
+  let mut prev := head
   for i in [0:nUsers] do
     let d := Device.named s!"chaos-{seed}-{i}"
     let bearer := Device.named s!"chaos-bearer-{seed}-{i}"
     let inv := invite c me.adm f bearer.pk false
     let rq := request c inv.id d (cryptoSeal.pub (sizedOf s!"chaos-node-{seed}-{i}" 32)) bearer.sk
-    let ap := approve c rq.id me.adm f
+    let ap := approve c rq.id me.adm f up prev
+    prev := some ap.id
     let j := admit c rq.id ap.id
     let p := profile c j.id d names[i % names.size]!.toUTF8 start
     batch := batch ++ #[inv, rq, ap, j, p]
@@ -5256,10 +5261,17 @@ def command (line : String) : M Bool := do
     let some k := k? | s.io.ctlReply "chaos: this community's key hasn't arrived yet"; return true
     let seed := s.seed
     let top ← intentView (Community.topCount me.c)
+    let up ← intentView do
+      let a ← View.read { key := opKey me.adm, limit := some 1 }
+      let r ← View.read { key := opKey me.c, limit := some 1 }
+      Community.upOf me.c a r
+    let head ← intentView do
+      let a ← Community.approval.byDev.read [me.c, me.dev.pk] (limit := some 1)
+      pure (a.rows.head?.map (·.1.2))
     let now ← nowMin
     -- made off the app's thread; written by `chaosStep` as user actions
     -- are (writeAll: judged, shown pending, through the node)
-    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n top now))
+    let t ← IO.asTask (prio := .dedicated) (pure (Chaos.make me k srcs.get seed n top now up head))
     s.wr.busy.modify (· + 1)  -- so `wait` waits for the making too
     modify fun s => { s with chaos := some (t.map fun r => match r with | .ok j => j | .error _ => #[]) }
     s.io.ctlReply s!"chaos {n} started"

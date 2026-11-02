@@ -121,7 +121,7 @@ def removalCase (t : Checks) (dir : String) : IO Unit := do
   t.ok "removal fixture has an active grace and an admitted honest target"
     ((← queuedTarget a target).isSome && a.state.value.sessionGrace.any (fun (id, g) => id == cid && g.left > 0))
   let adms ← view a (admission.byDevice.read [c, (JoinFair.device "B").pk])
-  let some (_, .admission _ user _ _) := adms.rows.head? | throw (IO.userError "missing removal target")
+  let some (_, .admission _ user _ _ _) := adms.rows.head? | throw (IO.userError "missing removal target")
   let removal ← view a (removeMember c user (JoinFair.device "A"))
   t.ok "real founder removal intent produces one authenticated operation" (removal.ops.length == 1)
   submit a removal.ops
