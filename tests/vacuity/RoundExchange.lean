@@ -1,4 +1,5 @@
 import engine.sync.RoundRun
+import engine.sync.RoundDepth
 import engine.sync.NewestLaws
 import engine.sync.WindowLaws
 import tests.engine.Checks
@@ -139,6 +140,11 @@ theorem terminates : ∃ j, j ≤ 8 ∧ (states j).pending = [] := by
     · exact sortedY
   obtain ⟨j, _, hj, hdone⟩ := RoundRun.terminates cfg room 1 times states run current (xs ++ ys) sub sorted 7 0 ranks
   exact ⟨j, by omega, hdone⟩
+
+-- The quiet round's log bound on the same run: both fixtures hold at most
+-- leaf · fan¹ = 2 items, so the actual batches run out within 2·1 + 2.
+theorem quietLog : ∃ s, s ≤ 2 * 1 + 2 ∧ (states s).pending = [] :=
+  quiet_round_log cfg room 1 times states run current xs ys itemsX itemsY sortedX sortedY 1 (by decide) (by decide)
 
 -- The windowed round law on this fixture: both ends are full (floor 0), so
 -- each side's set S is its room; the round ends within the bound.

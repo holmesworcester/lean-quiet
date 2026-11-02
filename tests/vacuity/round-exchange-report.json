@@ -159,5 +159,12 @@
     "witness": "Vacuity.RoundExchange.overCost",
     "module": "tests.vacuity.RoundExchange",
     "detail": "Applied to the dialer's index at floor 2 with M = 1: its entries are empty, so expanding any id is one lookup (proved from Index.cost). Synthetic isolated-round fixture: Alice holds one message, Bob two, all claiming times."
+  },
+  "quiet_round_log": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.RoundRun.quiet_round_log",
+    "witness": "Vacuity.RoundExchange.quietLog",
+    "module": "tests.vacuity.RoundExchange",
+    "detail": "The same actual two-party execution with the fixtures' indices fixed (1 and 2 items, leaf 1, fan 2, so w = 1): every premise proved from the actual handler run, its currency and the fixed items; the batches run out within 4."
   }
 }

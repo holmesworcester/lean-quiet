@@ -273,6 +273,7 @@ spec Engine.Sync.roundWants The ids a batch's answers want.
 spec Engine.Sync.roundHolds The ids a batch's answers offer.
 spec Engine.Sync.RoundRun.outputs A batch's answers, as `answer` gives them over a list of items.
 spec Engine.Sync.RoundRun.rankIn A claim's rank over a bounding list of items, for a round's bound.
+spec Engine.Sync.Claim.fpBit One for a fingerprint claim, which still has its conversion to ids ahead: a claim's share of a quiet round's budget.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
