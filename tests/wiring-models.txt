@@ -21,10 +21,8 @@ Connection.Execution.HistoryStep.catalog_read
 Connection.Execution.HistoryStep.ceiling_mono
 Connection.Execution.Run.history
 Connection.Execution.Run.shared_retained
-Connection.Execution.Run.unique
 Connection.Execution.empty_trace_history
 Connection.Execution.empty_trace_store
-Connection.Execution.empty_trace_unique
 Connection.Execution.production_step_history
 Connection.Execution.production_step_moves
 Connection.Execution.production_step_reachable
@@ -37,7 +35,6 @@ Connection.Execution.world_step_moves
 Connection.Execution.world_step_unique
 Connection.Execution.world_trace_history
 Connection.Execution.world_trace_moves
-Connection.Execution.world_trace_unique
 Connection.Execution.write_store_tape
 Connection.ProgressTape.answer_ready
 Connection.ProgressTape.run_arrivedFrom
