@@ -4,7 +4,8 @@
 # Invite.uri), sent the way a browser sends it (VIEW, BROWSABLE), reaches
 # the app cold (not running: it starts on Choose a name holding the
 # invite) and warm (running: the same task takes the second invite); a
-# malformed link changes nothing. The OS resolves leanquiet://join/ to the
+# malformed link changes nothing; a device link (leanquiet://link/) is
+# taken too, on Agree & join with no name. The OS resolves leanquiet://join/ to the
 # app and quiet:// (classic Quiet's) to nothing of ours, in the
 # development APK and, when RELEASE_APK names one, the release APK.
 # Artifacts: out/android-links (logcat, replies).
@@ -78,6 +79,14 @@ check "warm: one task, no second instance" 'single_task'
 view "leanquiet://join/not-valid"
 sleep 2
 check "a malformed link changes nothing" '[ "$(ctl invite)" = "${L[1]}" ]'
+# A device link (leanquiet://link/, the link page's URI): its own host,
+# taken by the running app, which asks Agree & join with no name to choose.
+mapfile -t D < <(.lake/build/bin/linkcheck --print-device)   # device link, its URI
+[ "${#D[@]}" = 2 ] && [[ ${D[1]} = leanquiet://link/* ]]
+check "leanquiet://link/ opens Lean Quiet" 'resolves_ours "${D[1]}"'
+view "${D[1]}"
+check "warm: the running app takes the device link" 'until_invite "${D[0]}"'
+check "warm: on Agree & join, no name to choose" 'ctl input | grep -q "page .*agree "'
 if [ -n "${RELEASE_APK:-}" ]; then
   "${adb[@]}" uninstall "$pkg" >/dev/null
   "${adb[@]}" install "$RELEASE_APK" >/dev/null

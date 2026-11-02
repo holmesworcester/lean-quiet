@@ -362,6 +362,9 @@ control Engine.Codec.readAllM = Engine.Codec.decBytesListM
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Community.Approve.checkAnyUser `Approve.check` without its device-link clause: another user's approval of a device link's request passes it, where the running check refuses (`anyUser_approves_link`).
+control Community.Request.checkNewUser `Request.check` naming a new user for every request: a device link's request would name its own user, not the issuer's (`newUser_links`).
+control Community.introduceShipped `introduce` as it shipped before device links: a linked device admitted before its user's profile synced writes a profile with an empty name (`shipped_introduce_unnamed`).
 control Ttf.Memo.shifted A glyph table one key off: no table of its function has its pages (`shifted_not_exact`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet

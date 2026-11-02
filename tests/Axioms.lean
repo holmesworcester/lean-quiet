@@ -188,8 +188,18 @@ open Engine Community
 #print axioms Community.approve_valid
 #print axioms Community.admit_admits
 #print axioms Community.admission_needs_approval
+#print axioms Community.link_approved_by_issuer
+#print axioms Community.link_admits_issuer
+#print axioms Community.issue_link
+#print axioms Community.anyUser_approves_link
+#print axioms Community.newUser_links
+#print axioms Community.asks_link
+#print axioms Community.joinOps_link_unnamed
+#print axioms Community.introduce_named
+#print axioms Community.shipped_introduce_unnamed
 #print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
+#print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
 #print axioms Community.admin_granted
@@ -221,6 +231,7 @@ open Engine Community
 #print axioms Community.parse_text
 #print axioms Community.parse_uri
 #print axioms Community.parse_valid
+#print axioms Community.parse_other_kind
 #print axioms Community.Base62.decode_encode
 #print axioms Community.secret_derives
 #print axioms Community.named_by_admin

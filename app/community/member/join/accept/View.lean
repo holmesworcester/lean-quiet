@@ -25,6 +25,9 @@ structure Me where
   the address its request is sent to (the link's first hint). -/
   joiningOp : Id := .empty
   dialing : String := ""
+  /-- While waiting: whether the join is a device link's (its joining
+  names nobody, `joinOps_link_unnamed`). -/
+  linking : Bool := false
   /-- Whether this entry's device has been cut: admitted, and a user of
   it removed (a Valid removal of it is in the store). `Community.mine`
   no longer holds such an entry; it is read (`Community.cutEntry`) only to
@@ -43,9 +46,10 @@ structure Key where
   name : String
   waiting : Bool
   dialing : String
+  linking : Bool := false
   deriving BEq, Inhabited
 
-def Me.key (m : Me) : Key := ⟨m.acc, m.c, m.name, m.waiting, m.dialing⟩
+def Me.key (m : Me) : Key := ⟨m.acc, m.c, m.name, m.waiting, m.dialing, m.linking⟩
 
 /-- The first entry of each key, in order. -/
 def dedupeBy (key : Me → Id) : List Me → List Id → List Me
