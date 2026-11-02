@@ -192,17 +192,12 @@ def main : IO UInt32 := do
     t.ok s!"a purge's rewrite (vacuum {vacuum}) changes no table" (showsOn (← rows) s ids keys)
   -- A whole write turn and a purge, through the laws' code.
   (receive fam (ops.drop 40)).run db
-  let turn : Model Fact Unit := do
-    for o in ops.drop 40 do ingest (F := Fact) (m := Model Fact) o
-    discard <| drain (m := Model Fact) fam (← budgetM)
+  let turn : Model Fact Unit := discard <| turnCapped (m := Model Fact) fam drainCap (ops.drop 40)
   let s2 := (turn s).2
   let keys2 := keysOf fam s2 ids
   t.ok "a write turn's rows show the model's write turn" (showsOn (← rows) s2 ids keys2)
   purgeSql fam [x] false |>.run db
-  let purged : Model Fact Unit := do
-    match ← purge (m := Model Fact) fam [x] with
-    | some _ => discard <| drain (m := Model Fact) fam (← budgetM)
-    | none => pure ()
+  let purged : Model Fact Unit := discard <| purgeCapped (m := Model Fact) fam drainCap [x]
   let s3 := (purged s2).2
   t.ok "a purge's rows show the model's purge" (showsOn (← rows) s3 ids (keysOf fam s3 ids))
   t.finish "store trust file: satisfied by SQLite, operation by operation"
