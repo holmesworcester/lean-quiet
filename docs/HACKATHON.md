@@ -59,11 +59,11 @@ Computed by `ci/hackathon.py` from git alone, at [`752684fd49db`](https://github
   names runs from the app's `main` or the node's runner, or is proven
   equal to code that does.
 - A law **in a World** runs the node's own code over a modelled network.
-- The README's "Not yet about running code" section lists each law that is
-  not yet about running code, with what it lacks. Many of those added
-  since the base belong to the fair-service and liveness work (theme 3):
-  they are stated over run harnesses, such as `Execution`, `RoundRun`,
-  `Prioritized` and `Ingress`, which the check counts as models.
+- `tests/wiring-models.txt` lists every law the check still counts as
+  over a model; the wiring check fails on any other model law, and the
+  list can only get shorter (theme 10). Some of the laws added since the
+  base, in the fair-service and liveness work (theme 3), are stated over
+  run harnesses such as `Execution`, and are on that list.
 - A **negative control** is a law that proves a mutant of the code breaks
   a law. It shows that the law rejects bad code.
 - A **README promise** is a row of the README's guarantee tables: ✅
@@ -137,9 +137,8 @@ file has changed since the commit that the block names.
    (`successful_fair_extension`, `Execution.fairRun_fair`, World laws;
    [`a785a9ee`][a785a9ee], [`5aadd831`][5aadd831]). `mise run
    test:fairness` runs the real encrypted runner over TCP, with negative
-   controls. **Limits:** on main, the check counts the priority laws as
-   not yet about running code, because they are stated over run harnesses.
-   Not proven yet: convergence for every fair run of the app, and bounds
+   controls. **Limits:** some laws here are still stated over run
+   harnesses (see `tests/wiring-models.txt`). Not proven yet: convergence for every fair run of the app, and bounds
    from a commit to the screen. See
    [docs/EXECUTION-PROGRESS.md](EXECUTION-PROGRESS.md) and
    [docs/BOOTSTRAP-LIVENESS.md](BOOTSTRAP-LIVENESS.md).
@@ -244,6 +243,14 @@ file has changed since the commit that the block names.
    commits with `synchronous=FULL`, so a committed turn survives power
    loss. A test and a negative control check that setting.
 
+10. **Laws over models, ratcheted down.** `tests/wiring-models.txt` lists
+    the laws the wiring check still counts as over a model. The check
+    fails on any law over a model that is not on the list, and the list
+    can only get shorter. Many model laws were restated over the running
+    code or deleted, and lemmas that a law about running code uses are
+    counted apart as "proof steps". The block above has the counts at the
+    submitted commit.
+
 **Also on main.** The op tree: each op type is a folder with its
 validator, and [ci/layout.py](../ci/layout.py) checks the layout
 ([`930b39f3`][930b39f3], [`04322c45`][04322c45], [`db9eaf6f`][db9eaf6f]).
@@ -281,14 +288,7 @@ Nothing in this section is in the submitted commit. Each item names its
 branch.
 
 - `vibecheck/mac`: `make install && make run` on macOS.
-- `a3/no-models` (pushed to origin): a ratchet against laws over models.
-  `tests/wiring-models.txt` lists the laws that the check counts as over a
-  model. The wiring check fails on any other model law, and the list can
-  only get shorter. On the branch, many model laws are restated over the
-  running code or deleted, and "proof steps" (lemmas that a law about
-  running code uses) are counted apart. At its tip [`5c1da634`][5c1da634],
-  its README's lead line reads: 1159 of 1288 laws about running code, 35
-  in a World, 94 not yet, 59 proof steps and 25 negative controls.
+
 
 [89914bea]: https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797
 [74dea236]: https://github.com/holmesworcester/lean-quiet/commit/74dea2361edfe17ea860812302b6617f271e6fd5
