@@ -92,6 +92,12 @@ def sweepConditional := some (PLift.up
   (fun (holds : Db → Void IO.RealWorld → DB Fact → Prop) (t : SqliteStore Fact holds) =>
     Engine.Sync.Sweep.sql_run_step t DB.empty {} (fun _ => true) Engine.Sync.maxFrame))
 
+/-- The contract, bridged to the app writer's job turn with its
+checkpoint row (`receiveSaving_as_model`). -/
+def savingConditional := some (PLift.up
+  (fun (holds : Db → Void IO.RealWorld → DB Fact → Prop) (t : SqliteStore Fact holds) =>
+    receiveSaving_as_model t (family ed25519) [] .empty .empty))
+
 /-- The contract, bridged to the laws over the running write turn and
 purge: what each of them takes. -/
 def sqliteConditional := some (PLift.up
@@ -128,6 +134,7 @@ def main : IO UInt32 := do
   t.ok "the contract is what the running write turn and purge need" sqliteConditional.isSome
   t.ok "the contract is what the refused-turn law needs" refusedConditional.isSome
   t.ok "the contract is what the sweep step's law needs" sweepConditional.isSome
+  t.ok "the contract is what the writer's job turn with its checkpoint needs" savingConditional.isSome
   let dir := "out/vacuity"
   IO.FS.createDirAll dir
   let path := s!"{dir}/store-trust.db"
@@ -273,6 +280,13 @@ def main : IO UInt32 := do
     | none => pure ()
   let s3 := (purged s2).2
   t.ok "a purge's rows show the model's purge" (showsOn (← rows) s3 ids (keysOf fam s3 ids))
+  -- The app's checkpoint row (replaceAppOp) changes none of the model's
+  -- tables, and the table keeps one row.
+  db.exec "CREATE TABLE IF NOT EXISTS app_ops (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL, bytes BLOB NOT NULL);"
+  (replaceAppOp (F := Fact) "checkpoint-1".toUTF8 "a checkpoint".toUTF8).run db
+  (replaceAppOp (F := Fact) "checkpoint-2".toUTF8 "a newer checkpoint".toUTF8).run db
+  t.ok "the app's checkpoint row changes none of the model's tables" (showsOn (← rows) s3 ids (keysOf fam s3 ids))
+  t.ok "the checkpoint table keeps one row, the newest" ((← db.query "SELECT id FROM app_ops" #[]) == #[#["checkpoint-2".toUTF8]])
   -- A busy store (engine/core/Busy.lean): a second connection holds the
   -- write lock past the busy timeout. The glue reports it as busy, an
   -- attempt comes back to be tried again, and `retrying` gets through once

@@ -259,6 +259,21 @@ def tallyRows : SqlM F (Nat × Nat × Nat) := do
   let n ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'ops'"
   return (q, u, n)
 
+/-- The app's checkpoint as the `app_ops` table's only row (the table is
+the app's, outside the model's tables): the older rows go with it. -/
+def replaceAppOp (id bytes : ByteArray) : SqlM F Unit := do
+  sqlDo (F := F) "DELETE FROM app_ops" #[]
+  sqlDo (F := F) "INSERT INTO app_ops(id,bytes) VALUES (?,?)" #[id, bytes]
+
+/-- A write turn with `extra` in the same transaction: the app's writer
+commits its newest checkpoint with the job it rides on, one commit a
+turn (`Engine.Writer.turn`). -/
+def receiveAnd [Codec F] [SortKey F] (fam : Family F) (ops : List Op) (extra : SqlM F Unit) : SqlM F Unit :=
+  transact do
+    for o in ops do ingest (m := SqlM F) o
+    drain (m := SqlM F) fam (← budgetSql (F := F))
+    extra
+
 /-- One write turn: take in ops and judge everything that became
 decidable, atomically, with the proven `drain` and a budget read in the
 same transaction (`drain_bounded`: it empties the queue). -/

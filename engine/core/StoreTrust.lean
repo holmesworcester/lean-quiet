@@ -158,8 +158,9 @@ def budgetOf (s : DB F) : Nat :=
 /-- `budgetOf`, read on the model: what `budgetSql` reads on SQLite. -/
 def budgetM : Model F Nat := fun s => (budgetOf s, s)
 
-/-- **A read changes no table** (for any store whose states are `σ`):
-from a state that shows tables `s`, a read that returns leaves a state
+/-- **It changes none of the model's tables** (for any store whose states
+are `σ`): from a state that shows tables `s`, a call that returns (a
+read, or a write to a table the model does not have) leaves a state
 that still shows `s`. What it returns is not constrained. -/
 def ReadOnly {σ α : Type} (run : σ → Option (α × σ)) (shows : σ → DB F → Prop) : Prop :=
   ∀ t s, shows t s → ∀ v t', run t = some (v, t') → shows t' s
@@ -194,7 +195,9 @@ in world `w`, as the model's tables `s`. The contract:
   finish or not;
 - the catalog's two reads (`Catalog.sql`: its ceiling, a position's
   row), which the sweep runs, change no table. What they return is not
-  constrained: the sweep's laws hold for every ceiling and row. -/
+  constrained: the sweep's laws hold for every ceiling and row;
+- the app's checkpoint row (`replaceAppOp`, the `app_ops` table) changes
+  none of the model's tables. -/
 structure SqliteStore (F : Type) [Codec F] [SortKey F] (holds : Db → Void IO.RealWorld → DB F → Prop) :
     Prop where
   opens : ∀ path w db w', (Db.openAt path) w = .ok db w' → ∃ s, holds db w' s
@@ -209,5 +212,6 @@ structure SqliteStore (F : Type) [Codec F] [SortKey F] (holds : Db → Void IO.R
   scrub : ∀ vacuum db w s, holds db w s → holds db (worldOf ((scrubSql (F := F) vacuum) db w)) s
   catalog : ∀ db, ReadOnly (sqlAct db (Engine.Sync.Catalog.sql (F := F)).ceiling) (holds db) ∧
     ∀ seq, ReadOnly (sqlAct db ((Engine.Sync.Catalog.sql (F := F)).read seq)) (holds db)
+  appOp : ∀ db id bytes, ReadOnly (sqlAct db (replaceAppOp (F := F) id bytes)) (holds db)
 
 end Trust

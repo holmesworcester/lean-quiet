@@ -248,6 +248,43 @@ theorem receive_as_model (h : SqliteStore F holds) (fam : Family F) (ops : List 
     Sim.bind (Sim.forIn ops _ fun o _ => Sim.bind (ingest_sim h o) fun _ => Sim.pure) fun _ =>
       Sim.bind h.budget fun n => drain_sim h fam n
 
+/-- A call that changes none of the model's tables runs as doing nothing. -/
+theorem keeps_sim {x : SqlM F Unit} (h : ∀ db, ReadOnly (sqlAct db x) (holds db)) :
+    Sim holds x (pure () : Model F Unit) := by
+  intro db w s hs v w' hx
+  exact ⟨rfl, h db w s hs v w' (by simp only [sqlAct, hx])⟩
+
+/-- **A write turn with `extra` runs as the model's write turn**, when
+`extra` changes none of the model's tables: the app's writer committing
+its checkpoint with a job (`receiveAnd`). -/
+theorem receiveAnd_as_model (h : SqliteStore F holds) (fam : Family F) (ops : List Op)
+    {extra : SqlM F Unit} (hx : Sim holds extra (pure () : Model F Unit)) :
+    Sim holds (receiveAnd fam ops extra)
+      (do for o in ops do ingest (F := F) (m := Model F) o
+          drain (m := Model F) fam (← budgetM)
+          pure ()) := by
+  unfold receiveAnd
+  exact Sim.transact h <|
+    Sim.bind (Sim.forIn ops _ fun o _ => Sim.bind (ingest_sim h o) fun _ => Sim.pure) fun _ =>
+      Sim.bind h.budget fun n => Sim.bind (drain_sim h fam n) fun _ => hx
+
+/-- The app writer's job turn with its checkpoint row runs as the
+model's write turn. -/
+theorem receiveSaving_as_model (h : SqliteStore F holds) (fam : Family F) (ops : List Op)
+    (id bytes : ByteArray) :
+    Sim holds (receiveAnd fam ops (replaceAppOp id bytes))
+      (do for o in ops do ingest (F := F) (m := Model F) o
+          drain (m := Model F) fam (← budgetM)
+          pure ()) :=
+  receiveAnd_as_model h fam ops (keeps_sim fun db => h.appOp db id bytes)
+
+/-- **A refused job turn changes no table**, its checkpoint included. -/
+theorem receiveAnd_refused (h : SqliteStore F holds) (fam : Family F) (ops : List Op)
+    (extra : SqlM F Unit) {db : Db} {w w' : Void IO.RealWorld} {s : DB F} {e : IO.Error}
+    (hs : holds db w s) (hr : receiveAnd fam ops extra db w = .error e w') : holds db w' s := by
+  unfold receiveAnd at hr
+  exact h.rollback _ db w s hs e w' hr
+
 /-- **After a write turn commits, SQLite's rows show the model's write
 turn**: the five tables, as the dumps read them, are the model's tables
 after the same turn. -/

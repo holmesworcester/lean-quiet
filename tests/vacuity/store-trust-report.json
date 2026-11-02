@@ -5,7 +5,7 @@
     "witness": "Vacuity.StoreTrust.sqliteConditional",
     "module": "tests.vacuity.StoreTrust",
     "exercise": true,
-    "detail": "The store's trust file, bridged to the laws over the running write turn and purge (receive_as_model, purge_as_model). Tested from both sides: on a real SQLite file brought to the model's tables by a workload, each of the 15 store operations alone answers as the model and its rows show the model's next tables, then roll back; beginning and committing, a refused write turn, the budget query, list queries, a purge's rewrite and the catalog's ceiling and row queries change no table; a whole write turn and a purge show the model's. In the kernel the model's own store keeps the shape (modelKeeps), empty rows show empty tables (emptyShows), a store that drops a write fails (dropRefused) and queued rows do not show empty tables (queuedNotEmpty); a read of the model keeps the catalog clause's shape (readKeeps) and a \"read\" that pops the queue fails it (popRefused). A named premise, never an axiom."
+    "detail": "The store's trust file, bridged to the laws over the running write turn and purge (receive_as_model, purge_as_model). Tested from both sides: on a real SQLite file brought to the model's tables by a workload, each of the 15 store operations alone answers as the model and its rows show the model's next tables, then roll back; beginning and committing, a refused write turn, the budget query, list queries, a purge's rewrite the catalog's ceiling and row queries, and the app's checkpoint row, change none of the model's tables; a whole write turn and a purge show the model's. In the kernel the model's own store keeps the shape (modelKeeps), empty rows show empty tables (emptyShows), a store that drops a write fails (dropRefused) and queued rows do not show empty tables (queuedNotEmpty); a read of the model keeps the catalog clause's shape (readKeeps) and a \"read\" that pops the queue fails it (popRefused). A named premise, never an axiom."
   },
   "receive_as_model": {
     "status": "conditional",
@@ -38,5 +38,13 @@
     "module": "tests.vacuity.StoreTrust",
     "exercise": true,
     "detail": "Applied under the store's trust file (sweepConditional). The executable runs Sweep.run over Catalog.sql on a real SQLite file brought to the model's tables: for a fresh cursor and active cursors at the start, middle, last and finished positions, with no room and a full frame, each step equals Sweep.step at the ceiling and row the catalog returns, read through the model's ops; at least one step offers a stored op, and the rows still show the same tables."
+  },
+  "receiveSaving_as_model": {
+    "status": "conditional",
+    "theorem": "Trust.receiveSaving_as_model",
+    "witness": "Vacuity.StoreTrust.savingConditional",
+    "module": "tests.vacuity.StoreTrust",
+    "exercise": true,
+    "detail": "Applied under the store's trust file (savingConditional). The executable writes the app's checkpoint row twice on a real SQLite file brought to the model's tables: the rows still show the model's tables, and the checkpoint table keeps the newest row alone."
   }
 }
