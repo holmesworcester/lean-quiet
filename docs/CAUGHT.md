@@ -222,3 +222,29 @@ catches it next time. The aim is no escapes.
   when none is open and nested in the frame's when one is. All 72 pixel
   cases, 24 runs at once: 4 cases changed run to run and 3 runs lost the
   key before the fix; none after. Pinned by a test, not yet a law.
+- **Stage 3b's reader-act send lost what made an own send show at once**
+  (found by `component_demand`, a `--full` test, when it began failing
+  after main 9e34c393; bisected by holmes-27, so an escape: the gate passed
+  stage 3b). Three bugs, one fix each:
+  1. Placements were taken a frame early. The reader publishes a send's
+     placements and its result in one pass, but `applyDone` drained the
+     placements every frame and `takeDone` took the results only at the
+     next frame's top. A send's placements were gone when its result came,
+     so no own send was ever pinned. Now `takeDone` and `parkDone` take the
+     placements with the results, into `placedQ` (by act id).
+  2. A burst of sends lost its common root. Each act's intent read through
+     the reader's cache, which no notice had told of the pass's earlier
+     acts (the pass notices after its acts, to mark what they touch). The
+     second send in a pass did not see the first as pending, so it started
+     its own thread. Now an act's intent reads with no cache: the store and
+     the outbox, as the frame's `writeAll` did.
+  3. A background step dropped finished acts. `backgroundStep` took the
+     reader's results and discarded them, so their continuations never ran
+     and `wait` never went idle. Now it queues them for the next frame, as
+     a frame does.
+  The test's first failure, "optimistic bitmap missing", was not one of
+  these: it founded, opened chat and sent in one frame, and founding is
+  now an act, so the found's continuation moved it to the new community's
+  home. The test now waits for the found, and `Presentation`'s checks wait
+  for the sends (`settleSends`) and read the reader's outbox. Pinned by a
+  test, not yet a law: `component_demand` (82 checks).

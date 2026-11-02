@@ -57,6 +57,15 @@ def await (what : String) (ready : IO Bool) : IO Unit := do
     if (← IO.monoMsNow) > deadline then throw (IO.userError s!"timeout: {what}")
     IO.sleep 1
 
+/-- Step until no composer send is in flight: each is a reader act, and
+its messages join ownSends (its ops the reader's outbox) once it is done
+(ActsLaws.acts_shown). -/
+def settleSends : M Unit := do
+  for _ in [0:400] do
+    if !(← get).conts.toList.any (fun (_, k) => match k with | .send .. => true | _ => false) then return
+    steps 1
+    IO.sleep 1
+
 def run (ck : Checks) : IO Unit := do
   ck.ok "native completion decoder keeps full publication identity and explicit absence"
     (Session.completed #[21, 0, 1, 0, 1, 1, 0, 0] 0 == some (4294967297, 0) &&
@@ -68,6 +77,8 @@ def run (ck : Checks) : IO Unit := do
   let initial ← App.start sm.io (← sm.viewport.get) (dir ++ "/quiet.db")
   let (_, final) ← (show App.M Unit from do
     found "Presentation FIFO" "Alice"
+    -- founding is a reader act: the chat is there to open once it is done
+    waitIdle sm
     openPage .chat
     waitIdle sm
     let writer := (← get).wr
@@ -75,23 +86,25 @@ def run (ck : Checks) : IO Unit := do
     for i in [0:Presentation.capacity] do
       modify fun s => { s with text := s!"Accepted own message {i}" }
       sendNow
+    settleSends
     let queued ← get
+    let queuedOut ← queued.sh.out.get
     let ids := queued.ownSends.entries.map (·.message.2)
     ck.ok "eight sequential signed sends enter a bounded FIFO while their first ancestor is uncommitted"
       (ids.length == Presentation.capacity && ids.eraseDups.length == ids.length &&
-       queued.out.size == Presentation.capacity && (← writer.busy.get) == Presentation.capacity)
+       queuedOut.size == Presentation.capacity && (← writer.busy.get) == Presentation.capacity)
     let some first := queued.ownSends.head | throw (IO.userError "presentation FIFO was empty")
     ck.ok "pending child sends retain their actual common root and their own positions"
       (queued.ownSends.entries.all (·.root.2 == first.message.2) &&
        queued.ownSends.entries.tail.all (fun e => e.message.2 != first.message.2))
     let bytes := queued.queuedWrites
-    let pending := queued.out.toList.map (·.op.id)
+    let pending := queuedOut.toList.map (·.op.id)
     modify fun s => { s with text := "Do not lose this draft" }
     sendNow
     let refused ← get
     ck.ok "full presentation capacity refuses the ninth send without replacing an obligation or draft"
       (refused.text == "Do not lose this draft" && refused.queuedWrites == bytes &&
-       refused.out.toList.map (·.op.id) == pending &&
+       (← refused.sh.out.get).toList.map (·.op.id) == pending &&
        refused.ownSends.entries.map (·.message.2) == ids)
     let mut optimistic := false
     for _ in [0:300] do
@@ -208,6 +221,7 @@ def run (ck : Checks) : IO Unit := do
        (← (Store.getOp invitation.id : SqlM SF _).run s.rd).isNone)
     modify fun s => { s with text := "Navigation cancellation" }
     sendNow
+    settleSends
     let navId := (← get).ownSends.head.map (·.message.2)
     openPage .home
     ck.ok "explicit page navigation cancels presentation demand without cancelling its accepted write"
@@ -221,12 +235,14 @@ def run (ck : Checks) : IO Unit := do
     openPage .chat
     modify fun s => { s with text := "User scroll cancellation" }
     sendNow
+    settleSends
     let scrollId := (← get).ownSends.head.map (·.message.2)
     discard <| onEvent (.scrolling true)
     ck.ok "an explicit native scroll gesture releases the send pin"
       (scrollId.isSome && (← get).ownSends.entries.isEmpty)
     modify fun s => { s with text := "Unreadable cancellation" }
     sendNow
+    settleSends
     let s ← get
     let some entry := s.ownSends.head | throw (IO.userError "unreadable control missing")
     let unavailable := (← s.sh.board.get).put (.row s.me.c s.me.adm entry.message.2) (.row none)
@@ -246,9 +262,11 @@ def run (ck : Checks) : IO Unit := do
     sendNow
     modify fun s => { s with text := "Saturated child" }
     sendNow
+    settleSends
     let saturated ← get
+    let saturatedOut ← saturated.sh.out.get
     let entries := saturated.ownSends.entries
-    let receiptPos (id : Id) := (saturated.out.find? fun p => match p.fact with
+    let receiptPos (id : Id) := (saturatedOut.find? fun p => match p.fact with
       | .received _ _ m _ _ => m == id
       | _ => false).map fun p => (sortOf p.fact, id)
     ck.ok "saturated root and child pins use the same receipt positions as Reader windows"
@@ -264,20 +282,21 @@ def run (ck : Checks) : IO Unit := do
     ck.ok "saturated root and child both reach actual committed presentation"
       ((← get).ownSends.entries.isEmpty)
     let beforeInvisible ← get
+    let outBefore := (← beforeInvisible.sh.out.get).toList.map (·.op.id)
     for text in [String.ofList [Char.ofNat 0x200b, Char.ofNat 0x2060],
         String.ofList [Char.ofNat 0xa0, '\n', Char.ofNat 0x200b]] do
       modify fun s => { s with text }
       sendNow
       let refused ← get
       ck.ok "a wholly inkless composer draft is refused before outbox or presentation admission"
-        (refused.text == text && refused.out.toList.map (·.op.id) == beforeInvisible.out.toList.map (·.op.id) &&
+        (refused.text == text && (← refused.sh.out.get).toList.map (·.op.id) == outBefore &&
           refused.queuedWrites == beforeInvisible.queuedWrites && refused.ownSends.entries.isEmpty)
     let enormousInvisible := String.ofList (List.replicate (Sync.maxFrame / 2 + 1) (Char.ofNat 0xa0))
     modify fun s => { s with text := enormousInvisible }
     sendNow
     let refused ← get
     ck.ok "an impossible-size inkless draft is refused before text raster validation"
-      (refused.text == enormousInvisible && refused.out.toList.map (·.op.id) == beforeInvisible.out.toList.map (·.op.id) &&
+      (refused.text == enormousInvisible && (← refused.sh.out.get).toList.map (·.op.id) == outBefore &&
         refused.queuedWrites == beforeInvisible.queuedWrites && refused.ownSends.entries.isEmpty &&
         refused.toast.any (fun t => t.1 == "This message is too large to send. Shorten it and try again."))
     -- ASCII trimming alone cannot erase a leading zero-width character.
@@ -286,6 +305,7 @@ def run (ck : Checks) : IO Unit := do
     let inklessPrefix := String.ofList [Char.ofNat 0x200b] ++ String.ofList (List.replicate 45 '\n')
     modify fun s => { s with text := inklessPrefix ++ "The visible committed body" }
     sendNow
+    settleSends
     let some blankEntry := (← get).ownSends.head | throw (IO.userError "blank-prefix send missing")
     for _ in [0:300] do
       steps 1
@@ -303,6 +323,7 @@ def run (ck : Checks) : IO Unit := do
     modify fun s => { s with text := "" }
     attachSamplePhoto
     sendNow
+    settleSends
     let some photoEntry := (← get).ownSends.head | throw (IO.userError "photo-only send missing")
     for _ in [0:300] do
       steps 1
