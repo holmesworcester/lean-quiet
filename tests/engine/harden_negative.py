@@ -12,7 +12,7 @@ assert run(["lake", "build", "harden", "engine.sync.TimeLaws", "engine.sync.Boun
 assert run([".lake/build/bin/harden"], "baseline-run") == 0
 # (name, source, unique original, mutant, target, expected failure text, runtime?)
 cases = [
-    ("uncarried-room", "engine/sync/Conn.lean", "  if !has c.carried r then { conn := c, send := [(Msg.rbsr r k []).op] } else", "  if !has c.carried r || c.snaps.isEmpty then { conn := c, send := [(Msg.rbsr r k []).op] } else", "engine.sync.TimeLaws", "error:", False),
+    ("uncarried-room", "engine/sync/Conn.lean", "  if !has c.carried r then { conn := c, send := [(Msg.rbsr r k []).op] } else", "  if !has c.carried r || c.active.isEmpty then { conn := c, send := [(Msg.rbsr r k []).op] } else", "engine.sync.TimeLaws", "error: engine/sync/TimeLaws.lean", False),
     ("no-purge", "engine/wire/Node.lean", "  if !ids.isEmpty then Turn.purge x.fam ids scrub", "  if !ids.isEmpty then pure ()", "engine.wire.CloseLaws", "error:", False),
     ("no-close-event", "engine/wire/Node.lean", "  n.finish x { drop := ids } now", "  n.finish x {} now", "harden", "transport end", True),
     ("known-forget", "engine/sync/Memory.lean", "then next else ({} : HashSet Id).insert i", "then next else next", "engine.sync.RetryLaws", "error:", False),
