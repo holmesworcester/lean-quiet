@@ -1,5 +1,87 @@
 # Lean Quiet
 
+# For judges
+
+Lean Quiet is a private group chat app with no server: devices find each
+other and sync directly, and everything is end-to-end encrypted. It is
+written mostly in Lean 4, from the network protocol to the pixels, and its
+laws are proven about the code that runs.
+
+**Run it.** Linux (x86-64, Debian or Ubuntu, X11 or XWayland) is the
+supported platform:
+
+```sh
+make install   # about 10 minutes cold: Lean and Rust in your home folder, pinned assets, the build
+make run       # the desktop app with a demo community, networking off
+make verify    # lake check and lake comparator, on Lean 4.35 (about 15 minutes)
+```
+
+[Try it](#try-it) has the details. The app also builds for Android, iOS,
+macOS and Windows ([release 1.0.0](https://github.com/holmesworcester/lean-quiet/releases/tag/v1.0.0)),
+but `make` supports only Linux. A native macOS `make` was not run on a Mac
+during the hackathon and is not part of this submission.
+
+**What `make verify` checks.**
+- `lake check` replays every theorem in the build through Lean's kernel
+  and accepts only Lean's three standard axioms.
+- `lake comparator` checks that the proofs prove exactly the statements in
+  [`tests/comparator/Challenge.lean`](tests/comparator/Challenge.lean).
+  **That is the file to read.** It states the headline laws below, each
+  copied word for word from the law in the app, with no proof.
+
+**The headline laws.** An *op* is one signed action, such as a message,
+a reaction, a join or a removal.
+
+| # | In plain words | Lean name |
+|---|---|---|
+| 1 | Nobody can post as another user.§ | `Community.no_impersonation` |
+| 2 | Nobody joins without a member's approval. | `Community.admission_needs_approval` |
+| 3 | Only admins can remove other members. | `Community.removal_authorized` |
+| 4 | A removal cannot be undone. | `Community.removed_stays` |
+| 5 | A device accepts a connection exactly when the peer is a current member's device.† | `Community.connect_iff` |
+| 6 | After a removal, the removed member's open sessions get only the removal notice.† | `Connection.removal_reaches_session` |
+| 7 | Sync sends a peer only what that peer may see.† | `Engine.Sync.recv_send` |
+| 8 | Forged or tampered network messages are ignored without being read.† | `Connection.sealed_auth` |
+| 9 | Session keys stay secret.‡ | `Connection.Noise.Symbolic.kk_secret` |
+| 10 | The device that dials knows who answered.‡ | `Connection.Noise.Symbolic.kk_authentic` |
+| 11 | Devices that hold the same ops judge each one the same way.†¶ | `Engine.same_ops_same_verdicts` |
+| 12 | Every device shows a channel's messages in the same order (unless a hostile sender claims a huge counter). | `Community.display_agrees` |
+| 13 | Scrolling never shows a blank where messages should be. | `Cover.covered` |
+| 14 | Back returns to the screen you came from. | `NavLaws.back_open` |
+| 15 | Tapping a community opens that community, even when two share a name. | `Switch.select_tapped_dedupe` |
+| 16 | Letting someone in costs at most three ops, however big the community is. | `Community.approveReq_ops` |
+| 17 | Storing an arriving op costs a fixed number of store operations, however big the community is. | `Engine.ingest_costs` |
+
+- † Relies on the store model: that SQLite answers as the model's tables do.
+- ‡ Proven in a symbolic model of the cryptography.
+- § Assumes signatures cannot be forged.
+- ¶ Assumes no hash collisions among the ops a device sees.
+
+**What is trusted, not proven.**
+- **Lean**: its kernel, compiler and runtime.
+- **SQLite.** The proofs run the engine against a model of its tables.
+  That SQLite answers the same way is one named premise
+  ([`engine/core/StoreTrust.lean`](engine/core/StoreTrust.lean)), tested
+  (random workloads compared row for row, and kill -9 crash tests), not
+  proven. [What the proofs assume of SQLite](#what-the-proofs-assume-of-sqlite)
+  lists what it takes of SQLite.
+- **The crypto primitives**: Ed25519, X25519, ChaCha20-Poly1305 and
+  SHA-256, from the Rust crates libquiet uses. They are assumed correct
+  and secure.
+- **The TCP seam.** Lean's TCP library cannot close a listener or cancel
+  a stuck write, so a few lines of C in
+  [`engine/native/listener.h`](engine/native/listener.h) do both. One of
+  them reads a private field of Lean's socket object; it is reviewed for
+  each Lean version.
+- **The Linux shell** (C, xcb), which puts Lean's pixels in a window and
+  passes input, and the OS.
+
+The full lists are in [What is Assumed](#what-is-assumed) and
+[What isn't Lean, and why](#what-isnt-lean-and-why).
+
+**Built during the hackathon** (from Saturday 31 October, 10:00 PDT):
+[docs/HACKATHON.md](docs/HACKATHON.md).
+
 [Lean](https://lean-lang.org) is usually for proving statements with and about code. But can we 
 build entire apps with it, and prove they work as users might want?
 I think we can now!
@@ -13,6 +95,30 @@ Like [Quiet](https://github.com/TryQuiet/quiet), Lean Quiet is also local-first,
 Can we also prove the absence of the *qualitative* bugs that only show up in certain cases, like UI layout glitches at a certain screen size or RTL language, or a lack of responsiveness under load, or an accessibility gap? This seems tantalizingly possible too, and we show many such proofs here.
 
 There is something exhilarating about adding a proof where one would usually add an end-to-end test. Sci fi. 🪐 
+
+# Try it
+
+On Linux (x86-64, Debian or Ubuntu, X11 or XWayland):
+
+```sh
+make install && make run
+```
+
+`make install` builds the desktop app in this folder. It installs Lean
+(elan) and Rust (rustup) in your home folder if they are missing, and
+downloads the app's fonts and photos, checked by sha256. If system
+packages are missing (a C compiler, Python, curl and the X headers),
+it lists them and installs them with `sudo apt-get install`; to do that
+yourself, run `make check` first, which only lists them. A cold build
+took about 10 minutes on 8 cores and under 7 GB of memory, downloads
+included. `make run` opens the app with a demo: two communities, seeded
+on the first run, with networking off, so it works without a second
+device. `make online` runs it with networking on. `make verify` checks
+the proofs with Lean's own checkers, `lake check` (every theorem through
+the kernel, standard axioms only) and `lake comparator` (the theorems in
+`comparator.json` prove exactly the reviewed statements); both need Lean
+4.35, and on an older toolchain it stops and says so. The Makefile
+doesn't support macOS yet. Details: [docs/BUILD.md](docs/BUILD.md#make-install-and-make-run-linux).
 
 # What it looks like
 
@@ -171,21 +277,27 @@ below; the [vacuity report](#vacuity-check-reports) records which concrete premi
   admitted;** ¹
 - **only admins remove others, and no removal can be undone;** ¹
 - **a removal cuts off every device of the removed user, for good,** and
-  its node can rejoin only as a new device;
+  its node can rejoin only as a new device. ⁴ The removed user is not
+  yet kept out: they can still approve that new device themselves (below);
 - **a removal reaches every live session:** each connection step reads
-  its rooms afresh, so once the removal is stored, only its notice of
-  that community goes to the removed member;
+  its rooms afresh, so once the removal is stored, every frame sealed
+  for the removed member carries, of that community, only its notice. ⁴
+  That bare handshake replies go only to trusted peers is proven for
+  each step, not yet for the whole node;
 - **no peer can alter or rename an op:** its id is the hash of its
   bytes, and it has one parse; ²
-- **non-members get none of a community's ops;**
-- **sync does not offer or send local secret ops;**
-- **a sealed frame is authenticated before any of it is parsed;**
-- **a node's trust rule lets in exactly the live members;** ¹
-- **honest nodes that hold the same ops agree;** ² *(model)*
+- **non-members get none of a community's ops,** even by asking by id. ⁴
+  This says which ops sync sends, not who can read them: that only
+  members can open a message is not yet proven (below);
+- **sync does not offer or send local secret ops;** ⁴
+- **a sealed frame is authenticated before any of it is parsed;** ⁴
+- **a node's trust rule lets in exactly the live members;** ¹ ⁴
+- **honest nodes that hold the same ops agree;** ² ⁴
 - **only a session's two nodes can derive its keys, even if both
   nodes' long-term keys leak after it closes:** every session end
-  purges its keys from the store. ³ (A phone backup taken while it was
-  open is not covered.)
+  purges its keys from the store. ³ ⁴ This assumes that deleted bytes
+  leave the disk (below). A phone backup taken while the session was
+  open is not covered.
 
 And of what a user sees and does:
 
@@ -198,11 +310,14 @@ And of what a user sees and does:
 - **back restores the state before a page opened** (clearing only that
   page's one-line field);
 - **a screen need re-read only what changed:** a list's answer changes
-  only when a row is filed under a key it read.
+  only when a row is filed under a key it read. ⁴
 
 ¹ Interpreting verification as the owner actually signing needs the Ed25519
 assumptions and signing-history scoping fix below. ² Assuming no collision among
 the relevant encountered inputs. ³ In the symbolic model of the cryptography.
+⁴ Over the store model: the proof runs the engine's code on a store written
+in Lean; the app runs the same code on SQLite. That the two agree is assumed
+and tested ([what the proofs assume of SQLite](#what-the-proofs-assume-of-sqlite)).
 
 **Not yet proven:**
 - that removed users are not admitted to the network again: a removed
@@ -213,13 +328,17 @@ the relevant encountered inputs. ³ In the symbolic model of the cryptography.
   does not wait for the approval to be Valid);
 - that a removed member cannot read new messages: removal cuts their
   sync, but content keys are not rotated yet;
-- that a closed session's ephemeral keys are gone: that closing purges
-  every one (`close_forgets`), and that deleted bytes leave the disk
-  (assumed, and doubtful on journaling filesystems and flash);
-- that every member eventually gets every op: proven for n nodes
-  running the sync code (fixed rooms, frames in the clear) given that each
-  live link carries an op within a bound B, but that bound is not proven
-  yet (the have → want step over time, the round on reconnect)
+- that a closed session's keys are gone from the disk. Closing purges
+  them from the store (`close_forgets`), but that deleted bytes leave
+  the disk is assumed, and doubtful on journaling filesystems and flash.
+  Also open: an initiator's ephemeral key while its request waits, and
+  the step from stored bytes to the symbolic model's names;
+- that every member eventually gets every op. In a World of n nodes
+  that run the node's sync code, it follows if each live link carries
+  every op within a set time. Part of that premise is proven (a want in
+  flight gets its op across, [`want_reaches`]), but not yet the have →
+  want step over time or the round on reconnect, and the World has no
+  handshake or sealed frames
   ([towards n clients](#towards-proofs-for-n-clients));
 - bootstrap convergence for every fair execution of the running app. Concrete
   infinite witnesses and production-runner checks are now implemented
@@ -235,27 +354,32 @@ code being written: [what the proofs caught](docs/CAUGHT.md).
 
 ### Towards Proofs for n Clients
 
-The sync proofs run the real sync code in a world of n devices
-(engine/world/, [docs/PROOFS.md](docs/PROOFS.md)): each device is the
-running node on its own store, and the network may delay, reorder,
-duplicate or drop any frame, with timely delivery across live links from
-some time on. Sessions are still opened directly, with frames in the
-clear: TCP, sealed sessions and the handshake are not in that world yet.
-In every execution, stores only gain shared ops ([`grows`]); and if each
-live link carries an op within a bound B, every member holds every op
-within d · B over a web of diameter d, and a device back from offline
-catches up ([`converge`], [`offline`]). Devices that hold the same ops
-agree, whatever order the ops arrived in (proven so far over a model of
-purging: [`same_ops_same_verdicts`]). So it comes down to that per-link
-bound. Part of it is proven: a want in flight gets its op across within
-three network delays plus the sender's queue, which drains a position per
-tick ([`want_reaches`], [`drain`]); the round and closure steps are
-proven per connection (`conn_runs_exchange`, `closure_delivered`). Still
-open: that a have is answered with a want over time (a change to always
-answer it is approved), the round that runs when devices connect or
-reconnect, the premises that remain (the session staying open, room in
-the queue, no hash collision), and then TCP, sealed sessions and the
-handshake.
+Devices that hold the same ops agree, whatever order the ops arrived
+in ([`same_ops_same_verdicts`], over the running judging code and the
+store model ⁴). So for n devices, it comes down to proving that every
+op reaches every member.
+
+The sync proofs run the node's real sync code in two Worlds: one of two
+devices ([`stream_delivers`]) and one of n devices ([`converge`],
+[`offline`], [docs/PROOFS.md](docs/PROOFS.md)). In both, the network can
+delay, reorder, duplicate or drop frames, sessions open directly, and
+frames go in the clear: the handshake and sealed sessions are not in the
+Worlds yet. In every execution of the n-device World, stores only gain
+shared ops ([`grows`]). If each live link carries every op within a time
+B, then while the network stays up, an op one member holds reaches every
+member within d · B (on a network of diameter d), and a device back from
+offline catches up.
+
+Still open: that each live link does carry every op within B. Part of it
+is proven over time: a want in flight gets its op across within three
+network delays plus the sender's queue, which drains a position per tick
+([`want_reaches`], [`drain`]). The other parts are proven per connection
+(a delivered round finds the missing ids, `conn_runs_exchange`; queued
+closures arrive, `closure_delivered`) but not yet over time: that a have
+is answered with a want (a change to always answer it is approved), and
+the round that runs when devices connect or reconnect. The premises that
+remain are the session staying open, room in the queue and no hash
+collision. Then the Worlds need the real transport and the handshake.
 
 ### What is Assumed
 
@@ -308,7 +432,9 @@ relationship to those computational assumptions is not a proved reduction:
   ([`cryptoSeal_good`], [`suite_good`]) given the crates' correctness, which is
   stated once, in the crypto trust file engine/core/Trust.lean ([`NativeCrypto`]):
   XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees,
-  and a SHA-256 digest is 32 bytes. Each is a named premise, never an axiom.
+  a SHA-256 digest is 32 bytes, and Ed25519 verifies what it signed
+  ([`Ed25519Signs`]; it gives the signing laws' premise for every device
+  made from a seed, [`ofSeed_signs`]). Each is a named premise, never an axiom.
   tests/vacuity/CryptoTrust.lean checks each from both sides: the native crates
   satisfy it on real inputs, and a broken implementation of the same shape fails
   it (in the kernel). These contracts are correctness only; they do not
@@ -353,10 +479,32 @@ behavior; they do not prove all of these assumptions:
   is one file, engine/core/Trust.lean ([`NativeCrypto`]): correctness on
   sized inputs, checked against the crates in tests/vacuity/CryptoTrust.lean.
   These checks do not establish unforgeability or collision resistance.
-- **SQLite behaves like the engine's own store.** This is tested row for
-  row against the model, and with kill -9 crash tests. A frame's reads in one
-  transaction see one committed state (SQLite's snapshot isolation): the
-  snapshot hypothesis above, which the screen's laws take.
+- **SQLite behaves like the engine's own store.** This is stated in Lean
+  as one named premise, the store's trust file engine/core/StoreTrust.lean
+  ([`SqliteStore`]): every database the app opens holds some model tables,
+  its rows (as the dumps read them) show them, and each store operation,
+  transaction, budget and list query answers as the model's. Lean cannot
+  check it (the calls are I/O). The laws over the running write turn and
+  purge take it: a write turn or purge on SQLite that returns leaves the
+  tables the same code leaves on the model ([`receive_as_model`],
+  [`purge_as_model`]), and a refused one changes nothing
+  ([`receive_refused`]). The other store laws are still about the code run
+  on the model. It is tested row for row against the model, operation by
+  operation (tests/vacuity/StoreTrust.lean), and with kill -9 crash tests.
+  The premise is not limited to files only this code wrote: it covers
+  every file the app opens, so it is false of a corrupted or edited file.
+  That no one corrupts or edits the file is an assumption about the
+  environment, stated in prose only. A frame's reads in one transaction see one committed state (SQLite's
+  snapshot isolation): the snapshot hypothesis above, which the screen's
+  laws take. What the proofs take of SQLite, and how each part is
+  met, is [below](#what-the-proofs-assume-of-sqlite).
+- **Every C function Lean calls has a stated contract.** Each `@[extern]`
+  is an `opaque` Lean cannot see into. tests/wiring.txt gives each one's
+  contract (an `extern` note), and the wiring check fails on an extern
+  without one: a named premise in a trust file (the crypto, SQLite); none
+  (an input from the OS: the laws hold for every value it returns); an
+  effect on the OS, which Lean does not state; or a test's probe. Each
+  shipped extern's docstring says the same.
 - **Deleted bytes are gone from the disk.**
   - A purge deletes with SQLite's `secure_delete` on, then runs
     `VACUUM` and truncates the WAL.
@@ -379,12 +527,50 @@ behavior; they do not prove all of these assumptions:
 - **That each statement says what we mean.** Read it: every name below
   links to its statement.
 
+#### What the proofs assume of SQLite
+
+The proofs run the engine's code on `Model` (engine/core/Model.lean), a
+store written in Lean. The app runs the same code on SQLite
+(engine/core/Sqlite.lean). That the two agree is the assumption
+[`Model.run`], which many laws take (⁴ above). It is tested, not proven:
+tests/engine/Differential.lean runs random workloads and schedules on
+both and compares every table row for row; QueryDiff.lean does the same
+for list queries, and Purge.lean for purges. It rests on five promises:
+
+- **Order.** Every list the app reads names its order (`ORDER BY`). The waits
+  and an index key's rows are read by rowid. A new row's
+  [rowid](https://www.sqlite.org/autoinc.html) is one more than the
+  largest in its table, so this is insertion order until a rowid reaches
+  2^63 − 1. The queue, the catalog and the journal use AUTOINCREMENT,
+  which never reuses a number.
+- **Atomic turns.** Each write turn is one `BEGIN IMMEDIATE` … `COMMIT`,
+  with `ROLLBACK` on an error (`transact` in Sqlite.lean), so it is
+  [all or nothing](https://www.sqlite.org/lang_transaction.html). The
+  model has no failed turns: a turn that fails did not happen. The
+  progress laws assume that turns succeed.
+- **One state per read transaction.** A frame's reads run in one read
+  transaction (`BEGIN` … `COMMIT` in app/Screen.lean). In
+  [WAL mode](https://www.sqlite.org/wal.html) it sees one snapshot,
+  whatever the writer commits meanwhile
+  ([isolation](https://www.sqlite.org/isolation.html)): the snapshot
+  hypothesis above. Reads outside one can see two states; that was a
+  bug ([what the proofs caught](docs/CAUGHT.md), "a read at a time").
+- **Durability.** With
+  [`synchronous = FULL`](https://www.sqlite.org/pragma.html#pragma_synchronous),
+  each commit syncs the WAL before it returns, so a committed turn
+  survives power loss and OS crashes, given storage that keeps what it
+  has synced. tests/engine/SqliteBuild.lean checks the setting. The
+  kill -9 tests cover app crashes; power loss is not tested.
+- **Deleted bytes leave the file.** `secure_delete`, `VACUUM` and the
+  WAL's truncation are SQLite's part, tested by reading the files raw.
+  What the filesystem and the flash keep is beyond SQLite (above).
+
 ### Security proofs
 
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1554 rest on Lean's standard axioms only, and about three quarters of its theorems (1190 of 1526, not counting 28 negative controls) are about the code that runs; another 45 run the
+hypotheses. All 1549 rest on Lean's standard axioms only, and about three quarters of its theorems (1194 of 1521, not counting 28 negative controls) are about the code that runs; another 35 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -526,21 +712,21 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1190 of 1526 laws are about running code;** another 45 run its node code in a World, and 291 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1194 of 1521 laws are about running code;** another 35 run its node code in a World, and 292 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
-| Engine | 216 | 168 |  | 48 |
+| Engine | 220 | 172 |  | 48 |
 | Sync | 330 | 284 |  | 46 |
-| The n-node World | 27 | 4 | 23 |  |
+| The n-node World | 16 | 3 | 13 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 208 | 143 | 16 | 49 |
 | Connections | 32 | 28 |  | 4 |
-| Community | 241 | 212 |  | 29 |
+| Community | 243 | 214 |  | 29 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
 | Screen | 282 | 220 |  | 62 |
-| App | 139 | 97 | 6 | 36 |
+| App | 139 | 96 | 6 | 37 |
 | Node | 16 | 16 |  |  |
 | App state | 9 | 7 |  | 2 |
 
@@ -562,6 +748,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | `T.sum`, `Both.bottom`, `Both.rowAt` +16 | [`start_eq`], [`find_spec`], [`set_toList`], [`push_ok`], [`findM_cost`], [`startM_cost`], [`setM_cost`], [`rows_cost`], [`start_mono`], [`start_size`], [`below_window`], [`above_window`] +8 more | The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`. |
 | `Sync.absentStep` | [`write_store`], [`absentStep_keeps`], [`absentStep_source`]*, [`absentFold_keeps`], [`absentFold_source`]*, [`absentFold_covers`] | Proof decomposition of Node.write's actual deduplication/read loop, related by write_store. Public write_takes and write_preserves_op name Node.write directly. |
 | `PageId.all` | [`NavLaws.depth`]† | Nothing that runs calls it. |
+| `App.writeAll` | [`unmount_write`]† | Nothing that runs calls it. |
 | `Body.sigs` | [`admission_consented`]† | Nothing that runs calls it. |
 | `Invite.uri` | [`parse_uri`]† | Nothing that runs calls it. |
 | `Execution.Setup.sync` | [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`production_write_receives`], [`production_step_history`], [`production_step_unique`] | Nothing that runs calls it; `World.deliver`, `Execution.step` do. |
@@ -652,11 +839,11 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
-| [`NativeCrypto`] | 12 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
+| [`NativeCrypto`] | 14 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 462 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row (tested by tests/engine/Differential.lean, QueryDiff.lean and Purge.lean). |
+| [`Model.run`] | 455 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -814,13 +1001,28 @@ let us prove.
   `app/android`, `app/ios` and `app/host` are now `platforms/android`,
   `platforms/ios` and `platforms/headless`.
 
-The lifecycle port also adds an explicit listener close in
-[`listener.h`](engine/native/listener.h). After the acceptor joins,
-`Runner.stop` invokes the Lean 4.34 UV external object's finalizer once and
-replaces its finalizer with a no-op. This depends on the runtime's external
-object ABI and UV finalizer, not a Lean proof. A retained-runner test checks
-explicit close and repeated stop; the TCP test rebinds the same port while
-retaining the stopped runner.
+Lean's TCP API cannot close a listener, and it cannot cancel a write that
+it already gave to libuv. Its `shutdown` waits behind that write, so a peer
+that never reads would block it forever. So
+[`listener.h`](engine/native/listener.h) has two small C seams. A small
+change to Lean could remove both: a `close` (libuv's `uv_close`, which also
+cancels waiting writes) and an abort in `Std.Internal.UV.TCP`. Then this
+code would use only Lean's API.
+
+1. **Close the listener.** At `Runner.stop`, after the acceptor stops, the
+   C code calls the listener's finalizer once and puts a no-op in its place.
+   It uses only the public fields of Lean's external objects. A test keeps
+   the stopped runner and binds the same port again.
+2. **Abort a stuck write.** The C code reads the first field of Lean's
+   private TCP socket struct to get the descriptor, then calls the OS
+   `shutdown()`. This ends the stuck write. Our Lean outbox limits what can
+   be stuck: one batch in libuv per socket.
+3. **Review each Lean upgrade.** An `#error` lets the private read build
+   with one exact Lean version only. Before you change the version, read
+   Lean's `src/runtime/uv/tcp.{h,cpp}` again. The 4.35.0 review found the
+   same first field, finalizer, lock and functions. Its two small changes
+   (how visitors count references, and a second `shutdown` now fails at
+   once) do not break this code.
 
 ### Each platform's shell
 
@@ -871,20 +1073,22 @@ Lean could do. They are under
 | | what it gives | what the proofs assume of it |
 |---|---|---|
 | **The Rust crypto** ([`lib.rs`](engine/native/crypto/src/lib.rs), 145 lines, over ed25519-dalek 3.0.0, curve25519-dalek 5.0.0, chacha20poly1305 0.11.0, sha2 0.10.9 and getrandom 0.3.4) | SHA-256; Ed25519, verified strictly; X25519; the Ed25519 to X25519 conversion; ChaCha20-Poly1305 with Noise's nonce; XChaCha20-Poly1305; the OS's random bytes. One build on every platform. | [`Unforgeable`], [`CollisionFree`], [`NoCollision`] and [`Suite.Good`] (see Assumed). Tested byte for byte against libsodium ([`crypto_compat.c`](tests/engine/crypto_compat.c)) and against the Noise test vectors. |
-| **SQLite** | The store: the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)) on every build, the phones', the desktop's and the tests', with the same options ([`quiet_config.h`](third_party/sqlite/quiet_config.h)). | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)). This is tested row for row, with kill -9 crashes and the purge's raw read, on the SQLite the phones ship (`sqlite_build` checks the linked version and options through the externs). |
+| **SQLite** | The store: the vendored 3.50.4 ([`third_party/sqlite`](third_party/sqlite)) on every build, the phones', the desktop's and the tests', with the same options ([`quiet_config.h`](third_party/sqlite/quiet_config.h)). | It behaves like the engine's model ([`Model.lean`](engine/core/Model.lean)), as [`SqliteStore`] states (engine/core/StoreTrust.lean). This is tested row for row, with kill -9 crashes and the purge's raw read, on the SQLite the phones ship (`sqlite_build` checks the linked version and options through the externs). |
 | **Lean's runtime and libuv** | Reference counting; the ByteArray, String and Array primitives, which are `@[extern]` in Lean's core and implemented in C; tasks and threads; files; clocks; and Std.Async, which gives the TCP runner its sockets ([`Tcp.lean`](engine/wire/Tcp.lean)), mDNS its UDP, and an invite its dial hints (the interface addresses). Phones build it from Lean's source ([`build.sh`](platforms/android/leanrt/build.sh), [`leanrt.sh`](platforms/ios/leanrt.sh)), with no mimalloc and no GMP, OpenSSL stubbed, and libuv compiled from its source lists. | **Lean** in Trusted. The proofs reason about the core's Lean definitions, and the C must match them. The phones' build is not the one the tests run on. |
 
 ### FFI glue
 
 | | lines | what it does | what the proofs assume of it |
 |---|---|---|---|
-| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 19 externs, including lifecycle polling, OS links and accepted motion samples. Each frame publishes Lean placement and four row arrays (list, header, composer, hold). Touches and lifecycle events come back as eight-word records, the layout `Input.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Input.decode` reads, and the offset is the OS's. |
+| **Platform.lean on Android** ([`quiet_android.c`](platforms/android/twin/quiet_android.c)) | 538 | The 25 externs, including lifecycle polling, OS links and accepted motion samples. Each frame publishes Lean placement and four row arrays (list, header, composer, hold). Touches and lifecycle events come back as eight-word records, the layout `Input.decode` reads. The text, the camera's luma (into a ByteArray), the clipboard, and the local timezone's offset (`lq_tz_min`: `localtime_r`'s `tm_gmtoff`, also in quiet_ios.m and host.c), by which rows show a message's UTC time. A log line (`lq_log`: logcat's "lean" tag, NSLog on iOS, stderr on the host). A watchdog logs a backtrace of Lean's thread if it stalls 3 s. | The words mean what `Input.decode` reads, and the offset is the OS's. |
 | **SQLite** ([`glue.c`](engine/native/glue.c)) | 72 | Open, exec, and one statement with blob parameters, every column back as bytes. One file on every platform: the desktop, Android and iOS compile it. | Rows come back as stored. |
 | **The crypto** ([`crypto.c`](engine/native/crypto.c)) | 141 | Checks sizes, calls the Rust, and wipes secret bytes from its stack. | Its size rules are decisions of its own (below). |
 | **Text** (`ba_utf8` in activity.c, `cp` in LeanActivity.java, `lq_cp` in quiet_ios.m) | 37, 4, 11 | UTF-16 to UTF-8, and the selection and composition in code points, three ways. | The positions index the text Lean gets. |
 
 Lean's side of the seam is every `@[extern]`, each an `opaque` Lean
-cannot see into:
+cannot see into. Each has a stated contract: tests/wiring.txt's `extern`
+notes list all of them, the platforms' and the tests' too, and the
+wiring check fails on one without a contract. The app's:
 
 | Lean | C | what |
 |---|---|---|
@@ -892,7 +1096,9 @@ cannot see into:
 | `Engine.Crypto.edKeypair`, `edSign`, `edVerify` ([`Crypto.lean`](engine/core/Crypto.lean)) | `le_ed25519_*` in crypto.c | Ed25519 |
 | `Engine.Crypto.x25519`, `x25519Base`, `staticOf`, `staticPubOf`, `chachaSeal`, `chachaOpen`, `xchachaSeal`, `xchachaOpen`, `randomBytes` ([`Crypto.lean`](engine/core/Crypto.lean)) | `le_*` in crypto.c | X25519, the key conversion, the two AEADs, random bytes |
 | `Engine.Db.open`, `exec` and `query`, over the opaque type `DbPointed` ([`Sqlite.lean`](engine/core/Sqlite.lean)) | `le_sql_*` in glue.c | SQLite |
-| The 19 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `scroll`, `scrollBy`, `scrollTo`, `frame`, `motion`, `text`, `ime`, `setText`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs`, `tzMin`, `log`, `poll`, `links` | `lq_*` in each shell | OS effects, raw events, placement and pixel publication |
+| The 25 of [`Platform.lean`](engine/renderer/Platform.lean): `screen`, `appearance`, `scroll`, `bars`, `scrollBy`, `scrollTo`, `frame`, `motion`, `text`, `ime`, `setText`, `editor`, `editorAction`, `copy`, `ctlPoll`, `ctlReply`, `scan`, `luma`, `nowUs`, `tzMin`, `log`, `poll`, `links`, `pickPhoto`, `photoResult` | `lq_*` in each shell | OS effects, raw events, placement and pixel publication, the native editor, the photo picker |
+| `closeListener` ([`Listener.lean`](engine/wire/Listener.lean)); `SocketAbort.abort`, `finishWrite`, `barrier` and its capture ([`SocketAbort.lean`](engine/wire/SocketAbort.lean)) | `lq_listener_close`, `lq_socket_*` in [`listener.h`](engine/native/listener.h) | the runner's TCP seam: closing the listener, shutting down a stalled socket |
+| `desktopFrame`, `desktopCursor`, `desktopSelect`, `desktopNativeScroll`, `desktopLayers` ([`Main.lean`](platforms/desktop/Main.lean)) | `lq_desktop_*` in the desktop shells | the desktop's frame, cursor, selection and layers |
 | `register`, `browse`, `poll` ([`NetProbe.lean`](platforms/ios/probe/NetProbe.lean)) | `lq_sd_*` in [`dnssd.c`](platforms/ios/probe/dnssd.c) | DNS-SD, for the iOS network probe only |
 
 - The Lean that ships has no `@[implemented_by]`, no `unsafe` and no
@@ -906,7 +1112,7 @@ cannot see into:
   are `IO`.
 - **Nothing checks the signatures.** Each borrowed argument (`@&`) must
   be a `b_lean_obj_arg` in the C. `le_random` still declares the world
-  argument that Lean 4.34 no longer passes; it is unused.
+  argument that Lean (since 4.34) no longer passes; it is unused.
 
 Placement and touch policy now run in Lean: `Surface.make` publishes both
 `Seam.place` and `Seam.pinned`; `Input.run` classifies raw pointer sequences
@@ -1168,11 +1374,20 @@ CI runs locally for now:
   twin, and the engine's suites without TCP. Each is deterministic: no
   sockets, no X, no clock to beat, no source edited.
 - `ci/local.sh --full` (`mise run ci:full`) runs the gate, then every
-  other part in parallel (`-j N`, 6 by default), each isolated: the
-  negative controls' mutants, TCP, X, qr, mdns, net, zoom, the site and
-  the workspace. It runs nightly and before a release. A bug it finds
-  that the gate missed becomes a law over the running code (and an entry
-  in [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+  other part, 4 at once (`-j N`), longest first by each part's last time
+  (`ci/times.tsv`, `out/ci/times.tsv`): the negative controls' mutants,
+  TCP, X, qr, mdns, net, zoom, the site and the workspace, and each of the
+  app's checks (`tests/app/parts.txt`) in its own copy of the built tree,
+  a mutant check with cases in up to six slices. Within a part, mutants
+  run at once, each in a copy of its own (`tests/mutants.py`), and nothing
+  is restored or rebuilt after; every mutant on the box holds one of 12
+  slots (`MUTANT_SLOTS`), so the box never builds more at once. It runs
+  nightly (`ci/nightly.sh`, `mise run ci:nightly`: main's head in a
+  worktree of its own; the night's summary and logs in
+  `$TMPDIR/lean-quiet-nightly/latest`) and before a release. A bug it finds that the gate missed
+  becomes a law over the running code (and an entry in
+  [docs/CAUGHT.md](docs/CAUGHT.md)), so the gate catches it next time.
+  `ci/local.sh --list --full` prints its plan.
 - `ci/land.sh` lands a branch: one landing at a time on this box (a lock
   in `$TMPDIR`), it merges main in, gates the result and pushes it, so no
   gate is wasted on a main that moved under it. `LAND_PUSH` sets the push.
@@ -1223,12 +1438,10 @@ and [`NodeUnique.sql_step_valid`]. Its existing interpreter consequences are
 opportunities and full native delivery remain open.
 
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
-[`grows`]: engine/world/Plain.lean#L189-L194
+[`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L814-L847
 [`converge`]: engine/world/Plain.lean#L198-L208
 [`offline`]: engine/world/Plain.lean#L211-L219
-[`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`want_reaches`]: engine/world/Send.lean#L31-L57
-[`drain`]: engine/world/Drain.lean#L842-L858
 [`Unforgeable`]: app/community/Family.lean#L1298-L1313
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
 [`CollisionFree`]: engine/core/Proofs.lean#L542-L544
@@ -1240,7 +1453,14 @@ opportunities and full native delivery remain open.
 [`Seal.Good`]: app/community/Op.lean#L51-L59
 [`cryptoSeal_good`]: app/community/Op.lean#L147-L149
 [`suite_good`]: engine/wire/Noise.lean#L425-L430
-[`NativeCrypto`]: engine/core/Trust.lean#L62-L67
+[`NativeCrypto`]: engine/core/Trust.lean#L75-L81
+[`Ed25519Signs`]: engine/core/Trust.lean#L70-L73
+[`ofSeed_signs`]: app/community/Commands.lean#L282-L287
+[`SqliteStore`]: engine/core/StoreTrust.lean#L165-L189
+[`receive_as_model`]: engine/core/SqliteLaws.lean#L238-L244
+[`purge_as_model`]: engine/core/SqliteLaws.lean#L324-L330
+[`receive_refused`]: engine/core/SqliteLaws.lean#L261-L265
+[`Model.run`]: engine/core/Model.lean#L117-L117
 [`no_impersonation`]: app/community/Proofs.lean#L114-L127
 [`admission_needs_approval`]: app/community/member/invite/Proofs.lean#L38-L49
 [`admission_approved`]: app/community/member/invite/request/approve/Proofs.lean#L46-L54
@@ -1367,7 +1587,7 @@ opportunities and full native delivery remain open.
 [`open_seal`]: app/connection/Proofs.lean#L506-L513
 [`cid_seal`]: app/connection/Proofs.lean#L537-L541
 [`Codec.encode_decode`]: engine/core/Codec.lean#L773-L776
-[`Op.id_decode`]: engine/core/Core.lean#L91-L93
+[`Op.id_decode`]: engine/core/Core.lean#L92-L94
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
 [`op_of_valid`]: app/community/Family.lean#L1272-L1277
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L198-L201
@@ -1393,8 +1613,8 @@ opportunities and full native delivery remain open.
 [`frames_kept`]: engine/wire/Frame.lean#L158-L161
 [`frames_tooBig`]: engine/wire/Frame.lean#L180-L183
 [`admit_bounded`]: engine/wire/Slots.lean#L73-L78
-[`Op.decode_exact`]: engine/core/Core.lean#L98-L100
-[`Op.decode_parts`]: engine/core/Core.lean#L103-L106
+[`Op.decode_exact`]: engine/core/Core.lean#L99-L101
+[`Op.decode_parts`]: engine/core/Core.lean#L104-L107
 [`decode_sum`]: engine/core/Codec.lean#L809-L812
 [`hold_bounded`]: engine/sync/BoundsLaws.lean#L65-L66
 [`conn_bounded`]: engine/sync/BoundsLaws.lean#L232-L233
@@ -1439,7 +1659,7 @@ opportunities and full native delivery remain open.
 [`sum_left`]: engine/core/Families.lean#L79-L82
 [`sum_scope_left`]: engine/core/Families.lean#L85-L86
 [`Codec.decode_encode`]: engine/core/Codec.lean#L767-L767
-[`Op.decode_bytes`]: engine/core/Core.lean#L96-L96
+[`Op.decode_bytes`]: engine/core/Core.lean#L97-L97
 [`sum_project`]: engine/core/Project.lean#L421-L432
 [`sum_project_node`]: app/connection/Family.lean#L616-L627
 [`spec_sum_left`]: engine/core/Project.lean#L195-L198
@@ -1499,7 +1719,6 @@ opportunities and full native delivery remain open.
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1526-L1545
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L243
 [`stream_offered`]: engine/wire/WorldLaws.lean#L1471-L1483
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L814-L847
 [`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L852-L869
 [`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1490-L1496
 [`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L899-L904
@@ -1533,10 +1752,7 @@ opportunities and full native delivery remain open.
 [`fresh_served`]: engine/wire/WorldLaws.lean#L637-L644
 [`write_hot`]: engine/wire/WorldLaws.lean#L1457-L1462
 [`onWrite_receives`]: app/Proofs.lean#L3206-L3215
-[`want_to_op`]: engine/world/Chain.lean#L273-L297
-[`op_hop`]: engine/world/Chain.lean#L111-L124
-[`write_hop`]: engine/world/Chain.lean#L181-L193
-[`step_waits`]: engine/world/Drain.lean#L706-L719
+[`grows`]: engine/world/Plain.lean#L189-L194
 [`managed_nil`]: engine/world/Inv.lean#L148-L151
 [`owes_queued_start`]: engine/world/InvIx.lean#L727-L729
 [`ix_covers_start`]: engine/world/InvIx.lean#L720-L722
@@ -1584,7 +1800,7 @@ opportunities and full native delivery remain open.
 [`subscriptions_exact`]: app/Screen.lean#L240-L241
 [`mounted_runs`]: app/Screen.lean#L305-L307
 [`restore_checkpoint`]: app/Screen.lean#L302-L302
-[`page_round`]: app/Screen.lean#L1999-L1999
+[`page_round`]: app/Screen.lean#L2054-L2054
 [`restore_page_anchor`]: app/Proofs.lean#L1200-L1209
 [`apply_page_anchor`]: app/Proofs.lean#L1213-L1218
 [`resize_anchor`]: app/Screen.lean#L270-L271
@@ -1632,7 +1848,7 @@ opportunities and full native delivery remain open.
 [`go_inv`]: engine/renderer/Nav.lean#L107-L107
 [`NavLaws.depth`]: app/Proofs.lean#L1387-L1392
 [`draft_back`]: app/Proofs.lean#L1362-L1364
-[`into_native`]: app/Screen.lean#L2439-L2442
+[`into_native`]: app/Screen.lean#L2528-L2531
 [`present_iff`]: app/community/Screen.lean#L438-L441
 [`present_not_removed`]: app/community/Screen.lean#L448-L451
 [`present_nodup`]: app/community/Screen.lean#L455-L456
@@ -1709,8 +1925,8 @@ opportunities and full native delivery remain open.
 [`dedupe_nodup`]: app/community/Screen.lean#L779-L780
 [`dedupe_one_per_community`]: app/community/Screen.lean#L783-L785
 [`select_tapped_dedupe`]: app/community/Screen.lean#L809-L811
-[`drawPage_key`]: app/Screen.lean#L4091-L4095
-[`pageIn_acc`]: app/Screen.lean#L4097-L4100
+[`drawPage_key`]: app/Screen.lean#L4265-L4269
+[`pageIn_acc`]: app/Screen.lean#L4271-L4274
 [`msg_cmp`]: app/community/channel/message/Proofs.lean#L117-L124
 [`time_is_display`]: app/community/channel/message/Proofs.lean#L128-L134
 [`order_total`]: app/community/Proofs.lean#L1419-L1429
@@ -1778,9 +1994,9 @@ opportunities and full native delivery remain open.
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`screen_index`]: engine/renderer/Screen.lean#L258-L261
 [`decoded_started`]: app/community/channel/message/attachment/Screen.lean#L444-L448
-[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L539-L542
-[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L601-L603
-[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L614-L618
+[`image_steady`]: app/community/channel/message/attachment/Screen.lean#L545-L548
+[`image_settles`]: app/community/channel/message/attachment/Screen.lean#L607-L609
+[`image_twice`]: app/community/channel/message/attachment/Screen.lean#L620-L624
 [`RWorld.acts_shown`]: engine/renderer/ActsLaws.lean#L210-L219
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
 [`World.inv_commit`]: engine/renderer/BoardLaws.lean#L337-L338
@@ -1925,7 +2141,6 @@ opportunities and full native delivery remain open.
 [`cost_run`]: engine/core/CostErase.lean#L58-L60
 [`offerM`]: app/Screen.lean#L380-L386
 [`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L276-L289
-[`Model.run`]: engine/core/Model.lean#L117-L117
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
 [`BeforeNext`]: engine/renderer/Demand.lean#L224-L226
@@ -1997,7 +2212,7 @@ in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
 **Coverage: 534 kernel witnesses, 175 runtime witnesses,
-25 conditional checks, 0 recorded runtime counterexamples; 30 of 764 linked declarations still pending.**
+31 conditional checks, 0 recorded runtime counterexamples; 19 of 759 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2195,7 +2410,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`cid_seal`](app/connection/Proofs.lean#L537-L541) | **runtime-witness**: [Vacuity.IdentityFrames.cidSeal](tests/vacuity/IdentityFrames.lean). Actual Noise session with 32-byte session ID/key and 24-byte nonce, carrying signed message bytes. The theorem now needs only concrete crypto premises for this frame. Native branches check ciphertext length, then apply the theorem with every premise discharged. Malformed 0/31/33-byte keys cannot produce certificates; malformed 0/23/25-byte nonces and wrong receive keys are rejected. |
 | [`suite_good`](engine/wire/Noise.lean#L425-L430) | **conditional**: [Vacuity.Contracts.suiteGoodConditional](tests/vacuity/Contracts.lean). The running Noise suite is good given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes). Mutation controls: DH without the zero-point check fails suite_dh_comm; an empty public key for a malformed secret fails suite_pub_size. |
 | [`Codec.encode_decode`](engine/core/Codec.lean#L773-L776) | **kernel-witness**: [Vacuity.Core.canonical](tests/vacuity/Core.lean). Fixed literal wire bytes decode to a message payload and re-encode identically; trailing byte rejected. |
-| [`Op.id_decode`](engine/core/Core.lean#L91-L93) | **kernel-witness**: [Vacuity.Core.hashNamed](tests/vacuity/Core.lean). Successful concrete op decode inhabits the premise; id equals SHA(bytes), without claiming collision freedom. |
+| [`Op.id_decode`](engine/core/Core.lean#L92-L94) | **kernel-witness**: [Vacuity.Core.hashNamed](tests/vacuity/Core.lean). Successful concrete op decode inhabits the premise; id equals SHA(bytes), without claiming collision freedom. |
 | [`distinct_of_collisionFree`](engine/core/Proofs.lean#L546-L549) | **runtime-witness**: [Vacuity.CoreRuntime.distinctFromHash](tests/vacuity/CoreRuntime.lean). Signed community plus a local secret and hostile shared dependent. Concrete finite collision premise, queued step, purge membership and shared-scope premises checked where required; local secret disappears, shared op is requeued and ordinary message is retained. This checks the model purge, not SQLite erasure. |
 | [`op_of_valid`](app/community/Family.lean#L1272-L1277) | **runtime-witness**: [Vacuity.CoreRuntime.validEncoding](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Pic.decode_sized`](engine/renderer/pic/Laws.lean#L198-L201) | **kernel-witness**: [Vacuity.RendererImages.pictureSized](tests/vacuity/RendererImages.lean). Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. |
@@ -2222,8 +2437,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`frames_kept`](engine/wire/Frame.lean#L158-L161) | **kernel-witness**: [Vacuity.SyncMore.keptBound](tests/vacuity/SyncMore.lean). A five-byte payload has only two bytes received after its length header; prove nonempty partial frame retained, then apply bounds. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`frames_tooBig`](engine/wire/Frame.lean#L180-L183) | **kernel-witness**: [Vacuity.SyncMore.oversizedRejected](tests/vacuity/SyncMore.lean). Decode a concrete length header of 1048577 and prove it exceeds the 1 MiB cap; entire frame input rejected. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`admit_bounded`](engine/wire/Slots.lean#L73-L78) | **kernel-witness**: [Vacuity.SyncMore.socketAdmission](tests/vacuity/SyncMore.lean). A second distinct peer address is actually admitted; derive both total-socket and per-address bounds. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
-| [`Op.decode_exact`](engine/core/Core.lean#L98-L100) | **kernel-witness**: [Vacuity.Core.exactBytes](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
-| [`Op.decode_parts`](engine/core/Core.lean#L103-L106) | **kernel-witness**: [Vacuity.Core.partsSmaller](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
+| [`Op.decode_exact`](engine/core/Core.lean#L99-L101) | **kernel-witness**: [Vacuity.Core.exactBytes](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
+| [`Op.decode_parts`](engine/core/Core.lean#L104-L107) | **kernel-witness**: [Vacuity.Core.partsSmaller](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`decode_sum`](engine/core/Codec.lean#L809-L812) | **kernel-witness**: [Vacuity.Core.bundleSmaller](tests/vacuity/Core.lean). Concrete nonempty encoded messages, fixed invite or three-row ordering fixture; actual theorem applied with fully discharged premises. |
 | [`hold_bounded`](engine/sync/BoundsLaws.lean#L65-L66) | **kernel-witness**: [Vacuity.SyncMore.holdBounds](tests/vacuity/SyncMore.lean). Receive a nonempty have naming the fixture message at a receiver missing it; construct initial bounded-state premise. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
 | [`conn_bounded`](engine/sync/BoundsLaws.lean#L232-L233) | **kernel-witness**: [Vacuity.SyncMore.knownAskedBounds](tests/vacuity/SyncMore.lean). Construct reachable connection by open then authorized nonempty want, not an assumed Reachable premise; apply bounds. Synthetic fixtures; claims limited to the imported running functions/model and stated premises. |
@@ -2269,7 +2484,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`sum_left`](engine/core/Families.lean#L79-L82) | **kernel-witness**: [Vacuity.Projection.validatesLeft](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`sum_scope_left`](engine/core/Families.lean#L85-L86) | **kernel-witness**: [Vacuity.Projection.scopeLeft](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`Codec.decode_encode`](engine/core/Codec.lean#L767-L767) | **kernel-witness**: [Vacuity.Core.decoded](tests/vacuity/Core.lean). Nonempty message payload with two requirement ids roundtrips. |
-| [`Op.decode_bytes`](engine/core/Core.lean#L96-L96) | **kernel-witness**: [Vacuity.Core.opDecodes](tests/vacuity/Core.lean). Concrete nonempty op decodes; its SHA value remains symbolic. |
+| [`Op.decode_bytes`](engine/core/Core.lean#L97-L97) | **kernel-witness**: [Vacuity.Core.opDecodes](tests/vacuity/Core.lean). Concrete nonempty op decodes; its SHA value remains symbolic. |
 | [`sum_project`](engine/core/Project.lean#L421-L432) | **kernel-witness**: [Vacuity.Projection.wholeProjection](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
 | [`sum_project_node`](app/connection/Family.lean#L616-L627) | **runtime-witness**: [Vacuity.IdentityConnection.projection](tests/vacuity/IdentityConnection.lean). Actual deterministic Noise KK request/reply, signed Alice/Bob community and local node endpoint. Combined-family Reach proves Inv; finite successful branches check the additional premises. Active session carries sync; after Bob removal only its removal notice remains. Unapproved request and removed-peer replay produce no connection/send reply. |
 | [`spec_sum_left`](engine/core/Project.lean#L195-L198) | **kernel-witness**: [Vacuity.Projection.specLeft](tests/vacuity/Projection.lean). Concrete composed Unit families with kind2 ownership for local sessions; kind1 op containing synthetic Alice greeting is ingested and settled. Proves invariant, empty queue, valid left fact, actual indexed row and left-only list key; applies projection theorem. Fixture contains one left-family op; no stored right-family op and no Community validator/security claim. |
@@ -2420,7 +2635,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`subscriptions_exact`](app/Screen.lean#L240-L241) | **kernel-witness**: [Vacuity.RendererFlow.subscriptions](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`mounted_runs`](app/Screen.lean#L305-L307) | **kernel-witness**: [Vacuity.RendererFlow.mountedWork](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`restore_checkpoint`](app/Screen.lean#L302-L302) | **kernel-witness**: [Vacuity.RendererFlow.restore](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
-| [`page_round`](app/Screen.lean#L1999-L1999) | **kernel-witness**: [Vacuity.RendererRuntime.pageCodec](tests/vacuity/RendererRuntime.lean). Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims. |
+| [`page_round`](app/Screen.lean#L2054-L2054) | **kernel-witness**: [Vacuity.RendererRuntime.pageCodec](tests/vacuity/RendererRuntime.lean). Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims. |
 | [`restore_page_anchor`](app/Proofs.lean#L1200-L1209) | **runtime-witness**: [Vacuity.RendererRuntime.savedAnchor](tests/vacuity/RendererRuntime.lean). No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data. |
 | [`apply_page_anchor`](app/Proofs.lean#L1213-L1218) | **runtime-witness**: [Vacuity.RendererRuntime.restoredAnchor](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`resize_anchor`](app/Screen.lean#L270-L271) | **kernel-witness**: [Vacuity.RendererFlow.resize](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
@@ -2468,7 +2683,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`go_inv`](engine/renderer/Nav.lean#L107-L107) | **kernel-witness**: [Vacuity.RendererFlow.noDuplicates](tests/vacuity/RendererFlow.lean). Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised. |
 | [`NavLaws.depth`](app/Proofs.lean#L1387-L1392) | **runtime-witness**: [Vacuity.RendererRuntime.stackDepth](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`draft_back`](app/Proofs.lean#L1362-L1364) | **runtime-witness**: [Vacuity.RendererRuntime.draftBack](tests/vacuity/RendererRuntime.lean). No premise to certify: the law holds of every state. vacuity_renderer_runtime builds a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values, runs the compiled function the law is about on it, and checks the law's conclusion there (the proof itself is erased at run time). This trusts native execution and does not use real-user data. |
-| [`into_native`](app/Screen.lean#L2439-L2442) | **runtime-witness**: [Vacuity.RendererRuntime.nativeInput](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
+| [`into_native`](app/Screen.lean#L2528-L2531) | **runtime-witness**: [Vacuity.RendererRuntime.nativeInput](tests/vacuity/RendererRuntime.lean). vacuity_renderer_runtime constructs a real headless App.start state with SQLite/ref/task resources and synthetic draft/page/anchor values. Decidable branches establish page, stack, editing-target and anchor premises before theorem application; execution checks revoked reads/writes/callbacks and preserved draft/navigation. This trusts native execution and does not use real-user data. |
 | [`present_iff`](app/community/Screen.lean#L438-L441) | **runtime-witness**: [Vacuity.IdentityPeople.presentIff](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
 | [`present_not_removed`](app/community/Screen.lean#L448-L451) | **runtime-witness**: [Vacuity.IdentityPeople.presentNotRemoved](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
 | [`present_nodup`](app/community/Screen.lean#L455-L456) | **kernel-witness**: [Vacuity.IdentityPeople.presentNodup](tests/vacuity/IdentityPeople.lean). Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count. |
@@ -2545,8 +2760,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`dedupe_nodup`](app/community/Screen.lean#L779-L780) | **kernel-witness**: [Vacuity.RendererSets.acceptanceUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`dedupe_one_per_community`](app/community/Screen.lean#L783-L785) | **kernel-witness**: [Vacuity.RendererSets.communityUnique](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
 | [`select_tapped_dedupe`](app/community/Screen.lean#L809-L811) | **kernel-witness**: [Vacuity.RendererSets.tapped](tests/vacuity/RendererSets.lean). Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed. |
-| [`drawPage_key`](app/Screen.lean#L4091-L4095) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
-| [`pageIn_acc`](app/Screen.lean#L4097-L4100) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`drawPage_key`](app/Screen.lean#L4265-L4269) | **kernel-witness**: [Vacuity.RendererRuntime.sameKey](tests/vacuity/RendererRuntime.lean). For every app state, the state a minute later has the same page key (the clock is not on a page), so the two different states draw the same page: the key equality is between distinct states, not one key and itself. It does not establish pixel fidelity or that the key contains every rendering dependency. |
+| [`pageIn_acc`](app/Screen.lean#L4271-L4274) | **kernel-witness**: [Vacuity.RendererRuntime.keyAcceptance](tests/vacuity/RendererRuntime.lean). For every app state and every other acceptance id, the state on that acceptance has a different page key: the law's contrapositive, which a switch's redraw relies on. It does not establish pixel fidelity or that the key contains every rendering dependency. |
 | [`msg_cmp`](app/community/channel/message/Proofs.lean#L117-L124) | **kernel-witness**: [Vacuity.IdentityMessages.messageCompare](tests/vacuity/IdentityMessages.lean). Concrete signed messages with counters 1/2 and reversed wall-clock times; actual comparator returns less-than. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`time_is_display`](app/community/channel/message/Proofs.lean#L128-L134) | **kernel-witness**: [Vacuity.IdentityMessages.timeIsDisplay](tests/vacuity/IdentityMessages.lean). Concrete distinct counters 1 and 2, inequality proven in kernel; reversed times do not reverse actual message order. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
 | [`order_total`](app/community/Proofs.lean#L1419-L1429) | **runtime-witness**: [Vacuity.IdentityMessages.orderTotal](tests/vacuity/IdentityMessages.lean). Two real signed sealed messages read oldest first; exact returned IDs match increasing counters despite reversed wall-clock times. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution. |
@@ -2581,7 +2796,14 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`NoCollision`](engine/core/Merkle.lean#L152-L154) | **kernel-witness**: [Vacuity.Merkle.noCollision](tests/vacuity/Merkle.lean). Finite premise over the bytes at hand: what a file's root hashes against what checking a chunk hashed. Kernel witness for a 32-byte-output model hash (not SHA-256) and a nonempty file, for every checked list; tests/vacuity/Attachment.lean decides it on real SHA-256 for a two-chunk file's chunks. |
 | [`Suite.Good`](engine/wire/Noise.lean#L71-L82) | **conditional**: [Vacuity.Contracts.noiseContractCertificate](tests/vacuity/Contracts.lean). Valid keys come only from HKDF, whose outputs are SHA-256 digests; the running suite decides a malformed secret in Lean. The running suite has the contract given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (suite_good). The executable checks native roundtrips, DH symmetry for every pair of 0/1/31/32/33/64-byte secrets, and HKDF key validity. Conditional on the trust file. |
 | [`Seal.Good`](app/community/Op.lean#L51-L59) | **conditional**: [Vacuity.SealAudit.goodConditional](tests/vacuity/SealAudit.lean). Key and nonce sizes are in the types (Key32, Nonce24), so the contract has no size premise. The running suite cryptoSeal has it given the crypto trust file (engine/core/Trust.lean, Trust.NativeCrypto: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, SHA-256 digests are 32 bytes) (cryptoSeal_good); the bridge is exercised and the executable checks native roundtrips across 64-byte block boundaries. Conditional on the trust file, which finite roundtrips cannot prove. |
-| [`NativeCrypto`](engine/core/Trust.lean#L62-L67) | **conditional**: [Vacuity.CryptoTrust.nativeConditional](tests/vacuity/CryptoTrust.lean). The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused). The crates refuse every other key and nonce size. A named premise, never an axiom. |
+| [`NativeCrypto`](engine/core/Trust.lean#L75-L81) | **conditional**: [Vacuity.CryptoTrust.nativeConditional](tests/vacuity/CryptoTrust.lean). The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths; Ed25519 signatures by each seed's key pair over the same plaintexts, and another key, message or signature rejected), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest, toySigns), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused, noneVerifyRefused). The crates refuse every other key and nonce size. A named premise, never an axiom. |
+| [`Ed25519Signs`](engine/core/Trust.lean#L70-L73) | **conditional**: [Vacuity.CryptoTrust.ed25519Conditional](tests/vacuity/CryptoTrust.lean). Part of NativeCrypto. The native crate satisfies it: for the key pair of each of 5 seeds, signatures of plaintexts 0-70001 bytes verify, and another key, message or signature is rejected. A toy scheme satisfies the shape in the kernel (toySigns) and one that verifies nothing fails it (noneVerifyRefused). Bridged to ofSeed_signs. |
+| [`ofSeed_signs`](app/community/Commands.lean#L282-L287) | **conditional**: [Vacuity.CryptoTrust.ed25519Conditional](tests/vacuity/CryptoTrust.lean). Applied under the crypto trust file (ed25519Conditional): every device made from a 32-byte seed verifies its own signatures, the hsig premise the signing laws take. The executable checks the same on the native crate. |
+| [`SqliteStore`](engine/core/StoreTrust.lean#L165-L189) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). The store's trust file, bridged to the laws over the running write turn and purge (receive_as_model, purge_as_model). Tested from both sides: on a real SQLite file brought to the model's tables by a workload, each of the 15 store operations alone answers as the model and its rows show the model's next tables, then roll back; beginning and committing, a refused write turn, the budget query, list queries and a purge's rewrite change no table; a whole write turn and a purge show the model's. In the kernel the model's own store keeps the shape (modelKeeps), empty rows show empty tables (emptyShows), a store that drops a write fails (dropRefused) and queued rows do not show empty tables (queuedNotEmpty). A named premise, never an axiom. |
+| [`receive_as_model`](engine/core/SqliteLaws.lean#L238-L244) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (sqliteConditional). The executable runs the same write turn on SQLite and on the model and checks that the rows show the model's tables. |
+| [`purge_as_model`](engine/core/SqliteLaws.lean#L324-L330) | **conditional**: [Vacuity.StoreTrust.sqliteConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (sqliteConditional). The executable purges a stored op on SQLite and on the model and checks that the rows show the model's tables. |
+| [`receive_refused`](engine/core/SqliteLaws.lean#L261-L265) | **conditional**: [Vacuity.StoreTrust.refusedConditional](tests/vacuity/StoreTrust.lean). Applied to the app's family under the store's trust file (refusedConditional). The executable runs a write turn that fails after writing on a real SQLite file and checks that its rows still show the tables before. |
+| [`Model.run`](engine/core/Model.lean#L117-L117) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`world_trace_moves`](app/Proofs.lean#L2979-L2981) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`empty_trace_store`](app/Proofs.lean#L2986-L2990) | **runtime-witness**: [Vacuity.StorageEffects.eventCertificate](tests/vacuity/StorageEffects.lean). The exercised full-handler certificate obtains source reachability and settlement through empty_trace_store and its world_trace_moves/world_step_moves derivation for the concrete nonempty production bootstrap prefix. Native checks establish a valid signed message and live session at the endpoint, then run all four handlers, including a close that really purges connection ops. An unheld message rejects the certificate. This checks the applied preservation chain; it does not assert whole-app liveness. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`world_trace_history`](app/Proofs.lean#L3511-L3513) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
@@ -2622,9 +2844,9 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`ofList_wf`](engine/core/WindowIndex.lean#L445-L445) | **kernel-witness**: [Vacuity.Query.indexWF](tests/vacuity/Query.lean). Builds actual two-window subscription index and establishes its invariant. Synthetic model fixture; no collected real-user traffic. |
 | [`screen_index`](engine/renderer/Screen.lean#L258-L261) | **kernel-witness**: [Vacuity.RendererModels.frameIndex](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`decoded_started`](app/community/channel/message/attachment/Screen.lean#L444-L448) | **kernel-witness**: [Vacuity.RendererPics.started](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_steady`](app/community/channel/message/attachment/Screen.lean#L539-L542) | **kernel-witness**: [Vacuity.RendererPics.noWork](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_settles`](app/community/channel/message/attachment/Screen.lean#L601-L603) | **kernel-witness**: [Vacuity.RendererPics.settles](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
-| [`image_twice`](app/community/channel/message/attachment/Screen.lean#L614-L618) | **kernel-witness**: [Vacuity.RendererPics.twice](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_steady`](app/community/channel/message/attachment/Screen.lean#L545-L548) | **kernel-witness**: [Vacuity.RendererPics.noWork](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_settles`](app/community/channel/message/attachment/Screen.lean#L607-L609) | **kernel-witness**: [Vacuity.RendererPics.settles](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
+| [`image_twice`](app/community/channel/message/attachment/Screen.lean#L620-L624) | **kernel-witness**: [Vacuity.RendererPics.twice](tests/vacuity/RendererPics.lean). Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline. |
 | [`RWorld.acts_shown`](engine/renderer/ActsLaws.lean#L210-L219) | **kernel-witness**: [Vacuity.RendererModels.actsShown](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`seen_take`](engine/renderer/BoardLaws.lean#L247-L248) | **kernel-witness**: [Vacuity.RendererModels.boardSeen](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
 | [`World.inv_commit`](engine/renderer/BoardLaws.lean#L337-L338) | **kernel-witness**: [Vacuity.RendererModels.worldCommit](tests/vacuity/RendererModels.lean). Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop. |
@@ -2769,7 +2991,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`cost_run`](engine/core/CostErase.lean#L58-L60) | **kernel-witness**: [Vacuity.Core.costRun](tests/vacuity/Core.lean). Counted action with two reads, one write and 13 copied bytes, value 42. |
 | [`offerM`](app/Screen.lean#L380-L386) | **kernel-witness**: [Vacuity.RendererFlow.offerSplit](tests/vacuity/RendererFlow.lean). This README reference is the model channel operation, not a theorem. The concrete nonempty offer_split witness uses that exact operation on accepting/refusing responses and proves taken ++ waiting preserves the original writes. Exact channel outputs and retry order are checked separately. |
 | [`Symbolic.sym`](engine/wire/NoiseSymbolic.lean#L276-L289) | **kernel-witness**: [Vacuity.Contracts.symbolicGood](tests/vacuity/Contracts.lean). Symbolic Noise satisfies the corrected Good contract: every term is a supported key/payload/AD, HKDF/hash outputs satisfy these predicates, and correctness is proved in the kernel. Concrete Session handshake/secrecy fixtures continue to apply the same generic functions; this is not a proof of native primitives. |
-| [`Model.run`](engine/core/Model.lean#L117-L117) | **kernel-witness**: [Vacuity.CoreRuntime.loop](tests/vacuity/CoreRuntime.lean). Actual synthetic signed Alice/Bob community with a nonempty post and proper extension. Native branches discharge finite premises; invariant and extension structure derive from production preservation laws. |
 | [`Sync.popW`](engine/wire/Lanes.lean#L132-L135) | **kernel-witness**: [Vacuity.WireMore.popsWrite](tests/vacuity/WireMore.lean). Two local writes and queued TCP frame; exact pop returns first write and preserves remaining queues. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`Engine.runJ`](engine/core/WindowLaws.lean#L148-L151) | **kernel-witness**: [Vacuity.WireMore.runJFiles](tests/vacuity/WireMore.lean). Actual stored-op processing journal leads to newly indexed visible row, as independently proved in Query fixture. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`BeforeNext`](engine/renderer/Demand.lean#L224-L226) | **kernel-witness**: [Vacuity.RendererDemand.beforeNext](tests/vacuity/RendererDemand.lean). This README reference is an invariant definition, not a theorem: the concrete nonempty two-key demand plan satisfies BeforeNext. Its serial bound is constructed from empty_before_next and reconcile_before_next; remount also checks serial reuse is rejected. |
@@ -2939,3 +3160,12 @@ admitted peer frame is served or explicitly retired within
 `4 * (maxSocks + 1)` turns. These bounds allow indefinitely continuing
 arrivals and other-peer churn. Selection alone does not establish commit,
 read-back or display latency.
+
+## License
+
+Lean Quiet is free software: you can redistribute it and/or modify it
+under the terms of the GNU Affero General Public License, version 3 or
+(at your option) any later version (SPDX: `AGPL-3.0-or-later`). See
+[LICENSE](LICENSE). Vendored and third-party parts (SQLite, the Rust
+crypto crates, the fonts, the emoji data and the sample photos) keep
+their own licences.

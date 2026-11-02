@@ -92,7 +92,8 @@ def main (args : List String) : IO UInt32 := do
     check "a new install opens on Get started" ((← get).page == .getStarted)
     writePpm (dir ++ "/get-started.ppm") W (← screenOf sm W Hs 63)
     sm.cmds.modify (·.push "found general")
-    steps 5
+    -- founding is an act: wait until it is written and applied
+    waitIdle sm
     check "founding a community opens its home" ((← get).page == .home && (← get).me.name == "general")
     -- home's # general, by its own box
     let s ← get

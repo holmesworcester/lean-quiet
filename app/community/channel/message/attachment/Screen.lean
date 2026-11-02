@@ -499,7 +499,13 @@ theorem run_image (p : Row.Pic) (wd ht : Nat) (w : World) :
       after (image p wd ht theme) w = (if p.complete then after full (after pre w) else after pre w) := by
   intro pre full
   simp only [costIn, after, image, run_bind]
-  by_cases hc : p.complete = true <;> simp [hc, pre, full]
+  by_cases hc : p.complete = true
+  · -- Not `simp [hc, pre, full]`: on Lean 4.35 the kernel spends over a
+    -- minute on its `run_pure` step (a deterministic timeout); `rw` is quick.
+    simp only [hc, Bool.not_true, Bool.false_eq_true, ↓reduceIte, run_bind]
+    rw [run_pure, Meter.add_zero]
+    exact ⟨rfl, rfl⟩
+  · simp [hc, pre]
 
 /-- A picture is steady in a world: its preview's decode has started
 (or it has no preview), and if every chunk is here, its file's decode

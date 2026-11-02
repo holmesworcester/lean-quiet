@@ -12,29 +12,33 @@ namespace Platform
 
 /-- Surface pixels: w, h, top, bottom, dpi, systemDark, left, right,
 imeBottom, cutoutLeft, cutoutTop, cutoutRight, cutoutBottom. Legacy twins
-may omit the safe-area suffix. -/
+may omit the safe-area suffix. Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_screen"] opaque screen : IO (Array UInt32)
 
-/-- Apply Lean's effective appearance to OS bar icons and the window fill. -/
+/-- Apply Lean's effective appearance to OS bar icons and the window fill.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_appearance"] opaque appearance (dark : Bool) (background : UInt32) : IO Unit
 
 /-- A signed OS physics sample in physical pixels. `viewH` is the effective
-viewport with the keyboard open. Lean clamps before using the sample. -/
+viewport with the keyboard open. Lean clamps before using the sample.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_scroll"] opaque scroll (contentH viewH : UInt32) : IO Float
 
 /-- Apply Lean's per-screen colours and icon styles. True means light
-icons, independently for the top and bottom bar. No platform theme policy. -/
+icons, independently for the top and bottom bar. No platform theme policy.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_bars"] opaque bars (top bottom : UInt32) (lightTop lightBottom : Bool) : IO Unit
 
 
 /-- Moves the offset by d pixels (positive: towards older content), as if
 the content above or below the viewport had grown, keeping a fling
 going. Used when rows measured late change the content's height below
-the viewport's anchor, or a new message arrives while not pinned. -/
+the viewport's anchor, or a new message arrives while not pinned.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_scroll_by"] opaque scrollBy (d : Float) : IO Unit
 
 /-- Sets the offset, stopping any fling (a jump: to the newest, to a
-message). -/
+message). Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_scroll_to"] opaque scrollTo (b : Float) : IO Unit
 
 /-- Publish pixel buffers and Surface's rectangles together. The final
@@ -42,72 +46,90 @@ placement fields are a frame serial and Lean's last list tap for diagnostics.
 The hold buffer repeats the exact tile used by listFrame. Raw touches
 carry the displayed serial and translation so Lean
 uses the geometry seen at acquisition. Returns eight-word raw records
-(Input.decode). `pin` distinguishes pages, whose position is Seam.pinned. -/
+(Input.decode). `pin` distinguishes pages, whose position is Seam.pinned.
+Contract: its effect is the OS's, which Lean does not state; what it
+returns is taken as it comes. -/
 @[extern "lq_frame"] opaque frame (list : @& Array ByteArray) (b over : UInt32)
   (top bot : @& Array ByteArray) (pin : Bool) (placement : @& Array UInt32) (hold : @& Array ByteArray) : IO (Array UInt32)
 
-/-- List samples accepted by Lean, encoded as raw eight-word records. -/
+/-- List samples accepted by Lean, encoded as raw eight-word records.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_motion"] opaque motion (samples : @& Array UInt32) : IO Unit
 
 /-- The composer's text as the keyboard left it: the text, and
 `[selStart, selEnd, compStart, compEnd]` in characters (code points);
 compStart = compEnd when nothing is being composed (an IME's underlined
-candidate). -/
+candidate). Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_text"] opaque text : IO (String × Array UInt32)
 
-/-- Opens (true) or closes the keyboard on the composer. -/
+/-- Opens (true) or closes the keyboard on the composer.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_ime"] opaque ime (show_ : Bool) : IO Unit
 
 /-- The native field's text becomes t (caret at its end); left alone if
-it already is t. -/
+it already is t. Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_set_text"] opaque setText : @& String → IO Unit
 
+/-- Gives the native editor Lean's text and mode; returns its text and
+positions. Contract: its effect is the OS's, which Lean does not state;
+what it returns is taken as it comes. -/
 @[extern "lq_editor"] opaque editor (mode : UInt32) (owner revision : UInt64) (text : @& String) : IO (String × Array UInt64)
+/-- Settles a native editor action; returns its text and positions.
+Contract: its effect is the OS's, which Lean does not state; what it
+returns is taken as it comes. -/
 @[extern "lq_editor_action"] opaque editorAction (ticket : UInt64) (disposition : UInt32) : IO (String × Array UInt64)
 
-/-- Puts text on the system clipboard. -/
+/-- Puts text on the system clipboard.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_copy"] opaque copy (text : @& String) : IO Unit
 
 /-- Control commands received since the last call, one line each (the
 Android twin listens on the abstract socket `@leanquiet`; the host twin
-reads them from its script). -/
+reads them from its script). Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_ctl_poll"] opaque ctlPoll : IO (Array String)
 
 /-- Answers the oldest unanswered control command: one line, sent back
-on the connection it came from. -/
+on the connection it came from. Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_ctl_reply"] opaque ctlReply (s : @& String) : IO Unit
 
 /-- Turns the back camera on (its frames start) or off. The first start
 asks for the camera permission. The app draws the preview itself
-(Camera.preview). -/
+(Camera.preview). Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_scan"] opaque scan (on : Bool) : IO Unit
 
 /-- The newest camera frame since the last call, as its luma (Y) plane:
 `[w, h, stride, sensor orientation in degrees]` and the bytes, or
 `(#[], empty)` when there is none. The app decodes it (lean-qr's
-`Qr.decodeLuma`), off its own thread. -/
+`Qr.decodeLuma`), off its own thread. Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_luma"] opaque luma : IO (Array UInt32 × ByteArray)
 
-/-- Microseconds of a monotonic clock (CLOCK_MONOTONIC), shared with the twin's logs. -/
+/-- Microseconds of a monotonic clock (CLOCK_MONOTONIC), shared with the twin's logs.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_now_us"] opaque nowUs : IO UInt64
 
 /-- The local timezone's offset from UTC now, in minutes (localtime_r's
-tm_gmtoff), for showing times. -/
+tm_gmtoff), for showing times. Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_tz_min"] opaque tzMin : IO Int32
 
 /-- A line for the platform's log: logcat (tag "lean") on Android, the
-device console on iOS, stderr on the host. -/
+device console on iOS, stderr on the host.
+Contract: its effect is the OS's, which Lean does not state. -/
 @[extern "lq_log"] opaque log : @& String → IO Unit
 
-/-- Events without submitting a frame; usable while suspended. -/
+/-- Events without submitting a frame; usable while suspended.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_poll"] opaque poll : IO (Array UInt32)
-/-- Cold/warm OS URL deliveries, independent of the debug channel. -/
+/-- Cold/warm OS URL deliveries, independent of the debug channel.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_links"] opaque links : IO (Array String)
 
-/-- Present the system image picker, or cancel request ownership with zero. -/
+/-- Present the system image picker, or cancel request ownership with zero.
+Contract: its effect is the OS's, which Lean does not state; what it
+returns is taken as it comes. -/
 @[extern "lq_pick_photo"] opaque pickPhoto (token : UInt32) : IO Bool
 /-- One completion: [request, status, width, height], straight sRGB RGBA.
-Status 1 is success, 2 cancellation, 3 error; empty header means pending. -/
+Status 1 is success, 2 cancellation, 3 error; empty header means pending.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_photo_result"] opaque photoResult : IO (Array UInt32 × ByteArray)
 
 end Platform
