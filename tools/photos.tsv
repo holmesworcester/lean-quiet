@@ -1,0 +1,11 @@
+# The sample photos, assets/0.qoi to assets/5.qoi: public domain or CC0
+# (pages, authors and licences: tools/third_party/NOTICE.txt). Columns:
+# index, sha256 of the original, the box it is scaled to fit (aspect kept),
+# the original's URL. tools/fetch_assets.sh downloads and checks them;
+# tools/photos.py scales them; tools/photos.sha256 pins the results.
+0	39512ca0b6dc81ed04a7900f8ea1bf3ce40004f276b75df301fb89ea60b240c6	768x512	https://upload.wikimedia.org/wikipedia/commons/9/95/Young_tabby_cat_keeping_watch.jpg
+1	cbb9988f2f18b9180a1cc0cf5dbb0e3bbf8f2e85d17930cf6ca9ab36fac36303	800x600	https://images.metmuseum.org/CRDImages/as/original/DP130155.jpg
+2	9b6ed98b5e40378373b9297ab80cec8a8365a78171ef2e769dfb31c5d6c73367	320x320	https://upload.wikimedia.org/wikipedia/commons/4/45/Ara_ararauna_portrait_Rhodes.jpg
+3	ba7160774025633fab2891c33840d8316af28e5c1eba8f79a48115a065391f3c	360x360	https://images.metmuseum.org/CRDImages/ep/original/DP-41223-001.jpg
+4	cb4c3d2da98ee72130ebfd2ea472fc84ede6726002c2a8c9cabd86e4deea9f0f	1152x1152	https://images-assets.nasa.gov/image/as17-148-22727/as17-148-22727~orig.jpg
+5	a5a4f69b1180c2d25ee33b66b6a9237e6aa314ff70743ab962aeb6864cacc9eb	512x768	https://upload.wikimedia.org/wikipedia/commons/4/4e/Chania_lighthouse_Crete_Greece.jpg

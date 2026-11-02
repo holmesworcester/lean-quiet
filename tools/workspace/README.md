@@ -25,7 +25,7 @@ whose validator you can edit and check in the browser.
 
 ## Run
 
-Needs Lean 4.34.0, Node 24, Python 3, and Clang with a wasm32 backend.
+Needs Lean 4.35.0, Node 24, Python 3, and Clang with a wasm32 backend.
 
 ```sh
 mise run workspace:serve        # http://127.0.0.1:4173

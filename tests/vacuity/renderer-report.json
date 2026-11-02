@@ -545,19 +545,19 @@
     "module": "tests.vacuity.RendererImages",
     "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
   },
-  "Ttf.Cache.put_bound": {
+  "Ttf.Memo.bitmap_eq_fast": {
     "status": "kernel-witness",
-    "theorem": "Ttf.Cache.put_bound",
-    "witness": "Vacuity.RendererImages.cacheBound",
+    "theorem": "Ttf.Memo.bitmap_eq_fast",
+    "witness": "Vacuity.RendererImages.memoRaster",
     "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
+    "detail": "The equation has no premises; a Source over empty font bytes instantiates it at glyph 4. The native executable checks a real Noto glyph's memo answers its raster's bytes, and that `compact` leaves a real raster unchanged."
   },
-  "Ttf.Cache.put_payload_bound": {
+  "Ttf.Memo.Table.get_eq": {
     "status": "kernel-witness",
-    "theorem": "Ttf.Cache.put_payload_bound",
-    "witness": "Vacuity.RendererImages.cachePayload",
+    "theorem": "Ttf.Memo.Table.get_eq",
+    "witness": "Vacuity.RendererImages.tableAnswers",
     "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified. The native executable additionally checks two distinct nonempty glyphs are both retained and index.size = 2, ruling out an always-empty cache."
+    "detail": "A 200-key table of squares answers key 130, on its third page; `tablePast` applies the law at key 9000, past the table, where the function answers. A table one key off is refused by the law itself (`Ttf.Memo.shifted_not_exact`)."
   },
   "agrees_empty": {
     "status": "kernel-witness",

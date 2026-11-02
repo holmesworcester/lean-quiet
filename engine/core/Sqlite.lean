@@ -15,6 +15,13 @@ model reads them off its ops). Afterwards it rebuilds the file (`VACUUM`)
 and truncates the WAL, so no file keeps a deleted byte; that changes no
 row (`scrubSql`). `secure_delete`, on for every connection, zeroes the
 cells deletes free.
+
+`synchronous = FULL`, on for every connection, makes a commit survive
+power loss and OS crashes too: in WAL mode, the commit syncs the WAL to
+storage before it returns, given storage that keeps what it has synced.
+(NORMAL can lose the last commits.)
+tests/engine/SqliteBuild.lean checks it on a store opened as the app
+opens one.
 -/
 import engine.core.Core
 import engine.core.Codec
@@ -26,15 +33,21 @@ opaque DbPointed : NonemptyType
 def Db : Type := DbPointed.type
 instance : Nonempty Db := DbPointed.property
 
+/-- Every database the app opens holds some model tables, and the store's
+operations, write turns, budget and list queries answer as the model's
+(`receive_as_model`, `purge_as_model`). Contract: `Trust.SqliteStore`
+(engine/core/StoreTrust.lean). -/
 @[extern "le_sql_open"] opaque Db.open (path : @& String) : IO Db
+/-- Contract: `Trust.SqliteStore` (engine/core/StoreTrust.lean). -/
 @[extern "le_sql_exec"] opaque Db.exec (db : @& Db) (sql : @& String) : IO Unit
+/-- Contract: `Trust.SqliteStore` (engine/core/StoreTrust.lean). -/
 @[extern "le_sql_query"] opaque Db.query (db : @& Db) (sql : @& String) (args : @& Array ByteArray) :
   IO (Array (Array ByteArray))
 
 def schemaCore : String := "
 PRAGMA secure_delete = ON;
 PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
+PRAGMA synchronous = FULL;
 CREATE TABLE IF NOT EXISTS ops (id BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS catalog (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS catalog_version (version INTEGER PRIMARY KEY);

@@ -21,7 +21,7 @@ are not emulated. The shell does not expose a command socket.
 
 ## Build and launch
 
-The staging host needs the repository's Lean 4.34.0 toolchain, Python 3,
+The staging host needs the repository's Lean 4.35.0 toolchain, Python 3,
 Pillow/fontTools and font prerequisites from `docs/BUILD.md`, Rust with the
 `x86_64-pc-windows-gnu` target, curl, zstd, rsync, and the Debian/Ubuntu
 `clang`, `binutils-mingw-w64-x86-64` and `mingw-w64-x86-64-dev` packages. The latter

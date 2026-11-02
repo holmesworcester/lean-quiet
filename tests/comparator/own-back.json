@@ -1,0 +1,13 @@
+{
+  "challenge_module": "tests.comparator.own.BackChallenge",
+  "solution_module": "tests.comparator.own.BackSolution",
+  "theorem_names": [
+    "NavLaws.back_open"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

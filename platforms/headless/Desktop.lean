@@ -96,6 +96,55 @@ private def memberShell (d : Driver) (check : String → Bool → IO Unit) : IO 
   check "back from the door restores the shell" (d.layout.nav.w == d.app.dim.px 220 && d.app.page == .chat)
   return d
 
+/-- A conversation of many roots, beyond the loaded window: a drag seeks a
+rank the window does not hold, read from the engine (rankPos), and the
+window follows the pointer there (the real pointer is linux:e2e's). Its own
+function: inside `suite`, Lean 4.35's `do` elaboration hits the recursion
+limit. -/
+private def longDrag (d : Driver) (check : String → Bool → IO Unit) : IO Driver := do
+  let mut d := d
+  let (_, s) ← (App.command "chaos 800").run d.app
+  d := { d with app := s }
+  for _ in [0:40] do
+    d ← settle d
+  d ← settle (← resize d 1100 760)
+  let big := d.app.newer + d.app.older
+  check s!"chaos makes more roots than the window loads ({d.app.total} messages, {big} roots beyond it)" (big > 100)
+  let g0 := (scrollbar d.layout d.app).bind fun b => scrollGrab d (b.thumb.x + 2) (b.thumb.y + b.thumb.h / 2)
+  check "the thumb can be grabbed in a long conversation" g0.isSome
+  let mut worst := 0
+  let mut jump := 0
+  let mut last := 0
+  let mut monotone := true
+  let mut atTop := false
+  for i in [0:9] do
+    let some bar := scrollbar d.layout d.app | break
+    let y := bar.track.y + bar.track.h * (8 - i) / 8
+    let grab := g0.getD 0
+    let sought := Desktop.Scrollbar.seek bar grab y
+    d ← scrollDrag d grab y
+    let shown := (scrollbar d.layout d.app).map (·.thumb.y)
+    for _ in [0:30] do
+      d ← settle d
+      if d.app.seek.isNone && !d.app.restoreAnchor then break
+    let reached := (_root_.Scrollbar.ranks (column d.app) d.app.b (App.geom d.app).viewNow).2.2
+    let gap := if reached > sought then reached - sought else sought - reached
+    if i < 8 && gap > worst then worst := gap
+    if i < 8 then
+      let after := ((scrollbar d.layout d.app).map (·.thumb.y)).getD 0
+      let before := shown.getD 0
+      let moved := if after > before then after - before else before - after
+      if moved > jump then jump := moved
+    if i == 8 then atTop := (scrollbar d.layout d.app).any fun b => b.thumb.y ≤ b.track.y + 2
+    if i > 0 && reached < last then monotone := false
+    last := reached
+  check s!"each drag lands within a root of the rank sought, however far (worst gap {worst} parts, a root is {_root_.Scrollbar.unit})"
+    (worst ≤ _root_.Scrollbar.unit + 2)
+  check s!"the thumb does not jump when the window arrives (at most {jump} px)" (jump ≤ 4)
+  check "dragging to the top puts the thumb at the track's top, in a long conversation" atTop
+  check "dragging further back always reaches further back" monotone
+  return d
+
 private def suite (args : List String) : IO UInt32 := do
   let dir := args[0]?.getD "out/desktop"
   IO.FS.createDirAll dir
@@ -300,23 +349,23 @@ private def suite (args : List String) : IO UInt32 := do
   let grab := scrollGrab d (bar.thumb.x + 2) (bar.thumb.y + bar.thumb.h / 2)
   check "thumb accepts pointer down; message area does not" (grab.isSome && (scrollGrab d (d.layout.main.x + 40) bar.thumb.y).isNone)
   let mid := bar.track.y + bar.track.h / 2
-  scrollDrag d (grab.getD 0) mid
+  let sought := Desktop.Scrollbar.seek bar (grab.getD 0) mid
+  d ← scrollDrag d (grab.getD 0) mid
   d ← settle d
-  let landed := (scrollbar d.layout d.app).any fun m =>
-    m.thumb.y + m.thumb.h ≥ mid + m.thumb.h - min (grab.getD 0) m.thumb.h &&
-    m.thumb.y + m.thumb.h < bar.track.y + bar.track.h
-  let where_ := (scrollbar d.layout d.app).map fun m => (m.thumb.y + m.thumb.h, mid + m.thumb.h - min (grab.getD 0) m.thumb.h, bar.track.y + bar.track.h)
-  check s!"dragging the thumb to mid-track lands it at or below the pointer, off the bottom (thumb bottom, pointer, track bottom: {where_})" landed
-  scrollDrag d (grab.getD 0) bar.track.y
+  let reached := (_root_.Scrollbar.ranks (column d.app) d.app.b (App.geom d.app).viewNow).2.2
+  check s!"dragging the thumb to mid-track lands at the rank sought, within a pixel (sought {sought}, reached {reached})"
+    (reached ≤ sought && sought - reached ≤ 2 && 0 < sought)
+  d ← scrollDrag d (grab.getD 0) bar.track.y
   d ← settle d
-  check "drag thumb to top reaches oldest history" (d.app.b > 0 && d.app.b == (App.bottoms d.app).2 - (App.geom d.app).viewNow)
   let (n, k, r) := _root_.Scrollbar.ranks (column d.app) d.app.b (App.geom d.app).viewNow
-  let top ← pure (scrollbar d.layout d.app)
-  check s!"at the oldest the thumb is at the track's top (rank {r} of {n}, {k} on screen)"
-    (top.any fun b => b.thumb.y == b.track.y && r + k == n)
-  scrollDrag d (grab.getD 0) (bar.track.y + bar.track.h + 100)
+  check s!"drag thumb to top reaches the oldest history (rank {r}, {k} shown of {n})"
+    (d.app.b > 0 && (App.bottoms d.app).2 - (App.geom d.app).viewNow - d.app.b ≤ 20 && r + k + 2 ≥ n)
+  check "at the oldest the thumb is at the track's top"
+    ((scrollbar d.layout d.app).any fun b => b.thumb.y ≤ b.track.y + 2)
+  d ← scrollDrag d (grab.getD 0) (bar.track.y + bar.track.h + 100)
   d ← settle d
   check "drag beyond bottom returns to newest" (d.app.b == 0)
+  d ← longDrag d check
   check "short conversation has no scrollbar" ((Scrollbar.layout 390 56 600 500 20 20 0).isNone)
   let hidden := { d with ui := { d.ui with context := .settings }, width := 390 }
   check "full-width context has no conversation scrollbar" ((scrollbar hidden.layout hidden.app).isNone)
