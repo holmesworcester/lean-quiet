@@ -70,7 +70,7 @@ theorem recv_owed (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : B
       | hello f =>
         simp only [HeldM.run_pure]
         split
-        · unfold Conn.start; split
+        · rcases Conn.start_conn cfg ix ({ c with heard := now, peerFloor := some f, session := c.session.hearHello } : Conn) now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]
           · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
           · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
         · exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
@@ -82,7 +82,14 @@ theorem recv_owed (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b : B
         · rw [e1]; exact hy
         · rw [e1]; exact Nat.le_add_right _ _
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
+        split
+        · -- an empty have asks for a round (`Conn.onAsk`): the queue is unchanged
+          simp only [HeldM.run_pure]
+          obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          rw [e]
+          exact ⟨hq, fun y hy => hy, Nat.le_add_right _ _⟩
+        try simp only [HeldM.run_bind, HeldM.run_pure]
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         split

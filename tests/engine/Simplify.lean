@@ -13,7 +13,7 @@ def offered (ops : List Op) : List Id := ops.flatMap fun o =>
   match Msg.ofOp o with | some (.hold _ ids) => ids | _ => []
 
 def clock (t : Checks) : IO Unit := do
-  let cfg : Config := { live := 30, every := 1000, askTime := 20 }
+  let cfg : Config := { live := 30, askTime := 20 }
   let c := (Conn.open false [] 0 0).conn
   let tick := fun c now => ((c.tick fam cfg {} now : TM Step).run {}).1
   t.ok "open enters Hello" (c.session == .hello)
@@ -34,7 +34,7 @@ def pair (t : Checks) : IO Unit := do
   let da ← Db.openAt ":memory:"
   let db ← Db.openAt ":memory:"
   seed da; seed db
-  let cfg : Config := { live := 30, every := 1000, askTime := 20 }
+  let cfg : Config := { live := 30, askTime := 20 }
   let xa := { setup "b".toUTF8 true cfg with hooks := { (setup "b".toUTF8 true cfg).hooks with rooms := fun _ => pure [] } }
   let xb := { setup "a".toUTF8 false cfg with hooks := { (setup "a".toUTF8 false cfg).hooks with rooms := fun _ => pure [] } }
   let mut a := Node.boot fam [] 0
@@ -72,25 +72,47 @@ def pair (t : Checks) : IO Unit := do
   t.ok "silent peer drops and notifies purge" ((ended.conn? session.id).isNone &&
     afterEdge.drop.contains session.id && afterEdge.purged.contains session.id && (← keysGone da))
 
+def roundsOf (s : Step) : List Id :=
+  s.send.filterMap fun o => match Msg.ofOp o with | some (.rbsr r _ _) => some r | _ => none
+
 def rooms (t : Checks) : IO Unit := do
   let slow := "slow".toUTF8
   let fast := "fast".toUTF8
-  let cfg : Config := { every := 10 }
-  let c : Conn := { dialer := true, rooms := [slow, fast], floor := 0, peerFloor := some 0, snaps := [((slow, 1), [])], round := 1 }
+  let cfg : Config := { safety := 1000 }
+  -- slow's round opened at 0 and stalled; fast is shown since.
+  let c : Conn := { dialer := true, rooms := [slow, fast], floor := 0, peerFloor := some 0, active := [(slow, 1)], rounded := [(slow, 0)], epochs := [(slow, 1)], round := 1 }
   let s := ((c.tick fam cfg {} 10 : TM Step).run {}).1
-  let rounds := s.send.filterMap fun o => match Msg.ofOp o with | some (.rbsr r _ _) => some r | _ => none
-  t.ok "a stalled room does not gate another room" (rounds == [fast] && s.conn.snaps.any (·.1 == (slow, 1)))
+  t.ok "showing a room starts a round, and a stalled room does not gate it"
+    (roundsOf s == [fast] && s.conn.active.any (· == (slow, 1)))
   let denied := c.onRbsr cfg {} "unshown".toUTF8 7 [.ids ⟨⟨0, 0⟩, none⟩ []] 11
   t.ok "unshown room gets empty end" (denied.send.map Op.bytes == [(Msg.rbsr "unshown".toUTF8 7 []).op.bytes])
-  t.ok "unshown room cannot drop or change another round" (!denied.drop && denied.conn.snaps == c.snaps && denied.conn.round == c.round)
+  t.ok "unshown room cannot drop or change another round"
+    (!denied.drop && denied.conn.active == c.active && denied.conn.round == c.round)
   let ended := s.conn.onRbsr cfg {} fast s.conn.round [] 11
-  let next := ((ended.conn.tick fam cfg {} 20 : TM Step).run {}).1
-  t.ok "completed room starts again beside stalled room" (next.send.any fun o => match Msg.ofOp o with | some (.rbsr r _ _) => r == fast | _ => false)
+  let quiet := ((ended.conn.tick fam cfg {} 999 : TM Step).run {}).1
+  t.ok "with no event, no round starts before the safety period" (roundsOf quiet).isEmpty
+  let safe := ((ended.conn.tick fam cfg {} 1010 : TM Step).run {}).1
+  t.ok "the safety round reopens each room, superseding a stalled round"
+    (roundsOf safe == [slow, fast] && !safe.conn.active.contains (slow, 1) &&
+      safe.conn.active.contains (slow, safe.conn.round))
+  -- The responder asks for a round in a room it starts showing.
+  let resp : Conn := { dialer := false, rooms := [slow, fast], floor := 0, peerFloor := some 0, rounded := [(slow, 0)] }
+  let asks := ((resp.tick fam cfg {} 10 : TM Step).run {}).1
+  t.ok "the responder asks for a round in a room it starts showing"
+    (asks.send.map Op.bytes == [(Msg.hold fast []).op.bytes] && roundsOf asks == [])
+  let again := ((asks.conn.tick fam cfg {} 20 : TM Step).run {}).1
+  t.ok "the responder asks once" (!(again.send.any fun o => o.bytes == (Msg.hold fast []).op.bytes))
+  let dialer : Conn := { dialer := true, rooms := [fast], floor := 0, peerFloor := some 0, rounded := [(fast, 5)] }
+  let idle := ((dialer.tick fam cfg {} 30 : TM Step).run {}).1
+  let told := ((dialer.recv fam cfg {} (Msg.hold fast []).op.bytes 30 : TM Step).run {}).1
+  let opened := ((told.conn.tick fam cfg {} 31 : TM Step).run {}).1
+  t.ok "a responder's ask opens a round at the dialer's next tick"
+    ((roundsOf idle).isEmpty && told.send.isEmpty && roundsOf opened == [fast])
 
 def roundEpochs (t : Checks) : IO Unit := do
   let slow := "slow".toUTF8
   let fast := "fast".toUTF8
-  let x := Op.make 1 [fast] "newer snapshot".toUTF8
+  let x := Op.make 1 [fast] "newer round".toUTF8
   let cfg : Config := {}
   let c : Conn := {
     dialer := false
@@ -98,31 +120,28 @@ def roundEpochs (t : Checks) : IO Unit := do
     rooms := [slow, fast]
     round := 3
     roundFloor := 50
-    snaps := [((slow, 1), []), ((fast, 3), [(⟨3, 3⟩, x.id)])]
-    epochs := [(slow, 1), (fast, 3)]
-    frontier := [x.id]
-    closureCut := true }
+    active := [(slow, 1), (fast, 3)]
+    epochs := [(slow, 1), (fast, 3)] }
   let stale := c.onRbsr cfg {} fast 2 [] 20
-  t.ok "stale terminal keeps the newer room snapshot and epoch"
-    (stale.conn.snaps == c.snaps && stale.conn.epochs == c.epochs &&
-      stale.conn.round == 3 && stale.conn.frontier == [x.id] && stale.send.isEmpty)
+  t.ok "stale terminal keeps the newer room round and epoch"
+    (stale.conn.active == c.active && stale.conn.epochs == c.epochs &&
+      stale.conn.round == 3 && stale.send.isEmpty)
   let lag := c.onRbsr cfg {} slow 1 [] 21
-  t.ok "older active room completes without rewinding another room's closure"
-    (lag.conn.round == 3 && lag.conn.roundFloor == 50 && lag.conn.closureCut &&
-      lag.conn.frontier == [x.id] && lag.conn.snaps == [((fast, 3), [(⟨3, 3⟩, x.id)])])
+  t.ok "older active room completes without rewinding another room's round or floor"
+    (lag.conn.round == 3 && lag.conn.roundFloor == 50 && lag.conn.active == [(fast, 3)])
   let replay := lag.conn.onRbsr cfg {} slow 1 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 22
   t.ok "completed epoch cannot be reopened by a replayed claim"
     (replay.send.isEmpty && replay.conn.asked.isEmpty && replay.conn.epochs == lag.conn.epochs)
   let newRound := lag.conn.onRbsr cfg {} slow 4 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 23
-  t.ok "responder accepts a later epoch after retiring a snapshot"
+  t.ok "responder accepts a later epoch after a round ends"
     (newRound.conn.round == 4 && !newRound.send.isEmpty && newRound.conn.asked.contains x.id)
   let dialer := { c with dialer := true }
   let unstarted := dialer.onRbsr cfg {} fast 99 [.ids ⟨⟨0, 0⟩, none⟩ [x.id]] 24
   t.ok "dialer ignores replies for a round it never opened"
-    (unstarted.send.isEmpty && unstarted.conn.round == 3 && unstarted.conn.snaps == c.snaps)
+    (unstarted.send.isEmpty && unstarted.conn.round == 3 && unstarted.conn.active == c.active)
   let cut := c.setRooms [fast]
   t.ok "removing a room also removes its remembered epoch"
-    (cut.epochs == [(fast, 3)] && cut.snaps == [((fast, 3), [(⟨3, 3⟩, x.id)])])
+    (cut.epochs == [(fast, 3)] && cut.active == [(fast, 3)])
   let mut bounded := c
   for k in [4:50] do bounded := (bounded.onRbsr cfg {} fast k [] k).conn
   t.ok "completed round epochs stay bounded by authorized rooms"
@@ -134,12 +153,10 @@ def secrecy (t : Checks) : IO Unit := do
   let outside := Op.make 1 ["other".toUTF8] "outside".toUTF8
   let pending := Op.make 1 [r] "not committed".toUTF8
   let ids := [shared.id, outside.id, key1.id, pending.id]
-  let c : Conn := { dialer := false, rooms := [r], floor := 2, roundFloor := 2, frontier := ids }
+  let c : Conn := { dialer := false, rooms := [r], floor := 2, roundFloor := 2 }
   let h : Trace := { ops := [shared, outside, key1] }
   let s := ((c.filed fam {} ids : TM Step).run h).1
   t.ok "filed advertises only stored shared room ops" (offered s.send == [shared.id])
-  let (d, pairs) := ((c.walk fam {} : TM _).run h).1
-  t.ok "closure advertises only stored shared room ops" (pairs.map (·.2) == [shared.id] && d.frontier.isEmpty)
   let cfg : Config := { maxKnown := 0 }
   let s := c.onRbsr cfg {} r 2 [.ids ⟨⟨0, 0⟩, none⟩ [pending.id]] 1
   t.ok "handler itself caps asks without a clamp" (s.conn.asked.isEmpty)

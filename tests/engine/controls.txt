@@ -31,4 +31,5 @@ runner-ownership	mise run test:runner-ownership
 demand-rank	mise run test:demand-rank
 restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine
+window	mise run test:window
 sync-full	mise run test:sync-full
