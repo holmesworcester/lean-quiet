@@ -486,6 +486,13 @@ def State.advance (cfg : Config) (r : Id) (k now : Nat) (next : Index) (s : Stat
   let out := s.result cfg r k now
   { receiving := s.waiting, waiting := out.conn, index := next, pending := returnedClaims out.send }
 
+/-- A step of the two ends: the receiver's running handler on its live
+index and the pending claims; the sides swap. -/
+theorem advance_eq (cfg : Config) (r : Id) (k now : Nat) (next : Index) (s : State) :
+    s.advance cfg r k now next =
+      { receiving := s.waiting, waiting := (s.receiving.onRbsr cfg s.index r k s.pending now).conn,
+        index := next, pending := returnedClaims (s.receiving.onRbsr cfg s.index r k s.pending now).send } := rfl
+
 /-- An execution of the actual handler, the two ends alternating, step
 t + 1's receiver reading index `ixs (t + 1)`. -/
 def Exec (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (ixs : Nat → Index)

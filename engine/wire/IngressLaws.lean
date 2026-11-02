@@ -9,13 +9,6 @@ theorem distance_lt {n : Nat} (cursor target : Fin (n + 1)) :
   simp only [distance]
   split <;> omega
 
-theorem distance_zero {n : Nat} (cursor target : Fin (n + 1)) :
-    distance cursor target = 0 ↔ cursor = target := by
-  have := cursor.isLt
-  have := target.isLt
-  simp only [distance, Fin.ext_iff]
-  split <;> omega
-
 theorem advance_distance {n : Nat} (cursor target : Fin (n + 1))
     (h : cursor ≠ target) :
     distance (advance cursor) target + 1 = distance cursor target := by

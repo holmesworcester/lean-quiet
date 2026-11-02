@@ -49,6 +49,8 @@ the index is by window rather than by key, and the hit wants are those
 whose windows changed: the same law, fewer marks.
 -/
 import engine.renderer.ReaderLaws
+import Std.Data.HashMap.Lemmas
+import Std.Data.HashSet.Lemmas
 
 set_option linter.unusedSectionVars false
 
@@ -442,5 +444,202 @@ theorem idxok_passIdx (hex : Exact hits hitQs) (hne : ∀ s x, reads s x ≠ [])
         · cases hd
 
 end RWorld
+
+
+/-! ## The reader's index, as Reader.pass keeps it
+
+`Index.record` (Board.lean) is what the running pass does with each want
+it reads, and `markHit` through `rev` is how it marks. Every read a want
+recorded names it in the reverse index (`record_indexed`), so a read a
+notice hits marks every wanted want that recorded it (`marked_complete`),
+and a dirty want stays marked until it is read (`dirty_marked`,
+`record_dirty`): no stale want is missed. -/
+
+section
+variable {W Q : Type} [BEq W] [Hashable W] [LawfulBEq W] [LawfulHashable W]
+  [BEq Q] [Hashable Q] [LawfulBEq Q] [LawfulHashable Q]
+set_option linter.unusedSectionVars false
+
+theorem push_keeps (w x : W) (q : Q) : ∀ (l : List Q) (r : Std.HashMap Q (Array W)),
+    x ∈ r.getD q #[] → x ∈ (l.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) r).getD q #[]
+  | [], r, h => h
+  | q' :: t, r, h => by
+    apply push_keeps w x q t
+    rw [Std.HashMap.getD_insert]
+    split
+    · next he => have : q' = q := eq_of_beq he; subst this; simp [h]
+    · exact h
+
+theorem push_adds (w : W) (q : Q) : ∀ (l : List Q) (r : Std.HashMap Q (Array W)),
+    q ∈ l → w ∈ (l.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) r).getD q #[]
+  | [], r, h => by cases h
+  | q' :: t, r, h => by
+    simp only [List.foldl_cons]
+    rcases List.mem_cons.1 h with rfl | h
+    · exact push_keeps w w q t _ (by rw [Std.HashMap.getD_insert_self]; simp)
+    · exact push_adds w q t _ h
+
+theorem filter_keeps (w x : W) (hx : x ≠ w) (q : Q) : ∀ (l : List Q) (r : Std.HashMap Q (Array W)),
+    x ∈ r.getD q #[] → x ∈ (l.foldl (fun r q => r.modify q (·.filter (· != w))) r).getD q #[]
+  | [], r, h => h
+  | q' :: t, r, h => by
+    apply filter_keeps w x hx q t
+    rw [Std.HashMap.getD_modify]
+    split
+    · next he =>
+      have : q' = q := eq_of_beq he
+      subst this
+      rw [Std.HashMap.getD_eq_getD_getElem?] at h
+      cases hr : r[q']? with
+      | none => simp [hr] at h
+      | some a =>
+        simp only [hr, Option.getD_some, Option.map_some] at h ⊢
+        exact Array.mem_filter.2 ⟨h, by simpa using hx⟩
+    · exact h
+
+/-- Every read a want recorded names it in the reverse index. -/
+def Indexed (i : Index W Q) : Prop :=
+  ∀ w qs q, i.deps[w]? = some qs → q ∈ qs → w ∈ i.rev.getD q #[]
+
+/-- **Reading a want keeps the index exact**: after `record`, every read
+any want recorded (the read want's new ones included) names that want. -/
+theorem record_indexed (i : Index W Q) (w : W) (log : Array Q) (h : Indexed i) :
+    Indexed (i.record w log) := by
+  intro w' qs q hd hq
+  simp only [Index.record, reindex, ← Array.foldl_toList] at hd ⊢
+  rw [Std.HashMap.getElem?_insert] at hd
+  by_cases he : w = w'
+  · subst he
+    simp only [beq_self_eq_true, ite_true, Option.some.injEq] at hd
+    subst hd
+    exact push_adds w q _ _ (by simpa using hq)
+  · have hne : (w == w') = false := by simpa using he
+    rw [hne] at hd
+    simp only [Bool.false_eq_true, ite_false] at hd
+    apply push_keeps
+    exact filter_keeps w w' (Ne.symm he) q _ _ (h w' qs q hd hq)
+
+/-- **A read noticed marks every want that recorded it**: with the index
+exact, a wanted want that recorded a read this pass's notices hit is
+among the marked (`markHit` through the index, as Reader.pass marks). -/
+theorem marked_complete (i : Index W Q) (h : Indexed i) (hit : List Q) (wanted : Std.HashSet W)
+    {w : W} {qs : Array Q} {q : Q} (hd : i.deps[w]? = some qs) (hq : q ∈ qs) (hh : q ∈ hit)
+    (hw : wanted.contains w = true) :
+    w ∈ (markHit (fun q => (i.rev.getD q #[]).toList) i.dirty hit).filter wanted.contains := by
+  rw [mem_filter', mem_markHit]
+  exact ⟨Or.inr ⟨q, hh, by simpa using h w qs q hd hq⟩, hw⟩
+
+/-- **A dirty want stays marked until it is read**: the pass marks the
+dirty ones it still wants, and only reading a want cleans it. -/
+theorem dirty_marked (i : Index W Q) (hit : List Q) (wanted : Std.HashSet W) {w : W}
+    (hd : w ∈ i.dirty) (hw : wanted.contains w = true) :
+    w ∈ (markHit (fun q => (i.rev.getD q #[]).toList) i.dirty hit).filter wanted.contains := by
+  rw [mem_filter', mem_markHit]
+  exact ⟨Or.inl hd, hw⟩
+
+theorem record_dirty (i : Index W Q) (w x : W) (log : Array Q) :
+    x ∈ (i.record w log).dirty ↔ x ∈ i.dirty ∧ x ≠ w := by
+  simp only [Index.record, Std.HashSet.mem_erase]
+  constructor
+  · rintro ⟨hne, hx⟩; exact ⟨hx, fun h => by subst h; simp at hne⟩
+  · rintro ⟨hx, hne⟩; exact ⟨beq_eq_false_iff_ne.2 (Ne.symm hne), hx⟩
+
+/-! The board the reader fills, as the running pass keeps it fresh: every
+wanted value on it is dirty, or is the store's with its reads recorded
+(`Fresh`). Reading a want (Board.put, Index.record), a commit's notice
+(Index.notice, given the store's stability per commit), and forgetting
+values (Board.keep) keep it; a pass that has read every wanted dirty want
+shows only the store's values (`settle_fresh`). -/
+
+variable {V : Type} [BEq V] [LawfulBEq V]
+
+/-- Every wanted value on the board is dirty, or is the store's with its reads recorded. -/
+def Fresh (eval : W → V × Array Q) (i : Index W Q) (b : Board W V) (wanted : Std.HashSet W) : Prop :=
+  ∀ w, wanted.contains w = true → ∀ v n, b.get? w = some (v, n) →
+    w ∈ i.dirty ∨ (v = (eval w).1 ∧ i.deps[w]? = some (eval w).2)
+
+theorem put_get_other (b : Board W V) {w x : W} (v : V) (h : w ≠ x) : (b.put w v).get? x = b.get? x := by
+  unfold Board.put Board.bump Board.get?
+  have hne : (w == x) = false := by simpa using h
+  split
+  · split
+    · rfl
+    · simp [Std.HashMap.getElem?_insert, hne]
+  · simp [Std.HashMap.getElem?_insert, hne]
+
+theorem put_get_self (b : Board W V) (w : W) (v : V) : ∃ n, (b.put w v).get? w = some (v, n) := by
+  unfold Board.put Board.bump Board.get?
+  split
+  · next u n hu =>
+    split
+    · next he => exact ⟨n, by rw [hu, eq_of_beq he]⟩
+    · exact ⟨b.next, by simp⟩
+  · exact ⟨b.next, by simp⟩
+
+/-- **Reading a want keeps the board fresh**: its value goes on the board
+(Board.put) and its reads are recorded (Index.record). -/
+theorem fresh_record (eval : W → V × Array Q) (i : Index W Q) (b : Board W V) (wanted : Std.HashSet W)
+    (h : Fresh eval i b wanted) (w : W) :
+    Fresh eval (i.record w (eval w).2) (b.put w (eval w).1) wanted := by
+  intro x hx v n hb
+  by_cases he : w = x
+  · subst he
+    obtain ⟨m, hm⟩ := put_get_self b w (eval w).1
+    rw [hm] at hb
+    simp only [Option.some.injEq, Prod.mk.injEq] at hb
+    right
+    refine ⟨hb.1.symm, ?_⟩
+    simp [Index.record]
+  · rw [put_get_other b _ he] at hb
+    rcases h x hx v n hb with hd | ⟨hv, hdep⟩
+    · left; exact (record_dirty i w x _).2 ⟨hd, Ne.symm he⟩
+    · right
+      refine ⟨hv, ?_⟩
+      simp [Index.record, Std.HashMap.getElem?_insert, he, hdep]
+
+/-- **A notice keeps the board fresh**: after a commit, the pass marks
+through the index (Index.notice); a want it does not mark recorded no read
+the commit hit, so (the store's stability: a commit that files under none
+of a want's reads leaves its value and reads) its value is still the
+store's. -/
+theorem fresh_notice (eval eval' : W → V × Array Q) (i : Index W Q) (b : Board W V)
+    (wanted : Std.HashSet W) (hit : List Q) (hi : Indexed i) (h : Fresh eval i b wanted)
+    (stable : ∀ w qs, i.deps[w]? = some qs → (∀ q ∈ qs, q ∉ hit) → eval' w = eval w) :
+    Fresh eval' (i.notice wanted hit) b wanted := by
+  intro x hx v n hb
+  rcases h x hx v n hb with hd | ⟨hv, hdep⟩
+  · left; exact dirty_marked i hit wanted hd hx
+  · by_cases hq : ∃ q ∈ (eval x).2, q ∈ hit
+    · obtain ⟨q, hq1, hq2⟩ := hq
+      left; exact marked_complete i hi hit wanted hdep hq1 hq2 hx
+    · have he := stable x (eval x).2 hdep (fun q h1 h2 => hq ⟨q, h1, h2⟩)
+      right
+      exact ⟨by rw [he]; exact hv, by rw [he]; exact hdep⟩
+
+/-- **A pass that reads every wanted dirty want settles**: then every
+wanted value on the board is the store's. -/
+theorem settle_fresh (eval : W → V × Array Q) (i : Index W Q) (b : Board W V) (wanted : Std.HashSet W)
+    (h : Fresh eval i b wanted) (clean : ∀ w, wanted.contains w = true → w ∉ i.dirty) :
+    ∀ w, wanted.contains w = true → ∀ v n, b.get? w = some (v, n) → v = (eval w).1 := by
+  intro w hw v n hb
+  rcases h w hw v n hb with hd | ⟨hv, _⟩
+  · exact absurd hd (clean w hw)
+  · exact hv
+
+/-- **Forgetting values keeps the board fresh** (Board.keep, when the
+wants move). -/
+theorem fresh_keep (eval : W → V × Array Q) (i : Index W Q) (b : Board W V) (wanted : Std.HashSet W)
+    (f : W → Bool) (h : Fresh eval i b wanted) : Fresh eval i (b.keep f) wanted := by
+  intro x hx v n hb
+  simp only [Board.keep, Board.get?, Std.HashMap.getElem?_filter'] at hb
+  cases hv : b.vals[x]? with
+  | none => simp [hv] at hb
+  | some p =>
+    simp only [hv, Option.filter_some] at hb
+    split at hb
+    · exact h x hx v n (by simp only [Board.get?, hv, hb])
+    · cases hb
+
+end
 
 end Live

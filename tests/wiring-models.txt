@@ -1,0 +1,130 @@
+# Laws over models: the laws tests/Wiring.lean classes `model` (they
+# name a definition nothing that runs calls, or nothing of this
+# repository's code at all), as of origin/main 59fa463 (2026-11-01).
+#
+# The rule (AGENTS.md): a law is about running code, or about a model
+# that a `bridge` law proves equal to running code. This list only
+# shrinks:
+# - tests/Wiring.lean fails on a model law it does not name: state the
+#   law over the code that runs, or bridge its model (tests/wiring.txt);
+# - it fails on a name here that is no longer a model law (ported,
+#   bridged, a World or control law, or gone): delete the line
+#   (ci/proof-links.py --prune does);
+# - ci/proof-links.py --check fails on a name the merge base with
+#   origin/main did not list. A renamed law keeps its line as
+#   `NEW  # was OLD`.
+#
+# One law per line, grouped by module.
+
+# app.Proofs
+Connection.Execution.HistoryStep.catalog_read
+Connection.Execution.HistoryStep.ceiling_mono
+Connection.Execution.Run.history
+Connection.Execution.Run.shared_retained
+Connection.Execution.empty_trace_history
+Connection.Execution.empty_trace_store
+Connection.Execution.production_step_history
+Connection.Execution.production_step_moves
+Connection.Execution.production_step_reachable
+Connection.Execution.production_step_retains
+Connection.Execution.production_step_settled
+Connection.Execution.production_step_unique
+Connection.Execution.production_write_receives
+Connection.Execution.world_step_history
+Connection.Execution.world_step_moves
+Connection.Execution.world_step_unique
+Connection.Execution.world_trace_history
+Connection.Execution.world_trace_moves
+Connection.Execution.write_store_tape
+Connection.ProgressTape.answer_ready
+Connection.ProgressTape.run_arrivedFrom
+Connection.ProgressTape.run_bind
+Connection.ProgressTape.run_count
+Connection.ProgressTape.run_fresh
+Connection.ProgressTape.run_get
+Connection.ProgressTape.run_view
+
+# app.community.Proofs
+Community.members_iff
+Community.recipients_iff
+Community.unscoped_signs_all
+
+# app.connection.Family
+Community.reads_members
+Community.reads_recipients
+
+# app.connection.Proofs
+Connection.members_iff_node
+Connection.recipients_iff_node
+
+# engine.core.Cost
+Engine.Costs.time
+
+# engine.core.ListCost
+Engine.list_costs
+Engine.model_fits
+
+# engine.core.Merkle
+Merkle.no_injective_hash
+
+# engine.core.Query
+Engine.id_bind
+Engine.sideCount_run
+
+# engine.renderer.BoardLaws
+Live.Board.seen_take
+
+# engine.sync.RoundLaws
+Engine.Sync.exchange_complete
+
+# engine.sync.RoundRun
+Engine.Sync.RoundRun.collisionCheck_sound
+Engine.Sync.RoundRun.execute_runs
+Engine.Sync.RoundRun.filter_in_subsets
+Engine.Sync.RoundRun.initial_asks
+Engine.Sync.RoundRun.initial_claim
+Engine.Sync.RoundRun.initial_ready
+Engine.Sync.RoundRun.sound_of_check
+Engine.Sync.conn_runs_exchange
+
+# engine.sync.SharedLog
+Engine.Sync.empty_log_agrees
+Engine.Sync.shared_log_purge
+Engine.Sync.shared_log_turn
+
+# engine.sync.SweepLaws
+Engine.Sync.Sweep.fair_loss_delivered
+
+# engine.sync.SweepRun
+Engine.Sync.Sweep.held_run_observed
+Engine.Sync.Sweep.run_observed
+
+# engine.sync.TreeLaws
+Engine.Sync.Tree.exchange_ids_stable
+Engine.Sync.Tree.exchange_log
+Engine.Sync.Tree.exchange_stable
+Engine.Sync.Tree.fold_congr
+
+# engine.sync.Witnesses
+Engine.Sync.secrecy_runs
+
+# engine.wire.RetryOrderLaws
+Engine.Sync.RetryOrder.Run.nodup
+
+# engine.wire.mdns.Laws
+Mdns.decode_encode
+Mdns.decode_roundtrip
+Mdns.decode_valid
+
+# restored 2026-11-01: the reader's and window mutants' controls use them (never un-audit a theorem)
+Engine.Subs.has_ofList
+Engine.Subs.ofList_wf
+Live.RWorld.acts_shown
+Live.RWorld.inv_commit
+Live.RWorld.inv_frame
+Live.RWorld.passActs_picks
+Live.RWorld.settle
+Live.World.inv_commit
+Live.World.inv_frame
+Live.World.inv_pass
+Live.World.settle

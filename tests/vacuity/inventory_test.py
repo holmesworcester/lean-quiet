@@ -26,7 +26,7 @@ class InventoryTest(unittest.TestCase):
 
     def test_removed_checked_reference_fails(self):
         with self.assertRaisesRegex(ValueError, 'checked references disappeared'):
-            vacuity.report(self.readme.replace('[`fit_small`]:', '[`renamed`]:'))
+            vacuity.report(self.readme.replace('[`fit_small`]', '[`renamed`]'))
 
     def test_existing_report_is_not_counted_again(self):
         self.assertEqual(vacuity.report(self.readme), vacuity.report((ROOT / 'README.md').read_text()))
