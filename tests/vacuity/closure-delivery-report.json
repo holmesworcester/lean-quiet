@@ -54,5 +54,12 @@
     "witness": "Vacuity.ClosureDelivery.certificate",
     "module": "tests.vacuity.ClosureDelivery",
     "detail": "The closure certificate applies actual serveOwed progress with an occupied queue, unbounded tail requests, continuously serviced hot requests, zero-capacity stalls and kernel-proved recurring positive ordinary capacity. Source storage and room authorization are discharged by finite native checks plus preserved rooms. Arbitrarily many later tail arrivals cannot increase an existing request's first position. Hot targets emit immediately; hot filtering cannot move remaining targets backward, so ongoing urgent work does not starve ordinary FIFO requests. The theorem permits arbitrary changing hot prefixes; it does not assert OS or TCP fairness."
+  },
+  "spec_eventually": {
+    "status": "runtime-witness",
+    "theorem": "Engine.spec_eventually",
+    "witness": "Vacuity.ClosureDelivery.certificate",
+    "module": "tests.vacuity.ClosureDelivery",
+    "detail": "The certificate applies closure_delivered, which applies spec_eventually to the receiver's capped write turns with a tick's idle turn every odd step (TurnsRecur from the kernel-proved Ticks premise, positive drainCap, Inv at every step) and the delivered closure held from some step on: the signed message gets its source verdict for good. Synthetic signed Alice/Bob community; native finite checks for ids, source operations and authorization; Held storage, not native SQLite."
   }
 }

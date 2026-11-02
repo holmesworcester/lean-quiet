@@ -2159,6 +2159,90 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | h | `Engine.Inv fam s` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+## 🟡 Membership is never behind the backlog, and nothing waits forever.
+
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`, `Engine.Sync.ReceiverRun.Ticks`
+
+**`Connection.Execution.production_step_waiting`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| hr | `Engine.Sync.Held.Reachable Connection.Execution.family s.held` | [model] |
+| hw | `Engine.UrgentWaiting Connection.Execution.family s.held.db` | [model] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.Moves.store_waiting`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| step | `Engine.Sync.Moves fam a b` | [discharged] |
+| hr | `Engine.Sync.Held.Reachable fam a` | [discharged] |
+| hw | `Engine.UrgentWaiting fam a.db` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.turn_waiting`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hr | `Engine.Reach fam L s` | [discharged] |
+| h | `Engine.UrgentWaiting fam s` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.urgent_spec`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hi | `Engine.Inv fam s` | [discharged] |
+| hu | `Engine.UrgentSettled fam s` | [discharged] |
+| hc | `Engine.UrgentClosed fam s x` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.urgent_valid_spec`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hi | `Engine.Inv fam s` | [discharged] |
+| hu | `Engine.UrgentSettled fam s` | [discharged] |
+| ho | `s.ops x = some o` | [discharged] |
+| hx | `fam.urgent o = true` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.view_rest`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hi | `Engine.Inv fam s` | [discharged] |
+| hu | `Engine.UrgentSettled fam s` | [discharged] |
+| hv | `Engine.View.Reads (Engine.UrgentKey fam uc) v` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.spec_eventually`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hcap | `0 < cap` | [discharged] |
+| step | `∀ (n : Nat), Engine.TurnStep fam cap (st n) (st (n + 1))` | [discharged] |
+| turns | `Engine.TurnsRecur fam cap st` | [discharged] |
+| inv | `∀ (n : Nat), Engine.Inv fam (st n)` | [discharged] |
+| held | `∀ (y : Engine.Id) (o : Engine.Op), Engine.Sync.Reach source seed y → source y = some o → ∀ (j : Nat), j ≥ T → (st j).ops y = some o` | [discharged] |
+| a | `Engine.Sync.Reach source seed y` | [discharged] |
+| a | `Engine.specAt fam source n y = some v` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.Sync.closure_delivered`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| spec | `Engine.Spec x.fam source seed v` | [base] |
+| closure | `∀ (i : Engine.Id) (o : Engine.Op), Engine.Sync.Reach source seed i → source i = some o → o ∈ whole ∧ o.id = i` | [discharged] |
+| service | `∀ (N : Nat), ∃ j, j ≥ N ∧ 0 < send.room j` | [base] |
+| available | `∀ (o : Engine.Op), o ∈ whole → ∀ (j : Nat), j ≥ start → (send.store j).db.ops o.id = some o ∧ Engine.Sync.Conn.shows x.fam (send.conn j) o = true` | [base] |
+| requested | `∀ (o : Engine.Op), o ∈ whole → (recv.store start).db.ops o.id = some o ∨ ∃ j, j ≥ start ∧ o.id ∈ (send.conn j).owed` | [base] |
+| transport | `∀ (j : Nat), j ≥ start → ∀ (o : Engine.Op), o ∈ send.emitted j → ∃ k, k ≥ j ∧ recv.idle k = false ∧ o ∈ recv.input k` | [base] |
+| capped | `∀ (o : Engine.Op), o ∈ whole → o.capped = true` | [discharged] |
+| ticks | `recv.Ticks` | [env] |
+| (stated over) | `Engine.CollisionFree` | [crypto] |
+
 ## ✅ Taking an op in twice is taking it in once.
 
 Rests on: `Engine.Model.run`
@@ -2223,6 +2307,20 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | (stated over) | `Engine.Model.run` | [base] |
 
 **`Engine.run_purge`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.purge_waiting`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hr | `Engine.Reach fam L s` | [discharged] |
+| h | `Engine.UrgentWaiting fam s` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.run_purgeCapped`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
@@ -2947,7 +3045,7 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 
 ## 🟡 The connection's progress steps work.
 
-Rests on: `Engine.CollisionFree`, `Engine.Model.run`
+Rests on: `Engine.CollisionFree`, `Engine.Model.run`, `Engine.Sync.ReceiverRun.Ticks`
 
 **`Engine.Sync.conn_answers_ids`** (wired)
 
@@ -2985,8 +3083,9 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | service | `∀ (N : Nat), ∃ j, j ≥ N ∧ 0 < send.room j` | [base] |
 | available | `∀ (o : Engine.Op), o ∈ whole → ∀ (j : Nat), j ≥ start → (send.store j).db.ops o.id = some o ∧ Engine.Sync.Conn.shows x.fam (send.conn j) o = true` | [base] |
 | requested | `∀ (o : Engine.Op), o ∈ whole → (recv.store start).db.ops o.id = some o ∨ ∃ j, j ≥ start ∧ o.id ∈ (send.conn j).owed` | [base] |
-| transport | `∀ (j : Nat), j ≥ start → ∀ (o : Engine.Op), o ∈ send.emitted j → ∃ k, k ≥ j ∧ o ∈ recv.input k` | [base] |
+| transport | `∀ (j : Nat), j ≥ start → ∀ (o : Engine.Op), o ∈ send.emitted j → ∃ k, k ≥ j ∧ recv.idle k = false ∧ o ∈ recv.input k` | [base] |
 | capped | `∀ (o : Engine.Op), o ∈ whole → o.capped = true` | [discharged] |
+| ticks | `recv.Ticks` | [env] |
 | (stated over) | `Engine.CollisionFree` | [crypto] |
 
 ## 🟡 New ops reach connected members.
@@ -4011,11 +4110,28 @@ Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
+**`Engine.World.Plain.verdicts_sound`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `((E.world k).box i).db.status x = some v` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
 **`Engine.World.Plain.verdicts_spec`** (world)
 
 | premise | statement | tag |
 |---|---|---|
-| (stated over) | `Engine.Model.run` | [base] |
+| hc | `Engine.UrgentClosed Q.fam ((E.world k).box i).db x` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.agree_decided`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `Engine.Distinct (((E.world k).box i).log ++ ((E.world k').box j).log)` | [crypto] |
+| hsame | `∀ (o : Engine.Op), o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log` | [base] |
+| hv | `((E.world k).box i).db.status x = some v` | [base] |
+| hw | `((E.world k').box j).db.status x = some w` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.World.Plain.agree`** (world)
@@ -4024,6 +4140,7 @@ Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 |---|---|---|
 | hd | `Engine.Distinct (((E.world k).box i).log ++ ((E.world k').box j).log)` | [crypto] |
 | hsame | `∀ (o : Engine.Op), o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log` | [base] |
+| hc | `Engine.UrgentClosed Q.fam ((E.world k).box i).db x` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.World.sent_keeps`** (world)

@@ -153,6 +153,39 @@ def receiving (hd : Distinct before) : ReceiverRun sync := {
 theorem receiving_ticks (hd : Distinct before) : (receiving hd).Ticks := fun N =>
   ⟨2 * N + 1, by omega, by show idleAt (2 * N + 1) = true; simp [idleAt, Nat.add_mod]⟩
 
+/-- A degenerate receiver: scheduled only to receive (nothing), never for
+a tick. -/
+def stallStore : Nat → Held Fact
+  | 0 => {}
+  | n + 1 => ((Node.boot fam [] 0).put sync [] false (stallStore n)).2
+
+theorem stall_log : ∀ n, ∀ o, o ∉ (stallStore n).log
+  | 0, _, ho => by cases ho
+  | n + 1, o, ho => by
+    have h := write_log_subset sync (Node.boot fam [] 0) (stallStore n) (intake fam false []) ho
+    rcases List.mem_append.mp h with h | h
+    · exact stall_log n o h
+    · exact absurd (intake_sub fam h) List.not_mem_nil
+
+def stalled : ReceiverRun sync := {
+  node := fun _ => Node.boot fam [] 0
+  store := stallStore
+  input := fun _ => []
+  idle := fun _ => false
+  next := fun n => by
+    show stallStore (n + 1) = _
+    rw [if_neg Bool.false_ne_true]; rfl
+  initial := held_empty_reachable fam
+  initialWaiting := waiting_empty
+  distinct := fun n a ha _ _ _ => by
+    rw [List.append_nil] at ha
+    exact absurd ha (stall_log n a) }
+
+/-- **The degenerate receiver fails `Ticks`**: no step of it is a tick. -/
+theorem stalled_no_ticks : ¬ stalled.Ticks := fun h => by
+  obtain ⟨j, -, hj⟩ := h 0
+  cases hj
+
 /-- Every poll's sends reach a receiving step: its own, if even, or the next. -/
 theorem delivered (hd : Distinct before) (j : Nat) (o : Op) (ho : o ∈ service.emitted j) :
     ∃ k ≥ j, (receiving hd).idle k = false ∧ o ∈ (receiving hd).input k := by

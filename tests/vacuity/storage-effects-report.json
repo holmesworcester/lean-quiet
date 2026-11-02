@@ -187,5 +187,40 @@
     "witness": "Vacuity.StorageEffects.runGoodCertificate",
     "module": "tests.vacuity.StorageEffects",
     "detail": "A Run from empty whose actions are the bootstrap prefix and Alice's removal write, then idling. The certificate applies Run.good at the write's index and Run.state_trace there; the runner checks that run state holds the removal op. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "urgent_valid_spec": {
+    "status": "runtime-witness",
+    "theorem": "Engine.urgent_valid_spec",
+    "witness": "Vacuity.StorageEffects.admittedCertificateFor",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "After the bootstrap prefix Alice's trust rule natively takes Bob's node key; the certificate applies connect_iff_trace, whose transport (trace_rest, node_rest) applies urgent_valid_spec at Alice's store with the node family's urgent-cites declaration (nodeCites), the store's Inv and its settled urgent work from the actual trace, so each Valid membership fact is the spec's whatever else is queued. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "view_rest": {
+    "status": "runtime-witness",
+    "theorem": "Engine.view_rest",
+    "witness": "Vacuity.StorageEffects.admittedCertificateFor",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "After the bootstrap prefix Alice's trust rule natively takes Bob's node key; the certificate applies connect_iff_trace, which answers the trust rule's view on Alice's store as on the store drained to rest by view_rest: the view reads only urgent keys (reads_allowPeer_urgent) and Alice's urgent work is settled after the actual trace. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "store_waiting": {
+    "status": "runtime-witness",
+    "theorem": "Engine.Sync.Moves.store_waiting",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes for an existing signed message, then applies production_step_waiting over all four actual entry points (fresh local write, real sealed incoming frame, tick, session close): each entry point moves the store by turns and purges, and store_waiting keeps settled urgent work across those moves. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "turn_waiting": {
+    "status": "runtime-witness",
+    "theorem": "Engine.turn_waiting",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes for an existing signed message, then applies production_step_waiting over all four actual entry points (fresh local write, real sealed incoming frame, tick, session close): its write turns keep settled urgent work (turn_waiting, through the Held turn) from the reachable store of the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
+  },
+  "purge_waiting": {
+    "status": "runtime-witness",
+    "theorem": "Engine.purge_waiting",
+    "witness": "Vacuity.StorageEffects.eventCertificate",
+    "module": "tests.vacuity.StorageEffects",
+    "detail": "The certificate checks exact stored bytes for an existing signed message, then applies production_step_waiting over all four actual entry points (fresh local write, real sealed incoming frame, tick, session close): its purges (a session close) keep settled urgent work (purge_waiting, through the Held purge) from the reachable store of the actual prefix. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, two peers and FIFO delivery, not captured user messages or a proof of native SQLite/TCP refinement."
   }
 }

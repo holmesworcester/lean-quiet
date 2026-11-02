@@ -37,3 +37,4 @@ Engine.Sync.popW base sat=- neg=- say=channel|queue
 Engine.runJ base sat=- neg=- say=journal
 Demand.Plan.BeforeNext holds sat=- neg=- say=-
 Engine.SeekCost.seek base sat=- neg=- say=-
+Engine.Sync.ReceiverRun.Ticks env sat=Vacuity.ClosureDelivery.receiving_ticks neg=Vacuity.ClosureDelivery.stalled_no_ticks say=Ticks|ticks recur|recurring
