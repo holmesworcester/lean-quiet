@@ -32,3 +32,4 @@ demand-rank	mise run test:demand-rank
 restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine
 preadmit	mise run test:preadmit
+window	mise run test:window

@@ -8,7 +8,8 @@ closes the connection when `step.drop`.
 - **Hello.** Each side opens by saying its window floor. A window is
   every op with no claimed time (roots, admissions, removals, ...) and
   every op claimed at or after the floor; a round runs over the overlap
-  of the two windows (`window`).
+  of the two windows (`window`), structure first, then newest first
+  (`newest_first`).
 - **Rounds.** Only the dialer opens rounds, and only on an event: once
   it knows the peer's floor it opens one in every room the session
   shows; on its clock it opens one in each shown room that is due
@@ -134,10 +135,12 @@ end
 
 /-! ## Connections -/
 
-/-- The window from floor f: every op with no claimed time, and every op
-claimed at f or later. -/
+/-- The window from floor f: every op with no claimed time (the
+structure range, first: everything else needs it), then every op claimed
+at f or later (at 1 or later for a full window, `f ≤ 1`). Answers go
+newest first within each (`newest_first`). -/
 def window (f : Nat) : List Range :=
-  if f ≤ 1 then [⟨⟨0, 0⟩, none⟩] else [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨f, 0⟩, none⟩]
+  [⟨⟨0, 0⟩, some ⟨1, 0⟩⟩, ⟨⟨max f 1, 0⟩, none⟩]
 
 structure Config where
   params : Params := {}
@@ -536,8 +539,8 @@ def Conn.onRbsr (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim) (no
     { c with active := others }
   if cs.isEmpty then { conn := ended c } else
   let outs := cs.flatMap ans
-  let claims := outs.filterMap fun | .claim x => some x | _ => none
-  let holds := outs.flatMap fun | .hold xs => xs | _ => []
+  let claims := claimsOf outs
+  let holds := outs.flatMap holdIds
   let wants := outs.flatMap fun | .want xs => xs | _ => []
   let c := if claims.isEmpty then ended c else { c with active := ((r, k) :: others).take c.carried.length }
   let cut := deferred cfg.maxKnown c.asked wants
