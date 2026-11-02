@@ -20,9 +20,9 @@ and to the running app on a warm one; the shell queues the text for
 
 ## Build and run
 
-On the Linux staging machine, use Lean 4.34.0, Rust with the
+On the Linux staging machine, use Lean 4.35.0, Rust with the
 `aarch64-apple-darwin` target, Python 3/Pillow/fontTools and the pinned Noto/CJK
-inputs documented in `docs/BUILD.md`. `LEAN_SRC` and `UV_SRC` select Lean 4.34.0
+inputs documented in `docs/BUILD.md`. `LEAN_SRC` and `UV_SRC` select Lean 4.35.0
 and libuv 1.51.0 sources. All generated files go to `out/`.
 
 The Mac needs Apple Silicon, macOS 14+, SSH and Xcode (set `DEVELOPER_DIR` to

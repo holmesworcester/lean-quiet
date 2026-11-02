@@ -2946,7 +2946,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | ready | `∀ (j : Nat), i ≤ j → j < i + List.idxOf target (r.queue i) + 1 → target ∈ r.queue j → r.visible j target = true` | [discharged] |
 | retained | `∀ (j : Nat), i ≤ j → j < i + List.idxOf target (r.queue i) + 1 → r.keep j target = true` | [discharged] |
 
-## ✅ Unmounted pages issue no new reads or writes.
+## 🟡 Unmounted pages issue no new reads or writes.
 
 **`LifecycleLaws.unmount_read`** (wired)
 
@@ -2954,11 +2954,11 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
-**`LifecycleLaws.unmount_write`** (wired)
+**`LifecycleLaws.unmount_write`** (model)
 
 | premise | statement | tag |
 |---|---|---|
-| (none) | | |
+| (about) | `code that does not run: App.writeAll` | [model] |
 
 **`LifecycleLaws.old_callback`** (wired)
 
