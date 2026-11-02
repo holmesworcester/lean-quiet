@@ -37,8 +37,9 @@
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
 #    (engine:tcp, net, mdns), X and the desktop shell, qr, zoom, site, the
-#    workspace, `make install && make run` from a fresh clone in Docker
-#    (make:clean-room), make verify on a Lean 4.35 project
+#    workspace, `make install && make run` and `make demo` from a fresh
+#    clone in Docker (make:clean-room), make demo under Xvfb with its
+#    negative control (make:demo), make verify on a Lean 4.35 project
 #    (make:verify), and each of the app's checks (app:<part>, tests/app/
 #    parts.txt; a part with cases, app:<part>/<case>, one part a case).
 #    An engine mutant works in a snapshot (tests/snapshot.sh); an app part
@@ -92,7 +93,7 @@ app_parts() {
 }
 rest=(make:clean-room $(app_parts) windows-input qr
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep . | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace make:verify)
+  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify)
 # Longest first, by each part's last recorded time (out/ci/times.tsv, else
 # ci/times.tsv); a part not yet timed counts as 10 minutes.
 longest_first() {
@@ -154,6 +155,7 @@ gate() {
     make:assets) mise run make:assets-test ;;
     make:clean-room) mise run make:clean-room ;;
     make:verify) mise run make:verify-test ;;
+    make:demo) mise run make:demo-e2e && mise run make:demo-negative ;;
     readme) mise run readme:links ;;
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;

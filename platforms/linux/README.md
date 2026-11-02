@@ -17,7 +17,18 @@ the shared font and icon assets. `QUIET_WIDTH`, `QUIET_HEIGHT` and
 `QUIET_SCALE=1..4` select initial logical dimensions and integer scale.
 Supported logical dimensions are 320–4096 by 480–2160.
 
+`--seed` seeds an empty database as `--demo` does, with networking on,
+and `--name NAME` is your name there. `--port N` sets the node's TCP
+port (47100 by default), and `--loopback` makes the app's invites dial
+`127.0.0.1` at that port: two apps then run on one machine, as
+`make demo` runs them (docs/BUILD.md). `--invite FILE` opens Add members
+and writes its link to FILE. `QUIET_TITLE` names the window, and
+`QUIET_X` and `QUIET_Y` say where it opens.
+
 The pinned libquiet layout shows a 220px sidebar from 720 logical pixels.
+While the community has requests to join, the sidebar starts with
+Waiting to join and their count, as the phones' home does; it opens the
+requests page.
 Below that boundary the mobile pages fill the window. Settings cover the right
 375px on desktop, preserving the conversation width and its message layout;
 on narrow windows they become full-width pages. Settings have their own scroll
