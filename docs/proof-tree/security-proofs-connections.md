@@ -1330,7 +1330,7 @@
 <li><a id="law-Engine.Sync.Conn.answer_blank"></a>✅ <a href="../../engine/sync/Conn.lean#L585">Engine.Sync.Conn.answer_blank</a></li>
 <li><details><summary><a id="law-Engine.Sync.start_take_blank"></a>✅ <a href="../../engine/sync/TakeLaws.lean#L89">Engine.Sync.start_take_blank</a> · 89 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.view_opening"></a>▫️ <a href="../../engine/sync/TakeLaws.lean#L47">Engine.Sync.view_opening</a> · 71 below</summary><ul>
-<li>✅ <a href="quality-proofs.md#law-Engine.Sync.Index.opening_eq">Engine.Sync.Index.opening_eq</a> ↪ · 69 below</li>
+<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.Index.opening_eq">Engine.Sync.Index.opening_eq</a> ↪ · 69 below</li>
 <li>▫️ <a href="../../engine/sync/Conn.lean#L547">Engine.Sync.Index.over_empty</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.rbsr_op_inj"></a>▫️ <a href="../../engine/sync/TakeLaws.lean#L27">Engine.Sync.rbsr_op_inj</a> · 40 below</summary><ul>
@@ -1366,7 +1366,7 @@
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.take_round_offers"></a>✅ <a href="../../engine/sync/TakeLaws.lean#L191">Engine.Sync.take_round_offers</a> · 85 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.Index.answer_fun"></a>▫️ <a href="../../engine/sync/Conn.lean#L389">Engine.Sync.Index.answer_fun</a> · 77 below</summary><ul>
-<li>✅ <a href="quality-proofs.md#law-Engine.Sync.Index.answer_eq">Engine.Sync.Index.answer_eq</a> ↪ · 76 below</li>
+<li>✅ <a href="quality-proofs-sync.md#law-Engine.Sync.Index.answer_eq">Engine.Sync.Index.answer_eq</a> ↪ · 76 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.Conn.has_carried_eq"></a>▫️ <a href="../../engine/sync/Conn.lean#L606">Engine.Sync.Conn.has_carried_eq</a> · 2 below</summary><ul>
 <li>▫️ <a href="#law-Engine.Sync.Conn.has_carried">Engine.Sync.Conn.has_carried</a> ↪ · 1 below</li>
