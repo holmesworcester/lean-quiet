@@ -11,7 +11,7 @@ structure Peaks where
   closed : Nat := 0
   frontier : Nat := 0
   closure : Nat := 0
-  snaps : Nat := 0
+  active : Nat := 0
   askTime : Nat := 0
   cut : Bool := false
   deriving Repr
@@ -21,7 +21,7 @@ def Peaks.see (p : Peaks) (c : Conn) : Peaks :=
     offered := max p.offered c.offered.size, closed := max p.closed c.closed.size,
     frontier := max p.frontier c.frontier.length,
     closure := max p.closure (c.closed.size + c.frontier.length),
-    snaps := max p.snaps c.snaps.length, askTime := max p.askTime c.askTime.size,
+    active := max p.active c.active.length, askTime := max p.askTime c.askTime.size,
     cut := p.cut || c.closureCut }
 
 def Peaks.node (p : Peaks) (n : Node) : Peaks := n.conns.foldl (fun p (_, c) => p.see c) p

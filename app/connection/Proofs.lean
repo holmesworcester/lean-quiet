@@ -65,7 +65,9 @@ theorem wire_not_conn (C : Community.Crypto) (K : Keys) {o : Op} (h : Engine.Syn
   show Community.scopeOf o ≠ .conn
   unfold Community.scopeOf
   split
-  · split <;> simp
+  · split
+    · simp
+    · split <;> simp
   · simp
 
 /-- **The bare path takes no wire op.** -/

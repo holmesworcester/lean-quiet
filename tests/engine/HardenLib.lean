@@ -72,7 +72,7 @@ instance : Store Nat TM where
   countOps := pure 0
 
 def clockChecks (t : Checks) : IO Unit := do
-  let cfg : Config := { every := 30, askTime := 20, live := 90 }
+  let cfg : Config := { askTime := 20, live := 90 }
   let c : Conn := { dialer := true, rooms := ["room".toUTF8], floor := 0, peerFloor := some 0, heard := 1000 }
   let started := c.start cfg {} 1000
   for now in [1000:1091] do

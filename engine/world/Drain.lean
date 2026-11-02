@@ -62,7 +62,14 @@ theorem recv_appends (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (b 
         simp only [HeldM.run_pure]
         exact ⟨[], by rw [(onRbsr_owed cfg ix _ r k cs now).1]; simp⟩
       | hold r ids =>
-        simp only [HeldM.run_bind, HeldM.run_pure]
+        dsimp only
+        split
+        · -- an empty have asks for a round (`Conn.onAsk`): the queue is unchanged
+          simp only [HeldM.run_pure]
+          obtain ⟨rs, e⟩ := Conn.onAsk_eq ({ c with heard := now } : Conn) r
+          rw [e]
+          exact ⟨[], by simp⟩
+        try simp only [HeldM.run_bind, HeldM.run_pure]
         simp only [show ∀ m : HeldM F Step, m.run h = m h from fun _ => rfl]
         rw [onHold_apply]
         refine ⟨[], ?_⟩
@@ -135,8 +142,16 @@ theorem tickGive_take (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (n
     · rfl
     · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.pulse_take]
       split
-      · unfold Conn.start; split <;> rfl
-      · rfl
+      · unfold Conn.start
+        split
+        · rfl
+        · dsimp only
+          split <;> rfl
+      · unfold Conn.ask
+        split
+        · rfl
+        · dsimp only
+          split <;> rfl
   split
   · exact ht _ _
   · simp only [Step.then, hg, ht, List.append_nil]

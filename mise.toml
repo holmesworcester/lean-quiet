@@ -15,6 +15,11 @@ run = "tests/check.sh"
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/engine/run.sh"
 
+[tasks."test:scale"]
+description = "Scaling: a round's work at 1k, 10k and 100k items in one room against the proven bounds, with negative controls (tests/scale/run.sh)"
+depends = ["crypto"]
+run = "tests/scale/run.sh"
+
 [tasks."test:fresh"]
 description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
 run = "tests/engine/fresh.sh"
@@ -481,7 +486,7 @@ description = "Full and capped window syncs on real Nodes/SQLite, peaks and nega
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
-description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, event-driven rounds (a joiner's room opens a round within a tick, none before the safety period, no per-round copy at a hub), secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
 
 [tasks."test:read-plan"]
@@ -530,6 +535,11 @@ run = "tests/app/skeleton.sh"
 [tasks."host:mobile-switcher"]
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
+
+[tasks."test:window"]
+depends = ["crypto"]
+description = "Windows and order (docs/SYNC.md): a message's photos sort with it; the negative controls (chunks at time 0, unchecked times) in a scratch snapshot"
+run = "tests/engine/window.sh"
 
 [tasks."test:vacuity"]
 depends = ["crypto"]

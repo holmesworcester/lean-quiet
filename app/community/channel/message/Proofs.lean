@@ -59,6 +59,15 @@ theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root 
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
+/-- A Valid message's op claims the message's time: sync sorts it there. -/
+theorem message_order {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}
+    (h : V C ops x (.message c u d k t n tm clump)) : ∃ o, ops x = some o ∧ orderOf o = tm := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  refine ⟨o, hx, ?_⟩
+  cases clump with
+  | none => obtain ⟨_, _, _, _, rfl, _⟩ := check_message hv; simp [orderOf, hb]
+  | some r => obtain ⟨_, _, _, _, _, _, _, _, _, rfl, _⟩ := check_child hv; simp [orderOf, hb]
+
 /-- A Valid message cites an admission of its author's device into its
 author's user, and that device signed it. -/
 theorem message_authorized {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}

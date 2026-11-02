@@ -27,6 +27,8 @@
 #                   (tests/app/headless.sh)
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
+#    scale          a round's work at 1k, 10k and 100k items against the
+#                   proven bounds, with negative controls (tests/scale)
 # 3. --full: every other part, longest first. The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt; the app's, among
 #    its stages), real TCP (engine:tcp, net, mdns), X and the desktop
@@ -58,7 +60,7 @@ while [ $# -gt 0 ]; do
 done
 
 proofs=(driver build check layout readme reorg)
-fast=(engine:suites visual headless vacuity)
+fast=(engine:suites visual headless vacuity scale)
 # longest first (minutes, measured on the shared box: app:2 and app:3
 # 40–55, qr 24, app:1 17, engine:harden 14, the rest under 10)
 rest=(app:3 app:2 qr app:1 engine:harden engine:ref-publications engine:catalog-retry engine:fresh
@@ -85,6 +87,7 @@ gate() {
     engine:suites) SKIP_TCP=1 tests/engine/run.sh --suites ;;
     engine:tcp) tests/engine/run.sh --tcp ;;
     headless) mise run test:headless ;;
+    scale) mise run test:scale ;;
     engine:*) local cmd
       cmd=$(awk -F'\t' -v n="${1#engine:}" '$1 == n { print $2 }' tests/engine/controls.txt)
       [ -n "$cmd" ] || { echo "no engine control ${1#engine:}" >&2; return 2; }
@@ -114,7 +117,7 @@ gate() {
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
     readme) mise run readme:links ;;
-    layout) mise run layout:check ;;
+    layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     vacuity) mise run test:vacuity ;;
     crypto-failure) mise run test:crypto-failure ;;

@@ -119,7 +119,7 @@ theorem good_start : Q.Good Q.start :=
       owes := fun _ _ hc => by simp [Plain.start, World.init, Node.boot, Node.conn?] at hc
       bounded := fun _ _ hc => by simp [Plain.start, World.init, Node.boot, Node.conn?] at hc
       ix := ⟨(fun _ _ _ hx => by cases hx),
-        (fun _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items] at ha),
+        (fun _ _ ha => by simp [Plain.start, World.init, Node.boot, Index.ofOps, Index.items, Index.room?] at ha),
         (fun _ _ hx => by cases hx)⟩
       store := held_empty_reachable Q.fam
       settled := rfl },

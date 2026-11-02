@@ -520,7 +520,7 @@ number of distinct indices i at which this device holds a Valid chunk
 of the attachment, each below the chunk count; the total is the chunk
 count. -/
 theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ∃ is : List Nat, is.Nodup ∧
       (∀ i, i ∈ is ↔ ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i)) ∧
       (∀ i ∈ is, i < Merkle.nChunks len) ∧
@@ -535,10 +535,10 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     obtain ⟨hv, hargs⟩ := (filed (C := C) (r := chunk.byAttachment) (by simp [rels]) h hq _ y f).1 ⟨hy, hf⟩
     cases f <;> (try (rename_i x; cases x)) <;> simp [chunk.byAttachment] at hargs
     obtain ⟨rfl, rfl⟩ := hargs
-    obtain ⟨_, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
+    obtain ⟨_, _, _, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
     have := spec_det hav ha
     simp only [Verdict.valid.injEq, Fact.attachment.injEq] at this
-    obtain ⟨_, _, _, rfl, rfl, _, _⟩ := this
+    obtain ⟨_, _, _, rfl, rfl, _, _, _⟩ := this
     exact ⟨y, _, rfl, hv⟩
   have hheld : ∀ i, (∃ p ∈ M, ix p = i) ↔ ∃ y, V C s.ops y (.chunk c att root len i) := by
     intro i; constructor
@@ -555,16 +555,16 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     have hn' : List.Pairwise (fun a b : Pos × Fact => a.1.2 ≠ b.1.2) M := by
       have := matching_nodup h { key := chunkKey c att }
       unfold List.Nodup at this; rwa [List.pairwise_map] at this
-    refine hn'.imp_of_mem fun ha hb hne heq => hne ?_
-    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ ha
-    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hb
+    refine hn'.imp_of_mem fun hpa hpb hne heq => hne ?_
+    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ hpa
+    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hpb
     simp only [ix] at heq; subst heq
-    exact chunk_unique h.key hsize hspr hv1 hv2
+    exact chunk_unique h.key hsize hspr ha hv1 hv2
   · intro i; rw [List.mem_map]; exact hheld i
   · intro i hi
     obtain ⟨y, hv⟩ := (hheld i).1 (List.mem_map.1 hi)
     obtain ⟨o, b, fs, _, _, _, hc⟩ := valid_inv hv
-    obtain ⟨_, _, _, _, _, hver, _⟩ := check_chunk hc
+    obtain ⟨_, _, _, _, _, _, hver, _⟩ := check_chunk hc
     exact (Merkle.index_bound hver).1
   · unfold progress
     simp only [View.eval_bind, View.eval_pure, List.length_map]
@@ -575,7 +575,7 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
 
 /-- **Progress never passes the total.** -/
 theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 ≤ ((progress c att len).eval s).2 := by
   obtain ⟨is, hnd, _, hb, he⟩ := progress_exact hsize hspr h hq ha
   rw [he]
@@ -584,7 +584,7 @@ theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} 
 
 /-- **Progress is full exactly when every chunk is here.** -/
 theorem progress_full (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 = ((progress c att len).eval s).2 ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
   obtain ⟨is, hnd, hmem, hb, he⟩ := progress_exact hsize hspr h hq ha
@@ -598,17 +598,17 @@ total, the attachment's length is the file's and the store holds each
 of the attachment's chunk ops (`fileChunk`), whose slices are the file
 (`Merkle.assemble_slices`). -/
 theorem progress_done (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     (hd : ((progress c att len).eval s).1 = ((progress c att len).eval s).2) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att tm ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hall := (progress_full hsize hspr h hq ha).1 hd
   obtain ⟨y0, h0⟩ := hall 0 (Merkle.one_le_nChunks len)
   obtain ⟨o, b, fs, ho, hb, _, hc⟩ := valid_inv h0
-  obtain ⟨_, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
+  obtain ⟨_, _, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
   refine ⟨rfl, fun i hi => ?_⟩
   obtain ⟨y, hy⟩ := hall i hi
-  rw [← chunk_id h.key hsize hspr hy]
+  rw [← chunk_id h.key hsize hspr hy ha]
   exact hy
 end
 end
@@ -1630,7 +1630,7 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d 
   let p := sealedPost c myAdm d k nonce text n now group
   have hw : (send c myAdm d k nonce text now files).eval s =
       ⟨p :: (receiptFor p).eval s ++ files.flatMap (fun f =>
-        let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩ := by
+        let (a, cs) := attach c myAdm p.id now d k f; a :: cs)⟩ := by
     simp only [send, View.eval_bind, View.eval_pure]; rfl
   refine ⟨n, by rw [hw]; rfl, fun hnew => ?_⟩
   -- every message of c the device lists is at most T
@@ -1776,8 +1776,8 @@ theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (c
     (post c adm d k t n tm cl).reqs.length ≤ 3 := by
   cases cl <;> simp [post]
 
-theorem attach_reqs (c adm msg : Id) (d : Device) (k : Key32) (f : NewFile) :
-    (attach c adm msg d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg d k f).2, o.reqs.length = 2 := by
+theorem attach_reqs (c adm msg : Id) (time : Nat) (d : Device) (k : Key32) (f : NewFile) :
+    (attach c adm msg time d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg time d k f).2, o.reqs.length = 2 := by
   refine ⟨rfl, fun o ho => ?_⟩
   simp only [attach, List.mem_map] at ho
   obtain ⟨_, _, rfl⟩ := ho
@@ -1938,7 +1938,7 @@ theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t :
       (min (n + 1) countCap) now cl
     simp only [sealedPost]; rw [maxReqs_eq]; omega
   · exact hr o ho
-  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id d k f
+  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id now d k f
     rcases ho with rfl | ho
     · rw [h.1, maxReqs_eq]; decide
     · rw [h.2 o ho, maxReqs_eq]; decide

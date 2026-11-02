@@ -12,6 +12,7 @@ and must stall until the busy tasks end.
 -/
 import engine.wire.Tcp
 import tests.engine.Lib
+import engine.core.Exit
 
 open Std Std.Async Std.Net Engine.Sync Tests
 
@@ -66,7 +67,7 @@ def through (send : TCP.Socket.Client → ByteArray → IO Bool)
     | none => done := true
   return ((← IO.monoMsNow) - t0, ok && buf == payload)
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let t ← Checks.new
   let n := 65536
   let busyMs := 3000
@@ -92,3 +93,7 @@ def main : IO UInt32 := do
   t.ok s!"control: through Async.block the same frame waits {ms2} ms, behind the busy tasks" (ok2 && ms2 ≥ 2000)
   for x in busy2 do discard <| IO.wait x
   t.finish "poolstarve"
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody
