@@ -503,7 +503,9 @@ def main (args : List String) : IO UInt32 := do
   t.ok "the removal is Valid"
     ((← (Store.getStatus (F := Fact) (m := SqlM Fact) (wrm.ops.headD default).id).run a) matches some (.valid _))
   t.ok "B is listed as removed, by A"
-    ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => f == .removal c u c)
+    ((← rows a (removal.byUser.query [c, u])).any fun (_, f) => match f with
+      | .ofRemoval r => r.c == c && r.u == u && r.by_ == c
+      | _ => false)
   t.ok "and no longer let in" !(← ((allowPeer c keyB).run : SqlM Fact Bool).run a)
   t.ok "removing B again writes nothing" ((← rmBy a u dA).ops.isEmpty)
 
@@ -517,7 +519,9 @@ def main (args : List String) : IO UInt32 := do
   mine a wrmC
   t.ok "A removes C, and refuses C's node" (wrmC.ops.length == 1 && !(← ((allowPeer c keyC).run : SqlM Fact Bool).run a))
   fromPeer cdb (← sendable a)
-  t.ok "C holds its removal" ((← rows cdb (removal.byUser.query [c, uC])).any fun (_, f) => f == .removal c uC c)
+  t.ok "C holds its removal" ((← rows cdb (removal.byUser.query [c, uC])).any fun (_, f) => match f with
+    | .ofRemoval r => r.c == c && r.u == uC && r.by_ == c
+    | _ => false)
   t.ok "C's device is cut on C" (!(← liveOn cdb dC.pk))
   t.ok "so C holds c no more: its cut entry is not held"
     ((← ((Community.mine c).run : SqlM Fact _).run cdb).isNone)

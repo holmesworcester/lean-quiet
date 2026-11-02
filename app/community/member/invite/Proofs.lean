@@ -44,16 +44,18 @@ request's own. The bearer key alone admits nobody. -/
 theorem admission_needs_approval (hk : Keyed ops) {y c u : Id} {d e kid : Key}
     (h : V C ops y (.admission c u d e kid)) :
     (y = c ∧ u = c) ∨
-    ∃ o r x a l da ea ka ra, ops y = some o ∧ o.reqs = [c, r, x] ∧ V C ops r (.request c u d e l) ∧
-      V C ops x (.approval c r a) ∧ V C ops ra (.admission c a da ea ka) ∧ da ≠ d ∧
-      (l = true → a = u) := by
-  rcases admission_approved hk h with h | ⟨o, r, x, a, l, hy, _, hreq, hr, hx⟩
+    ∃ o r x l ea ka ra, ∃ g : Approve.Fact, ops y = some o ∧ o.reqs = [c, r, x] ∧
+      V C ops r (.request c u d e l) ∧ V C ops x (.ofApproval g) ∧ g.c = c ∧ g.req = r ∧
+      V C ops ra (.admission c g.u g.dev ea ka) ∧ g.dev ≠ d ∧ (l = true → g.u = u) := by
+  rcases admission_approved hk h with h | ⟨o, r, x, l, g, hy, _, hreq, hr, hx, hgc, hgr, hgu, hgd, hge⟩
   · exact Or.inl h
-  · obtain ⟨_, _, ra, u', d', e', l', da, ea, ka, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+  · obtain ⟨_, _, ra, _, l', ea, ka, _, _, _, hr', hra, hl, hd, _⟩ := approval_signed hx
+    rw [hgc, hgr, hgu, hgd, hge] at hr'
     have := spec_det hr hr'
-    simp only [Verdict.valid.injEq, Fact.request.injEq] at this
-    obtain ⟨_, rfl, rfl, rfl, rfl⟩ := this
-    exact Or.inr ⟨o, r, x, a, l, da, ea, ka, ra, hy, hreq, hr, hx, hra, hd, hl⟩
+    simp only [Verdict.valid.injEq, Fact.ofRequest.injEq, Request.Fact.mk.injEq] at this
+    obtain ⟨_, _, _, _, rfl⟩ := this
+    rw [hgc] at hra
+    exact Or.inr ⟨o, r, x, l, ea, ka, ra, g, hy, hreq, hr, hx, hgc, hgr, hra, hgd ▸ hd, hgu ▸ hl⟩
 open Engine Codec
 namespace Base62
 

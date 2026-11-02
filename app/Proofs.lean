@@ -1099,8 +1099,8 @@ theorem admitted_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} {d e
 /-- Removed among the node's Community ops: by a Valid removal in the
 node's own verdicts. -/
 theorem removed_node (h : Inv (node C K) s) (hq : s.queue = []) {c u : Id} :
-    Removed C (community C s).ops c u ↔ ∃ x r, s.status x = some (.valid (.inl (.removal c u r))) :=
-  exists_congr fun x => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
+    Removed C (community C s).ops c u ↔ ∃ x r k, s.status x = some (.valid (.inl (.removal c u r k))) :=
+  exists_congr fun x => exists_congr fun _ => exists_congr fun _ => (sum_project_node h hq).2.2.2.1 x _
 open Engine Engine.Sync
 
 /-- **A room is carried synced only if trusted.** If connection cid
@@ -1144,14 +1144,14 @@ variable {C : Community.Crypto} {K : Keys} {s : DB F}
 open Community (Admitted Removed)
 
 /-- **A removal ends a live session's sync, in the running node.** At
-rest, if this node is let into c (a device admitted under its key is
-live), and each peer connection cid's established facts name in c has
+rest, if this node is let into c (a live device has a trusted admission
+under its key), and each peer connection cid's established facts name in c has
 only devices admitted into a removed user u, then cid carries no sync
 room of c: no step of it sends an op of c or takes one (`recv_send`,
 `recv_take`). -/
 theorem rooms_cut_node (h : Inv (node C K) s) (hq : s.queue = []) {cid c : Id}
     (hme : ∀ me, (meV c).eval s = some me →
-      ∃ u d, Admitted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
+      ∃ u d, Community.Trusted C (community C s).ops c u d me ∧ Community.Live C (community C s).ops c d)
     (hpeer : ∀ peer ∈ peersOf (Engine.eval s (established.byConn.query [cid])),
       ∃ u, Removed C (community C s).ops c u ∧
         ∀ u' d, Admitted C (community C s).ops c u' d peer → ∃ e', Admitted C (community C s).ops c u d e') :

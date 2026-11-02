@@ -50,7 +50,7 @@ def facts : List (String × Fact) :=
   [("admission", .admission (bs "c") (bs "u") (bs "dev") (bs "enc") (bs "kid")),
    ("invitation", .invitation (bs "c") (bs "i") (bs "bearer") true),
    ("admin", .admin (bs "c") (bs "u")),
-   ("removal", .removal (bs "c") (bs "u") (bs "by")),
+   ("removal", .removal (bs "c") (bs "u") (bs "by") [(bs "dev", bs "head", 3)]),
    ("message", .message (bs "c") (bs "u") (bs "dev") (bs "kid") (bs "text") 7 1700000),
    ("message-child", .message (bs "c") (bs "u") (bs "dev") (bs "kid") (bs "text") 8 1700001 (some (bs "root"))),
    ("message-cap", .message (bs "c") (bs "u") (bs "dev") (bs "kid") (bs "text") (2 ^ 63) 5),
@@ -59,7 +59,7 @@ def facts : List (String × Fact) :=
    ("attachment", .attachment (bs "c") (bs "m") (bs "u") (bs "root") 1000 (bs "kid") (bs "sealed")),
    ("react", .react (bs "c") (bs "u") (bs "m") (bs "🌱") 99),
    ("request", .request (bs "c") (bs "u") (bs "dev") (bs "enc") false),
-   ("approval", .approval (bs "c") (bs "r") (bs "u")),
+   ("approval", .approval (bs "c") (bs "r") (bs "u") (bs "dev") (bs "ru") (bs "rd") (bs "re") (bs "up") 2 (bs "prev") 5),
    ("secret", .secret (bs "pk") (bs "seed")),
    ("accepted", .accepted (bs "c") (bs "dev")),
    ("joining", .joining (bs "c") (bs "inviter") [bs "h"] (bs "req") (bs "Rowan") (bs "dev") 3),
@@ -88,13 +88,16 @@ def reqs : List (List Fact) :=
   let child := Fact.message c (bs "u") (bs "dev") (bs "kid") (bs "t") 1 2 (some (bs "r"))
   let inv := Fact.invitation c (bs "u") (bs "bearer") false
   let req := Fact.request c (bs "u") (bs "dev") (bs "enc") false
-  let appr := Fact.approval c (bs "") (bs "v")
+  let appr := Fact.approval c (bs "") (bs "v") (bs "dev2") (bs "u") (bs "dev") (bs "enc") (bs "") 0 (bs "") 0
+  -- the approval that admitted other (v, dev2, enc2): its up
+  let up := Fact.approval c (bs "x") (bs "w") (bs "dev3") (bs "v") (bs "dev2") (bs "enc2") (bs "") 0 (bs "") 0
   let att := Fact.attachment c (bs "m") (bs "u") (bs "root") 70000 (bs "kid") (bs "x")
   let grant := Fact.admin c (bs "u")
   [[], [root], [root, author], [root, author, msg], [root, author, child], [root, inv],
    [root, req, other], [root, req, appr], [root, author, root, other], [root, author, grant, other],
    [root, author, author, author], [root, att], [msg], [Fact.joining c (bs "i") [] (bs "r") (bs "n") (bs "d") 0],
-   [root, author, root], [root, author, grant, Fact.named c (bs "u") (bs "Q") 1], [other, author]]
+   [root, author, root], [root, author, grant, Fact.named c (bs "u") (bs "Q") 1], [other, author],
+   [root, req, other, up], [root, req, other, up, appr], [root, author, grant, other, appr]]
 
 def op (b : Body) (rs : List Id) : Op := Op.make b.tag rs (encode b)
 

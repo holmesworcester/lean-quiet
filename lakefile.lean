@@ -184,6 +184,9 @@ lean_exe sqlite_build where
 lean_exe scenario where
   root := `tests.engine.Scenario
 
+lean_exe cut_check where
+  root := `tests.engine.Cut
+
 lean_exe differential where
   root := `tests.engine.Differential
 

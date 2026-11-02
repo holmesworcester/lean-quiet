@@ -43,14 +43,20 @@ def admB := admit c requestB.id okB.id
 
 /-- `approveReq_wrap_admits` applied to Alice's actual approval of Bob's
 request over a real store holding the community's key: the write is
-neither the bare approval nor approval and admission alone, so it is her
-approval, the admission citing it, and her wrap of the key `currentKey`
-reads (the law's third case). -/
-def wrapAdmits : Option (PLift (∃ k esk' e, (currentKey c).eval (run keyed) = some k ∧
-    (approvalWrite keyed eskA).ops = [okB, admB, wrapKey c c admB.id alice k esk' e])) :=
-  if h1 : (approvalWrite keyed eskA).ops = [okB] then none
-  else if h2 : (approvalWrite keyed eskA).ops = [okB, admB] then none
-  else some ⟨((approveReq_wrap_admits (run keyed) c requestB.id c alice eskA).resolve_left h1).resolve_left h2⟩
+three ops, so (the law's third case) it is her approval, the admission
+citing it, and her wrap of the key `currentKey` reads. -/
+def wrapAdmits : Option (PLift (∃ up prev k esk' e, (currentKey c).eval (run keyed) = some k ∧
+    (approvalWrite keyed eskA).ops = [approve c requestB.id c alice up prev,
+      admit c requestB.id (approve c requestB.id c alice up prev).id,
+      wrapKey c c (admit c requestB.id (approve c requestB.id c alice up prev).id).id alice k esk' e])) :=
+  if h : (approvalWrite keyed eskA).ops.length = 3 then
+    some ⟨by
+      obtain ⟨up, prev, hw⟩ := approveReq_wrap_admits (run keyed) c requestB.id c alice eskA
+      rcases hw with hw | hw | ⟨k, esk', e, hk, hw⟩
+      · simp [approvalWrite, hw] at h
+      · simp [approvalWrite, hw] at h
+      · exact ⟨up, prev, k, esk', e, hk, hw⟩⟩
+  else none
 
 def connectIff := if hq : (run before).queue = [] then
   some (PLift.up (connect_iff (runInv before) hq c (keyOf bob))) else none
@@ -75,8 +81,8 @@ else none
 
 def cut : Option (PLift (Cut ed25519 (run after).ops c bob.pk)) := do
   let ⟨ha⟩ ← certifyDB after admission bobFact
-  let ⟨hr⟩ ← certifyDB after removeB (.removal c requestB.id c)
-  pure ⟨requestB.id, keyOf bob, ⟨admission.id, _, ha⟩, ⟨removeB.id, c, hr⟩⟩
+  let ⟨hr⟩ ← certifyDB after removeB removeBFact
+  pure ⟨requestB.id, keyOf bob, ⟨admission.id, _, ha⟩, ⟨removeB.id, c, [], hr⟩⟩
 
 def cutConsented := applyLaw cut cut_consented
 
@@ -104,11 +110,11 @@ def refuseNonmember := do
 
 def removalCutsOff := do
   let ⟨ha⟩ ← certifyDB after admission bobFact
-  let ⟨hr⟩ ← certifyDB after removeB (.removal c requestB.id c)
+  let ⟨hr⟩ ← certifyDB after removeB removeBFact
   if hq : (run after).queue = [] then
     if rows : (eval (run after) (admission.byKey.query [c, keyOf bob])).rows = nodeRows then
       return PLift.up (removal_cuts_off (runInv after) hq
-        (show Removed ed25519 (run after).ops c requestB.id from ⟨removeB.id,c,hr⟩)
+        (show Removed ed25519 (run after).ops c requestB.id from ⟨removeB.id, c, [], hr⟩)
         (fun u d had => ⟨keyOf bob, admission.id, keyId, (nodeOnlyBob hq rows u d had).2 ▸ ha⟩))
     else none
   else none
@@ -145,13 +151,17 @@ def connectAgree :=
 def connectAdmitted := do
   let ⟨hc⟩ ← certifyDB before r rootFact
   let ⟨hr⟩ ← certifyDB before requestB (.request c requestB.id bob.pk (keyOf bob) false)
-  let ⟨ha⟩ ← certifyDB before approval (.approval c requestB.id c)
+  let ⟨ha⟩ ← certifyDB before approval approvalFact
   if hq : (run before).queue = [] then
     if hy : (run before).ops admission.id = some admission then
       if hl : (deviceLive c bob.pk).eval (run before) = true then
-        return PLift.up (connect_admitted (runInv before) hq hy
-          (decode_encode _) rfl rfl hc hr ha
-          ((deviceLive_iff (runInv before) hq c bob.pk).1 hl).2)
+        -- Alice's approval counts: read off the store by the counts view
+        if hct : (counts c 1 approval.id approvalF).eval (run before) = true then
+          return PLift.up (connect_admitted (runInv before) hq hy
+            (decode_encode _) rfl rfl hc hr ha rfl rfl
+            ((counts_iff (runInv before) hq 0 approval.id approvalF rfl ha rfl).1 hct)
+            ((deviceLive_iff (runInv before) hq c bob.pk).1 hl).2)
+        else none
       else none
     else none
   else none
@@ -188,21 +198,27 @@ def noRenaming (Signed : Key → ByteArray → Prop) := applyLaw
   (fun h => fun hU : Unforgeable ed25519 _ Signed => no_renaming hU h)
 
 def requestC := request c invitation.id carol (keyOf bob) bearer.sk
-def approvalC := approve c requestC.id c alice
+def approvalC := approve c requestC.id c alice none (some approval.id)
 def admissionC := admit c requestC.id approvalC.id
-def rejoined := after ++ [requestC,approvalC,admissionC]
+/-- Alice removes Bob (alone: Bob does not remove Alice here), then
+approves Carol, a new device on Bob's node: a current member's
+approval, so it counts. -/
+def afterB := before ++ [removeB]
+def rejoined := afterB ++ [requestC,approvalC,admissionC]
 
 def newDeviceTrusted := do
   let ⟨ha⟩ ← certifyDB rejoined admission bobFact
-  let ⟨hr⟩ ← certifyDB rejoined removeB (.removal c requestB.id c)
+  let ⟨hr⟩ ← certifyDB rejoined removeB removeBFact
   let ⟨hc⟩ ← certifyDB rejoined admissionC (.admission c requestC.id carol.pk (keyOf bob) keyId)
   if hq : (run rejoined).queue = [] then
     if hl : (deviceLive c carol.pk).eval (run rejoined) = true then
-      return PLift.up (new_device_trusted (runInv rejoined) hq
-        (show Admitted ed25519 (run rejoined).ops c requestB.id bob.pk (keyOf bob) from ⟨admission.id,_,ha⟩)
-        (show Removed ed25519 (run rejoined).ops c requestB.id from ⟨removeB.id,c,hr⟩)
-        (show Admitted ed25519 (run rejoined).ops c requestC.id carol.pk (keyOf bob) from ⟨admissionC.id,_,hc⟩)
-        ((deviceLive_iff (runInv rejoined) hq c carol.pk).1 hl))
+      if ht : (trusted c requestC.id carol.pk (keyOf bob)).eval (run rejoined) = true then
+        return PLift.up (new_device_trusted (runInv rejoined) hq
+          (show Admitted ed25519 (run rejoined).ops c requestB.id bob.pk (keyOf bob) from ⟨admission.id,_,ha⟩)
+          (show Removed ed25519 (run rejoined).ops c requestB.id from ⟨removeB.id, c, [], hr⟩)
+          ((trusted_iff' (runInv rejoined) hq ⟨admissionC.id, _, hc⟩).1 ht)
+          ((deviceLive_iff (runInv rejoined) hq c carol.pk).1 hl))
+      else none
     else none
   else none
 
@@ -215,6 +231,271 @@ def mineNotRemoved :=
     else none
   else none
 
+/-! ## The causal cut, on real signed ops
+
+Bob, admitted by Alice, approves Dave. Alice removes Bob, citing the
+head of Bob's approval chain she holds (his approval of Dave): her cut.
+Then Bob, removed, invites and approves a fresh device on his own node,
+continuing his chain past the head. -/
+
+def bearerD := Device.named "vacuity-bearer-dave"
+def dave := Device.named "vacuity-dave"
+def invD := invite c admission.id bob bearerD.pk false
+def reqD := request c invD.id dave (keyOf dave) bearerD.sk
+def okD := approve c reqD.id admission.id bob (some approval.id)
+def admD := admit c reqD.id okD.id
+def removeCut := remove c c c admission.id alice [okD.id]
+def bearerR := Device.named "vacuity-bearer-again"
+def bobAgain := Device.named "vacuity-bob-again"
+def invR := invite c admission.id bob bearerR.pk false
+def reqR := request c invR.id bobAgain (keyOf bob) bearerR.sk
+def okR := approve c reqR.id admission.id bob (some approval.id) (some okD.id)
+def admR := admit c reqR.id okR.id
+/-- What Alice had seen when she removed Bob. -/
+def seen := before ++ [invD, reqD, okD, admD]
+def cutOps := seen ++ [removeCut, invR, reqR, okR, admR]
+
+/-- Bob's approval of Dave: up Alice's approval of Bob, his chain's first. -/
+def fD : Approve.Fact := ⟨c, reqD.id, requestB.id, bob.pk, reqD.id, dave.pk, keyOf dave, approval.id, 1, .empty, 0⟩
+/-- Bob's approval after his removal: one place past the head Alice kept. -/
+def fR : Approve.Fact := ⟨c, reqR.id, requestB.id, bob.pk, reqR.id, bobAgain.pk, keyOf bob, approval.id, 1, okD.id, 1⟩
+def kCut : List (Key × Id × Nat) := [(bob.pk, okD.id, 0)]
+def removeCutFact := Fact.removal c requestB.id c kCut
+
+def admIntoBob (rows : List (Pos × Fact)) : Bool :=
+  rows.any fun (_, g) => match g with
+    | .admission c' u _ _ _ => decide (c' = c ∧ u = requestB.id)
+    | _ => false
+
+theorem admIntoBob_sound {s : DB Fact} (h : Inv (family ed25519) s) (hq : s.queue = []) {d : Key}
+    (hb : admIntoBob (eval s (admission.byDevice.query [c, d])).rows = true) :
+    ∃ e', Admitted ed25519 s.ops c requestB.id d e' := by
+  obtain ⟨⟨p, g⟩, hm, hg⟩ := List.any_eq_true.1 hb
+  obtain ⟨y, g', he, hv, hk⟩ := (mem_rows h hq (by simp [rels]) _).1 hm
+  simp only [Prod.mk.injEq] at he; obtain ⟨_, rfl⟩ := he
+  obtain ⟨u, e, k, rfl⟩ := byDevice_args.1 hk
+  simp only [decide_eq_true_eq] at hg
+  obtain ⟨_, rfl⟩ := hg
+  exact ⟨e, y, k, hv⟩
+
+/-- An approval naming Bob's node key is for a device of Bob's (cut), or
+is by a device of Bob's outside the cut. -/
+def readmitCheck (s : DB Fact) (x : Id) (f : Approve.Fact) : Bool :=
+  !decide (f.c = c ∧ f.re = keyOf bob) ||
+  admIntoBob (eval s (admission.byDevice.query [c, f.rd])).rows ||
+  (admIntoBob (eval s (admission.byDevice.query [c, f.dev])).rows &&
+    !inCut (eval s (approval.byDev.query [c, f.dev])).rows x f kCut)
+
+theorem readmitCheck_sound {s : DB Fact} (h : Inv (family ed25519) s) (hq : s.queue = []) {z : Id}
+    (hz : V ed25519 s.ops z removeCutFact) {x : Id} {f : Approve.Fact}
+    (hx : V ed25519 s.ops x (.ofApproval f)) (hb : readmitCheck s x f = true) (hc : f.c = c) (he : f.re = keyOf bob) :
+    (∃ e', Admitted ed25519 s.ops c requestB.id f.rd e') ∨
+      ∃ y g e', Above ed25519 s.ops y x ∧ V ed25519 s.ops y (.ofApproval g) ∧
+        Admitted ed25519 s.ops c requestB.id g.dev e' ∧ ¬ InCut ed25519 s.ops y g kCut := by
+  simp only [readmitCheck, hc, he, and_self, decide_true, Bool.not_true, Bool.false_or,
+    Bool.or_eq_true, Bool.and_eq_true, Bool.not_eq_true'] at hb
+  rcases hb with hb | ⟨hb, hi⟩
+  · exact Or.inl (admIntoBob_sound h hq hb)
+  · obtain ⟨e', ha⟩ := admIntoBob_sound h hq hb
+    refine Or.inr ⟨x, f, e', .here, hx, ha, fun hin => ?_⟩
+    rw [(inCut_iff h hq hx hz).2 hin] at hi; cases hi
+
+/-- Every Valid approval in a store built from these ops is one of them. -/
+theorem all_approvals (ops : List Op) (hq : (run ops).queue = []) (P : Id → Approve.Fact → Prop)
+    (hall : ∀ o ∈ ops, ∀ f, (run ops).status o.id = some (.valid (.ofApproval f)) → P o.id f) :
+    ∀ x f, V ed25519 (run ops).ops x (.ofApproval f) → P x f := by
+  intro x f hv
+  have hs := (status_iff_spec (runInv ops) hq x _).2 hv
+  have hst : ((run ops).ops x).isSome := by
+    cases ho : (run ops).ops x with
+    | some _ => rfl
+    | none =>
+      obtain ⟨n, hn⟩ := hv
+      cases n with
+      | zero => simp [specAt] at hn
+      | succ n => simp [specAt, ho] at hn
+  obtain ⟨o, ho⟩ := Option.isSome_iff_exists.1 hst
+  obtain ⟨hm, hi⟩ := reach_stored (runReach ops) x o ho
+  subst hi
+  exact hall o hm f hs
+
+def outsideCut := do
+  let ⟨hz⟩ ← certifyDB cutOps removeCut removeCutFact
+  let ⟨hx⟩ ← certifyDB cutOps okR (.ofApproval fR)
+  let ⟨ha⟩ ← certifyDB cutOps admission bobFact
+  if hq : (run cutOps).queue = [] then
+    if hi : inCut (eval (run cutOps) (approval.byDev.query [c, fR.dev])).rows okR.id fR kCut = false then
+      return PLift.up (outside_cut_admits_none (C := ed25519) hz hx ⟨admission.id, _, ha⟩
+        (fun hin => by rw [(inCut_iff (runInv cutOps) hq hx hz).2 hin] at hi; cases hi))
+    else none
+  else none
+
+def noSelfReadmission := do
+  let ⟨hz⟩ ← certifyDB cutOps removeCut removeCutFact
+  let ⟨hr⟩ ← certifyDB cutOps r rootFact
+  if hq : (run cutOps).queue = [] then
+    if hk : keyOf alice = keyOf bob then none else
+    if hall : cutOps.all (fun o => match (run cutOps).status o.id with
+        | some (.valid (.ofApproval f)) => readmitCheck (run cutOps) o.id f
+        | _ => true) = true then
+      return PLift.up (no_self_readmission (runInv cutOps) hq hz
+        (fun u' d k hv => by
+          have := spec_det hr hv
+          simp only [rootFact, Verdict.valid.injEq, Fact.admission.injEq] at this
+          exact hk this.2.2.2.1)
+        (all_approvals cutOps hq _ fun o ho f hs hc he => by
+          have := (List.all_eq_true.1 hall) o ho
+          rw [hs] at this
+          exact readmitCheck_sound (runInv cutOps) hq hz ((runInv cutOps).sound _ _ hs) this hc he))
+    else none
+  else none
+
+theorem seenExtends (he : seen.all (fun o => decide ((run cutOps).ops o.id = some o)) = true) :
+    Extends (run seen).ops (run cutOps).ops := by
+  intro x o ho
+  obtain ⟨hm, hi⟩ := reach_stored (runReach seen) x o ho
+  have hh := of_decide_eq_true ((List.all_eq_true.1 he) o hm)
+  rw [hi] at hh; exact hh
+
+def insideCutStays := do
+  let ⟨hdS⟩ ← certifyDB seen okD (.ofApproval fD)
+  let ⟨haS⟩ ← certifyDB seen approval approvalFact
+  let ⟨hdC⟩ ← certifyDB cutOps okD (.ofApproval fD)
+  let ⟨haC⟩ ← certifyDB cutOps approval approvalFact
+  if hqS : (run seen).queue = [] then
+    if hqC : (run cutOps).queue = [] then
+      if he : seen.all (fun o => decide ((run cutOps).ops o.id = some o)) = true then
+        if hc : (counts c 2 okD.id fD).eval (run seen) = true then
+          if hkD : (kept c okD.id fD).eval (run cutOps) = true then
+            if hkA : (kept c approval.id approvalF).eval (run cutOps) = true then
+              return PLift.up (inside_cut_stays (seenExtends he)
+                ((counts_iff (runInv seen) hqS 1 okD.id fD rfl hdS rfl).1 hc)
+                (fun y g hab hy => by
+                  cases hab with
+                  | here =>
+                    have := spec_det hdS hy
+                    simp only [Verdict.valid.injEq, Fact.ofApproval.injEq] at this; subst this
+                    exact (kept_iff (runInv cutOps) hqC hdC).1 hkD
+                  | up hv hd hab' =>
+                    rename_i f'
+                    have := spec_det hdS hv
+                    simp only [Verdict.valid.injEq, Fact.ofApproval.injEq] at this; subst this
+                    cases hab' with
+                    | here =>
+                      have := spec_det haS hy
+                      simp only [approvalFact, Verdict.valid.injEq, Fact.ofApproval.injEq] at this; subst this
+                      exact (kept_iff (runInv cutOps) hqC haC).1 hkA
+                    | up hv' hd' _ =>
+                      have := spec_det haS hv'
+                      simp only [approvalFact, Verdict.valid.injEq, Fact.ofApproval.injEq] at this; subst this
+                      simp [approvalF] at hd'))
+            else none
+          else none
+        else none
+      else none
+    else none
+  else none
+
+def trustAgree :=
+  if hs : (run cutOps).queue = [] then
+    if ht : (run cutOps.reverse).queue = [] then
+      if hm : cutOps.all (fun o => decide ((run cutOps).ops o.id = (run cutOps.reverse).ops o.id)) = true then
+        some (PLift.up (trust_agree (runInv cutOps) (runInv cutOps.reverse) hs ht
+          (sameOps cutOps (by simpa using hm)) c reqR.id bobAgain.pk (keyOf bob)))
+      else none
+    else none
+  else none
+
+def distinctCut : Option (PLift (Distinct (cutOps ++ cutOps.reverse))) :=
+  let L := cutOps ++ cutOps.reverse
+  if hd : L.all (fun a => L.all fun b => decide (a.id = b.id → a = b)) = true then
+    some ⟨by
+      intro a ha b hb he
+      exact of_decide_eq_true ((List.all_eq_true.1 ((List.all_eq_true.1 hd) a ha)) b hb) he⟩
+  else none
+
+def trustOrderFree := do
+  let ⟨hd⟩ ← distinctCut
+  if hs : (run cutOps).queue = [] then
+    if ht : (run cutOps.reverse).queue = [] then
+      return PLift.up (trust_order_free (runReach cutOps) (runReach cutOps.reverse) hd
+        (fun _ => List.mem_reverse.symm) hs ht c reqR.id bobAgain.pk (keyOf bob))
+    else none
+  else none
+
+def trustedIff := if hq : (run cutOps).queue = [] then
+  some (PLift.up (trusted_iff (runInv cutOps) hq c reqR.id bobAgain.pk (keyOf bob))) else none
+
+def countsIff := do
+  let ⟨hx⟩ ← certifyDB cutOps okD (.ofApproval fD)
+  if hq : (run cutOps).queue = [] then
+    return PLift.up (counts_iff (runInv cutOps) hq 1 okD.id fD rfl hx rfl)
+  else none
+
+def keptIff := do
+  let ⟨hx⟩ ← certifyDB cutOps okR (.ofApproval fR)
+  if hq : (run cutOps).queue = [] then
+    return PLift.up (kept_iff (c := c) (runInv cutOps) hq hx)
+  else none
+
+def inCutIff := do
+  let ⟨hz⟩ ← certifyDB cutOps removeCut removeCutFact
+  let ⟨hx⟩ ← certifyDB cutOps okD (.ofApproval fD)
+  if hq : (run cutOps).queue = [] then
+    return PLift.up (inCut_iff (runInv cutOps) hq hx hz)
+  else none
+
+def approvalLinks := applyLaw (certifyDB cutOps okR (.ofApproval fR)) approval_links
+
+def removalCut := applyLaw (certifyDB cutOps removeCut removeCutFact)
+  (fun h => removal_cut h (List.mem_singleton.2 rfl))
+
+/-- What Alice's remover flow writes over the store she had seen. -/
+def removeWrite := (removeMember c requestB.id alice).eval (run seen)
+
+/-- `removeMember_keeps` on Alice's actual removal of Bob: every finite
+premise checked on the store she had seen (Bob's chain unforked, places
+small, under the heads cap), conditional on Ed25519's universal
+correctness, as `removeMember_valid` is. -/
+def removeKeeps := do
+  let ⟨hx⟩ ← certifyDB seen okD (.ofApproval fD)
+  let ⟨ha⟩ ← certifyDB seen admission bobFact
+  if hq : (run seen).queue = [] then
+    if ho : removeCut ∈ removeWrite.ops then
+      if hs : (run cutOps).ops removeCut.id = some removeCut then
+        if he : seen.all (fun o => decide ((run cutOps).ops o.id = some o)) = true then
+          if hcap : ((headsOf c [] (eval (run seen) (admission.byUser.query [c, requestB.id])).rows).eval
+              (run seen)).length ≤ maxHeads then
+            if hsm : seen.all (fun o => match (run seen).status o.id with
+                | some (.valid (.ofApproval g)) => decide (g.c = c → g.dev = fD.dev → g.n < 2 ^ 64)
+                | _ => true) = true then
+              if hon : seen.all (fun o => seen.all fun o' =>
+                  match (run seen).status o.id, (run seen).status o'.id with
+                  | some (.valid (.ofApproval g)), some (.valid (.ofApproval g')) =>
+                    decide (g.c = c → g'.c = c → g.dev = fD.dev → g'.dev = fD.dev → g.n = g'.n → o.id = o'.id)
+                  | _, _ => true) = true then
+                let small := all_approvals seen hq (fun _ g => g.c = c → g.dev = fD.dev → g.n < 2 ^ 64)
+                  fun o hm g hst => by
+                    have := (List.all_eq_true.1 hsm) o hm
+                    rw [hst] at this; exact of_decide_eq_true this
+                let one := all_approvals seen hq (fun y g => ∀ y' g', V ed25519 (run seen).ops y' (.ofApproval g') →
+                    g.c = c → g'.c = c → g.dev = fD.dev → g'.dev = fD.dev → g.n = g'.n → y = y')
+                  fun o hm g hst => all_approvals seen hq (fun y' g' => g.c = c → g'.c = c → g.dev = fD.dev →
+                      g'.dev = fD.dev → g.n = g'.n → o.id = y')
+                    fun o' hm' g' hst' => by
+                      have := (List.all_eq_true.1 ((List.all_eq_true.1 hon) o hm)) o' hm'
+                      rw [hst, hst'] at this; exact of_decide_eq_true this
+                some (PLift.up (fun hsig : ∀ m, ed25519.verify alice.pk m (edSign alice.sk m) = true =>
+                  removeMember_keeps (runInv seen) hq hsig ho (seenExtends he) hs hcap hx rfl ⟨admission.id, _, ha⟩
+                    small (fun y y' g g' hv hv' => one y g hv y' g' hv')))
+              else none
+            else none
+          else none
+        else none
+      else none
+    else none
+  else none
+
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "connect_iff with admitted Bob" connectIff.isSome
@@ -224,6 +505,9 @@ def main : IO UInt32 := do
     (decide ((approvalWrite pending eskA).ops = [okB, admB]))
   t.ok "approveReq_wrap_admits control: without the request the write is the bare approval"
     (decide ((approvalWrite [r, invitation]).ops = [approve c requestB.id c alice]))
+  t.ok "approveReq cites the founder's chain: a second approval's prev is the first"
+    (((approveReq c requestC.id c alice).eval (run before)).ops.head?.map (·.reqs) ==
+      some [c, requestC.id, c, approval.id])
   t.ok "deviceLive_iff with admitted Bob" deviceLiveIff.isSome
   t.ok "members_iff with admitted Bob" membersIff.isSome
   t.ok "recipients_iff with admitted Bob" recipientsIff.isSome
@@ -254,6 +538,25 @@ def main : IO UInt32 := do
   t.ok "mine rejects Bob after removal" ((mine c).eval (run (after ++ [acceptedBob, secretBob])) == none)
   let forgedProfile := profile c admission.id mallory "Mallory".toUTF8 29880002
   t.ok "profile signed by wrong device rejected" ((run (before ++ [forgedProfile])).status forgedProfile.id == some .invalid)
+  t.ok "outside_cut_admits_none: Bob's approval past Alice's cut counts for nothing" outsideCut.isSome
+  t.ok "no_self_readmission: removed Bob's own approval does not let his node in" noSelfReadmission.isSome
+  t.ok "inside_cut_stays: Bob's approval of Dave, inside the cut, still counts" insideCutStays.isSome
+  t.ok "trust_agree across reversed arrival order" trustAgree.isSome
+  t.ok "trust_order_free across reversed arrival order" trustOrderFree.isSome
+  t.ok "trusted_iff on the cut store" trustedIff.isSome
+  t.ok "counts_iff on Bob's approval of Dave" countsIff.isSome
+  t.ok "kept_iff on Bob's approval past the cut" keptIff.isSome
+  t.ok "inCut_iff on Bob's approval of Dave" inCutIff.isSome
+  t.ok "approval_links on Bob's approval past the cut" approvalLinks.isSome
+  t.ok "removal_cut on Alice's removal of Bob" removalCut.isSome
+  t.ok "removeMember_keeps: Alice's actual removal keeps Bob's approval of Dave (finite premises; signing universal)"
+    removeKeeps.isSome
+  t.ok "cut: removed Bob's node is refused" (!(allowPeer c (keyOf bob)).eval (run cutOps))
+  t.ok "cut: Dave, approved by Bob inside the cut, is let in" ((allowPeer c (keyOf dave)).eval (run cutOps))
+  t.ok "cut: Bob's approval of Dave counts, his later one does not"
+    ((counts c 2 okD.id fD).eval (run cutOps) && !(counts c 2 okR.id fR).eval (run cutOps))
+  t.ok "cut: the removal the remover flow writes cites Bob's chain head"
+    (((removeMember c requestB.id alice).eval (run seen)).ops.map (·.reqs) == [[c, c, c, admission.id, okD.id]])
   t.finish "identity trust vacuity (runtime premises)"
 
 end Vacuity.IdentityTrust

@@ -80,7 +80,7 @@ def roomsCutNode (s : Session) :=
     if hm : (meV c).eval db = some pkA then
       if hl : ((Community.allowPeer c pkA).liftL : View F Bool).eval db = true then
         if hp : peersOf (eval db (Connection.established.byConn.query [s.reply.id])) = [pkB] then
-          if hr : db.status removeB.id = some (.valid (.inl (.removal c requestB.id c))) then
+          if hr : db.status removeB.id = some (.valid (.inl (.removal c requestB.id c []))) then
             if hb : db.stored.all (bobOwned db) = true then
               some (PLift.up (rooms_cut_node (runInv (cutOps s)) hq (cid := s.reply.id) (c := c)
                 (by
@@ -88,7 +88,7 @@ def roomsCutNode (s : Session) :=
                   exact (connect_iff_node (runInv (cutOps s)) hq c pkA).1 hl)
                 (by
                   intro peer he; rw [hp,List.mem_singleton] at he; subst peer
-                  refine ⟨requestB.id,(removed_node (runInv (cutOps s)) hq).2 ⟨removeB.id,c,hr⟩,?_⟩
+                  refine ⟨requestB.id,(removed_node (runInv (cutOps s)) hq).2 ⟨removeB.id,c,[],hr⟩,?_⟩
                   intro u d had
                   obtain ⟨x,k,hx⟩ := (admitted_node (runInv (cutOps s)) hq).1 had
                   obtain ⟨hu,_⟩ := onlyBob db (runInv (cutOps s)) hb hx

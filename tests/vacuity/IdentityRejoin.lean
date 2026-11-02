@@ -23,7 +23,7 @@ def joiningRows := [((sortOf (.joining c Vacuity.IdentityConnection.pkA [Vacuity
 
 def rejoinFresh := do
   let ⟨had⟩ ← certifyDB oldOps admission bobFact
-  let ⟨hrem⟩ ← certifyDB oldOps removeB (.removal c requestB.id c)
+  let ⟨hrem⟩ ← certifyDB oldOps removeB removeBFact
   if hq : (run oldOps).queue = [] then
     if hk : nodeKey.eval (run oldOps) = some (pkB, Bytes.fit 32 staticB) then
       if ha : (eval (run oldOps) (accepted.all.query [])).rows = acceptedRows then
@@ -38,7 +38,7 @@ def rejoinFresh := do
                 have hf := congrArg Prod.snd (List.mem_singleton.1 hp)
                 have hd := (Fact.accepted.inj hf).2
                 subst d
-                exact ⟨requestB.id,keyOf bob,⟨admission.id,_,had⟩,⟨removeB.id,c,hrem⟩⟩)
+                exact ⟨requestB.id,keyOf bob,⟨admission.id,_,had⟩,⟨removeB.id,c,[],hrem⟩⟩)
               (by
                 intro x k hs req nm d n hv
                 have hp := at_row (r := joining.all) (by simp [rels]) (runInv oldOps) hq hv (as := []) (desc := true) rfl
@@ -75,7 +75,7 @@ def joinNewDevice : Option (PLift (∀ u e, ¬ Admitted ed25519 (run oldOps).ops
   else none
 
 def removedStaysRemoved := do
-  let ⟨hr⟩ ← certifyDB oldOps removeB (.removal c requestB.id c)
+  let ⟨hr⟩ ← certifyDB oldOps removeB removeBFact
   if hq : (run extendedOps).queue = [] then
     if he : oldOps.all (fun o => decide ((run extendedOps).ops o.id = some o)) = true then
       pure (PLift.up (removed_stays_removed (runInv extendedOps) hq (s := run oldOps)
@@ -84,7 +84,7 @@ def removedStaysRemoved := do
           obtain ⟨hm,hi⟩ := reach_stored (runReach oldOps) x o ho
           have hh := of_decide_eq_true ((List.all_eq_true.1 he) o hm)
           rw [hi] at hh; exact hh)
-        (show Removed ed25519 (run oldOps).ops c requestB.id from ⟨removeB.id,c,hr⟩)))
+        (show Removed ed25519 (run oldOps).ops c requestB.id from ⟨removeB.id,c,[],hr⟩)))
     else none
   else none
 
