@@ -75,7 +75,7 @@ assumptions.
 | 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L51) | wired | 8 | runtime | unauthorized removal rejected |
 | 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L10) | wired | 7 | runtime | none |
 | 5 | The node connects only to live members. | [`connect_iff`](../app/community/Proofs.lean#L838) | wired | 10 + store model | runtime | refused after removal |
-| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3382) | wired | 13 + store model | runtime | message withheld |
+| 6 | After a removal, the removed member gets only the notice, from any node, live or not; and a node not yet admitted sends a stranger's key nothing of the community. | [`removal_reaches_session`](../app/Proofs.lean#L3382) | wired | 13 + store model | runtime | message withheld |
 | 7 | A session sends only what its peer may see. | [`recv_send`](../engine/sync/ConnLaws.lean#L190) | wired | 3 + store model | kernel | none yet |
 | 8 | The node checks a frame before it reads it. | [`sealed_auth`](../app/connection/Proofs.lean#L160) | wired | 2 + store model | runtime | 3 damaged frames rejected |
 | 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L510) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
@@ -574,7 +574,8 @@ changed.
     `ReadOnly x`.
   - Inline `MayGo` in the conclusion, so the statement itself says:
     "a sync wire op, an op of another room, or an op in the closure of
-    a removal owed to the peer".
+    a removal owed to the peer that this node is live for or cut by;
+    and on a session only a link lets in, no op of the community".
   - Or lead with `removed_gets_only_notice` (7 spec-only), the
     per-step form, and present this law as its composition.
 - **`no_impersonation`** and **`admission_needs_approval`**: small
