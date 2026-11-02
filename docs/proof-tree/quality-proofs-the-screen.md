@@ -92,7 +92,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 </ul></details></li>
-<li><a id="law-App.page_round"></a>✅ <a href="../../app/Screen.lean#L2145">App.page_round</a></li>
+<li><a id="law-App.page_round"></a>✅ <a href="../../app/Screen.lean#L2150">App.page_round</a></li>
 <li><details><summary><a id="law-LifecycleLaws.restore_page_anchor"></a>✅ <a href="../../app/Proofs.lean#L1211">LifecycleLaws.restore_page_anchor</a> · 42 below</summary><ul>
 <li>✅ <a href="#law-Lifecycle.restore_checkpoint">Lifecycle.restore_checkpoint</a> ↪ · 36 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
@@ -169,6 +169,10 @@
 <li><details><summary><a id="law-NodeOffer.offer_runs"></a>✅ <a href="../../app/Screen.lean#L416">NodeOffer.offer_runs</a> · 1 below</summary><ul>
 <li>✅ <a href="../../app/Screen.lean#L379">NodeOffer.offer_split</a></li>
 </ul></details></li>
+<li><details><summary><a id="law-Live.fresh_notice"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L605">Live.fresh_notice</a> · 6 below</summary><ul>
+<li>✅ <a href="#law-Live.dirty_marked">Live.dirty_marked</a> ↪ · 4 below</li>
+<li>✅ <a href="#law-Live.marked_complete">Live.marked_complete</a> ↪ · 4 below</li>
+</ul></details></li>
 <li><details><summary><a id="law-Engine.eval_stable"></a>✅ <a href="../../engine/core/View.lean#L141">Engine.eval_stable</a> · 33 below</summary><ul>
 <li><details><summary><a id="law-Engine.later_inv"></a>▫️ <a href="../../engine/core/View.lean#L122">Engine.later_inv</a> · 28 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.inv_step">Engine.inv_step</a> ↪ · 24 below</li>
@@ -224,10 +228,6 @@
 <li>▫️ <a href="../../engine/renderer/RestLaws.lean#L561">Live.put_get_other</a></li>
 <li>▫️ <a href="../../engine/renderer/RestLaws.lean#L570">Live.put_get_self</a></li>
 <li>✅ <a href="../../engine/renderer/RestLaws.lean#L540">Live.record_dirty</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Live.fresh_notice"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L605">Live.fresh_notice</a> · 6 below</summary><ul>
-<li>✅ <a href="#law-Live.dirty_marked">Live.dirty_marked</a> ↪ · 4 below</li>
-<li>✅ <a href="#law-Live.marked_complete">Live.marked_complete</a> ↪ · 4 below</li>
 </ul></details></li>
 <li><a id="law-Live.fresh_keep"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L631">Live.fresh_keep</a></li>
 <li><a id="law-Live.settle_fresh"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L621">Live.settle_fresh</a></li>
@@ -648,8 +648,8 @@
 <li>▫️ <a href="../../app/Proofs.lean#L1378">NavLaws.all_pages</a></li>
 </ul></details></li>
 <li><a id="law-NavLaws.draft_back"></a>✅ <a href="../../app/Proofs.lean#L1365">NavLaws.draft_back</a></li>
-<li><details><summary><a id="law-App.into_native"></a>✅ <a href="../../app/Screen.lean#L2763">App.into_native</a> · 1 below</summary><ul>
-<li>✅ <a href="../../app/Screen.lean#L2751">App.into_target</a></li>
+<li><details><summary><a id="law-App.into_native"></a>✅ <a href="../../app/Screen.lean#L2771">App.into_native</a> · 1 below</summary><ul>
+<li>✅ <a href="../../app/Screen.lean#L2759">App.into_target</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-PeopleLaws.present_iff"></a>✅ <a href="../../app/community/Screen.lean#L397">PeopleLaws.present_iff</a> · 71 below</summary><ul>
 <li><details><summary><a id="law-Community.mem_live_all"></a>▫️ <a href="../../app/community/Proofs.lean#L1777">Community.mem_live_all</a> · 68 below</summary><ul>
@@ -1150,8 +1150,8 @@
 <li>▫️ <a href="../../app/community/Screen.lean#L748">Switch.find_nodup</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><a id="law-App.drawPage_key"></a>✅ <a href="../../app/Screen.lean#L4589">App.drawPage_key</a></li>
-<li><a id="law-App.pageIn_acc"></a>✅ <a href="../../app/Screen.lean#L4617">App.pageIn_acc</a></li>
+<li><a id="law-App.drawPage_key"></a>✅ <a href="../../app/Screen.lean#L4606">App.drawPage_key</a></li>
+<li><a id="law-App.pageIn_acc"></a>✅ <a href="../../app/Screen.lean#L4634">App.pageIn_acc</a></li>
 <li><details><summary><a id="law-Community.msg_cmp"></a>✅ <a href="../../app/community/channel/message/Proofs.lean#L121">Community.msg_cmp</a> · 17 below</summary><ul>
 <li><details><summary><a id="law-Community.bcmp_msgKey"></a>▫️ <a href="../../app/community/channel/message/Proofs.lean#L110">Community.bcmp_msgKey</a> · 16 below</summary><ul>
 <li>✅ <a href="security-proofs-connections.md#law-Community.lexCmp_be64">Community.lexCmp_be64</a> ↪ · 4 below</li>

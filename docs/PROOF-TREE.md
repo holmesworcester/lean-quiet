@@ -87,13 +87,13 @@ Laws no law uses and the README does not cite: 706, 426 of them isolated (they u
 | engine/world | 272 | 17 | 8 |
 
 <details><summary><b>app</b> · 68</summary><ul>
-<li>✅ <a href="../app/Screen.lean#L4071">App.composer_no_selection</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L4066">App.composer_pending_feedback</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4085">App.composer_no_selection</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4080">App.composer_pending_feedback</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1536">App.screenChanged_insets</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1530">App.screenChanged_size</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L2012">Appearance.selected_check</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1670">ClumpList.cells_bounded</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1676">ClumpList.extent_cells</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L2017">Appearance.selected_check</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1675">ClumpList.cells_bounded</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1681">ClumpList.extent_cells</a> · isolated</li>
 <li>▫️ <a href="../app/Proofs.lean#L2497">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3214">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3216">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>
