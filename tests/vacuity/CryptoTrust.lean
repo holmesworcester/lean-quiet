@@ -110,6 +110,25 @@ crypto law's instance at running code takes. -/
 def nativeConditional := some (PLift.up (fun t : Trust.NativeCrypto =>
   And.intro (Community.cryptoSeal_good t) (Connection.Noise.suite_good t)))
 
+/-- The laws' own contracts have content too: a sealing suite that opens
+nothing, and a handshake suite that opens nothing, fail them. -/
+def brokenSeal : Community.Seal :=
+  { dh := fun _ b => b, pub := fun _ => (Bytes.zeros 32).1, enc := fun _ _ _ p => p,
+    dec := fun _ _ _ _ => none, hash := fun _ => (Bytes.zeros 32).1 }
+
+theorem brokenSealRefused : ¬ Community.Seal.Good brokenSeal := fun g => by
+  have := g.dec_enc key nonce .empty .empty (by decide +kernel) (by decide +kernel)
+  simp [brokenSeal] at this
+
+def brokenSuite : Connection.Noise.Suite ByteArray :=
+  { dh := fun _ _ => none, pub := id, ValidKey := fun _ => True, ValidPayload := fun _ => True,
+    ValidAD := fun _ => True, enc := fun _ _ _ p => p, dec := fun _ _ _ _ => none, hash := id,
+    hkdf := fun a b => (a, b), pair := (· ++ ·), split := fun _ => none, lit := id }
+
+theorem brokenSuiteRefused : ¬ Connection.Noise.Suite.Good brokenSuite := fun g => by
+  have := g.dec_enc .empty trivial 0 .empty .empty trivial trivial
+  simp [brokenSuite] at this
+
 /-- Ed25519's clause, bridged to the signing laws' premise for every
 device made from a seed (`ofSeed_signs`). -/
 def ed25519Conditional := some (PLift.up

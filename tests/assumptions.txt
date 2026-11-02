@@ -1,0 +1,38 @@
+# Every assumption the laws take (an `assume` of tests/wiring.txt that is
+# not an alias), with its tag and its two sides (the standing rules, 2):
+#
+#   NAME TAG sat=WITNESS neg=THEOREM say=REGEX
+#
+# TAG     crypto   a standard cryptographic assumption, stated once in a
+#                  trust file (engine/core/Trust.lean)
+#         env      the world outside the app: the network, the scheduler,
+#                  an adversary's choices
+#         trusted  a component the app relies on without proof: a library
+#                  behaving like its Lean model
+#         base     the trusted base, stated once in the README's "Trusted
+#                  implementation boundaries" with Lean's kernel, compiler
+#                  and the OS: a library the app is generic over, tested
+#                  against its Lean model (allowed under ✅; whether SQLite
+#                  belongs here or under `trusted` is the user's call)
+#         holds    not an assumption: an invariant the code establishes
+#                  and preserves, proved (counts as discharged)
+# sat     the vacuity witness that the real system satisfies it: running
+#         code, real data
+# neg     the kernel theorem that a degenerate model fails it
+# say     how a README row names it, as a regex, when the row depends on it
+#
+# A missing side is `-`. tests/assumptions-baseline.txt lists the sides
+# missing today; ci/premises.py fails on any other missing side, and the
+# baseline may only shrink (ci/premises.py --prune).
+Community.Unforgeable crypto sat=- neg=- say=forg|Ed25519|signing-history
+Engine.CollisionFree crypto sat=Vacuity.CoreRuntime.collisionFree neg=- say=collision|CollisionFree|SHA-256
+NodeOffer.offerM env sat=- neg=- say=offer|channel
+Merkle.NoCollision crypto sat=Vacuity.Merkle.noCollision neg=- say=collision|NoCollision|SHA-256
+Trust.NativeCrypto crypto sat=Vacuity.CryptoTrust.nativeConditional neg=Vacuity.CryptoTrust.lossyRefused say=crates|trust file|NativeCrypto|crypto contract
+Connection.Noise.Suite.Good crypto sat=Vacuity.Contracts.suiteGoodConditional neg=Vacuity.CryptoTrust.brokenSuiteRefused say=crates|trust file|Suite.Good|crypto|symbolic
+Community.Seal.Good crypto sat=Vacuity.SealAudit.goodConditional neg=Vacuity.CryptoTrust.brokenSealRefused say=crates|trust file|Seal.Good|crypto
+Connection.Noise.Symbolic.sym crypto sat=- neg=- say=symbolic|Dolev-Yao
+Engine.Model.run base sat=- neg=- say=SQLite|store model
+Engine.Sync.popW base sat=- neg=- say=channel|queue
+Engine.runJ base sat=- neg=- say=journal
+Demand.Plan.BeforeNext holds sat=- neg=- say=-

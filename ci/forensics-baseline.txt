@@ -1,0 +1,3 @@
+# Forensics statement smells allowed today (ci/forensics_check.py); may only shrink.
+emptyPredicate	Engine.World.noAdv	False
+trivialPredicate	Connection.Noise.Symbolic.AllCalls	True

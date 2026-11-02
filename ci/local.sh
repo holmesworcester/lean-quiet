@@ -17,7 +17,12 @@
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py)
+#            and the premise tables (ci/premises.py): no ✅ row resting on a
+#            [trusted] or [model] premise, no untagged premise, every
+#            assumption tagged with both its sides (or in the baseline)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
+#    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
+#            against them, and the Comparator files (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):
@@ -26,13 +31,22 @@
 #                   and compared with pinned libquiet screens
 #    headless       the app's programs on the headless twin
 #                   (tests/app/headless.sh)
+#    forensics      the proofslop forensics tool's deterministic pass:
+#                   standard axioms only, no kernel escape hatch, no
+#                   statement smell outside ci/forensics-baseline.txt
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
+#    make:assets    make install's assets step and its controls, and the
+#                   pinned assets tarball against this tree (stale: pack
+#                   and publish it again, docs/BUILD.md)
 # 3. --full: every other part, 4 at once (the box is shared), longest first (by each part's
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
 #    (engine:tcp, net, mdns), X and the desktop shell, qr, zoom, site, the
-#    workspace, and each of the app's checks (app:<part>, tests/app/
+#    workspace, `make install && make run` and `make demo` from a fresh
+#    clone in Docker (make:clean-room), make demo under Xvfb with its
+#    negative control (make:demo), make verify on a Lean 4.35 project
+#    (make:verify), and each of the app's checks (app:<part>, tests/app/
 #    parts.txt; a part with cases, app:<part>/<case>, one part a case).
 #    An engine mutant works in a snapshot (tests/snapshot.sh); an app part
 #    may edit sources in place, so each runs in its own copy of the built
@@ -42,7 +56,9 @@
 # fails, its processes killed, and the others go on.
 # Logs: out/ci/<part>.log. Exits non-zero if any part fails.
 # `site` and `workspace` need Chromium's headless shell (CHROME, or
-# Playwright's); `android-links` needs the Android SDK and an emulator image.
+# Playwright's); `android-links` needs the Android SDK and an emulator image;
+# `make:clean-room` needs Docker and network access (tests/make/clean_room.sh);
+# `make:verify` needs the Lean 4.35.0 toolchain and bubblewrap.
 # SKIP_TCP=1 builds the TCP suites but omits their runs in a socket sandbox.
 set -uo pipefail
 top=$(cd "$(dirname "$0")/.." && pwd)
@@ -63,8 +79,8 @@ done
 
 [ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 4 || echo 6)
 
-proofs=(driver build check layout readme reorg)
-fast=(engine:suites visual headless vacuity)
+proofs=(driver build check layout readme reorg headline)
+fast=(engine:suites visual headless vacuity make:assets forensics)
 # The app's parts (tests/app/parts.txt): a part with cases in slices, at
 # most CASE_LANES (6), app:<part>/<k>; slice k is every case whose line
 # number is k modulo the number of slices (slice).
@@ -81,9 +97,9 @@ app_parts() {
     fi
   done < "$top/tests/app/parts.txt"
 }
-rest=($(app_parts) windows-input qr
+rest=(make:clean-room $(app_parts) windows-input qr
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep . | sed 's/^/engine:/')
-  engine:tcp mdns net zoom owned-input site workspace)
+  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify)
 # Longest first, by each part's last recorded time (out/ci/times.tsv, else
 # ci/times.tsv); a part not yet timed counts as 10 minutes.
 longest_first() {
@@ -142,10 +158,16 @@ gate() {
     android-zoom) mise run android:zoom ;;
     release-zoom) mise run test:zoom && mise run android:zoom ;;
     pixel-scroll) mise run android:scroll-measure ;;
-    readme) mise run readme:links ;;
+    make:assets) mise run make:assets-test ;;
+    make:clean-room) mise run make:clean-room ;;
+    make:verify) mise run make:verify-test ;;
+    make:demo) mise run make:demo-e2e && mise run make:demo-negative ;;
+    readme) mise run readme:links && mise run premises:check ;;
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
+    headline) mise run test:headline ;;
     vacuity) mise run test:vacuity ;;
+    forensics) mise run forensics:check ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;
