@@ -1,14 +1,26 @@
 #!/usr/bin/env bash
-# The headline laws (docs/HEADLINE.md): run tests/Headline.lean, which
-# prints each law's axioms and spec surface and fails on a non-standard
-# axiom; check the Comparator files (tests/comparator): the challenge
-# elaborates with one `sorry` per theorem and nothing else, the solution
-# is up to date, proves every theorem on standard axioms, and states each
-# law word for word (`#same_statement`); from Lean v4.35, run
-# `lake comparator` on them, and on a weakened challenge, which it must
-# reject. Then the controls:
-# a weakened restatement, a changed `match`, and a law resting on `sorry`
-# must each be caught.
+# The headline laws (docs/HEADLINE.md).
+#
+#   tests/headline.sh         the gate's part: run tests/Headline.lean, which
+#                             prints each law's axioms and spec surface and
+#                             fails on a non-standard axiom; check the
+#                             Comparator files (tests/comparator): the
+#                             challenge elaborates with one `sorry` per
+#                             theorem and nothing else, the solution is up
+#                             to date, proves every theorem on standard
+#                             axioms, and states each law word for word
+#                             (`#same_statement`); from Lean v4.35, run
+#                             `lake comparator` on the root comparator.json
+#                             (every law as Headline.<law>) and on a
+#                             weakened challenge, which it must reject.
+#                             Then the controls: a weakened restatement, a
+#                             changed `match`, and a law resting on `sorry`
+#                             must each be caught.
+#   tests/headline.sh --own   the nightly part: every headline law can be
+#                             stated under its own name with definitions
+#                             only (tests/comparator/Feasible.lean), and,
+#                             from v4.35, `lake comparator` accepts each
+#                             own-name group (tests/comparator/own-*.json).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
@@ -19,6 +31,28 @@ trap 'rm -rf "$tmp"' EXIT
 lake build
 lake build +Main
 lake build SpecTools
+tc=$(sed 's/.*:v//' lean-toolchain)
+comparator_ok() { [ "$(printf '%s\n4.35.0\n' "$tc" | sort -V | head -1)" = 4.35.0 ]; }
+
+if [ "${1:-}" = --own ]; then
+  lake build Comparator
+  python3 tests/comparator/solution.py --check
+  n=$(grep -c '^theorem ' tests/comparator/Challenge.lean)
+  out=$(lake env lean tests/comparator/Feasible.lean 2>&1) || { echo "$out"; echo "Feasible.lean failed" >&2; exit 1; }
+  grep -q "^challenge all: $n of $n free" <<<"$out" ||
+    { echo "$out"; echo "not every headline law can be stated under its own name" >&2; exit 1; }
+  echo "own names: all $n headline laws can be stated with definitions only"
+  if comparator_ok; then
+    for c in tests/comparator/own-*.json; do
+      lake comparator --config "$c" >"$tmp/own.out" 2>&1 ||
+        { cat "$tmp/own.out"; echo "lake comparator rejected $c" >&2; exit 1; }
+      echo "lake comparator: accepted $c"
+    done
+  else
+    echo "lake comparator: skipped, Lean $tc has none (it comes in v4.35)"
+  fi
+  exit 0
+fi
 
 # The headline laws: axioms and surfaces.
 out=$(lake env lean tests/Headline.lean 2>&1) || { echo "$out"; echo "tests/Headline.lean failed" >&2; exit 1; }
@@ -60,24 +94,18 @@ ax=$(grep -cE '^Headline\.[A-Za-z_]+: \[' <<<"$out" || true)
 [ "$ax" -eq "$n" ] && [ -z "$bad" ] || { echo "$out"; echo "Check.lean: axioms $bad ($ax of $n audited)" >&2; exit 1; }
 echo "comparator files: $n statements, each its law's, proved on standard axioms only"
 
-# Comparator itself, from Lean v4.35 (lake comparator; it needs bwrap).
+# Comparator itself, from Lean v4.35 (lake comparator; it needs bwrap):
+# the root comparator.json, so a plain `lake comparator` is what is run.
 # Before that toolchain it does not exist: say so, and go on.
-tc=$(sed 's/.*:v//' lean-toolchain)
-if [ "$(printf '%s\n4.35.0\n' "$tc" | sort -V | head -1)" = 4.35.0 ]; then
-  lake comparator --config tests/comparator/comparator.json ||
-    { echo "lake comparator rejected the headline solution" >&2; exit 1; }
+if comparator_ok; then
+  lake comparator >"$tmp/cmp.out" 2>&1 ||
+    { cat "$tmp/cmp.out"; echo "lake comparator rejected the headline solution" >&2; exit 1; }
   echo "lake comparator: accepted"
   # Its control: the challenge with one statement weakened must be
   # rejected (exit 1; 2 would mean Comparator did not start).
   rc=0; lake comparator --config tests/comparator/comparator-weak.json >"$tmp/weak.out" 2>&1 || rc=$?
   [ "$rc" -eq 1 ] || { cat "$tmp/weak.out"; echo "control not caught: lake comparator exit $rc on a weakened challenge" >&2; exit 1; }
   echo "control caught: lake comparator rejects a weakened challenge"
-  # The laws Comparator can judge under their own names today, in groups.
-  for c in tests/comparator/own-*.json; do
-    lake comparator --config "$c" >"$tmp/own.out" 2>&1 ||
-      { cat "$tmp/own.out"; echo "lake comparator rejected $c" >&2; exit 1; }
-    echo "lake comparator: accepted $c"
-  done
 else
   echo "lake comparator: skipped, Lean $tc has none (it comes in v4.35)"
 fi

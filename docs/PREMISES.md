@@ -201,7 +201,7 @@ Rests on: `Community.Unforgeable`
 | hut | `Community.V C ops ty (Community.Fact.admission c u du' eu')` | [discharged] |
 | hsy | `C.verify dv (Community.signed oy (Community.Body.remove sy)) sy = true` | [discharged] |
 
-**`Community.removed_approver_admits`** (wired)
+**`Community.admit_admits`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
@@ -212,7 +212,13 @@ Rests on: `Community.Unforgeable`
 | hc | `Community.V C ops c (Community.Fact.admission c c d0 e0)` | [discharged] |
 | hr | `Community.V C ops r (Community.Fact.request c u d e l)` | [discharged] |
 | hx | `Community.V C ops x (Community.Fact.approval c r a)` | [discharged] |
-| _removed | `Community.Removed C ops c a` | [discharged] |
+
+**`Community.valid_stays`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| he | `Engine.Extends ops ops'` | [discharged] |
+| h | `Community.V C ops x f` | [discharged] |
 
 ## ✅ Non-members get no ops, even by asking by id.
 
@@ -767,16 +773,12 @@ Rests on: `Engine.Model.run`
 | h | `Engine.View.eval s (Connection.meV c) = some me` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-**`Community.new_device_trusted`** (wired)
+**`Community.connect_iff`** (wired)
 
 | premise | statement | tag |
 |---|---|---|
 | h | `Engine.Inv (Community.family C) s` | [discharged] |
 | hq | `s.queue = []` | [discharged] |
-| _ha | `Community.Admitted C s.ops c u d e` | [discharged] |
-| _hr | `Community.Removed C s.ops c u` | [discharged] |
-| ha2 | `Community.Admitted C s.ops c u2 d2 e` | [discharged] |
-| hl | `Community.Live C s.ops c d2` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 ## ✅ The trust rule lets in exactly the live members' nodes.
@@ -2581,6 +2583,52 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | (stated over) | `Engine.Model.run` | [base] |
 
+## 🟡 A stored op is offered again until it goes out.
+
+Rests on: `Engine.Model.run`
+
+**`Engine.Sync.Sweep.sql_run_step`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| t | `Trust.SqliteStore F holds` | [base] |
+
+**`Engine.Sync.Sweep.step_progress`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| hj | `0 < j` | [discharged] |
+| hc | `s.active = false → j ≤ ceiling` | [discharged] |
+| row | `(s.begin ceiling).after < (s.begin ceiling).high → (s.begin ceiling).after + 1 = j → input = some o` | [discharged] |
+| shown | `shows o = true` | [discharged] |
+| fits | `Engine.Sync.Sweep.cost o ≤ Engine.Sync.maxFrame` | [discharged] |
+| budget | `Engine.Sync.maxFrame ≤ room` | [discharged] |
+| (about) | `code that does not run: Engine.Sync.Sweep.rank` | [model] |
+
+**`Engine.Sync.Sweep.step_nonincrease`** (model)
+
+| premise | statement | tag |
+|---|---|---|
+| hj | `0 < j` | [discharged] |
+| hc | `s.active = false → j ≤ ceiling` | [discharged] |
+| row | `(s.begin ceiling).after < (s.begin ceiling).high → (s.begin ceiling).after + 1 = j → input = some o` | [discharged] |
+| shown | `shows o = true` | [discharged] |
+| fits | `Engine.Sync.Sweep.cost o ≤ Engine.Sync.maxFrame` | [discharged] |
+| unsent | `(s.step ceiling input shows room).snd ≠ some o` | [discharged] |
+| (about) | `code that does not run: Engine.Sync.Sweep.rank` | [model] |
+
+**`Engine.Sync.Sweep.retried_fair`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hj | `0 < j` | [discharged] |
+| fits | `Engine.Sync.Sweep.cost o ≤ Engine.Sync.maxFrame` | [discharged] |
+| transition | `∀ (n : Nat), states (n + 1) = ((states n).step (ceilings n) (inputs n) (shows n) (rooms n)).fst` | [discharged] |
+| ceiling | `∀ (n : Nat), (states n).active = false → j ≤ ceilings n` | [discharged] |
+| row | `∀ (n : Nat), ((states n).begin (ceilings n)).after < ((states n).begin (ceilings n)).high → ((states n).begin (ceilings n)).after + 1 = j → inputs n = some o` | [discharged] |
+| shown | `∀ (n : Nat), shows n o = true` | [discharged] |
+| budget | `∀ (start : Nat), ∃ n, start ≤ n ∧ Engine.Sync.maxFrame ≤ rooms n` | [discharged] |
+
 ## ✅ Fingerprints are honest.
 
 **`Engine.Sync.lbl_inj`** (wired)
@@ -4195,6 +4243,13 @@ Rests on: `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`PeopleLaws.deviceCut_removal`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Engine.View.eval s (Community.deviceCut c d) = true` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
 ## 🟡 The screen is one moment.

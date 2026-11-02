@@ -23,7 +23,9 @@
 #            assumption tagged with both its sides (or in the baseline)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 #    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
-#            against them, and the Comparator files (tests/headline.sh)
+#            against them, the Comparator files, and `lake comparator` on
+#            the root comparator.json and its weakened control
+#            (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):
@@ -50,7 +52,9 @@
 #    workspace, `make install && make run` and `make demo` from a fresh
 #    clone in Docker (make:clean-room), make demo under Xvfb with its
 #    negative control (make:demo), make verify on a Lean 4.35 project
-#    (make:verify), and each of the app's checks (app:<part>, tests/app/
+#    (make:verify), the headline laws under their own names
+#    (headline:own: `lake comparator` on tests/comparator/own-*.json),
+#    and each of the app's checks (app:<part>, tests/app/
 #    parts.txt; a part with cases, app:<part>/<case>, one part a case).
 #    An engine mutant works in a snapshot (tests/snapshot.sh); an app part
 #    may edit sources in place, so each runs in its own copy of the built
@@ -103,7 +107,7 @@ app_parts() {
 }
 rest=(make:clean-room $(app_parts) windows-input qr
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep . | sed 's/^/engine:/')
-  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify)
+  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify headline:own)
 # Longest first, by each part's last recorded time (out/ci/times.tsv, else
 # ci/times.tsv); a part not yet timed counts as 10 minutes.
 longest_first() {
@@ -170,6 +174,7 @@ gate() {
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
+    headline:own) mise run test:headline-own ;;
     vacuity) mise run test:vacuity ;;
     scale) mise run test:scale ;;
     forensics) mise run forensics:check ;;

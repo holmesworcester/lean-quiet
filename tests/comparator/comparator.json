@@ -18,7 +18,8 @@
     "Headline.back_open",
     "Headline.select_tapped_dedupe",
     "Headline.approveReq_ops",
-    "Headline.ingest_costs"
+    "Headline.ingest_costs",
+    "Headline.deviceCut_removal"
   ],
   "definition_names": [],
   "permitted_axioms": [

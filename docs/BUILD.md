@@ -104,6 +104,17 @@ namespaces allowed). With an older `lean-toolchain`, or without
 `comparator.json` or `bwrap`, it stops before checking anything and says
 which.
 
+In Docker, bubblewrap needs three of Docker's defaults lifted, not
+`--privileged`: `--security-opt seccomp=unconfined` (the default seccomp
+profile blocks the user namespace: "No permissions to create new
+namespace"), `apparmor=unconfined` (docker-default denies mount: "Failed to
+make / slave") and `systempaths=unconfined` (the masked /proc: "Can't mount
+proc on /newroot/proc"). The image needs `git` on `PATH` (lake check looks
+for it) and `/run/user`. `VERIFY=1 tests/make/clean_room.sh` runs `make
+verify` in the clean room so; with `VERIFY_DROP=seccomp` (or `apparmor`,
+`systempaths`) it leaves that one out, and `make verify` must fail with
+bubblewrap's error for it.
+
 Updating the assets tarball: `tools/make/assets.py check` fails when a
 change to the tree makes the published tarball stale (the Noto and CJK
 hashes in `tools/*.sha256`, the glyph and UI font stamps, or the scripts

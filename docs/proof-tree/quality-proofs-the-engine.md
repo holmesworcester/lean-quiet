@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › The engine**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1243) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (285) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2158)
+✅ wired: about running code (1241) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (281) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2159)
 
 <ul>
 <li><details><summary><a id="law-Engine.same_ops_same_verdicts"></a>✅ <a href="../../engine/core/Termination.lean#L122">Engine.same_ops_same_verdicts</a> · 72 below</summary><ul>
@@ -274,7 +274,7 @@
 <li>✅ <a href="../../engine/core/Project.lean#L298">Engine.leftKey_of</a></li>
 </ul></details></li>
 </ul></details></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1558">Community.rels_short</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1573">Community.rels_short</a></li>
 <li>✅ <a href="../../app/connection/Family.lean#L611">Connection.rels_apart</a></li>
 <li>📐 <a href="../../engine/core/Project.lean#L289">Engine.View.Reads.mono</a></li>
 </ul></details></li>
@@ -310,13 +310,13 @@
 </ul></details></li>
 <li>📐 <a href="../../engine/core/Project.lean#L404">Engine.filterMap_inlRow</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.connect_iff_node"></a>✅ <a href="../../app/connection/Proofs.lean#L626">Connection.connect_iff_node</a> · 115 below</summary><ul>
+<li><details><summary><a id="law-Connection.connect_iff_node"></a>✅ <a href="../../app/connection/Proofs.lean#L633">Connection.connect_iff_node</a> · 115 below</summary><ul>
 <li>✅ <a href="security-proofs-confidentiality.md#law-Connection.community_inv">Connection.community_inv</a> ↪ · 81 below</li>
 <li>✅ <a href="security-proofs-confidentiality.md#law-Connection.view_node">Connection.view_node</a> ↪ · 81 below</li>
 <li>✅ <a href="security-proofs-connections.md#law-Community.connect_iff">Community.connect_iff</a> ↪ · 68 below</li>
 <li>✅ <a href="security-proofs-connections.md#law-Community.reads_allowPeer">Community.reads_allowPeer</a> ↪ · 5 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.node_settles"></a>✅ <a href="../../app/connection/Proofs.lean#L487">Connection.node_settles</a> · 66 below</summary><ul>
+<li><details><summary><a id="law-Connection.node_settles"></a>✅ <a href="../../app/connection/Proofs.lean#L494">Connection.node_settles</a> · 66 below</summary><ul>
 <li>✅ <a href="#law-Engine.reach_inv">Engine.reach_inv</a> ↪ · 56 below</li>
 <li>✅ <a href="security-proofs-hostile-input.md#law-Engine.drain_terminates">Engine.drain_terminates</a> ↪ · 18 below</li>
 <li>✅ <a href="../../engine/core/Proofs.lean#L529">Engine.reach_drain</a></li>
@@ -770,11 +770,11 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.removeMember_valid"></a>✅ <a href="../../app/community/Proofs.lean#L455">Community.removeMember_valid</a> · 85 below</summary><ul>
-<li><details><summary><a id="law-Community.row_filed"></a>▫️ <a href="../../app/community/Family.lean#L1595">Community.row_filed</a> · 55 below</summary><ul>
+<li><details><summary><a id="law-Community.row_filed"></a>▫️ <a href="../../app/community/Family.lean#L1610">Community.row_filed</a> · 55 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Community.filed">Community.filed</a> ↪ · 48 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.mem_matching">Engine.mem_matching</a> ↪ · 3 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1529">Community.matching_also_nil</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1533">Community.mem_eval_matching</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1544">Community.matching_also_nil</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1548">Community.mem_eval_matching</a></li>
 </ul></details></li>
 <li>✅ <a href="security-proofs-identity-and-membership.md#law-Community.admin_removal_stands">Community.admin_removal_stands</a> ↪ · 49 below</li>
 <li><details><summary><a id="law-Community.root_of_admission"></a>✅ <a href="../../app/community/Proofs.lean#L152">Community.root_of_admission</a> · 46 below</summary><ul>
@@ -810,8 +810,8 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../app/community/Family.lean#L690">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1590">Community.admission_byUser_args</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1608">Community.byDevice_args</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1605">Community.admission_byUser_args</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1623">Community.byDevice_args</a></li>
 <li>▫️ <a href="../../app/community/member/admin/Proofs.lean#L34">Community.isAdmin_sound</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
