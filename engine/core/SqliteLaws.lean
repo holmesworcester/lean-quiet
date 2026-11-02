@@ -279,23 +279,18 @@ theorem turnCapped_sim (h : SqliteStore F holds) (fam : Family F) (cap : Nat) (o
     Sim.bind (judgeJob_sim h fam _) fun _ => Sim.bind (Sim.op h .countOps) fun _ =>
       Sim.bind (urgentClose_sim h fam _ _) fun _ => Sim.bind (drain_sim h fam cap) fun _ => Sim.pure
 
-/-- The model's write turn, as `receive` runs it: the capped turn. -/
-def receiveM (fam : Family F) (ops : List Op) : Model F Unit :=
-  turnCapped (m := Model F) fam drainCap ops >>= fun _ => pure ()
-
 /-- **A write turn on SQLite runs as the model's.** `receive` takes in
 `ops` and runs the capped turn, in one transaction. If it commits, the
 database holds the tables that the same code leaves on the model. -/
 theorem receive_as_model (h : SqliteStore F holds) (fam : Family F) (ops : List Op) :
-    Sim holds (receive fam ops) (receiveM fam ops) := by
-  unfold receive receiveM
+    Sim holds (receive fam ops) (turnCapped (m := Model F) fam drainCap ops >>= fun _ => pure ()) := by
+  unfold receive
   exact Sim.transact h (Sim.bind (turnCapped_sim h fam drainCap ops) fun _ => Sim.pure)
 
 /-- **The model's write turn is the capped turn on the tables**
 (`turnCappedS`). -/
 theorem receive_model (fam : Family F) (ops : List Op) (s : DB F) :
-    (receiveM fam ops s).2 = turnCappedS fam drainCap ops s := by
-  unfold receiveM
+    ((turnCapped (m := Model F) fam drainCap ops >>= fun _ => pure ()) s).2 = turnCappedS fam drainCap ops s := by
   rw [model_bind, model_pure]
   exact run_turnCapped drainCap ops s
 

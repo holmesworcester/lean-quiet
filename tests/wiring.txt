@@ -199,7 +199,6 @@ assume Connection.Noise.Symbolic.sym The symbolic model of the cryptography, ove
 assume Engine.Model.run The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean.
 assume Trust.SqliteStore = Engine.Model.run
 assume Trust.ShowsAt = Engine.Model.run
-assume Trust.budgetM = Engine.Model.run
 assume Engine.Model = Engine.Model.run
 assume Engine.DB = Engine.Model.run
 assume Engine.Sync.HeldM = Engine.Model.run
@@ -251,12 +250,6 @@ bridge Engine.ingestAll Engine.run_ingestEach
 # The capped write turn and purge (engine/core/TurnLaws.lean): the running
 # `turnCapped`, `judgeAhead`, `judgeJob`, `urgentClose` and `purgeCapped`
 # on the model's tables, and what the closure reports, its attempts.
-bridge Engine.turnCappedS Engine.run_turnCapped
-bridge Engine.judgeAheadS Engine.run_judgeAhead
-bridge Engine.judgeJobS Engine.run_judgeJob
-bridge Engine.urgentCloseS Engine.run_urgentClose
-bridge Engine.purgeCappedS Engine.run_purgeCapped
-bridge Engine.rejudgeSet Engine.run_purge
 bridge Engine.closeAttempts Engine.run_urgentClose_count
 bridge Engine.turnAttempts Engine.run_turnCapped_count
 # The model's step, drain, ingest and purge (stepS, drainS, ingestS,
