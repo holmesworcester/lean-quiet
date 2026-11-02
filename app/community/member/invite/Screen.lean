@@ -11,8 +11,11 @@ open Paint Text Font Row
 def qrSide (dm : Dim) (W h : Nat) : Nat := min (W - dm.px 128) (h / 3)
 
 /-- Add members: the QR code (or its square while there is none), the
-share button, the link with Copy, the caution, what happens next. -/
-def invite {α : Type} [BEq α] [Inert α] (onShare : α) (onCopy : α) (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : String) : PageOf α := Id.run do
+share button, the link with Copy, the caution, what happens next. With
+`device`, Link devices' share side (libquiet `DeviceCode.svelte`): the
+same for a device link, and this user's devices under it. -/
+def invite {α : Type} [BEq α] [Inert α] (onShare : α) (onCopy : α) (f : Font) (dm : Dim) (W h : Nat) (qr : Option Bitmap) (linkText : String)
+    (device : Bool := false) (devices : Array String := #[]) : PageOf α := Id.run do
   let mut b := blank W h dm.theme
   let s := qrSide dm W h
   let x := (W - s) / 2
@@ -23,9 +26,9 @@ def invite {α : Type} [BEq α] [Inert α] (onShare : α) (onCopy : α) (f : Fon
   b := b.round x y (x + s) (y + s) (dm.px 8) (Palette.color dm.theme .white)
   if let some q := qr then b := b.image q (x + (s - q.w) / 2) (y + (s - q.h) / 2) 0
   let mut yy := y + s + dm.px 32
-  b := centred f b "Scan with the Quiet app to ask to join." yy (Palette.color dm.theme .muted)
+  b := centred f b (if device then "Scan this from “Link devices” on your new device." else "Scan with the Quiet app to ask to join.") yy (Palette.color dm.theme .muted)
   yy := yy + f.cell + dm.px 24
-  let (b1, st, sh) := button f dm b "Share invite link" yy true onShare
+  let (b1, st, sh) := button f dm b (if device then "Share device link" else "Share invite link") yy true onShare
   b := b1
   yy := yy + sh + dm.px 16
   -- the (Palette.color dm.theme .link) and Copy
@@ -46,17 +49,27 @@ def invite {α : Type} [BEq α] [Inert α] (onShare : α) (onCopy : α) (f : Fon
     (acc.1.modify (cy + (dm.px 40 - f.cell) / 2 + acc.2) (fun r => row.copySlice 0 r (4 * cx) (4 * cw)), acc.2 + 1)) (b, 0) |>.1
   let ct : Box × α := (⟨cx, cy, cw, dm.px 40⟩, onCopy)
   yy := yy + lh + dm.px 16
-  let (b2, ph) := para f dm b "Anyone holding this link or code can ask to join, and a link can't be cancelled once it's sent. Share it only with people you trust." (dm.px 16) yy (W - dm.px 32) (Palette.color dm.theme .muted)
+  let (b2, ph) := para f dm b (if device then "Anyone holding this link or code can ask to join as one of your devices, and a link can't be cancelled once it's sent. Use it only on your own devices."
+    else "Anyone holding this link or code can ask to join, and a link can't be cancelled once it's sent. Share it only with people you trust.") (dm.px 16) yy (W - dm.px 32) (Palette.color dm.theme .muted)
   b := b2
   yy := yy + ph + dm.px 24
   b := b.line f (oneLine f W "What happens next") (dm.px 16) yy (Palette.color dm.theme .muted) true
   yy := yy + dm.lineH + dm.px 8
-  let steps := #["1. They open the link, or scan the code, in Quiet.", "2. Their device appears under Waiting to join.",
-    "3. Once a member vouches for them, they can read and post here."]
+  let steps := if device then #["1. On the new device, open Link devices from Get started, and scan this code or paste the link.",
+      "2. It appears under Waiting to join as your device.", "3. Approve it there: it joins this community as you."]
+    else #["1. They open the link, or scan the code, in Quiet.", "2. Their device appears under Waiting to join.",
+      "3. Once a member vouches for them, they can read and post here."]
   for st in steps do
     let (b3, sh2) := para f dm b st (dm.px 16) yy (W - dm.px 32) (Palette.color dm.theme .fg)
     b := b3
     yy := yy + sh2 + dm.px 8
+  if device && !devices.isEmpty then
+    yy := yy + dm.px 16
+    b := b.line f (oneLine f W "Linked devices") (dm.px 16) yy (Palette.color dm.theme .muted) true
+    yy := yy + dm.lineH + dm.px 8
+    for d in devices do
+      b := b.line f (oneLine f (W - dm.px 32) d) (dm.px 16) yy (Palette.color dm.theme .fg)
+      yy := yy + dm.lineH + dm.px 4
   return ⟨b, #[st, ct]⟩
 
 end Pages

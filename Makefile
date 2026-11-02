@@ -7,6 +7,10 @@
 #                  app's assets (a pinned download), then the build
 #   make run       open the app with a demo: two seeded communities, no network
 #   make online    open the app with networking on, its own database
+#   make demo      two apps side by side, as two devices (Alice's laptop and
+#                  Bob's), joined over TCP on this computer: Bob joins
+#                  Alice's community and they chat. ARGS=--auto does the
+#                  join for you (needs xdotool)
 #   make check     list what make install still needs; installs nothing
 #   make assets    only the app's assets
 #   make verify    lake check and lake comparator (they need Lean 4.35)
@@ -30,9 +34,9 @@ export RUSTUP_HOME ?= $(HOME)/.rustup
 export TMPDIR ?= /tmp
 
 .DEFAULT_GOAL := help
-.PHONY: help install run online check assets
+.PHONY: help install run online demo check assets
 
-install run online check assets:
+install run online demo check assets:
 	@$(PLATFORM) $@ $(ARGS)
 
 # Lean's checkers, on every platform: tools/make/verify.sh says what it needs.

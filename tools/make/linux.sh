@@ -1,5 +1,6 @@
 #!/bin/sh
-# `make install`, `make run`, `make online`, `make check` and `make assets`
+# `make install`, `make run`, `make online`, `make demo`, `make check` and
+# `make assets`
 # on Linux: x86-64, Debian, Ubuntu and their kin. The Makefile calls this.
 #
 # install  1. system packages: lists the missing ones, says it will install
@@ -14,6 +15,8 @@
 # run      the app with --demo: an empty database is seeded with two
 #          communities and networking is off (out/make/demo.db)
 # online   the app with networking on (out/make/quiet.db)
+# demo     two apps side by side, as two devices joined over loopback TCP
+#          (tools/make/demo.py; out/make/demo, afresh each time)
 # check    what install would still need; installs nothing; fails if
 #          system packages are missing
 set -eu
@@ -138,6 +141,8 @@ case ${1:-} in
     db=${QUIET_DB:-out/make/quiet.db}
     say "Lean Quiet with networking on ($db)"
     QUIET_DB=$db exec "$app" "$@" ;;
+  demo) shift; open_app
+    exec python3 tools/make/demo.py "$@" ;;
   assets) tools/make/assets.sh ;;
   check) platform
     need=$(missing)
@@ -152,5 +157,5 @@ case ${1:-} in
       exit 1
     fi
     say "system packages: all there" ;;
-  *) die "usage: $0 install|run|online|check|assets" ;;
+  *) die "usage: $0 install|run|online|demo|check|assets" ;;
 esac

@@ -4,10 +4,13 @@ type's body and fact as bytes (and read back), its tag, whether it is
 local, where its fact sorts and the keys it is filed under, and the
 validator's verdict on sample requirements. tests/engine/wire-golden.txt
 holds this program's output from main before the families were split into
-op folders (e727b5e), with one deliberate wire change since: one-approval
+op folders (e727b5e), with two deliberate wire changes since: one-approval
 dropped the invitation's and request's threshold, so their bytes, the
-invite ops' ids and their verdicts lost that field. Anything else that
-moves is a regression. Signatures are a parameter: a scheme that accepts every
+invite ops' ids and their verdicts lost that field; and (the user's
+decision, 2026-11-01) an attachment's and a chunk's body, and an
+attachment's fact, carry their message's time, so those bytes, ids and
+orders moved, their verdicts did not. Anything else that moves is a
+regression. Signatures are a parameter: a scheme that accepts every
 signature, and one that accepts none.
 -/
 import app.community.Proofs
@@ -32,7 +35,7 @@ def bodies : List (String × Body) :=
    ("post-cap", .post (bs "kid") (bs "x") (2 ^ 63) 5 (bs "sig")),
    ("wrap", .wrap (bs "kid") (bs "recipient") (bs "box")),
    ("profile", .profile (bs "Maya") 42 (bs "sig")),
-   ("attach", .attach (bs "root-32-bytes-root-32-bytes-root") 1000 (bs "kid") (bs "sealed") (bs "sig")),
+   ("attach", .attach (bs "root-32-bytes-root-32-bytes-root") 1000 2 (bs "kid") (bs "sealed") (bs "sig")),
    ("react", .react (bs "🌱") 99 (bs "sig")),
    ("approve", .approve (bs "sig")),
    ("admit", .admit),
@@ -42,7 +45,7 @@ def bodies : List (String × Body) :=
    ("name", .name 2 (bs "Quiet") (bs "sig")),
    ("abandon", .abandon),
    ("key", .key (bs "c") (bs "k")),
-   ("chunk", .chunk (bs "root") 70000 1 (bs "slice") [bs "s1", bs "s2"]),
+   ("chunk", .chunk (bs "root") 70000 29880000 1 (bs "slice") [bs "s1", bs "s2"]),
    ("endpoint", .endpoint (bs "sk")),
    ("receive", .receive 12)]
 
@@ -56,7 +59,7 @@ def facts : List (String × Fact) :=
    ("message-cap", .message (bs "c") (bs "u") (bs "dev") (bs "kid") (bs "text") (2 ^ 63) 5),
    ("wrap", .wrap (bs "c") (bs "kid") (bs "recipient") (bs "box")),
    ("profile", .profile (bs "c") (bs "u") (bs "Ma​ya") 42),
-   ("attachment", .attachment (bs "c") (bs "m") (bs "u") (bs "root") 1000 (bs "kid") (bs "sealed")),
+   ("attachment", .attachment (bs "c") (bs "m") (bs "u") (bs "root") 1000 29880000 (bs "kid") (bs "sealed")),
    ("react", .react (bs "c") (bs "u") (bs "m") (bs "🌱") 99),
    ("request", .request (bs "c") (bs "u") (bs "dev") (bs "enc") false),
    ("approval", .approval (bs "c") (bs "r") (bs "u")),
@@ -89,7 +92,7 @@ def reqs : List (List Fact) :=
   let inv := Fact.invitation c (bs "u") (bs "bearer") false
   let req := Fact.request c (bs "u") (bs "dev") (bs "enc") false
   let appr := Fact.approval c (bs "") (bs "v")
-  let att := Fact.attachment c (bs "m") (bs "u") (bs "root") 70000 (bs "kid") (bs "x")
+  let att := Fact.attachment c (bs "m") (bs "u") (bs "root") 70000 29880000 (bs "kid") (bs "x")
   let grant := Fact.admin c (bs "u")
   [[], [root], [root, author], [root, author, msg], [root, author, child], [root, inv],
    [root, req, other], [root, req, appr], [root, author, root, other], [root, author, grant, other],

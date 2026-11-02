@@ -30,14 +30,14 @@ theorem live_runs {F : Type} (fam : Family F) :
     ∀ now, (((c now).tick fam cfg {} now : HeldM F Step) ({} : Held F)).1.drop = false := by
   intro cfg c
   have heard (now : Nat) : (c now).heard = now := by
-    simp [c, Conn.open, Conn.recv, Op.decode_bytes, ofOp_hold, Conn.onHold, has]
+    simp [c, Conn.open, Conn.recv, Op.decode_bytes, ofOp_hold, Conn.onHold, Conn.onAsk, has]
   have sched : ∀ now, cfg.live < now → ∃ t, True ∧ t + cfg.live / 3 ≤ now ∧ now ≤ t + 2 * (cfg.live / 3) := by
     intro now hn
     refine ⟨now - 1, trivial, ?_, ?_⟩ <;> dsimp [cfg] at * <;> omega
   have deliver : ∀ now t, True → t + cfg.live / 3 ≤ now →
       (((c t).tick fam cfg {} t : HeldM F Step) {}).1.send = [] → (c t).sent ≤ (c now).heard := by
     intro now t _ _ _
-    simp [c, Conn.open, Conn.recv, Op.decode_bytes, ofOp_hold, Conn.onHold, has]
+    simp [c, Conn.open, Conn.recv, Op.decode_bytes, ofOp_hold, Conn.onHold, Conn.onAsk, has]
   have both := live_stays fam cfg (fun _ => {}) (fun _ => {}) c c (fun _ => {}) (fun _ => {})
     (fun _ => True) (fun _ => True) (by decide) sched sched
     (fun now t ht old => ⟨deliver now t ht old, fun _ => by rw [heard]; dsimp [cfg] at old; omega⟩)

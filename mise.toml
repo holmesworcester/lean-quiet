@@ -102,7 +102,7 @@ description = "Build Lean/Init/Std from source with phone options for x86_64 Lin
 run = "tests/engine/run.sh --phone-runtime"
 
 [tasks."test:app"]
-description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival, host:attach and host:ux"
+description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:link-devices, host:net-join, host:net-link, host:cross, host:arrival, host:attach and host:ux"
 run = "tests/app/run.sh"
 
 [tasks."host:component-demand"]
@@ -234,8 +234,18 @@ description = "make verify: refused with its reason on this repository while it 
 run = "tests/make/verify_test.sh"
 
 [tasks."make:clean-room"]
-description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail). Needs Docker and network; see tests/make/clean_room.sh"
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail), then make demo's e2e from the clone (tests/make/demo_e2e.py). Needs Docker and network; see tests/make/clean_room.sh"
 run = "tests/make/clean_room.sh"
+
+[tasks."make:demo-e2e"]
+description = "make demo under Xvfb (1920x1080), as a judge runs it: Alice's laptop and Bob's side by side, the join done by X input (Bob's name, Agree & Join; Waiting to join and Approve in Alice's window), Alice's message on Bob's screen (his QUIET_STATE, and his conversation's pixels against Alice's), Bob's reply on Alice's, both windows closed and make demo exiting 0; then make demo ARGS=--auto. Needs Xvfb, xdotool, ImageMagick, PIL; screenshots in out/make/demo-e2e"
+depends = ["linux:build"]
+run = "python3 tests/make/demo_e2e.py"
+
+[tasks."make:demo-negative"]
+description = "The make demo e2e's negative control: once Bob is in, his app restarts with --offline; Alice's message must then fail both checks that it reached him (state and screen), and nothing before them"
+depends = ["linux:build"]
+run = "tests/make/demo_negative.sh"
 
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them), two X11 resize mechanisms (gravity, the sync request) and five Get started/shell mutants; each must fail"
@@ -255,6 +265,16 @@ run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; la
 description = "Two apps, each its own database, joined by link through their own pages: invite, paste, agree, the request carried, approve, admission carried, a message back"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
+
+[tasks."host:link-devices"]
+description = "Linked devices, four apps by memory transport: a device link shown and scanned, pasted on Get started's Link devices, approved only by the issuer's user, admitted into it with no profile of its own; posts both ways; removing a user cuts both of its devices"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build link_devices && .lake/build/bin/link_devices out/link"
+
+[tasks."host:net-link"]
+description = "Linked devices over TCP on loopback, four apps each with its own node: link, approve, sync both ways, only the issuer's user asked, removal cuts (a sibling-only linked device: GAP until the pre-admission rooms land; --strict fails it)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_link && .lake/build/bin/net_link out/net-link"
 
 [tasks."host:net-join"]
 description = "Two actual apps join through their pages over TCP, then commit, read back and paint local writes during sustained incoming sync"
@@ -506,11 +526,11 @@ depends = ["android:phone-apk"]
 run = "python3 tests/app/pixel_scroll.py"
 
 [tasks."test:stateless"]
-description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+description = "Full and windowed syncs on real Nodes/SQLite (a window at depth 1 gets its closure in the round; at depth 0 its reactions stay Missing), peaks and negative controls"
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
-description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, event-driven rounds (a joiner's room opens a round within a tick, none before the safety period, no per-round copy at a hub), secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
 
 [tasks."test:read-plan"]
@@ -559,6 +579,11 @@ run = "tests/app/skeleton.sh"
 [tasks."host:mobile-switcher"]
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
+
+[tasks."test:window"]
+depends = ["crypto"]
+description = "Windows and order (docs/SYNC.md): a message's photos sort with it; the negative controls (chunks at time 0, unchecked times) in a scratch snapshot"
+run = "tests/engine/window.sh"
 
 [tasks."test:headline"]
 description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"

@@ -57,18 +57,17 @@ theorem holdsOf_shown {h : Held F} {c : Conn} {pairs : List (Id × Id)}
   · cases he; exact hp p hp'
   · cases he
 
-/-- Every advertisement from either running offer path names a stored op
-in one of this connection's rooms: a shared op the peer may see. -/
+/-- Every advertisement the running offer path (the stream, `filed`)
+makes names a stored op in one of this connection's rooms: a shared op
+the peer may see. (A windowed round's closure is offered by its round
+answers, `answer_offers`; there is no walk left to offer it.) -/
 theorem offer_shared (c : Conn) (news : List Id) (h : Held F) (r i : Id) (ids : List Id)
-    (hm : (Msg.hold r ids).op ∈ ((c.filed fam cfg news : HeldM F Step) h).1.send ++
-      holdsOf cfg ((c.walk fam cfg : HeldM F _) h).1.2) (hi : i ∈ ids) :
+    (hm : (Msg.hold r ids).op ∈ ((c.filed fam cfg news : HeldM F Step) h).1.send) (hi : i ∈ ids) :
     ∃ o r, h.db.ops i = some o ∧ fam.room o = some r ∧ has c.rooms r = true := by
   have shown : Shown fam h.db c i := by
-    rcases List.mem_append.mp hm with hm | hm
-    · obtain ⟨pairs, he, hp⟩ := filed_origin fam cfg c news h
-      rw [he] at hm
-      exact holdsOf_shown fam cfg hp hm hi
-    · exact holdsOf_shown fam cfg (walk_keeps fam cfg h c).2.2.2 hm hi
+    obtain ⟨pairs, he, hp⟩ := filed_origin fam cfg c news h
+    rw [he] at hm
+    exact holdsOf_shown fam cfg hp hm hi
   obtain ⟨o, ho, hs⟩ := shown
   unfold Conn.shows at hs
   cases hr : fam.room o with
@@ -77,8 +76,7 @@ theorem offer_shared (c : Conn) (news : List Id) (h : Held F) (r i : Id) (ids : 
 
 /-- Pending writes and absent closure ids cannot be advertised as stored. -/
 theorem offer_stored (c : Conn) (news : List Id) (h : Held F) (r i : Id) (ids : List Id)
-    (hm : (Msg.hold r ids).op ∈ ((c.filed fam cfg news : HeldM F Step) h).1.send ++
-      holdsOf cfg ((c.walk fam cfg : HeldM F _) h).1.2) (hi : i ∈ ids) :
+    (hm : (Msg.hold r ids).op ∈ ((c.filed fam cfg news : HeldM F Step) h).1.send) (hi : i ∈ ids) :
     ∃ o, h.db.ops i = some o := by
   obtain ⟨o, _, ho, _⟩ := offer_shared fam cfg c news h r i ids hm hi
   exact ⟨o, ho⟩
