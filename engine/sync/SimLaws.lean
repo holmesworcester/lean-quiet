@@ -158,33 +158,9 @@ theorem filedGive_sim (c : Conn) (ids : List Id) :
     Sim (c.filedGive fam cfg ids : HeldM F Step) (c.filedGive fam cfg ids : Model F Step) :=
   Sim.bind' (notify_sim fam cfg c) fun g => Sim.bind' (filed_sim fam cfg g.conn ids) fun _ => Sim.pure' _
 
-theorem walkN_sim : ∀ (budget : Nat) (c : Conn) (offer : List (Id × Id)),
-    Sim (c.walkN fam cfg offer budget : HeldM F (Conn × List (Id × Id)))
-      (c.walkN fam cfg offer budget : Model F (Conn × List (Id × Id)))
-  | 0, _, _ => Sim.pure' _
-  | budget + 1, c, offer => by
-    unfold Conn.walkN
-    split
-    · exact Sim.pure' _
-    · dsimp only
-      split
-      · exact walkN_sim budget _ _
-      · refine Sim.bind' (Sim.getOp' _) fun oo => ?_
-        cases oo with
-        | none => exact walkN_sim budget _ _
-        | some o =>
-          dsimp only
-          split
-          · exact walkN_sim budget _ _
-          · exact walkN_sim budget _ _
-
-theorem walk_sim (c : Conn) :
-    Sim (c.walk fam cfg : HeldM F (Conn × List (Id × Id))) (c.walk fam cfg : Model F (Conn × List (Id × Id))) :=
-  walkN_sim fam cfg _ c []
-
 theorem work_sim (ix : Index) (c : Conn) (now : Nat) :
     Sim (c.work fam cfg ix now : HeldM F Step) (c.work fam cfg ix now : Model F Step) := by
-  unfold Conn.work; sim [walk_sim]
+  unfold Conn.work; sim []
 
 theorem tick_sim (ix : Index) (c : Conn) (now : Nat) :
     Sim (c.tick fam cfg ix now : HeldM F Step) (c.tick fam cfg ix now : Model F Step) := by

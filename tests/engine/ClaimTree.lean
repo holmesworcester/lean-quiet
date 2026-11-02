@@ -26,8 +26,9 @@ def check (ck : Checks) (P : Params) (n depth : Nat) : IO Unit := do
   ck.ok s!"non-leaf {n}: opening really is a fingerprint" (match claim with | .fp .. => true | _ => false)
 
 /-- Relay the actual handler's encoded wire ops, including its terminal
-marker. Snapshot indices change after the first hop; ongoing reconciliation
-must retain the original snapshots. -/
+marker. Both indices change after the first hop: an op written at both
+ends mid-round, which the live answers then read. An op both ends hold
+is never offered or wanted; the start's differences are covered exactly. -/
 def handlers (ck : Checks) (n : Nat) : IO Unit := do
   let room := "claim-tree-room".toUTF8
   let xs := (List.range n).map (· * 2)
@@ -46,7 +47,7 @@ def handlers (ck : Checks) (n : Nat) : IO Unit := do
   let mut sentB : List Op := []
   let mut hops := 0
   let mut ended := false
-  let late := (key (n * 100 + 1), "written after snapshot".toUTF8)
+  let late := (key (n * 100 + 1), "written at both ends mid-round".toUTF8)
   for now in [1:2 * n + 10] do
     let some wire := pending.head? | break
     let some op := Op.decode wire.bytes | ck.ok "handler wire decodes" false; break
@@ -63,13 +64,13 @@ def handlers (ck : Checks) (n : Nat) : IO Unit := do
   let holds := fun ops => ops.flatMap fun o => match Msg.ofOp o with | some (.hold _ ids) => ids | _ => []
   let wants := fun ops => ops.flatMap fun o => match Msg.ofOp o with | some (.want ids) => ids | _ => []
   let same := fun (as_ bs : List Id) => as_.all bs.contains && bs.all as_.contains
-  ck.ok s!"actual handlers {n}: terminal delivered and both snapshots retired"
-    (ended && a.snaps.isEmpty && b.snaps.isEmpty && hops > 2)
+  ck.ok s!"actual handlers {n}: terminal delivered and no round left in flight"
+    (ended && a.active.isEmpty && b.active.isEmpty && hops > 2)
   ck.ok s!"actual handlers {n}: A's wire offers and B's requests cover exactly A's difference"
     (same (holds sentA ++ wants sentB) ((xs.filter fun x => !ys.contains x).map ident))
   ck.ok s!"actual handlers {n}: B's wire offers and A's requests cover exactly B's difference"
     (same (holds sentB ++ wants sentA) ((ys.filter fun y => !xs.contains y).map ident))
-  ck.ok s!"actual handlers {n}: new index entries stay out of the captured round"
+  ck.ok s!"actual handlers {n}: an op both ends hold mid-round is neither offered nor wanted"
     (!(holds sentA ++ wants sentA ++ holds sentB ++ wants sentB).contains late.2)
 
 end ClaimTree

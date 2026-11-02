@@ -46,7 +46,7 @@
     "theorem": "Engine.Sync.conn_state_bounded",
     "witness": "Vacuity.SyncMore.stateBounds",
     "module": "tests.vacuity.SyncMore",
-    "detail": "Same actual open/want history yields all five collection/snapshot bounds. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
+    "detail": "Same actual open/want history yields the five id-collection bounds and the round-state bounds (in-flight rounds, opening times, epochs, short rooms, each at most the shown rooms). Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
   },
   "hold_bounded": {
     "status": "kernel-witness",
@@ -75,27 +75,6 @@
     "witness": "Vacuity.SyncMore.askExpired",
     "module": "tests.vacuity.SyncMore",
     "detail": "An actual outstanding message ask expires at 20001 ms. Separate example proves the id was in asked before expiration. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
-  },
-  "closure_capped": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.closure_capped",
-    "witness": "Vacuity.SyncMore.walkBound",
-    "module": "tests.vacuity.SyncMore",
-    "detail": "Windowed round starts with one actual stored leaf in its frontier and takes a visit; prove initial pending/visited budget. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
-  },
-  "closure_complete_under_cap": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.closure_complete_under_cap",
-    "witness": "Vacuity.SyncMore.closureComplete",
-    "module": "tests.vacuity.SyncMore",
-    "detail": "Nonempty singleton closure of an actual stored message, roundFloor=100; construct Whole, uniqueness, empty visited, seed subset, fuel and capacity premises. Leaf has no requirements; multi-edge closure still needs additional fixtures. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
-  },
-  "full_round_stateless": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.full_round_stateless",
-    "witness": "Vacuity.SyncMore.fullRound",
-    "module": "tests.vacuity.SyncMore",
-    "detail": "Serve a stored queued message in full-round mode with concrete gone/sent lists; prove roundFloor premise. Synthetic fixtures; claims limited to the imported running functions/model and stated premises."
   },
   "frames_kept": {
     "status": "kernel-witness",

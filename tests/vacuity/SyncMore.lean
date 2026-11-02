@@ -2,7 +2,8 @@ import tests.vacuity.FairScheduler
 import tests.vacuity.Network
 import engine.sync.RetryLaws
 import engine.sync.StateLaws
-import engine.sync.ClosureComplete
+import engine.sync.ServeLaws
+import engine.sync.OfferLaws
 import engine.sync.TreeLaws
 import engine.wire.Slots
 import engine.wire.Frame
@@ -56,8 +57,10 @@ theorem knownAskedBounds : afterWant.known.size ≤ cfg.maxKnown ∧ afterWant.a
   conn_bounded fam cfg afterWantReachable
 
 theorem stateBounds : afterWant.known.size ≤ cfg.maxKnown ∧ afterWant.asked.size ≤ cfg.maxKnown ∧
-    afterWant.offered.size ≤ cfg.maxKnown ∧ afterWant.closed.size + afterWant.frontier.length ≤ cfg.closureCap ∧
-    afterWant.snaps.length ≤ afterWant.rooms.length := conn_state_bounded fam cfg afterWantReachable
+    afterWant.offered.size ≤ cfg.maxKnown ∧
+    afterWant.active.length ≤ afterWant.rooms.length ∧ afterWant.rounded.length ≤ afterWant.rooms.length ∧
+    afterWant.epochs.length ≤ afterWant.rooms.length ∧ afterWant.short.length ≤ afterWant.rooms.length :=
+  conn_state_bounded fam cfg afterWantReachable
 
 theorem holdBounds : ((conn.onHold fam cfg room [msg.id] : HeldM Unit Step) {}).1.conn.Bounded cfg :=
   hold_bounded fam cfg conn room [msg.id] {} (by simp [Conn.Bounded, conn, Conn.open, cfg])
@@ -74,28 +77,6 @@ def asking : Conn := { conn with asked := ({} : Std.HashSet Id).insert msg.id }
 example : msg.id ∈ asking.asked := by simp [asking]
 theorem askExpired : msg.id ∉ (asking.expireAsks cfg 20001).asked :=
   asks_expire cfg asking 20001 msg.id (by simp [asking, conn, Conn.open, cfg])
-
--- A nonempty closure frontier visits a stored leaf, under a windowed round.
-def walking : Conn := { conn with roundFloor := 100, frontier := [msg.id] }
-theorem walkBound : ((walking.walkN fam cfg [] 1 : HeldM Unit _) held).1.1.ClosureBounded cfg :=
-  closure_capped fam cfg held 1 walking [] (by simp [Conn.ClosureBounded, walking, conn, Conn.open, cfg])
-
-theorem wholeLeaf : Whole fam held walking [msg.id] := by
-  intro i hi
-  obtain rfl := List.mem_singleton.mp hi
-  exact ⟨msg, stored, shown, by simp [msg]⟩
-
-theorem closureComplete :
-    let result := ((walking.walk fam cfg : HeldM Unit _) held).1
-    result.1.frontier = [] ∧ ∀ seed ∈ walking.frontier, ∀ i,
-      Reach held.db.ops seed i → covered result.1 result.2 i :=
-  closure_complete_under_cap fam cfg held walking [msg.id] (by decide) rfl
-    (by simp [walking]) (by simp [walking]) wholeLeaf (by decide) (by decide)
-
-theorem fullRound :
-    let d := queued.served cfg [msg.id] [] [msg]
-    d.offered = queued.offered ∧ d.closed = queued.closed ∧ d.frontier = queued.frontier :=
-  full_round_stateless cfg queued [msg.id] [] [msg] (by decide)
 
 -- A partial frame retains a nonempty prefix, while an oversized declared
 -- length is rejected before its payload is received.
