@@ -132,6 +132,14 @@ Status 1 is success, 2 cancellation, 3 error; empty header means pending.
 Contract: none. The laws hold for every value it returns. -/
 @[extern "lq_photo_result"] opaque photoResult : IO (Array UInt32 × ByteArray)
 
+/-- Post or cancel one conversation's notification card: a JSON packet.
+The shell queues it for its own thread and returns at once; shells
+without notifications ignore it. -/
+@[extern "lq_notify"] opaque notify : @& String → IO Unit
+/-- Sync in the background (Android's foreground service) on or off;
+whether this platform has it. -/
+@[extern "lq_service"] opaque service (on : Bool) : IO Bool
+
 end Platform
 
 namespace App
