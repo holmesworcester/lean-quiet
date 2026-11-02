@@ -206,9 +206,9 @@ Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine
 
 Named in the statement: `Engine.Sync.Effects`, `Engine.Sync.Entry`, `Engine.Sync.FramesOk`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.Moves`, `Engine.Sync.Node`, `Engine.Sync.ReadOnly`, `Engine.Sync.Sync`, `Engine.Sync.instMonadHeldM`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Sorted`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Sorted`; types: `Engine.Sync.ReadsOnly`.
 
-Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: none.
+Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: none.
 
 #### Engine.Sync.offer_shared
 
