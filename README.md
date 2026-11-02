@@ -1771,7 +1771,7 @@ opportunities and full native delivery remain open.
 [`op_taken`]: engine/wire/WorldLaws.lean#L733-L740
 [`successful_fair_extension`]: app/Proofs.lean#L1906-L1917
 [`Execution.fairRun_fair`]: app/Proofs.lean#L1841-L1841
-[`world_step_unique`]: app/Proofs.lean#L3908-L3912
+[`world_step_unique`]: app/Proofs.lean#L3901-L3905
 [`onWant_all`]: engine/sync/ServeLaws.lean#L309-L313
 [`onWant_order`]: engine/sync/ServeLaws.lean#L328-L331
 [`serveOwed_head`]: engine/sync/ServeLaws.lean#L404-L409
@@ -2105,7 +2105,6 @@ opportunities and full native delivery remain open.
 [`world_trace_history`]: app/Proofs.lean#L3417-L3419
 [`empty_trace_history`]: app/Proofs.lean#L3425-L3429
 [`history`]: app/Proofs.lean#L3437-L3442
-[`world_step_unique`]: app/Proofs.lean#L3901-L3905
 [`run_count`]: app/Proofs.lean#L2417-L2418
 [`run_get`]: app/Proofs.lean#L2420-L2421
 [`run_view`]: app/Proofs.lean#L2423-L2424
@@ -2159,7 +2158,6 @@ opportunities and full native delivery remain open.
 [`run_fresh`]: app/Proofs.lean#L2433-L2434
 [`fair_loss_delivered`]: engine/sync/SweepLaws.lean#L214-L218
 [`empty_log_agrees`]: engine/sync/SharedLog.lean#L11-L11
-[`nodup`]: engine/wire/RetryOrderLaws.lean#L214-L215
 [`nodup_full`]: app/community/Family.lean#L1652-L1654
 [`sum_map_add`]: app/community/channel/message/Proofs.lean#L228-L229
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
@@ -2294,8 +2292,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 527 kernel witnesses, 193 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 90 of 841 linked declarations still pending.**
+**Coverage: 525 kernel witnesses, 193 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 85 of 834 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2665,7 +2663,7 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`op_taken`](engine/wire/WorldLaws.lean#L733-L740) | **kernel-witness**: [Vacuity.WireMore.taken](tests/vacuity/WireMore.lean). Encoded greeting plus following nonempty offer in one session frame; proves new non-wire shown op and following-message decoding shape, actual store turn. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`successful_fair_extension`](app/Proofs.lean#L1906-L1917) | **runtime-witness**: [Vacuity.ProductionBootstrap.certificate](tests/vacuity/ProductionBootstrap.lean). Native evaluation of actual Node/Connection.hooks with real signatures, Noise and AEAD checks mutual admission, a shared session and exact bytes of a newly written sealed post sent after disconnect/retry. The recovery post was absent before the disconnect, so this checks the replacement session's data path rather than only retained data. A cumulative effect counter additionally proves this finite prefix ignores no implicit socket-close requests; explicit close actions clear the transport and notify both peers. Withheld approval, an unsent message and an injected unhandled-close effect reject success. The checked trace is extended without state reset by a kernel-proved infinite fair node-interpreter suffix. The goal and zero-unhandled-effect check hold at the prefix endpoint; persistence, convergence of every fair run, handling all future transport effects and refinement from Held to SQLite/TCP remain unproved. |
 | [`Execution.fairRun_fair`](app/Proofs.lean#L1841-L1841) | **kernel-witness**: [Vacuity.ProductionBootstrap.infiniteScheduler](tests/vacuity/ProductionBootstrap.lean). An explicit infinite execution repeatedly calls the production Node with Connection.hooks and native crypto, with Held store semantics and an entropy tape. Kernel proof: both nodes tick cofinally, simulated time advances without bound, and FIFO service eventually dequeues every queued frame. A known destination receives the actual onFrame call. No scene validity, bootstrap success or crypto correctness is assumed for scheduler fairness; SQLite, OS and TCP are separate runtime boundaries. This infinite interpreter may record later unhandled socket-close effects; fairness does not prove they never occur or identify the continuation with TCP. |
-| [`world_step_unique`](app/Proofs.lean#L3908-L3912) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
+| [`world_step_unique`](app/Proofs.lean#L3901-L3905) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`onWant_all`](engine/sync/ServeLaws.lean#L309-L313) | **kernel-witness**: [Vacuity.Network.wantQueued](tests/vacuity/Network.lean). Prove maxIds/queue capacity and index authorization for a single chat op, then apply onWant_all. A control with no permitted room queues nothing. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
 | [`onWant_order`](engine/sync/ServeLaws.lean#L328-L331) | **kernel-witness**: [Vacuity.Network.wantOrder](tests/vacuity/Network.lean). Apply onWant_order to the nonempty authorized chat request. wantQueued separately establishes the added queue is nonempty. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
 | [`serveOwed_head`](engine/sync/ServeLaws.lean#L404-L409) | **kernel-witness**: [Vacuity.Network.servesHead](tests/vacuity/Network.lean). Prove positive byte budget, concrete nonempty queue, stored op and shown room, then apply serveOwed_head. Zero bulk budget serves nothing. Synthetic fixture; running generic sync code on a Unit family/held store, not Community membership or encrypted transport. |
@@ -3021,7 +3019,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`world_trace_history`](app/Proofs.lean#L3417-L3419) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`empty_trace_history`](app/Proofs.lean#L3425-L3429) | **runtime-witness**: [Vacuity.StorageEffects.historyCertificate](tests/vacuity/StorageEffects.lean). The certificate derives log/store agreement from empty_trace_history over the concrete production prefix, using the actual world-step/trace history laws, and applies production_step_history at a checked nonempty catalog position. Real write/frame/tick/close calls preserve that point; explicit session purge and fresh shared append exercise both history changes. Zero/out-of-range positions are rejected. Shared history order is derived through the actual deduplicating writer, not assumed from an arbitrary raw ingest history. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
 | [`history`](app/Proofs.lean#L3437-L3442) | **runtime-witness**: [Vacuity.StorageEffects.runCertificate](tests/vacuity/StorageEffects.lean). A nonempty signed community continues through nine actual scheduled events. The certificate applies Run.history and discharges its starting reachability and log/store agreement from the exact production prefix, obtaining an appended shared-history suffix. The runner checks retained bytes and rejects an absent-message control; no quiescence or fairness premise is needed for this preservation law. Synthetic signed Alice/Bob data; actual production Node/hooks with Held storage and advancing entropy, not captured user messages or a proof of native SQLite/TCP refinement. |
-| [`world_step_unique`](app/Proofs.lean#L3901-L3905) | **kernel-witness**: [Vacuity.NodeUnique.production_prefix](tests/vacuity/NodeUnique.lean). Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions. |
 | [`run_count`](app/Proofs.lean#L2417-L2418) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
 | [`run_get`](app/Proofs.lean#L2420-L2421) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
 | [`run_view`](app/Proofs.lean#L2423-L2424) | **runtime-witness**: [Vacuity.ConnectionProgress.tapeReads](tests/vacuity/ConnectionProgress.lean). Native signed approved-join fixture checks one stored request, its exact bytes, positive trust and arrival address. The entropy-tape interpreter reads those values without changing its memory; the certificate applies all four read equations. Store/OS refinement remains separate. |
@@ -3075,7 +3072,6 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`run_fresh`](app/Proofs.lean#L2433-L2434) | Pending: no concrete premise witness audited yet |
 | [`fair_loss_delivered`](engine/sync/SweepLaws.lean#L214-L218) | Pending: no concrete premise witness audited yet |
 | [`empty_log_agrees`](engine/sync/SharedLog.lean#L11-L11) | Pending: no concrete premise witness audited yet |
-| [`nodup`](engine/wire/RetryOrderLaws.lean#L214-L215) | Pending: no concrete premise witness audited yet |
 | [`nodup_full`](app/community/Family.lean#L1652-L1654) | Pending: no concrete premise witness audited yet |
 | [`sum_map_add`](app/community/channel/message/Proofs.lean#L228-L229) | Pending: no concrete premise witness audited yet |
 | [`Costs.mono`](engine/core/Cost.lean#L397-L397) | Pending: no concrete premise witness audited yet |
