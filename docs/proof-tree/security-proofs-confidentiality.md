@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Security proofs › Confidentiality**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1035) · 🌐 world: the node's code in a World (35) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (319) · 🧪 control: a negative control (24) · ▫️ lemma: not audited (2003)
+✅ wired: about running code (1075) · 🌐 world: the node's code in a World (35) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (299) · 🧪 control: a negative control (25) · ▫️ lemma: not audited (1984)
 
 <ul>
 <li><details><summary><a id="law-Engine.Sync.recv_send"></a>✅ <a href="../../engine/sync/ConnLaws.lean#L158">Engine.Sync.recv_send</a> · 10 below</summary><ul>
@@ -153,9 +153,9 @@
 </ul></details></li>
 <li><a id="law-Connection.wire_kinds"></a>✅ <a href="../../app/connection/Proofs.lean#L42">Connection.wire_kinds</a></li>
 <li><a id="law-Connection.local_kinds"></a>✅ <a href="../../app/connection/Proofs.lean#L49">Connection.local_kinds</a></li>
-<li><details><summary><a id="law-Community.joinOps_travels"></a>✅ <a href="../../app/community/Proofs.lean#L332">Community.joinOps_travels</a> · 43 below</summary><ul>
-<li><details><summary><a id="law-Community.shared_mkOp"></a>▫️ <a href="../../app/community/Family.lean#L1398">Community.shared_mkOp</a> · 42 below</summary><ul>
-<li><details><summary><a id="law-Community.body_mkOp"></a>▫️ <a href="../../app/community/Family.lean#L1395">Community.body_mkOp</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Community.joinOps_travels"></a>✅ <a href="../../app/community/Proofs.lean#L332">Community.joinOps_travels</a> · 44 below</summary><ul>
+<li><details><summary><a id="law-Community.shared_mkOp"></a>▫️ <a href="../../app/community/Family.lean#L1437">Community.shared_mkOp</a> · 43 below</summary><ul>
+<li><details><summary><a id="law-Community.body_mkOp"></a>▫️ <a href="../../app/community/Family.lean#L1434">Community.body_mkOp</a> · 41 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
@@ -163,7 +163,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -184,7 +184,8 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
+<li>✅ <a href="../../app/community/Family.lean#L1183">Community.Body.local_of_ephemeral</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -198,18 +199,18 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.found_travels"></a>✅ <a href="../../app/community/Proofs.lean#L339">Community.found_travels</a> · 46 below</summary><ul>
-<li><details><summary><a id="law-Community.nodeKeyOr_local"></a>✅ <a href="../../app/community/device/endpoint/Proofs.lean#L8">Community.nodeKeyOr_local</a> · 45 below</summary><ul>
-<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 42 below</li>
+<li><details><summary><a id="law-Community.found_travels"></a>✅ <a href="../../app/community/Proofs.lean#L339">Community.found_travels</a> · 47 below</summary><ul>
+<li><details><summary><a id="law-Community.nodeKeyOr_local"></a>✅ <a href="../../app/community/device/endpoint/Proofs.lean#L8">Community.nodeKeyOr_local</a> · 46 below</summary><ul>
+<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 43 below</li>
 <li><details><summary><a id="law-Engine.View.eval_bind-"></a>▫️ <a href="../../engine/core/View.lean#L68">Engine.View.eval_bind'</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
 </ul></details></li>
-<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 42 below</li>
+<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 43 below</li>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.stopWaiting_local"></a>✅ <a href="../../app/community/member/join/joining/abandon/Proofs.lean#L8">Community.stopWaiting_local</a> · 43 below</summary><ul>
-<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 42 below</li>
+<li><details><summary><a id="law-Community.stopWaiting_local"></a>✅ <a href="../../app/community/member/join/joining/abandon/Proofs.lean#L8">Community.stopWaiting_local</a> · 44 below</summary><ul>
+<li>▫️ <a href="#law-Community.shared_mkOp">Community.shared_mkOp</a> ↪ · 43 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.filed_send"></a>✅ <a href="../../engine/sync/ConnLaws.lean#L189">Engine.Sync.filed_send</a> · 3 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.holdsOf_wire"></a>▫️ <a href="../../engine/sync/ConnLaws.lean#L73">Engine.Sync.holdsOf_wire</a> · 2 below</summary><ul>
@@ -233,10 +234,10 @@
 <li><details><summary><a id="law-Community.live_iff"></a>▫️ <a href="../../app/community/Proofs.lean#L811">Community.live_iff</a> · 66 below</summary><ul>
 <li>✅ <a href="security-proofs-connections.md#law-Community.deviceLive_iff">Community.deviceLive_iff</a> ↪ · 62 below</li>
 <li><details><summary><a id="law-Community.exists_row"></a>▫️ <a href="../../app/community/Proofs.lean#L641">Community.exists_row</a> · 54 below</summary><ul>
-<li><details><summary><a id="law-Community.filed"></a>▫️ <a href="../../app/community/Family.lean#L1439">Community.filed</a> · 48 below</summary><ul>
+<li><details><summary><a id="law-Community.filed"></a>▫️ <a href="../../app/community/Family.lean#L1480">Community.filed</a> · 48 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-screen.md#law-Engine.filed_rel">Engine.filed_rel</a> ↪ · 45 below</li>
-<li>✅ <a href="../../app/community/Family.lean#L1432">Community.rels_distinct</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1434">Community.rels_short</a></li>
+<li>✅ <a href="../../app/community/Family.lean#L1473">Community.rels_distinct</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1475">Community.rels_short</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.mem_rows_all"></a>▫️ <a href="../../engine/core/Decl.lean#L180">Engine.mem_rows_all</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Engine.mem_matching">Engine.mem_matching</a> ↪ · 3 below</li>
@@ -267,7 +268,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -313,7 +314,7 @@
 <li>✅ <a href="#law-Community.openSealed_seal">Community.openSealed_seal</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>✅ <a href="../../app/community/Op.lean#L149">Community.cryptoSeal_good</a></li>
 <li>✅ <a href="../../engine/core/Crypto.lean#L33">Engine.Bytes.of?_val</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
@@ -338,7 +339,7 @@
 <li>✅ <a href="#law-Community.unbox_box">Community.unbox_box</a> ↪ · 2 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>✅ <a href="../../app/community/Op.lean#L149">Community.cryptoSeal_good</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -387,79 +388,79 @@
 <li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1343">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/community/key/wrap/Proofs.lean#L11">Engine.View.always_bind</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L633">Connection.Noise.Symbolic.kk_secret</a> · 29 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L631">Connection.Noise.Symbolic.kk_secret</a> · 29 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.kk_secret_init">Connection.Noise.Symbolic.kk_secret_init</a> ↪ · 24 below</li>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.kk_secret_resp">Connection.Noise.Symbolic.kk_secret_resp</a> ↪ · 23 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L620">Connection.Noise.Symbolic.exposed_clean</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L618">Connection.Noise.Symbolic.exposed_clean</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_init"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L585">Connection.Noise.Symbolic.kk_secret_init</a> · 24 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.keys_secret"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L559">Connection.Noise.Symbolic.keys_secret</a> · 19 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.not_derivable"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L556">Connection.Noise.Symbolic.not_derivable</a> · 17 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.derivable_clean"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L482">Connection.Noise.Symbolic.derivable_clean</a> · 16 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.sends_clean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L448">Connection.Noise.Symbolic.sends_clean</a> · 10 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_init"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L583">Connection.Noise.Symbolic.kk_secret_init</a> · 24 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.keys_secret"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L557">Connection.Noise.Symbolic.keys_secret</a> · 19 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.not_derivable"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L554">Connection.Noise.Symbolic.not_derivable</a> · 17 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.derivable_clean"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L480">Connection.Noise.Symbolic.derivable_clean</a> · 16 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.sends_clean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L446">Connection.Noise.Symbolic.sends_clean</a> · 10 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.clean_decHash">Connection.Noise.Symbolic.clean_decHash</a> ↪ · 2 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L436">Connection.Noise.Symbolic.clean_encHash</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L428">Connection.Noise.Symbolic.clean_one</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L432">Connection.Noise.Symbolic.clean_two</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L312">Connection.Noise.Symbolic.unpair_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L154">Connection.Noise.read1_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L140">Connection.Noise.write1_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L200">Connection.Noise.write2_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L434">Connection.Noise.Symbolic.clean_encHash</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L426">Connection.Noise.Symbolic.clean_one</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L430">Connection.Noise.Symbolic.clean_two</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L310">Connection.Noise.Symbolic.unpair_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L152">Connection.Noise.read1_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L138">Connection.Noise.write1_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L198">Connection.Noise.write2_some</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.reveals_clean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L465">Connection.Noise.Symbolic.reveals_clean</a> · 9 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.reveals_clean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L463">Connection.Noise.Symbolic.reveals_clean</a> · 9 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.clean_decHash">Connection.Noise.Symbolic.clean_decHash</a> ↪ · 2 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L428">Connection.Noise.Symbolic.clean_one</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L432">Connection.Noise.Symbolic.clean_two</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L312">Connection.Noise.Symbolic.unpair_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L154">Connection.Noise.read1_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L217">Connection.Noise.read2_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L177">Connection.Noise.sent1_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L426">Connection.Noise.Symbolic.clean_one</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L430">Connection.Noise.Symbolic.clean_two</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L310">Connection.Noise.Symbolic.unpair_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L152">Connection.Noise.read1_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L215">Connection.Noise.read2_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L175">Connection.Noise.sent1_some</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L295">Connection.Noise.Symbolic.dh_some</a></li>
-</ul></details></li>
-</ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L550">Connection.Noise.Symbolic.keys_unclean</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.init_unclean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L568">Connection.Noise.Symbolic.init_unclean</a> · 6 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.sent1_ck"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L513">Connection.Noise.Symbolic.sent1_ck</a> · 3 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L312">Connection.Noise.Symbolic.unpair_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L130">Connection.Noise.decHash_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L177">Connection.Noise.sent1_some</a></li>
-</ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.read2_keys"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L528">Connection.Noise.Symbolic.read2_keys</a> · 4 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L302">Connection.Noise.Symbolic.dec_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L312">Connection.Noise.Symbolic.unpair_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L130">Connection.Noise.decHash_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L217">Connection.Noise.read2_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_some</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L598">Connection.Noise.Symbolic.kk_secret_resp</a> · 23 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L548">Connection.Noise.Symbolic.keys_unclean</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.init_unclean"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L566">Connection.Noise.Symbolic.init_unclean</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.sent1_ck"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L511">Connection.Noise.Symbolic.sent1_ck</a> · 3 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L310">Connection.Noise.Symbolic.unpair_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L128">Connection.Noise.decHash_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L175">Connection.Noise.sent1_some</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.read2_keys"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L526">Connection.Noise.Symbolic.read2_keys</a> · 4 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L300">Connection.Noise.Symbolic.dec_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L310">Connection.Noise.Symbolic.unpair_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L128">Connection.Noise.decHash_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L215">Connection.Noise.read2_some</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L596">Connection.Noise.Symbolic.kk_secret_resp</a> · 23 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.keys_secret">Connection.Noise.Symbolic.keys_secret</a> ↪ · 19 below</li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.read1_ck"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L520">Connection.Noise.Symbolic.read1_ck</a> · 4 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L302">Connection.Noise.Symbolic.dec_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L312">Connection.Noise.Symbolic.unpair_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L130">Connection.Noise.decHash_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L154">Connection.Noise.read1_some</a></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.read1_ck"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L518">Connection.Noise.Symbolic.read1_ck</a> · 4 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L300">Connection.Noise.Symbolic.dec_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L310">Connection.Noise.Symbolic.unpair_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L128">Connection.Noise.decHash_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L152">Connection.Noise.read1_some</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.write2_keys"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L540">Connection.Noise.Symbolic.write2_keys</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L200">Connection.Noise.write2_some</a></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.write2_keys"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L538">Connection.Noise.Symbolic.write2_keys</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L198">Connection.Noise.write2_some</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_init_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L654">Connection.Noise.Symbolic.kk_secret_init_tight</a> · 8 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret_init_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L652">Connection.Noise.Symbolic.kk_secret_init_tight</a> · 8 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read2_keys">Connection.Noise.Symbolic.read2_keys</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.sent1_ck">Connection.Noise.Symbolic.sent1_ck</a> ↪ · 3 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L295">Connection.Noise.Symbolic.dh_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_some</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_runs"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L331">Connection.Noise.Symbolic.kk_runs</a> · 11 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_runs"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L329">Connection.Noise.Symbolic.kk_runs</a> · 11 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.handshake_agrees">Connection.Noise.handshake_agrees</a> ↪ · 8 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
-<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L320">Connection.Noise.Symbolic.good</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L318">Connection.Noise.Symbolic.good</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Noise.handshake_agrees"></a>✅ <a href="../../engine/wire/Noise.lean#L363">Connection.Noise.handshake_agrees</a> · 8 below</summary><ul>
 <li><details><summary><a id="law-Connection.Noise.read1_write1"></a>▫️ <a href="../../engine/wire/Noise.lean#L252">Connection.Noise.read1_write1</a> · 4 below</summary><ul>
@@ -477,23 +478,23 @@
 <li>▫️ <a href="../../engine/wire/Noise.lean#L238">Connection.Noise.two_ad</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L934">Connection.Noise.Symbolic.kk_authentic</a> · 31 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L932">Connection.Noise.Symbolic.kk_authentic</a> · 31 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.kk_agree">Connection.Noise.Symbolic.kk_agree</a> ↪ · 30 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_agree"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L868">Connection.Noise.Symbolic.kk_agree</a> · 30 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.derivable_sealed"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L826">Connection.Noise.Symbolic.derivable_sealed</a> · 23 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_agree"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L866">Connection.Noise.Symbolic.kk_agree</a> · 30 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.derivable_sealed"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L824">Connection.Noise.Symbolic.derivable_sealed</a> · 23 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.derivable_clean">Connection.Noise.Symbolic.derivable_clean</a> ↪ · 16 below</li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.reveals_sealed"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L811">Connection.Noise.Symbolic.reveals_sealed</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.reveals_sealed"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L809">Connection.Noise.Symbolic.reveals_sealed</a> · 7 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read1_ck">Connection.Noise.Symbolic.read1_ck</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read2_keys">Connection.Noise.Symbolic.read2_keys</a> ↪ · 4 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.sends_sealed"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L781">Connection.Noise.Symbolic.sends_sealed</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.write1_msg"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L508">Connection.Noise.Symbolic.write1_msg</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L140">Connection.Noise.write1_some</a></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.sends_sealed"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L779">Connection.Noise.Symbolic.sends_sealed</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.write1_msg"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L506">Connection.Noise.Symbolic.write1_msg</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L138">Connection.Noise.write1_some</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L295">Connection.Noise.Symbolic.dh_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_some</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.init_unclean">Connection.Noise.Symbolic.init_unclean</a> ↪ · 6 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read1_ck">Connection.Noise.Symbolic.read1_ck</a> ↪ · 4 below</li>
@@ -501,15 +502,15 @@
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.sent1_ck">Connection.Noise.Symbolic.sent1_ck</a> ↪ · 3 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write1_msg">Connection.Noise.Symbolic.write1_msg</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L295">Connection.Noise.Symbolic.dh_some</a></li>
-<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L320">Connection.Noise.Symbolic.good</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_some</a></li>
+<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L318">Connection.Noise.Symbolic.good</a></li>
 <li>✅ <a href="../../engine/wire/Noise.lean#L326">Connection.Noise.read2_write2'</a></li>
 <li>✅ <a href="../../engine/wire/Noise.lean#L295">Connection.Noise.sent1_read1</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1019">Connection.Noise.Symbolic.kk_authentic_resp</a> · 33 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1017">Connection.Noise.Symbolic.kk_authentic_resp</a> · 33 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.kk_agree_resp">Connection.Noise.Symbolic.kk_agree_resp</a> ↪ · 32 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_agree_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L957">Connection.Noise.Symbolic.kk_agree_resp</a> · 32 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_agree_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L955">Connection.Noise.Symbolic.kk_agree_resp</a> · 32 below</summary><ul>
 <li>✅ <a href="#law-Connection.Noise.Symbolic.derivable_sealed">Connection.Noise.Symbolic.derivable_sealed</a> ↪ · 23 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read1_ck">Connection.Noise.Symbolic.read1_ck</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read2_keys">Connection.Noise.Symbolic.read2_keys</a> ↪ · 4 below</li>
@@ -520,29 +521,29 @@
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write1_msg">Connection.Noise.Symbolic.write1_msg</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
-<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L320">Connection.Noise.Symbolic.good</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L318">Connection.Noise.Symbolic.good</a></li>
 <li>✅ <a href="../../engine/wire/Noise.lean#L295">Connection.Noise.sent1_read1</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1042">Connection.Noise.Symbolic.kk_authentic_tight</a> · 14 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1034">Connection.Noise.Symbolic.kk_authentic_tight</a> · 14 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.read2_write2">Connection.Noise.read2_write2</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.sent1_ck">Connection.Noise.Symbolic.sent1_ck</a> ↪ · 3 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L775">Connection.Noise.Symbolic.dh_swap</a></li>
-<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L320">Connection.Noise.Symbolic.good</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L773">Connection.Noise.Symbolic.dh_swap</a></li>
+<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L318">Connection.Noise.Symbolic.good</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_resp_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1077">Connection.Noise.Symbolic.kk_authentic_resp_tight</a> · 9 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_authentic_resp_tight"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L1069">Connection.Noise.Symbolic.kk_authentic_resp_tight</a> · 9 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.read1_write1">Connection.Noise.read1_write1</a> ↪ · 4 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L775">Connection.Noise.Symbolic.dh_swap</a></li>
-<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L320">Connection.Noise.Symbolic.good</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L140">Connection.Noise.write1_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L773">Connection.Noise.Symbolic.dh_swap</a></li>
+<li>📐 <a href="../../engine/wire/NoiseSymbolic.lean#L318">Connection.Noise.Symbolic.good</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L138">Connection.Noise.write1_some</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.close_forgets"></a>✅ <a href="../../app/Proofs.lean#L3860">Connection.close_forgets</a> · 114 below</summary><ul>
+<li><details><summary><a id="law-Connection.close_forgets"></a>✅ <a href="../../app/Proofs.lean#L3879">Connection.close_forgets</a> · 114 below</summary><ul>
 <li>✅ <a href="#law-Connection.purge_forgets">Connection.purge_forgets</a> ↪ · 109 below</li>
-<li><details><summary><a id="law-Connection.purge_uncited"></a>▫️ <a href="../../app/Proofs.lean#L3805">Connection.purge_uncited</a> · 22 below</summary><ul>
+<li><details><summary><a id="law-Connection.purge_uncited"></a>▫️ <a href="../../app/Proofs.lean#L3824">Connection.purge_uncited</a> · 22 below</summary><ul>
 <li><details><summary><a id="law-Engine.closeUp_closed"></a>▫️ <a href="../../engine/core/Purge.lean#L306">Engine.closeUp_closed</a> · 11 below</summary><ul>
 <li><details><summary><a id="law-Engine.closeUp_walk"></a>▫️ <a href="../../engine/core/Purge.lean#L282">Engine.closeUp_walk</a> · 10 below</summary><ul>
 <li><details><summary><a id="law-Engine.walkS_ends"></a>▫️ <a href="../../engine/core/Purge.lean#L257">Engine.walkS_ends</a> · 9 below</summary><ul>
@@ -580,16 +581,16 @@
 </ul></details></li>
 <li>▫️ <a href="../../engine/core/Purge.lean#L362">Engine.mem_purgeSet_iff</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../app/Proofs.lean#L3844">Connection.closing_apply</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3863">Connection.closing_apply</a></li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L25">Engine.Sync.HeldM.bind_apply</a></li>
 <li>✅ <a href="../../engine/wire/CloseLaws.lean#L14">Engine.Sync.endSession_purges</a></li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L481">Engine.Sync.purge_apply</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.purge_forgets"></a>✅ <a href="../../app/Proofs.lean#L3828">Connection.purge_forgets</a> · 109 below</summary><ul>
-<li><details><summary><a id="law-Connection.forgets_of_uncited"></a>▫️ <a href="../../app/Proofs.lean#L3796">Connection.forgets_of_uncited</a> · 49 below</summary><ul>
-<li><details><summary><a id="law-Connection.keyRow_op"></a>▫️ <a href="../../app/Proofs.lean#L3764">Connection.keyRow_op</a> · 48 below</summary><ul>
-<li><details><summary><a id="law-Connection.validate_established"></a>▫️ <a href="../../app/Proofs.lean#L3730">Connection.validate_established</a> · 41 below</summary><ul>
-<li><details><summary><a id="law-Connection.established_check"></a>▫️ <a href="../../app/Proofs.lean#L3686">Connection.established_check</a> · 28 below</summary><ul>
+<li><details><summary><a id="law-Connection.purge_forgets"></a>✅ <a href="../../app/Proofs.lean#L3847">Connection.purge_forgets</a> · 109 below</summary><ul>
+<li><details><summary><a id="law-Connection.forgets_of_uncited"></a>▫️ <a href="../../app/Proofs.lean#L3815">Connection.forgets_of_uncited</a> · 49 below</summary><ul>
+<li><details><summary><a id="law-Connection.keyRow_op"></a>▫️ <a href="../../app/Proofs.lean#L3783">Connection.keyRow_op</a> · 48 below</summary><ul>
+<li><details><summary><a id="law-Connection.validate_established"></a>▫️ <a href="../../app/Proofs.lean#L3749">Connection.validate_established</a> · 41 below</summary><ul>
+<li><details><summary><a id="law-Connection.established_check"></a>▫️ <a href="../../app/Proofs.lean#L3705">Connection.established_check</a> · 28 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
@@ -623,7 +624,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.validate_eph"></a>▫️ <a href="../../app/Proofs.lean#L3708">Connection.validate_eph</a> · 37 below</summary><ul>
+<li><details><summary><a id="law-Connection.validate_eph"></a>▫️ <a href="../../app/Proofs.lean#L3727">Connection.validate_eph</a> · 37 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
@@ -631,7 +632,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../app/connection/Family.lean#L281">Connection.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/Proofs.lean#L3677">Connection.eph_check</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3696">Connection.eph_check</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -641,20 +642,20 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.valid_op"></a>▫️ <a href="../../app/Proofs.lean#L3635">Connection.valid_op</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/Proofs.lean#L3619">Connection.allValid_length</a></li>
+<li><details><summary><a id="law-Connection.valid_op"></a>▫️ <a href="../../app/Proofs.lean#L3654">Connection.valid_op</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../app/Proofs.lean#L3638">Connection.allValid_length</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../app/Proofs.lean#L3750">Connection.headD_mem</a></li>
-<li>▫️ <a href="../../app/Proofs.lean#L3757">Connection.room_local</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3769">Connection.headD_mem</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3776">Connection.room_local</a></li>
 </ul></details></li>
 </ul></details></li>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.purge_inv">Engine.purge_inv</a> ↪ · 34 below</li>
-<li><details><summary><a id="law-Connection.inv_drainS"></a>▫️ <a href="../../app/Proofs.lean#L3780">Connection.inv_drainS</a> · 25 below</summary><ul>
+<li><details><summary><a id="law-Connection.inv_drainS"></a>▫️ <a href="../../app/Proofs.lean#L3799">Connection.inv_drainS</a> · 25 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.inv_step">Engine.inv_step</a> ↪ · 24 below</li>
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.purge_uncited">Connection.purge_uncited</a> ↪ · 22 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.retired_complete"></a>✅ <a href="../../app/Proofs.lean#L3880">Connection.retired_complete</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Connection.retired_complete"></a>✅ <a href="../../app/Proofs.lean#L3899">Connection.retired_complete</a> · 6 below</summary><ul>
 <li><details><summary><a id="law-Connection.openSessions_state"></a>▫️ <a href="../../app/Proofs.lean#L299">Connection.openSessions_state</a> · 5 below</summary><ul>
 <li><details><summary><a id="law-Connection.allSessions_state"></a>▫️ <a href="../../app/connection/Proofs.lean#L215">Connection.allSessions_state</a> · 2 below</summary><ul>
 <li><details><summary><a id="law-Connection.sessionsOf_state"></a>▫️ <a href="../../app/connection/Proofs.lean#L208">Connection.sessionsOf_state</a> · 1 below</summary><ul>
@@ -666,11 +667,11 @@
 </ul></details></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.forget_stays"></a>✅ <a href="../../app/Proofs.lean#L3834">Connection.forget_stays</a> · 108 below</summary><ul>
+<li><details><summary><a id="law-Connection.forget_stays"></a>✅ <a href="../../app/Proofs.lean#L3853">Connection.forget_stays</a> · 108 below</summary><ul>
 <li>▫️ <a href="#law-Connection.forgets_of_uncited">Connection.forgets_of_uncited</a> ↪ · 49 below</li>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.purge_inv">Engine.purge_inv</a> ↪ · 34 below</li>
 <li>▫️ <a href="#law-Connection.inv_drainS">Connection.inv_drainS</a> ↪ · 25 below</li>
-<li><details><summary><a id="law-Connection.uncited_stays"></a>▫️ <a href="../../app/Proofs.lean#L3817">Connection.uncited_stays</a> · 10 below</summary><ul>
+<li><details><summary><a id="law-Connection.uncited_stays"></a>▫️ <a href="../../app/Proofs.lean#L3836">Connection.uncited_stays</a> · 10 below</summary><ul>
 <li>▫️ <a href="#law-Engine.drainS_ops">Engine.drainS_ops</a> ↪ · 7 below</li>
 <li>▫️ <a href="#law-Engine.purgeS_ops_mem">Engine.purgeS_ops_mem</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Engine.purgeS_ops_not">Engine.purgeS_ops_not</a> ↪ · 1 below</li>
@@ -695,23 +696,23 @@
 </ul></details></li>
 <li>✅ <a href="#law-Engine.Sync.drop_iff_silent">Engine.Sync.drop_iff_silent</a> ↪ · 2 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L724">Connection.Noise.Symbolic.kk_forward_secret</a> · 28 below</summary><ul>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L700">Connection.Noise.Symbolic.kk_forward_secret_resp</a> · 24 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L722">Connection.Noise.Symbolic.kk_forward_secret</a> · 28 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret_resp"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L698">Connection.Noise.Symbolic.kk_forward_secret_resp</a> · 24 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.keys_secret">Connection.Noise.Symbolic.keys_secret</a> ↪ · 19 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read1_ck">Connection.Noise.Symbolic.read1_ck</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write1_msg">Connection.Noise.Symbolic.write1_msg</a> ↪ · 1 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret_init"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L681">Connection.Noise.Symbolic.kk_forward_secret_init</a> · 23 below</summary><ul>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.kk_forward_secret_init"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L679">Connection.Noise.Symbolic.kk_forward_secret_init</a> · 23 below</summary><ul>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.keys_secret">Connection.Noise.Symbolic.keys_secret</a> ↪ · 19 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.read2_keys">Connection.Noise.Symbolic.read2_keys</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.Noise.Symbolic.write2_keys">Connection.Noise.Symbolic.write2_keys</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L421">Connection.Noise.Symbolic.clean_dh</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L293">Connection.Noise.Symbolic.dh_atom</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L419">Connection.Noise.Symbolic.clean_dh</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L291">Connection.Noise.Symbolic.dh_atom</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L620">Connection.Noise.Symbolic.exposed_clean</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L618">Connection.Noise.Symbolic.exposed_clean</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.purge_named"></a>✅ <a href="../../engine/core/Purge.lean#L572">Engine.purge_named</a> · 18 below</summary><ul>
 <li>▫️ <a href="#law-Engine.closeUp_sub">Engine.closeUp_sub</a> ↪ · 11 below</li>
@@ -865,14 +866,12 @@ Subtrees met 5 levels down, drawn whole here once.
 <ul>
 <li><details><summary><a id="law-Engine.mem_matching"></a>▫️ <a href="../../engine/core/Decl.lean#L143">Engine.mem_matching</a> · 3 below</summary><ul>
 <li><details><summary><a id="law-Engine.mem_sortPos"></a>▫️ <a href="../../engine/core/Decl.lean#L138">Engine.mem_sortPos</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Engine.perm_sortPos"></a>📐 <a href="../../engine/core/Decl.lean#L133">Engine.perm_sortPos</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/core/Decl.lean#L124">Engine.perm_insertBy</a></li>
+<li>✅ <a href="quality-proofs-the-engine.md#law-Engine.perm_sortPos">Engine.perm_sortPos</a> ↪ · 1 below</li>
 </ul></details></li>
 </ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Connection.Noise.Symbolic.clean_decHash"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L440">Connection.Noise.Symbolic.clean_decHash</a> · 2 below</summary><ul>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L302">Connection.Noise.Symbolic.dec_some</a></li>
-<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L130">Connection.Noise.decHash_some</a></li>
+<li><details><summary><a id="law-Connection.Noise.Symbolic.clean_decHash"></a>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L438">Connection.Noise.Symbolic.clean_decHash</a> · 2 below</summary><ul>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L300">Connection.Noise.Symbolic.dec_some</a></li>
+<li>▫️ <a href="../../engine/wire/NoiseSymbolic.lean#L128">Connection.Noise.decHash_some</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.WalkInv.step"></a>▫️ <a href="../../engine/core/Purge.lean#L195">Engine.WalkInv.step</a> · 7 below</summary><ul>
 <li>▫️ <a href="#law-Engine.mem_dependents">Engine.mem_dependents</a> ↪ · 3 below</li>

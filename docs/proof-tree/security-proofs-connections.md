@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Security proofs › Connections**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1035) · 🌐 world: the node's code in a World (35) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (319) · 🧪 control: a negative control (24) · ▫️ lemma: not audited (2003)
+✅ wired: about running code (1075) · 🌐 world: the node's code in a World (35) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (299) · 🧪 control: a negative control (25) · ▫️ lemma: not audited (1984)
 
 <ul>
 <li><details><summary><a id="law-Connection.opened_endpoint"></a>✅ <a href="../../app/Proofs.lean#L394">Connection.opened_endpoint</a> · 29 below</summary><ul>
@@ -50,8 +50,8 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1185">Community.all2_cons2</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1222">Community.all2_cons2</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -73,7 +73,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../app/community/device/endpoint/Proofs.lean#L16">Community.check_endpoint</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -95,7 +95,7 @@
 </ul></details></li>
 <li><details><summary><a id="law-Community.connect_iff"></a>✅ <a href="../../app/community/Proofs.lean#L821">Community.connect_iff</a> · 68 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Community.live_iff">Community.live_iff</a> ↪ · 66 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1525">Community.byKey_args</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1566">Community.byKey_args</a></li>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.deviceLive_iff"></a>✅ <a href="../../app/community/Proofs.lean#L711">Community.deviceLive_iff</a> · 62 below</summary><ul>
@@ -104,7 +104,7 @@
 <li><details><summary><a id="law-Community.unremoved_iff"></a>✅ <a href="../../app/community/Proofs.lean#L668">Community.unremoved_iff</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/community/Proofs.lean#L655">Community.mem_cons_row</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1484">Community.byDevice_args</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1525">Community.byDevice_args</a></li>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.refuse_nonmember"></a>✅ <a href="../../app/community/Proofs.lean#L834">Community.refuse_nonmember</a> · 70 below</summary><ul>
@@ -121,7 +121,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -154,7 +154,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -181,19 +181,19 @@
 <li>✅ <a href="#law-Community.deviceLive_iff">Community.deviceLive_iff</a> ↪ · 62 below</li>
 <li><details><summary><a id="law-Community.not_admitted_of_empty"></a>▫️ <a href="../../app/community/Proofs.lean#L1064">Community.not_admitted_of_empty</a> · 56 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Community.exists_row">Community.exists_row</a> ↪ · 54 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1484">Community.byDevice_args</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1525">Community.byDevice_args</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.standing_eval"></a>▫️ <a href="../../app/community/Proofs.lean#L1084">Community.standing_eval</a> · 4 below</summary><ul>
 <li><details><summary><a id="law-Community.deviceLive_eval"></a>▫️ <a href="../../app/community/Proofs.lean#L1054">Community.deviceLive_eval</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../engine/core/View.lean#L62">Engine.View.eval_bind</a></li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1541">Community.eval_list</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1582">Community.eval_list</a></li>
 </ul></details></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.pick_some"></a>▫️ <a href="../../app/community/Proofs.lean#L1133">Community.pick_some</a> · 3 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1544">Community.better_cases</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1585">Community.better_cases</a></li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
 </ul></details></li>
@@ -209,17 +209,17 @@
 <li>✅ <a href="quality-proofs-the-screen.md#law-Engine.filed_rel">Engine.filed_rel</a> ↪ · 45 below</li>
 <li>▫️ <a href="#law-Engine.total_pos">Engine.total_pos</a> ↪ · 4 below</li>
 </ul></details></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1484">Community.byDevice_args</a></li>
-<li>✅ <a href="../../app/community/Family.lean#L1432">Community.rels_distinct</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1434">Community.rels_short</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1525">Community.byDevice_args</a></li>
+<li>✅ <a href="../../app/community/Family.lean#L1473">Community.rels_distinct</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1475">Community.rels_short</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.mem_rows"></a>▫️ <a href="../../app/community/Family.lean#L1535">Community.mem_rows</a> · 54 below</summary><ul>
+<li><details><summary><a id="law-Community.mem_rows"></a>▫️ <a href="../../app/community/Family.lean#L1576">Community.mem_rows</a> · 54 below</summary><ul>
 <li><details><summary><a id="law-Engine.mem_rows_rel"></a>▫️ <a href="../../engine/core/Decl.lean#L219">Engine.mem_rows_rel</a> · 51 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-screen.md#law-Engine.filed_rel">Engine.filed_rel</a> ↪ · 45 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.mem_rows_all">Engine.mem_rows_all</a> ↪ · 4 below</li>
 </ul></details></li>
-<li>✅ <a href="../../app/community/Family.lean#L1432">Community.rels_distinct</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1434">Community.rels_short</a></li>
+<li>✅ <a href="../../app/community/Family.lean#L1473">Community.rels_distinct</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1475">Community.rels_short</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.dormant_none"></a>▫️ <a href="../../app/community/member/join/joining/Proofs.lean#L10">Community.dormant_none</a> · 2 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
@@ -231,7 +231,7 @@
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L1541">Community.eval_list</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1582">Community.eval_list</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Community.join_new_device"></a>✅ <a href="../../app/community/Proofs.lean#L1265">Community.join_new_device</a> · 73 below</summary><ul>
 <li>▫️ <a href="#law-Community.admitted_total">Community.admitted_total</a> ↪ · 55 below</li>
@@ -247,8 +247,8 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.View.eval_bind-">Engine.View.eval_bind'</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1541">Community.eval_list</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1582">Community.eval_list</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -602,35 +602,35 @@
 <li>▫️ <a href="../../engine/sync/ConnLaws.lean#L107">Engine.Sync.recv_cases</a></li>
 <li>▫️ <a href="../../engine/sync/ConnLaws.lean#L38">Engine.Sync.shows_heard</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.removal_reaches_session"></a>✅ <a href="../../app/Proofs.lean#L3088">Connection.removal_reaches_session</a> · 239 below</summary><ul>
+<li><details><summary><a id="law-Connection.removal_reaches_session"></a>✅ <a href="../../app/Proofs.lean#L3104">Connection.removal_reaches_session</a> · 239 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.entry_fresh">Engine.Sync.entry_fresh</a> ↪ · 102 below</li>
-<li><details><summary><a id="law-Connection.hooks_readOnly"></a>✅ <a href="../../app/Proofs.lean#L3029">Connection.hooks_readOnly</a> · 89 below</summary><ul>
-<li><details><summary><a id="law-Connection.hooks_reads"></a>✅ <a href="../../app/Proofs.lean#L2109">Connection.hooks_reads</a> · 88 below</summary><ul>
-<li><details><summary><a id="law-Connection.react_reads"></a>▫️ <a href="../../app/Proofs.lean#L2023">Connection.react_reads</a> · 55 below</summary><ul>
-<li><details><summary><a id="law-Connection.answerAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2001">Connection.answerAll_reads</a> · 46 below</summary><ul>
+<li><details><summary><a id="law-Connection.hooks_readOnly"></a>✅ <a href="../../app/Proofs.lean#L3045">Connection.hooks_readOnly</a> · 89 below</summary><ul>
+<li><details><summary><a id="law-Connection.hooks_reads"></a>✅ <a href="../../app/Proofs.lean#L2125">Connection.hooks_reads</a> · 88 below</summary><ul>
+<li><details><summary><a id="law-Connection.react_reads"></a>▫️ <a href="../../app/Proofs.lean#L2039">Connection.react_reads</a> · 55 below</summary><ul>
+<li><details><summary><a id="law-Connection.answerAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2017">Connection.answerAll_reads</a> · 46 below</summary><ul>
 <li>▫️ <a href="#law-Connection.answerOne_reads">Connection.answerOne_reads</a> ↪ · 45 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.establishAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2019">Connection.establishAll_reads</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Connection.establishAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2035">Connection.establishAll_reads</a> · 7 below</summary><ul>
 <li>▫️ <a href="#law-Connection.establishReqs_reads">Connection.establishReqs_reads</a> ↪ · 6 below</li>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.openAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L1980">Connection.openAll_reads</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Connection.openAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L1996">Connection.openAll_reads</a> · 6 below</summary><ul>
 <li>▫️ <a href="#law-Connection.openEach_reads">Connection.openEach_reads</a> ↪ · 4 below</li>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.deliverAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L1988">Connection.deliverAll_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.deliverAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2004">Connection.deliverAll_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.joinsOf_reads">Connection.joinsOf_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.endpoints_reads"></a>▫️ <a href="../../app/Proofs.lean#L1956">Connection.endpoints_reads</a> · 3 below</summary><ul>
-<li>▫️ <a href="../../app/Proofs.lean#L1948">Connection.list_reads</a></li>
+<li><details><summary><a id="law-Connection.endpoints_reads"></a>▫️ <a href="../../app/Proofs.lean#L1972">Connection.endpoints_reads</a> · 3 below</summary><ul>
+<li>▫️ <a href="../../app/Proofs.lean#L1964">Connection.list_reads</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
@@ -638,24 +638,24 @@
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.onArrival_reads"></a>▫️ <a href="../../app/Proofs.lean#L2098">Connection.onArrival_reads</a> · 45 below</summary><ul>
+<li><details><summary><a id="law-Connection.onArrival_reads"></a>▫️ <a href="../../app/Proofs.lean#L2114">Connection.onArrival_reads</a> · 45 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Connection.Body.decFrom_of">Connection.Body.decFrom_of</a> ↪ · 3 below</li>
-<li><details><summary><a id="law-Connection.count_reads"></a>▫️ <a href="../../app/Proofs.lean#L1953">Connection.count_reads</a> · 3 below</summary><ul>
-<li>▫️ <a href="../../app/Proofs.lean#L1948">Connection.list_reads</a></li>
+<li><details><summary><a id="law-Connection.count_reads"></a>▫️ <a href="../../app/Proofs.lean#L1969">Connection.count_reads</a> · 3 below</summary><ul>
+<li>▫️ <a href="../../app/Proofs.lean#L1964">Connection.list_reads</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.resendConns_reads"></a>▫️ <a href="../../app/Proofs.lean#L2094">Connection.resendConns_reads</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Connection.resendConns_reads"></a>▫️ <a href="../../app/Proofs.lean#L2110">Connection.resendConns_reads</a> · 3 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
-<li><details><summary><a id="law-Connection.view_reads"></a>▫️ <a href="../../app/Proofs.lean#L1939">Connection.view_reads</a> · 1 below</summary><ul>
-<li>✅ <a href="../../app/Proofs.lean#L1933">Connection.view_held</a></li>
+<li><details><summary><a id="law-Connection.view_reads"></a>▫️ <a href="../../app/Proofs.lean#L1955">Connection.view_reads</a> · 1 below</summary><ul>
+<li>✅ <a href="../../app/Proofs.lean#L1949">Connection.view_held</a></li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
@@ -671,19 +671,19 @@
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.dial_reads"></a>▫️ <a href="../../app/Proofs.lean#L2050">Connection.dial_reads</a> · 42 below</summary><ul>
-<li><details><summary><a id="law-Connection.dialAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2045">Connection.dialAll_reads</a> · 40 below</summary><ul>
+<li><details><summary><a id="law-Connection.dial_reads"></a>▫️ <a href="../../app/Proofs.lean#L2066">Connection.dial_reads</a> · 42 below</summary><ul>
+<li><details><summary><a id="law-Connection.dialAll_reads"></a>▫️ <a href="../../app/Proofs.lean#L2061">Connection.dialAll_reads</a> · 40 below</summary><ul>
 <li>▫️ <a href="#law-Connection.dialOne_reads">Connection.dialOne_reads</a> ↪ · 39 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
 <li>▫️ <a href="#law-Connection.endpoints_reads">Connection.endpoints_reads</a> ↪ · 3 below</li>
-<li>▫️ <a href="../../app/Proofs.lean#L1948">Connection.list_reads</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L1964">Connection.list_reads</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.retired_reads"></a>▫️ <a href="../../app/Proofs.lean#L2084">Connection.retired_reads</a> · 13 below</summary><ul>
-<li><details><summary><a id="law-Connection.openSessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2076">Connection.openSessions_reads</a> · 12 below</summary><ul>
+<li><details><summary><a id="law-Connection.retired_reads"></a>▫️ <a href="../../app/Proofs.lean#L2100">Connection.retired_reads</a> · 13 below</summary><ul>
+<li><details><summary><a id="law-Connection.openSessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2092">Connection.openSessions_reads</a> · 12 below</summary><ul>
 <li>▫️ <a href="#law-Connection.allSessions_reads">Connection.allSessions_reads</a> ↪ · 8 below</li>
 <li>▫️ <a href="#law-Connection.carrying_reads">Connection.carrying_reads</a> ↪ · 4 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
@@ -692,31 +692,31 @@
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.sessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2079">Connection.sessions_reads</a> · 13 below</summary><ul>
+<li><details><summary><a id="law-Connection.sessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2095">Connection.sessions_reads</a> · 13 below</summary><ul>
 <li>▫️ <a href="#law-Connection.openSessions_reads">Connection.openSessions_reads</a> ↪ · 12 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.outbox_reads"></a>▫️ <a href="../../app/Proofs.lean#L2091">Connection.outbox_reads</a> · 8 below</summary><ul>
+<li><details><summary><a id="law-Connection.outbox_reads"></a>▫️ <a href="../../app/Proofs.lean#L2107">Connection.outbox_reads</a> · 8 below</summary><ul>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="#law-Engine.Sync.Reads.forIn-">Engine.Sync.Reads.forIn'</a> ↪ · 2 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.retryKey_reads"></a>▫️ <a href="../../app/Proofs.lean#L2102">Connection.retryKey_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.retryKey_reads"></a>▫️ <a href="../../app/Proofs.lean#L2118">Connection.retryKey_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.sealFor_reads"></a>▫️ <a href="../../app/Proofs.lean#L2087">Connection.sealFor_reads</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Connection.keys_reads"></a>▫️ <a href="../../app/Proofs.lean#L1966">Connection.keys_reads</a> · 1 below</summary><ul>
+<li><details><summary><a id="law-Connection.sealFor_reads"></a>▫️ <a href="../../app/Proofs.lean#L2103">Connection.sealFor_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.keys_reads"></a>▫️ <a href="../../app/Proofs.lean#L1982">Connection.keys_reads</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/connection/Proofs.lean#L55">Connection.sessionKeys_reads</a></li>
 </ul></details></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.closing_reads"></a>▫️ <a href="../../app/Proofs.lean#L2056">Connection.closing_reads</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Connection.closing_reads"></a>▫️ <a href="../../app/Proofs.lean#L2072">Connection.closing_reads</a> · 3 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -726,12 +726,12 @@
 <li>▫️ <a href="../../app/connection/Proofs.lean#L55">Connection.sessionKeys_reads</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.rooms_reads"></a>▫️ <a href="../../app/Proofs.lean#L2059">Connection.rooms_reads</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Connection.rooms_reads"></a>▫️ <a href="../../app/Proofs.lean#L2075">Connection.rooms_reads</a> · 2 below</summary><ul>
 <li>▫️ <a href="#law-Connection.view_reads">Connection.view_reads</a> ↪ · 1 below</li>
 </ul></details></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.sent_mayGo"></a>✅ <a href="../../app/Proofs.lean#L3050">Connection.sent_mayGo</a> · 84 below</summary><ul>
+<li><details><summary><a id="law-Connection.sent_mayGo"></a>✅ <a href="../../app/Proofs.lean#L3066">Connection.sent_mayGo</a> · 84 below</summary><ul>
 <li>✅ <a href="#law-Connection.removed_gets_only_notice">Connection.removed_gets_only_notice</a> ↪ · 41 below</li>
 <li><details><summary><a id="law-Engine.Sync.tickGive_held"></a>▫️ <a href="../../engine/sync/SimLaws.lean#L221">Engine.Sync.tickGive_held</a> · 16 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.tickGive_sim"></a>✅ <a href="../../engine/sync/SimLaws.lean#L195">Engine.Sync.tickGive_sim</a> · 14 below</summary><ul>
@@ -784,8 +784,8 @@
 </ul></details></li>
 <li>▫️ <a href="../../engine/wire/EgressLaws.lean#L305">Engine.Sync.result_bind</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.rooms_held"></a>✅ <a href="../../app/Proofs.lean#L1944">Connection.rooms_held</a> · 1 below</summary><ul>
-<li>✅ <a href="../../app/Proofs.lean#L1933">Connection.view_held</a></li>
+<li><details><summary><a id="law-Connection.rooms_held"></a>✅ <a href="../../app/Proofs.lean#L1960">Connection.rooms_held</a> · 1 below</summary><ul>
+<li>✅ <a href="../../app/Proofs.lean#L1949">Connection.view_held</a></li>
 </ul></details></li>
 <li>▫️ <a href="../../engine/sync/NoticeLaws.lean#L418">Engine.Sync.mem_syncs</a></li>
 <li>▫️ <a href="../../engine/sync/ConnLaws.lean#L20">Engine.Sync.msg_wire</a></li>
@@ -989,7 +989,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -1010,7 +1010,7 @@
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Connection.Body.decFrom_of">Connection.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../app/connection/Family.lean#L281">Connection.Body.dec_of</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -1114,8 +1114,8 @@
 </ul></details></li>
 <li><details><summary><a id="law-Connection.deliverAll_join"></a>▫️ <a href="../../app/Proofs.lean#L576">Connection.deliverAll_join</a> · 35 below</summary><ul>
 <li><details><summary><a id="law-Connection.joinsOf_join"></a>▫️ <a href="../../app/Proofs.lean#L551">Connection.joinsOf_join</a> · 34 below</summary><ul>
-<li><details><summary><a id="law-Engine.Op.make_eta"></a>▫️ <a href="../../engine/core/Core.lean#L61">Engine.Op.make_eta</a> · 31 below</summary><ul>
-<li><details><summary><a id="law-Engine.Op.ext-"></a>▫️ <a href="../../engine/core/Core.lean#L53">Engine.Op.ext'</a> · 30 below</summary><ul>
+<li><details><summary><a id="law-Engine.Op.make_eta"></a>▫️ <a href="../../engine/core/Core.lean#L62">Engine.Op.make_eta</a> · 31 below</summary><ul>
+<li><details><summary><a id="law-Engine.Op.ext-"></a>▫️ <a href="../../engine/core/Core.lean#L54">Engine.Op.ext'</a> · 30 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
@@ -1183,7 +1183,7 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>▫️ <a href="../../app/connection/Proofs.lean#L189">Connection.eval_liftL_bind</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -1237,50 +1237,6 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Net.Scene.no_connection_before_approval"></a>📐 <a href="../../app/community/Proofs.lean#L2949">Net.Scene.no_connection_before_approval</a> · 122 below</summary><ul>
-<li>📐 <a href="quality-proofs-sync.md#law-Net.Scene.reachable_inv">Net.Scene.reachable_inv</a> ↪ · 121 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.sessions_trusted"></a>📐 <a href="../../app/community/Proofs.lean#L2973">Net.Scene.sessions_trusted</a> · 122 below</summary><ul>
-<li>📐 <a href="quality-proofs-sync.md#law-Net.Scene.reachable_inv">Net.Scene.reachable_inv</a> ↪ · 121 below</li>
-<li><details><summary><a id="law-Net.Scene.Inv.trustsB"></a>▫️ <a href="../../app/community/Proofs.lean#L2506">Net.Scene.Inv.trustsB</a> · 85 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.trustsB"></a>▫️ <a href="../../app/community/Proofs.lean#L2491">Net.Scene.trustsB</a> · 81 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.allowedB"></a>📐 <a href="../../app/community/Proofs.lean#L2291">Net.Scene.allowedB</a> · 76 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.v_adm"></a>▫️ <a href="../../app/community/Proofs.lean#L2191">Net.Scene.v_adm</a> · 63 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.v_appr">Net.Scene.v_appr</a> ↪ · 61 below</li>
-<li>▫️ <a href="#law-Net.Scene.v_req">Net.Scene.v_req</a> ↪ · 59 below</li>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>✅ <a href="quality-proofs-the-engine.md#law-Community.admit_admits">Community.admit_admits</a> ↪ · 49 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="#law-Net.Scene.hd">Net.Scene.hd</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.table_of">Net.table_of</a> ↪ · 1 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.knownB"></a>▫️ <a href="../../app/community/Proofs.lean#L2283">Net.Scene.knownB</a> · 52 below</summary><ul>
-<li>📐 <a href="#law-Net.Scene.admitted_inv">Net.Scene.admitted_inv</a> ↪ · 51 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.live_of"></a>▫️ <a href="../../app/community/Proofs.lean#L2263">Net.Scene.live_of</a> · 50 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.not_removed">Net.Scene.not_removed</a> ↪ · 49 below</li>
-</ul></details></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.allowedA"></a>📐 <a href="../../app/community/Proofs.lean#L2275">Net.Scene.allowedA</a> · 68 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.knownA"></a>▫️ <a href="../../app/community/Proofs.lean#L2267">Net.Scene.knownA</a> · 64 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>📐 <a href="#law-Net.Scene.admitted_inv">Net.Scene.admitted_inv</a> ↪ · 51 below</li>
-</ul></details></li>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>▫️ <a href="#law-Net.Scene.live_of">Net.Scene.live_of</a> ↪ · 50 below</li>
-</ul></details></li>
-<li>▫️ <a href="#law-Net.Scene.knownA">Net.Scene.knownA</a> ↪ · 64 below</li>
-<li>▫️ <a href="#law-Engine.Op.ext-">Engine.Op.ext'</a> ↪ · 30 below</li>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2419">Net.Scene.mem_S</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.Inv.bcov"></a>▫️ <a href="../../app/community/Proofs.lean#L2458">Net.Scene.Inv.bcov</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.adm_ne"></a>▫️ <a href="../../app/community/Proofs.lean#L2415">Net.Scene.adm_ne</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2412">Net.Scene.kinds</a></li>
-</ul></details></li>
-</ul></details></li>
-</ul></details></li>
-<li>📐 <a href="#law-Net.Scene.allowedB">Net.Scene.allowedB</a> ↪ · 76 below</li>
-</ul></details></li>
 <li><details><summary><a id="law-Connection.bare_takes_only_join"></a>✅ <a href="../../app/Proofs.lean#L610">Connection.bare_takes_only_join</a> · 62 below</summary><ul>
 <li><details><summary><a id="law-Connection.answerAll_conn"></a>▫️ <a href="../../app/Proofs.lean#L532">Connection.answerAll_conn</a> · 43 below</summary><ul>
 <li>▫️ <a href="#law-Connection.answerOne_out">Connection.answerOne_out</a> ↪ · 41 below</li>
@@ -1318,7 +1274,7 @@
 </ul></details></li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
 <li>✅ <a href="../../app/connection/Proofs.lean#L241">Connection.room_connOp</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
@@ -1332,19 +1288,19 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><a id="law-Engine.intake_local"></a>✅ <a href="../../engine/core/Sync.lean#L39">Engine.intake_local</a></li>
-<li><details><summary><a id="law-Engine.stored_local"></a>✅ <a href="../../engine/core/Sync.lean#L88">Engine.stored_local</a> · 13 below</summary><ul>
-<li><details><summary><a id="law-Engine.stepS_ops-"></a>▫️ <a href="../../engine/core/Sync.lean#L84">Engine.stepS_ops'</a> · 7 below</summary><ul>
+<li><a id="law-Engine.intake_local"></a>✅ <a href="../../engine/core/Sync.lean#L44">Engine.intake_local</a></li>
+<li><details><summary><a id="law-Engine.stored_local"></a>✅ <a href="../../engine/core/Sync.lean#L114">Engine.stored_local</a> · 13 below</summary><ul>
+<li><details><summary><a id="law-Engine.stepS_ops-"></a>▫️ <a href="../../engine/core/Sync.lean#L110">Engine.stepS_ops'</a> · 7 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.stepS_ops">Engine.stepS_ops</a> ↪ · 6 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.foldl_ingest_ops"></a>▫️ <a href="../../engine/core/Sync.lean#L73">Engine.foldl_ingest_ops</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/core/Sync.lean#L63">Engine.ingestS_ops</a></li>
+<li><details><summary><a id="law-Engine.foldl_ingest_ops"></a>▫️ <a href="../../engine/core/Sync.lean#L99">Engine.foldl_ingest_ops</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/core/Sync.lean#L89">Engine.ingestS_ops</a></li>
 </ul></details></li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.purgeS_ops_mem">Engine.purgeS_ops_mem</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Engine.purgeS_ops_not">Engine.purgeS_ops_not</a> ↪ · 1 below</li>
-<li>✅ <a href="../../engine/core/Sync.lean#L39">Engine.intake_local</a></li>
+<li>✅ <a href="../../engine/core/Sync.lean#L44">Engine.intake_local</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.local_fact_mine"></a>✅ <a href="../../app/community/Family.lean#L1295">Community.local_fact_mine</a> · 59 below</summary><ul>
+<li><details><summary><a id="law-Community.local_fact_mine"></a>✅ <a href="../../app/community/Family.lean#L1332">Community.local_fact_mine</a> · 59 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.valid_inv">Community.valid_inv</a> ↪ · 43 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
 <li>✅ <a href="#law-Engine.stored_local">Engine.stored_local</a> ↪ · 13 below</li>
@@ -1354,8 +1310,8 @@
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1285">Community.check_local</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L652">Community.Body.dec_of</a></li>
+<li>▫️ <a href="../../app/community/Family.lean#L1322">Community.check_local</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
@@ -1368,7 +1324,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
-<li><a id="law-Engine.intakeConn_conn"></a>✅ <a href="../../engine/core/Sync.lean#L33">Engine.intakeConn_conn</a></li>
+<li><a id="law-Engine.intakeConn_conn"></a>✅ <a href="../../engine/core/Sync.lean#L38">Engine.intakeConn_conn</a></li>
 <li><details><summary><a id="law-Connection.established_agrees_sodium"></a>✅ <a href="../../app/Proofs.lean#L98">Connection.established_agrees_sodium</a> · 35 below</summary><ul>
 <li>✅ <a href="#law-Connection.established_agrees">Connection.established_agrees</a> ↪ · 30 below</li>
 <li>✅ <a href="#law-Connection.Noise.suite_good">Connection.Noise.suite_good</a> ↪ · 3 below</li>
@@ -1509,11 +1465,11 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L63">Engine.Sync.HeldM.run_bind</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.answerOne_reads"></a>▫️ <a href="../../app/Proofs.lean#L1996">Connection.answerOne_reads</a> · 45 below</summary><ul>
+<li><details><summary><a id="law-Connection.answerOne_reads"></a>▫️ <a href="../../app/Proofs.lean#L2012">Connection.answerOne_reads</a> · 45 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li><details><summary><a id="law-Connection.arrivedFrom_reads"></a>▫️ <a href="../../app/Proofs.lean#L1959">Connection.arrivedFrom_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.arrivedFrom_reads"></a>▫️ <a href="../../app/Proofs.lean#L1975">Connection.arrivedFrom_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -1536,8 +1492,8 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.establishReqs_reads"></a>▫️ <a href="../../app/Proofs.lean#L2014">Connection.establishReqs_reads</a> · 6 below</summary><ul>
-<li><details><summary><a id="law-Connection.establishConns_reads"></a>▫️ <a href="../../app/Proofs.lean#L2010">Connection.establishConns_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.establishReqs_reads"></a>▫️ <a href="../../app/Proofs.lean#L2030">Connection.establishReqs_reads</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Connection.establishConns_reads"></a>▫️ <a href="../../app/Proofs.lean#L2026">Connection.establishConns_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.count_reads">Connection.count_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -1546,24 +1502,24 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.rows_reads"></a>▫️ <a href="../../app/Proofs.lean#L1950">Connection.rows_reads</a> · 3 below</summary><ul>
-<li>▫️ <a href="../../app/Proofs.lean#L1948">Connection.list_reads</a></li>
+<li><details><summary><a id="law-Connection.rows_reads"></a>▫️ <a href="../../app/Proofs.lean#L1966">Connection.rows_reads</a> · 3 below</summary><ul>
+<li>▫️ <a href="../../app/Proofs.lean#L1964">Connection.list_reads</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.openEach_reads"></a>▫️ <a href="../../app/Proofs.lean#L1976">Connection.openEach_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.openEach_reads"></a>▫️ <a href="../../app/Proofs.lean#L1992">Connection.openEach_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.count_reads">Connection.count_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.joinsOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L1984">Connection.joinsOf_reads</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Connection.joinsOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2000">Connection.joinsOf_reads</a> · 3 below</summary><ul>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.dialOne_reads"></a>▫️ <a href="../../app/Proofs.lean#L2040">Connection.dialOne_reads</a> · 39 below</summary><ul>
-<li><details><summary><a id="law-Connection.requestOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2031">Connection.requestOf_reads</a> · 33 below</summary><ul>
-<li><details><summary><a id="law-Connection.helloOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L1971">Connection.helloOf_reads</a> · 32 below</summary><ul>
+<li><details><summary><a id="law-Connection.dialOne_reads"></a>▫️ <a href="../../app/Proofs.lean#L2056">Connection.dialOne_reads</a> · 39 below</summary><ul>
+<li><details><summary><a id="law-Connection.requestOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2047">Connection.requestOf_reads</a> · 33 below</summary><ul>
+<li><details><summary><a id="law-Connection.helloOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L1987">Connection.helloOf_reads</a> · 32 below</summary><ul>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
@@ -1584,7 +1540,7 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.connectedTo_reads"></a>▫️ <a href="../../app/Proofs.lean#L1968">Connection.connectedTo_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.connectedTo_reads"></a>▫️ <a href="../../app/Proofs.lean#L1984">Connection.connectedTo_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -1592,15 +1548,15 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="#law-Connection.count_reads">Connection.count_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="#law-Connection.view_reads">Connection.view_reads</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/Proofs.lean#L1948">Connection.list_reads</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L1964">Connection.list_reads</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L136">Engine.Sync.Reads.getOp'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.allSessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2069">Connection.allSessions_reads</a> · 8 below</summary><ul>
-<li><details><summary><a id="law-Connection.sessionsOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2065">Connection.sessionsOf_reads</a> · 7 below</summary><ul>
-<li><details><summary><a id="law-Connection.sessionOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2062">Connection.sessionOf_reads</a> · 6 below</summary><ul>
-<li><details><summary><a id="law-Connection.arrival_reads"></a>▫️ <a href="../../app/Proofs.lean#L1962">Connection.arrival_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.allSessions_reads"></a>▫️ <a href="../../app/Proofs.lean#L2085">Connection.allSessions_reads</a> · 8 below</summary><ul>
+<li><details><summary><a id="law-Connection.sessionsOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2081">Connection.sessionsOf_reads</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Connection.sessionOf_reads"></a>▫️ <a href="../../app/Proofs.lean#L2078">Connection.sessionOf_reads</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Connection.arrival_reads"></a>▫️ <a href="../../app/Proofs.lean#L1978">Connection.arrival_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.rows_reads">Connection.rows_reads</a> ↪ · 3 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -1616,7 +1572,7 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.carrying_reads"></a>▫️ <a href="../../app/Proofs.lean#L2072">Connection.carrying_reads</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Connection.carrying_reads"></a>▫️ <a href="../../app/Proofs.lean#L2088">Connection.carrying_reads</a> · 4 below</summary><ul>
 <li>▫️ <a href="#law-Connection.view_reads">Connection.view_reads</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L130">Engine.Sync.Reads.bind'</a></li>
 <li>▫️ <a href="../../engine/wire/WorldLaws.lean#L129">Engine.Sync.Reads.pure'</a></li>
@@ -1655,156 +1611,5 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="#law-Engine.Sync.Sim.bind-">Engine.Sync.Sim.bind'</a> ↪ · 1 below</li>
 <li>▫️ <a href="../../engine/sync/SimLaws.lean#L56">Engine.Sync.Sim.getOp'</a></li>
 <li>▫️ <a href="../../engine/sync/SimLaws.lean#L36">Engine.Sync.Sim.pure'</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.v_appr"></a>▫️ <a href="../../app/community/Proofs.lean#L2186">Net.Scene.v_appr</a> · 61 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.v_req">Net.Scene.v_req</a> ↪ · 59 below</li>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>✅ <a href="quality-proofs-the-engine.md#law-Community.approve_valid">Community.approve_valid</a> ↪ · 49 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="#law-Net.Scene.hd">Net.Scene.hd</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.table_of">Net.table_of</a> ↪ · 1 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.v_req"></a>▫️ <a href="../../app/community/Proofs.lean#L2179">Net.Scene.v_req</a> · 59 below</summary><ul>
-<li><details><summary><a id="law-Net.Scene.v_inv"></a>▫️ <a href="../../app/community/Proofs.lean#L2166">Net.Scene.v_inv</a> · 56 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.spec_valid_of">Engine.spec_valid_of</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.Scene.hd">Net.Scene.hd</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.table_of">Net.table_of</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li>▫️ <a href="#law-Net.Scene.v_root">Net.Scene.v_root</a> ↪ · 55 below</li>
-<li>✅ <a href="quality-proofs-the-engine.md#law-Community.request_valid">Community.request_valid</a> ↪ · 49 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="#law-Net.Scene.hd">Net.Scene.hd</a> ↪ · 1 below</li>
-<li><details><summary><a id="law-Net.table_keyed"></a>▫️ <a href="../../app/community/Proofs.lean#L2137">Net.table_keyed</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2121">Net.table_some</a></li>
-</ul></details></li>
-<li>▫️ <a href="#law-Net.table_of">Net.table_of</a> ↪ · 1 below</li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.v_root"></a>▫️ <a href="../../app/community/Proofs.lean#L2156">Net.Scene.v_root</a> · 55 below</summary><ul>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.spec_valid_of">Engine.spec_valid_of</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.Scene.hd">Net.Scene.hd</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.table_of">Net.table_of</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.body_mk"></a>▫️ <a href="../../app/community/Proofs.lean#L2145">Net.Scene.body_mk</a> · 41 below</summary><ul>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
-<li>✅ <a href="../../engine/core/Codec.lean#L767">Engine.Codec.decode_encode</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.hd"></a>▫️ <a href="../../app/community/Proofs.lean#L2154">Net.Scene.hd</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2139">Net.distinct_sub</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.table_of"></a>▫️ <a href="../../app/community/Proofs.lean#L2127">Net.table_of</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2121">Net.table_some</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.admitted_inv"></a>📐 <a href="../../app/community/Proofs.lean#L2206">Net.Scene.admitted_inv</a> · 51 below</summary><ul>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.valid_inv">Community.valid_inv</a> ↪ · 43 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.check_admission">Community.check_admission</a> ↪ · 24 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.check_request">Community.check_request</a> ↪ · 24 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li><details><summary><a id="law-Net.Scene.table_S"></a>▫️ <a href="../../app/community/Proofs.lean#L2201">Net.Scene.table_S</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../app/community/Proofs.lean#L2121">Net.table_some</a></li>
-</ul></details></li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../app/community/Family.lean#L1185">Community.all2_cons2</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
-</ul></details></li>
-<li><details><summary><a id="law-Net.Scene.not_removed"></a>▫️ <a href="../../app/community/Proofs.lean#L2247">Net.Scene.not_removed</a> · 49 below</summary><ul>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.valid_inv">Community.valid_inv</a> ↪ · 43 below</li>
-<li>▫️ <a href="#law-Net.Scene.body_mk">Net.Scene.body_mk</a> ↪ · 41 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.check_removal">Community.check_removal</a> ↪ · 24 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.encNatInto_eq">Engine.Codec.encNatInto_eq</a> ↪ · 8 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decLenFrom_at">Engine.Codec.decLenFrom_at</a> ↪ · 7 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decListFrom_at">Engine.Codec.decListFrom_at</a> ↪ · 4 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.Body.decFrom_of">Community.Body.decFrom_of</a> ↪ · 3 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.At.tag">Engine.Codec.At.tag</a> ↪ · 1 below</li>
-<li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decBytesL_encBytesL">Engine.Codec.decBytesL_encBytesL</a> ↪ · 1 below</li>
-<li>▫️ <a href="#law-Net.Scene.table_S">Net.Scene.table_S</a> ↪ · 1 below</li>
-<li>▫️ <a href="../../app/community/Family.lean#L641">Community.Body.dec_of</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L98">Engine.Codec.At.extract</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L67">Engine.Codec.At.left</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L94">Engine.Codec.At.length_le</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L70">Engine.Codec.At.right</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L519">Engine.Codec.decBytesFrom_unfold</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L590">Engine.Codec.decListF_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L613">Engine.Codec.encListInto_eq</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
-<li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 </ul></details></li>
 </ul>
