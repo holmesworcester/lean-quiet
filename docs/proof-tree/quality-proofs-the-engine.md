@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › The engine**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1346) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2126)
+✅ wired: about running code (1348) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2124)
 
 <ul>
 <li><details><summary><a id="law-Engine.same_ops_same_verdicts"></a>✅ <a href="../../engine/core/Termination.lean#L122">Engine.same_ops_same_verdicts</a> · 72 below</summary><ul>
@@ -229,8 +229,8 @@
 <li>✅ <a href="#law-Engine.step_history_budget">Engine.step_history_budget</a> ↪ · 53 below</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.ext-">Engine.Op.ext'</a> ↪ · 30 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.budget_same_ops"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L154">Engine.Sync.budget_same_ops</a> · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +9</summary><ul>
-<li>🪜 <a href="#law-Engine.Sync.dedup_nodup">Engine.Sync.dedup_nodup</a> ↪ · 31 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +9</li>
+<li><details><summary><a id="law-Engine.Sync.budget_same_ops"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L154">Engine.Sync.budget_same_ops</a> · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +10</summary><ul>
+<li>🪜 <a href="#law-Engine.Sync.dedup_nodup">Engine.Sync.dedup_nodup</a> ↪ · 31 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +10</li>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.ext-">Engine.Op.ext'</a> ↪ · 30 below</li>
 </ul></details></li>
 <li>✅ <a href="../../engine/sync/ClosureStore.lean#L170">Engine.Sync.ingest_many_reachable</a></li>
@@ -238,7 +238,7 @@
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.purge_settles_reachable"></a>✅ <a href="../../engine/sync/StoreEvolution.lean#L107">Engine.Sync.purge_settles_reachable</a> · 58 below</summary><ul>
 <li>✅ <a href="#law-Engine.drain_history_budget">Engine.drain_history_budget</a> ↪ · 54 below</li>
-<li>🪜 <a href="#law-Engine.Sync.budget_same_ops">Engine.Sync.budget_same_ops</a> ↪ · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +9</li>
+<li>🪜 <a href="#law-Engine.Sync.budget_same_ops">Engine.Sync.budget_same_ops</a> ↪ · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +10</li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L484">Engine.Sync.purge_apply</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.Sync.Moves.store_reachable"></a>✅ <a href="../../engine/sync/StoreEvolution.lean#L136">Engine.Sync.Moves.store_reachable</a> · 4 below</summary><ul>
@@ -449,14 +449,14 @@
 </ul></details></li>
 <li><details><summary><a id="law-App.withNav_cache"></a>✅ <a href="../../app/nav/Proofs.lean#L124">App.withNav_cache</a> · 172 below</summary><ul>
 <li>✅ <a href="#law-Data.placeIn_newest">Data.placeIn_newest</a> ↪ · 170 below</li>
-<li>✅ <a href="../../app/Screen.lean#L2140">App.page_round</a></li>
+<li>✅ <a href="../../app/Screen.lean#L2057">App.page_round</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Data.placeIn_newest"></a>✅ <a href="../../app/nav/Proofs.lean#L67">Data.placeIn_newest</a> · 170 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.ofOps_valid"></a>✅ <a href="../../engine/sync/Ephemeral.lean#L62">Engine.Sync.ofOps_valid</a> · 116 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.ofOps_rest"></a>✅ <a href="../../engine/sync/Ephemeral.lean#L44">Engine.Sync.ofOps_rest</a> · 63 below</summary><ul>
 <li><details><summary><a id="law-Engine.Sync.turn_settles"></a>✅ <a href="../../engine/sync/ClosureStore.lean#L188">Engine.Sync.turn_settles</a> · 61 below</summary><ul>
 <li>✅ <a href="security-proofs-hostile-input.md#law-Engine.drain_bounded">Engine.drain_bounded</a> ↪ · 56 below</li>
-<li>🪜 <a href="#law-Engine.Sync.budget_same_ops">Engine.Sync.budget_same_ops</a> ↪ · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +9</li>
+<li>🪜 <a href="#law-Engine.Sync.budget_same_ops">Engine.Sync.budget_same_ops</a> ↪ · 32 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +10</li>
 <li>✅ <a href="../../engine/sync/ClosureStore.lean#L170">Engine.Sync.ingest_many_reachable</a></li>
 <li>▫️ <a href="../../engine/wire/NodeLaws.lean#L434">Engine.Sync.turn_apply</a></li>
 </ul></details></li>
@@ -1074,7 +1074,7 @@ Subtrees met 5 levels down, drawn whole here once.
 <li>▫️ <a href="../../engine/core/Proofs.lean#L26">Engine.waitOnS_queue</a></li>
 <li>▫️ <a href="../../engine/core/Proofs.lean#L22">Engine.waitOnS_status</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Engine.Sync.dedup_nodup"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L143">Engine.Sync.dedup_nodup</a> · 31 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +9</summary><ul>
+<li><details><summary><a id="law-Engine.Sync.dedup_nodup"></a>🪜 <a href="../../engine/sync/ClosureStore.lean#L143">Engine.Sync.dedup_nodup</a> · 31 below · a step of App.stash_use, App.withNav_cache, Data.draftIn_newest +10</summary><ul>
 <li>▫️ <a href="security-proofs-connections.md#law-Engine.Op.ext-">Engine.Op.ext'</a> ↪ · 30 below</li>
 </ul></details></li>
 <li><details><summary><a id="law-Engine.bcmp_eq_lexCmp"></a>▫️ <a href="../../engine/core/Query.lean#L136">Engine.bcmp_eq_lexCmp</a> · 3 below</summary><ul>
