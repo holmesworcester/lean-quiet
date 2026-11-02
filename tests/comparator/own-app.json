@@ -1,7 +1,8 @@
 {
-  "challenge_module": "tests.comparator.own.BackChallenge",
-  "solution_module": "tests.comparator.own.BackSolution",
+  "challenge_module": "tests.comparator.own.AppChallenge",
+  "solution_module": "tests.comparator.own.AppSolution",
   "theorem_names": [
+    "Connection.removal_reaches_session",
     "NavLaws.back_open"
   ],
   "definition_names": [],

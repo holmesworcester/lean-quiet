@@ -764,22 +764,22 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L111">Engine.Codec.push_toList</a></li>
 <li>▫️ <a href="../../engine/wire/IOLaws.lean#L10">Engine.Sync.io_lawful</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3891">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.production_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3884">Connection.Execution.production_step_unique</a> · 66 below</summary><ul>
 <li>✅ <a href="#law-Engine.Sync.NodeUnique.step_valid">Engine.Sync.NodeUnique.step_valid</a> ↪ · 64 below</li>
 <li>▫️ <a href="../../engine/wire/NodeUniqueLaws.lean#L76">Engine.Sync.NodeUnique.Ensures.state</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3910">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_step_unique"></a>📐 <a href="../../app/Proofs.lean#L3903">Connection.Execution.world_step_unique</a> · 68 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.production_step_unique">Connection.Execution.production_step_unique</a> ↪ · 66 below</li>
-<li>▫️ <a href="../../app/Proofs.lean#L3896">Connection.Execution.world_run_unique</a></li>
+<li>▫️ <a href="../../app/Proofs.lean#L3889">Connection.Execution.world_run_unique</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3951">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.world_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3944">Connection.Execution.world_trace_unique</a> · 69 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3960">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.empty_trace_unique"></a>🌐 <a href="../../app/Proofs.lean#L3953">Connection.Execution.empty_trace_unique</a> · 71 below</summary><ul>
 <li>🌐 <a href="#law-Connection.Execution.world_trace_unique">Connection.Execution.world_trace_unique</a> ↪ · 69 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3968">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
+<li><details><summary><a id="law-Connection.Execution.Run.unique"></a>🌐 <a href="../../app/Proofs.lean#L3961">Connection.Execution.Run.unique</a> · 70 below</summary><ul>
 <li>📐 <a href="#law-Connection.Execution.world_step_unique">Connection.Execution.world_step_unique</a> ↪ · 68 below</li>
 <li>✅ <a href="../../engine/wire/NodeUniqueLaws.lean#L87">Engine.Sync.NodeUnique.boot_valid</a></li>
 </ul></details></li>
