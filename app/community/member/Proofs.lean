@@ -11,7 +11,8 @@ theorem check_removal {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c t u :
     (h : check C o b fs = some (.removal c t u)) :
     ∃ s d0 e0 d e auth d' e', b = .remove s ∧
       fs = [.admission c c d0 e0, .admission c u d e, auth, .admission c t d' e'] ∧
-      o.reqs.head? = some c ∧ ((t = u ∧ auth.isLocal = false) ∨ isAdmin c u auth = true) ∧
+      o.reqs.head? = some c ∧
+        ((t = u ∧ auth = .admission c u d e ∧ o.reqs[2]? = o.reqs[1]?) ∨ isAdmin c u auth = true) ∧
       C.verify d (signed o b) s = true := by
   unfold check at h
   split at h <;> (try (simp at h; done))
@@ -39,6 +40,19 @@ theorem removal_authorized {x c t u : Id} (h : V C ops x (.removal c t u)) :
   rcases ha with ha | ha
   · exact Or.inl ha.1
   · exact Or.inr (isAdmin_sound hz ha)
+
+/-- **Every removal is anchored on admissions.** A Valid removal by user
+u is an admin's, or it removes u itself and its authority is u's own
+admission: the same op it cites as its author's admission. So no
+removal waits on anything but membership ops. -/
+theorem removal_anchored {x c t u : Id} (h : V C ops x (.removal c t u)) :
+    IsAdmin C ops c u ∨ (t = u ∧ ∃ o, ops x = some o ∧ o.reqs[2]? = o.reqs[1]?) := by
+  obtain ⟨o, b, fs, hx, _, hr, hv⟩ := valid_inv h
+  obtain ⟨_, _, _, _, _, auth, _, _, rfl, rfl, _, ha, _⟩ := check_removal hv
+  obtain ⟨_, _, z, _, _, _, _, hz, _⟩ := all2_four hr
+  rcases ha with ⟨ht, _, hreq⟩ | ha
+  · exact Or.inr ⟨ht, o, hx, hreq⟩
+  · exact Or.inl (isAdmin_sound hz ha)
 
 /-- **Every admin-issued removal stands.** A removal op signed by an
 admitted device of user u, citing a fact that shows u is admin and an

@@ -52,9 +52,9 @@ against the already authorized serve payloads and sealed individually.
 
 ## Remaining connection-lifetime proof obligation
 
-`Sweep.FairLoss` names delivery of semantic operations. There is not yet a
+Fair-loss delivery of semantic operations is not yet stated. There is no
 proof projecting the actual encrypted TCP attempts, socket teardown and key
-retirement onto that predicate. A fresh encryption nonce also means that
+retirement onto such a predicate. A fresh encryption nonce also means that
 repeated attempts need not repeat an identical ciphertext; fairness must name
 the logical message and its actual wire attempts precisely.
 

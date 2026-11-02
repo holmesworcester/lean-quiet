@@ -18,7 +18,7 @@ def cid := sha256 "reserved-retry-session".toUTF8
 def peerKey := "reserved-authenticated-peer".toUTF8
 
 def setup (address : ByteArray) (established : Bool) : Sync Fact (SqlM Fact) :=
-  { fam, cfg := { live := 1000000000, every := 1 },
+  { fam, cfg := { live := 1000000000, safety := 1000000000 },
     hooks := {
       rooms := fun _ => pure [.sync rootOp.id]
       sealFor := plainSeal

@@ -200,6 +200,18 @@ def mineNotRemoved :=
     else none
   else none
 
+/-- Bob removes himself, citing his own admission as the authority. -/
+def selfOwn := remove c admission.id admission.id admission.id bob
+/-- The control: the same self-removal citing his message as the
+authority, which the old rule (any shared fact) took. -/
+def selfMsg := remove c admission.id message.id admission.id bob
+/-- Another control: citing another member's admission (Alice's root). -/
+def selfOther := remove c admission.id c admission.id bob
+
+def removalAnchored := do
+  let ⟨hr⟩ ← certifyDB (before ++ [selfOwn]) selfOwn (.removal c requestB.id requestB.id)
+  pure (PLift.up (removal_anchored hr))
+
 def main : IO UInt32 := do
   let t ← Checks.new
   t.ok "connect_iff with admitted Bob" connectIff.isSome
@@ -211,6 +223,11 @@ def main : IO UInt32 := do
   t.ok "members_iff with admitted Bob" membersIff.isSome
   t.ok "recipients_iff with admitted Bob" recipientsIff.isSome
   t.ok "removals_iff with removed Bob" removalsIff.isSome
+  t.ok "removal_anchored: Bob's self-removal citing his own admission is Valid" removalAnchored.isSome
+  t.ok "control: a self-removal citing a message as its authority is refused"
+    ((run (before ++ [selfMsg])).status selfMsg.id == some .invalid)
+  t.ok "control: a self-removal citing another member's admission as its authority is refused"
+    ((run (before ++ [selfOther])).status selfOther.id == some .invalid)
   t.ok "connect_approved accepts non-founder Bob" connectApproved.isSome
   t.ok "cut_consented with actual Bob request and removal" cutConsented.isSome
   t.ok "refuse_nonmember with actually admitted then cut Bob" refuseNonmember.isSome

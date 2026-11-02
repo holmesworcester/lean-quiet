@@ -9,7 +9,10 @@ variable {F : Type} (fam : Family F) (cfg : Config)
 
 theorem start_session (ix : Index) (c : Conn) (now : Nat) :
     (c.start cfg ix now).conn.session = c.session := by
-  unfold Conn.start; split <;> rfl
+  rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e]; rfl
+
+theorem ask_session (c : Conn) (now : Nat) : (c.ask cfg now).conn.session = c.session := by
+  obtain ⟨rs, ss, e⟩ := Conn.ask_conn cfg c now; rw [e]
 
 theorem round_session (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim) :
     (c.onRbsr cfg ix r k cs now).conn.session = c.session := by
@@ -32,32 +35,13 @@ theorem want_session (ix : Index) (c : Conn) (ids : List Id) :
     (c.onWant cfg ix ids).conn.session = c.session := by
   unfold Conn.onWant; split <;> rfl
 
-theorem walk_session (h : Held F) : ∀ fuel (c : Conn) offers,
-    ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1.session = c.session := by
-  intro fuel
-  induction fuel with
-  | zero => intros; rfl
-  | succ fuel ih =>
-    intro c offers
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => rfl
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
 theorem work_session (ix : Index) (c : Conn) (now : Nat) (h : Held F) :
     ((c.work fam cfg ix now : HeldM F Step) h).1.conn.session = c.session := by
   unfold Conn.work
-  simp only [HeldM.bind_apply, HeldM.pure_apply]
+  simp only [HeldM.pure_apply]
   split
-  · rw [start_session]; exact walk_session fam cfg h _ _ _
-  · exact walk_session fam cfg h _ _ _
+  · rw [start_session]; rfl
+  · rw [ask_session]; rfl
 
 theorem filed_session (c : Conn) (ids : List Id) (h : Held F) :
     ((c.filed fam cfg ids : HeldM F Step) h).1.conn.session = c.session := by
@@ -98,8 +82,10 @@ theorem recv_transition (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) 
         simp only [HeldM.pure_apply]
         rw [round_session]; exact Or.inl rfl
       | hold r ids =>
-        simp only [HeldM.bind_apply, HeldM.pure_apply, hold_session]
-        exact Or.inl rfl
+        dsimp only
+        split
+        · simp only [HeldM.pure_apply, Conn.onAsk_session]; exact Or.inl rfl
+        · simp only [hold_session]; exact Or.inl rfl
       | want ids =>
         simp only [HeldM.bind_apply, HeldM.pure_apply, want_session]
         exact Or.inl rfl

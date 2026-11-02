@@ -18,7 +18,7 @@
     "theorem": "Engine.Sync.have_shown",
     "witness": "Vacuity.SyncCache.shownAfterFile",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Construct Inv, Cached, and snapshot premises, then apply have_shown to nonempty filed chat path. Network.filedWitness separately establishes actual advertisement. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Construct Inv and Cached for the nonempty held store, then apply have_shown to the filed chat path of an actual connection; no premise on the connection's past (rounds answer from the live index). Network.filedWitness separately establishes actual advertisement. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "write_cached": {
     "status": "kernel-witness",
@@ -33,13 +33,6 @@
     "witness": "Vacuity.SyncCache.purgeCache",
     "module": "tests.vacuity.SyncCache",
     "detail": "Nonempty stored chat and correct cache; purge names the shared chat. Shared ops are retained, so room cache remains valid. This complements separate local-secret deletion fixture. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
-  },
-  "write_snaps": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.write_snaps",
-    "witness": "Vacuity.SyncCache.snapshotKept",
-    "module": "tests.vacuity.SyncCache",
-    "detail": "A nonempty snapshot contains the actual indexed chat; prove SnapsIn from cached_items, then apply write_snaps through repeated chat write. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "notice_sent": {
     "status": "kernel-witness",
@@ -81,7 +74,7 @@
     "theorem": "Engine.Sync.room_independent",
     "witness": "Vacuity.SyncCache.startsRoom",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Known peer floor, a shown nonempty room index, and no existing snapshot; prove all premises and get actual round message in send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Known peer floor, a shown nonempty room index, and the room due (no round of it yet on the session); prove all premises and get the actual round message in send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "unshown_room_answered": {
     "status": "kernel-witness",
@@ -95,14 +88,14 @@
     "theorem": "Engine.Sync.uncarried_room_answered",
     "witness": "Vacuity.SyncCache.acceptsNewRound",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Shown room receives a nonempty id claim with no existing snapshot; prove shown-room, nonempty-claim, missing-snapshot, and accepted-epoch premises and derive actual response head. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Shown room receives a nonempty id claim; prove shown-room, nonempty-claim and accepted-epoch premises and derive the actual response head, answered from the live index. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "conn_answers_ids": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.conn_answers_ids",
     "witness": "Vacuity.SyncCache.answersIds",
     "module": "tests.vacuity.SyncCache",
-    "detail": "Actual shown-room index containing chat plus remote singleton item; prove allowed-room, accepted-epoch, and snapshot fallback premises, then instantiate exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+    "detail": "Actual shown-room index containing chat plus remote singleton item; prove allowed-room, accepted-epoch and live-index premises, then instantiate the exact exchange/connection response theorem. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
   },
   "work_retry_bounded": {
     "status": "kernel-witness",
@@ -110,5 +103,61 @@
     "witness": "Vacuity.SyncCache.retryBound",
     "module": "tests.vacuity.SyncCache",
     "detail": "Connection has a real outstanding message id and retry due at 1500 ms; instantiate bound over the actual work handler. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "write_items": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.write_items",
+    "witness": "Vacuity.SyncCache.indexKept",
+    "module": "tests.vacuity.SyncCache",
+    "detail": "The actual indexed chat (from cached_items) stays in the index across a repeated chat write turn, so live answers still read it. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "round_due": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.round_due",
+    "witness": "Vacuity.SyncCache.dueRoundOpens",
+    "detail": "A dialer connection with the peer's floor known, the room shown and no round of it yet, ticked at 100 ms on the nonempty held store: every premise proved, and the actual opening over the live index is in the tick's send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "responder_asks": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.responder_asks",
+    "witness": "Vacuity.SyncCache.responderAsks",
+    "detail": "A responder connection with the peer's floor known and the room shown with no round in it: every premise proved, and the actual empty have naming the room is in the tick's send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "ask_due": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.ask_due",
+    "witness": "Vacuity.SyncCache.askMakesDue",
+    "detail": "The dialer receives the responder's actual empty have for its shown room with no round in flight: the room is due afterwards and nothing is sent. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "join_round": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.join_round",
+    "witness": "Vacuity.SyncCache.joinRound",
+    "detail": "A dialer and a responder both showing the room, the responder with no round in it: its tick asks, the dialer hears it at 200 ms, and its tick at 300 ms opens the round; every premise proved on concrete connections. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "shown_due": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.shown_due",
+    "witness": "Vacuity.SyncCache.shownDue",
+    "detail": "A connection showing no room starts showing the chat room: the room is due. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "no_round_before_safety": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.no_round_before_safety",
+    "witness": "Vacuity.SyncCache.quietUntilSafety",
+    "detail": "A dialer whose room's round opened at 50 ms, ticked at 100 ms with the 10-minute safety period: every premise proved, and no round message of the room is in the tick's send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "responder_opens_none": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.responder_opens_none",
+    "witness": "Vacuity.SyncCache.responderOpensNone",
+    "detail": "The responder connection of responderAsks, with the room shown and no round in it, ticked at 100 ms on the nonempty held store: its premise (not the dialer) holds by rfl, and its tick sends no round opening, though the same tick does send the room's ask (responderAsks), so the tick is not empty."
   }
 }

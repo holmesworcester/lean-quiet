@@ -39,7 +39,7 @@ theorem servingBlind : ((queued.serveOwed fam cfg 1024 [msg.id] : HeldM Unit _) 
     ((queued.serveOwed fam cfg 1024 [msg.id] : HeldM Unit _) queuedStore).1 :=
   serveOwed_blind fam cfg queued 1024 [msg.id] held queuedStore (fun _ _ => rfl)
 
-def openPremises := have_shown_premises fam false [room] 0 100
+def openPremises := have_shown_premises fam 0
 
 def secrecyRun := SyncWitnesses.secrecy_runs room
 
