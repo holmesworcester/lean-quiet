@@ -25,6 +25,10 @@ writer-job-retry	mise run test:writer-job-retry
 app-runner-failure	mise run test:app-runner-failure
 app-suspend-journal	mise run test:app-suspend-journal
 app-boot-admission	mise run test:app-boot-admission
+app-network-ownership	mise run test:app-network-ownership
+app-stop-ui	mise run test:app-stop-ui
+app-frame-times	mise run test:app-frame-times
+app-reader-ownership	mise run test:app-reader-ownership
 expiry-grace	mise run test:expiry-grace
 close-ingress	mise run test:close-ingress
 runner-ownership	mise run test:runner-ownership

@@ -1,5 +1,6 @@
 import engine.core.UrgentViews
 import engine.core.TurnCost
+import engine.renderer.FrameTimes
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
 import engine.wire.RetryOrderLaws
@@ -1804,6 +1805,8 @@ end cost
 #print axioms Connection.Execution.world_trace_unique
 #print axioms Connection.Execution.empty_trace_unique
 #print axioms Connection.Execution.Run.unique
+
+#print axioms FrameTimes.bounded
 
 -- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
 #print axioms Community.notice_signed
