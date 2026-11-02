@@ -410,8 +410,8 @@ lean_obj_res lq_poll(void) {
 }
 
 // Notifications: each card packet, one JSON line, in notifications.jsonl
-// (QUIET_NOTES names another file); the service is "there" so the setting
-// shows, and its state is printed as a reply line.
+// (QUIET_NOTES names another file). The twin is no Android: it has no
+// background service (the setting is not drawn); a switch is printed.
 lean_obj_res lq_notify(b_lean_obj_arg json) {
   const char* path = getenv("QUIET_NOTES");
   FILE* f = fopen(path ? path : "notifications.jsonl", "a");
@@ -422,7 +422,7 @@ lean_obj_res lq_notify(b_lean_obj_arg json) {
 lean_obj_res lq_service(uint8_t on) {
   printf("service %s\n", on ? "on" : "off");
   fflush(stdout);
-  return lean_io_result_mk_ok(lean_box(1));
+  return lean_io_result_mk_ok(lean_box(0));
 }
 
 lean_obj_res lq_links(void) {

@@ -145,8 +145,9 @@ def main (args : List String) : IO UInt32 := do
   let screen : Array UInt32 := #[1080, 2400, 128, 63, 420]
   let sa ← Sim.new
   let sb ← Sim.new
+  -- B is an Android phone: it has the background service (the twin has none)
   let a0 ← App.start sa.io screen (dir ++ "/a/quiet.db")
-  let b0 ← App.start sb.io screen (dir ++ "/b/quiet.db")
+  let b0 ← App.start sb.ioWithService screen (dir ++ "/b/quiet.db")
   check "the twin has the background service, off by default" (b0.canKeep && !b0.keepSync)
   -- A founds "club"; its link reaches B as the OS hands it over
   let (link, a1) ← (show M String from do

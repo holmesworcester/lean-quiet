@@ -92,10 +92,19 @@ def Sim.io (sm : Sim) : Io where
     return true
   photoResult := sm.photo.modifyGet fun p => (p, (#[], .empty))
   notify p := sm.notes.modify (·.push p)
-  service on := do sm.service.modify (·.push on); return true
+  -- The twin is no Android: it has no background service, so the You
+  -- page draws as libquiet's desktop and web do, without "Sync in the
+  -- background" (the pinned visual references). A test of the setting
+  -- uses `Sim.ioWithService`.
+  service on := do sm.service.modify (·.push on); return false
   luma := do
     if !(← sm.on.get) then return (#[], .empty)
     sm.camera.get
+
+/-- The twin as an Android phone for Sync in the background: the service
+is there (each switch recorded in `sm.service`). -/
+def Sim.ioWithService (sm : Sim) : Io :=
+  { sm.io with service := fun on => do sm.service.modify (·.push on); return true }
 
 /-- The screen as the twin composes it: header, the list's viewport rows,
 the composer above the bottom inset. -/
