@@ -16,7 +16,7 @@ import tempfile
 ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'out/preadmit/controls'
 OUT.mkdir(parents=True, exist_ok=True)
-CAP = ['systemd-run', '--user', '--scope', '-q', '-p', 'MemoryMax=32G', '-p', 'MemorySwapMax=0']
+CAP = ['systemd-run', '--user', '--scope', '-q', '-p', 'CPUWeight=1000', '-p', 'MemoryMax=16G', '-p', 'MemorySwapMax=0']
 
 
 def run(root, command, name, timeout=1800):
@@ -64,15 +64,20 @@ CASES = [
      'def Conn.view (ix : Index) (c : Conn) (r : Id) : Index := if has c.rooms r then ix else ix',
      'engine.sync.Conn', 'engine/sync/Conn.lean', 'Conn.view_items', ['Conn.view_items']),
     ('take-room-wants-blind', 'engine/sync/Conn.lean',
-     '  if has c.rooms r then ix.answer P r cl else answerTake P cl',
-     '  if has c.rooms r then ix.answer P r cl else ({} : Index).answer P r cl',
+     '  if has c.rooms r then ix.answer P r f cl else answerTake P cl',
+     '  if has c.rooms r then ix.answer P r f cl else ({} : Index).answer P r f cl',
      'engine.sync.Conn', 'engine/sync/Conn.lean', 'Conn.answer_blank', ['Conn.answer_blank']),
 ]
+
+import sys
+if sys.argv[1:]:
+    assert set(sys.argv[1:]) <= {c[0] for c in CASES}, 'unknown mutant'
+    CASES = [c for c in CASES if c[0] in sys.argv[1:]]
 
 with tempfile.TemporaryDirectory(prefix='preadmit-', dir=os.environ.get('TMPDIR')) as temp:
     scratch = Path(temp)
     sp.run(['bash', '-c', '. tests/snapshot.sh; snapshot "$1" engine/core engine/wire engine/sync '
-            'engine/renderer app', 'preadmit-snapshot', str(scratch)], cwd=ROOT, check=True)
+            'engine/world engine/renderer app', 'preadmit-snapshot', str(scratch)], cwd=ROOT, check=True)
     code, text = run(scratch, CAP + ['lake', 'build', 'app.Proofs', 'engine.sync.TakeLaws'], 'baseline')
     assert code == 0, 'baseline does not build'
     for name, file, old, new, target, laws, named, allowed in CASES:

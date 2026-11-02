@@ -38,8 +38,8 @@ theorem named : Named Prod.fst Prod.snd (xs ++ ys) := by
 -- Both ends are full (floor 0): every step's set is the room's items.
 theorem full (t : Nat) : Full (states t).receiving ∧ Full (states t).waiting :=
   exec_full cfg room 1 times ixs states runs
-    (by simp [states, execute, first, initial, Full, Conn.start, Conn.due, Conn.roundedAt, Conn.retake,
-      Conn.beginRound]) t
+    (by simp [states, execute, first, initial, Full, Conn.start, Conn.carried, Conn.due, Conn.roundedAt,
+      Conn.retake, Conn.beginRound]) t
 
 theorem itemsAt (n : Nat) : (states n).items cfg room 1 = if n % 2 = 0 then xs else ys := by
   rw [items_full _ _ _ _ (full n).1]

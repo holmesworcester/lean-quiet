@@ -173,7 +173,7 @@ def takeUnshown (l : Link) :=
 
 def answerBlank (l : Link) :=
   if hr : has (carried l).rooms c = false then
-    some (PLift.up (Sync.Conn.answer_blank (P := ({} : Sync.Config).params) (ix := ix l) hr
+    some (PLift.up (Sync.Conn.answer_blank (P := ({} : Sync.Config).params) (ix := ix l) (f := 0) hr
       (.ids ⟨⟨0, 0⟩, none⟩ [message.id])))
   else none
 

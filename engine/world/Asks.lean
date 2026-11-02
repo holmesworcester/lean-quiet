@@ -233,12 +233,12 @@ theorem admit_goal (cfg : Config) (A : Std.HashSet Id) (raw : List Id) (q : Op) 
 
 /-- The same of a connection's own answers (`Conn.answer`): a shown
 room's are `answer`'s; a taken room's want nothing (`Conn.answer_blank`). -/
-theorem conn_answer_wants_le (P : Params) (ix : Index) (c : Conn) (r : Id) (f : Out → List Id)
+theorem conn_answer_wants_le (P : Params) (ix : Index) (c : Conn) (r : Id) (fl : Nat) (f : Out → List Id)
     (fw : ∀ xs, f (.want xs) = xs) (fh : ∀ xs, f (.hold xs) = []) (fc : ∀ c, f (.claim c) = [])
     (cs : List Claim) :
-    ((cs.flatMap (Conn.answer P ix c r)).flatMap f).length ≤ (claimIds cs).length := by
+    ((cs.flatMap (Conn.answer P ix c r fl)).flatMap f).length ≤ (claimIds cs).length := by
   cases h : has c.rooms r
-  · have hn : (cs.flatMap (Conn.answer P ix c r)).flatMap f = [] := by
+  · have hn : (cs.flatMap (Conn.answer P ix c r fl)).flatMap f = [] := by
       apply List.eq_nil_iff_forall_not_mem.2
       intro i hi
       simp only [List.mem_flatMap] at hi

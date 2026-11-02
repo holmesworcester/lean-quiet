@@ -45,7 +45,7 @@ theorem take_unshown (c : Conn) {r : Id} (hr : has c.rooms r = false) {o : Op}
 /-- The claim this side opens a round of a room it does not show with:
 an empty id claim over the range. -/
 theorem view_opening (ix : Index) (c : Conn) {r : Id} (hr : has c.rooms r = false) (P : Params)
-    (w : Range) : (Conn.view ix c r).opening P r w = .ids w [] := by
+    (f : Nat) (w : Range) : (Conn.view ix c r).opening P r f w = .ids w [] := by
   simp [Conn.view, hr, Index.opening_eq, opening, within]
 
 /-- Chunks of ids are sent only if there is an id. -/
@@ -101,7 +101,7 @@ theorem start_take_blank (ix : Index) (c : Conn) (now : Nat) {r : Id} (hr : has 
       intro cl hcl
       simp only [List.mem_map] at hcl
       obtain ⟨q, _, rfl⟩ := hcl
-      exact ⟨q, view_opening ix c hr cfg.params q⟩
+      exact ⟨q, view_opening ix c hr cfg.params _ q⟩
 
 /-- **A take room's rounds answer blank (`onRbsr_take_blank`).** A round
 message about a room the connection does not show is answered with one
@@ -122,26 +122,27 @@ theorem onRbsr_take_blank (ix : Index) (c : Conn) {r : Id} (k now : Nat) (cs : L
   dsimp only at ho
   split at ho
   · cases ho
-  have hv := Conn.answer_blank (P := cfg.params) (ix := ix) hr
+  have hv : ∀ f cl, ∀ o ∈ Conn.answer cfg.params ix c r f cl, ∃ q, o = .claim (.ids q []) :=
+    fun _ cl => Conn.answer_blank hr cl
   simp only [List.mem_cons, List.mem_append] at ho
   rcases ho with rfl | ho | ho
   · refine ⟨_, rfl, fun cl hcl => ?_⟩
     simp only [claimsOf, List.mem_filterMap, List.mem_flatMap] at hcl
     obtain ⟨out, ⟨cl', _, hout⟩, e⟩ := hcl
-    obtain ⟨q, rfl⟩ := hv cl' out hout
+    obtain ⟨q, rfl⟩ := hv _ cl' out hout
     cases e; exact ⟨q, rfl⟩
   · exfalso
     obtain ⟨i, hi⟩ := chunks_some cfg ho
     simp only [List.mem_flatMap] at hi
     obtain ⟨out, ⟨cl', _, hout⟩, hi⟩ := hi
-    obtain ⟨q, rfl⟩ := hv cl' out hout
+    obtain ⟨q, rfl⟩ := hv _ cl' out hout
     simp [holdIds] at hi
   · exfalso
     obtain ⟨i, hi⟩ := chunks_some cfg ho
     obtain ⟨j, hj⟩ := admitAsks_some hi
     simp only [List.mem_flatMap] at hj
     obtain ⟨out, ⟨cl', _, hout⟩, hj⟩ := hj
-    obtain ⟨q, rfl⟩ := hv cl' out hout
+    obtain ⟨q, rfl⟩ := hv _ cl' out hout
     simp at hj
 
 /-- **A take room that is due opens (`take_opens`).** Its round is
@@ -149,14 +150,14 @@ opened like a shown room's, one empty id claim per window range. -/
 theorem take_opens (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
     (hp : c.peerFloor = some pf) (hr : r ∈ c.takes) (hn : has c.rooms r = false)
     (due : (c.due cfg r now || c.retake cfg r) = true) :
-    (Msg.rbsr r (c.round + 1) ((window (max c.floor pf)).map fun q => .ids q [])).op ∈
+    (Msg.rbsr r (c.round + 1) ((window 0).map fun q => .ids q [])).op ∈
       (c.start cfg ix now).send := by
   have hm : r ∈ c.carried.filter fun r => c.due cfg r now || c.retake cfg r :=
     List.mem_filter.mpr ⟨List.mem_append_right _ hr, due⟩
   have hne : (c.carried.filter fun r => c.due cfg r now || c.retake cfg r).isEmpty = false :=
     List.isEmpty_eq_false_iff.mpr (List.ne_nil_of_mem hm)
-  have hv : (Conn.view ix c r).opening cfg.params r = fun q => .ids q [] :=
-    funext (view_opening ix c hn cfg.params)
+  have hv : (Conn.view ix c r).opening cfg.params r (max c.floor pf) = fun q => .ids q [] :=
+    funext (view_opening ix c hn cfg.params _)
   simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map]
   exact ⟨r, hm, by rw [hv]⟩
 
@@ -185,13 +186,13 @@ theorem blank_wants (P : Params) (Y : List Item) : ∀ w : List Range,
 /-- **The peer that syncs a room answers a take room's opening with all
 it holds there (`take_round_offers`).** A round of r opened with one
 empty id claim per range of w, at a side that shows r, ends there, and
-offers as haves every id of r's live index in those ranges; it wants
-nothing. -/
+offers as haves every id of r's live index in those ranges (at the
+round's floor, `Index.over`), newest first; it wants nothing. -/
 theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : List Range)
     (hr : has p.rooms r = true) (fresh : p.oldRound r k = false) (hw : w ≠ []) :
     (p.onRbsr cfg ix r k (w.map fun q => .ids q []) now).send =
       (Msg.rbsr r k []).op ::
-        (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.items r)).map Prod.snd).reverse) (.hold r) ++
+        (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.over cfg.params.depth r (p.beginRound k).roundFloor)).map Prod.snd).reverse) (.hold r) ++
           chunks cfg [] .want) := by
   have hc : (w.map fun q => Claim.ids q []).isEmpty = false := by
     cases w with
@@ -200,14 +201,14 @@ theorem take_round_offers (ix : Index) (p : Conn) (r : Id) (k now : Nat) (w : Li
   simp only [Conn.onRbsr, Conn.has_carried_eq, hr, Bool.true_or, Bool.not_true, Bool.false_eq_true,
     ite_false, fresh, hc, Conn.answer_shown hr, Index.answer_fun]
   have e : (Msg.rbsr r k []).op ::
-      (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.items r)).map Prod.snd).reverse) (.hold r) ++
+      (chunks cfg (w.flatMap fun q => ((within Prod.fst q (ix.over cfg.params.depth r (p.beginRound k).roundFloor)).map Prod.snd).reverse) (.hold r) ++
         chunks cfg [] .want) =
       (Msg.rbsr r k (claimsOf ((w.map fun q => Claim.ids q []).flatMap
-          (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))).op ::
+          (answer Prod.fst Prod.snd sha256 cfg.params (ix.over cfg.params.depth r (p.beginRound k).roundFloor))))).op ::
         (chunks cfg (((w.map fun q => Claim.ids q []).flatMap
-            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).flatMap holdIds) (.hold r) ++
+            (answer Prod.fst Prod.snd sha256 cfg.params (ix.over cfg.params.depth r (p.beginRound k).roundFloor))).flatMap holdIds) (.hold r) ++
           chunks cfg (admitAsks cfg.maxKnown p.asked (outWants ((w.map fun q => Claim.ids q []).flatMap
-            (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))))) .want) := by
+            (answer Prod.fst Prod.snd sha256 cfg.params (ix.over cfg.params.depth r (p.beginRound k).roundFloor))))) .want) := by
     rw [blank_claims, blank_holds, blank_wants]
     simp [admitAsks]
   rw [e]
