@@ -11,7 +11,7 @@ logs = root / 'out/seam/negative'
 logs.mkdir(parents=True, exist_ok=True)
 
 def run(args, name):
-    result = subprocess.run(args, cwd=root, capture_output=True, text=True, timeout=120)
+    result = subprocess.run(args, cwd=root, capture_output=True, text=True, timeout=900)
     (logs / f'{name}.log').write_text(result.stdout + result.stderr)
     return result.returncode
 

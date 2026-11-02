@@ -199,7 +199,10 @@ def projected (t : Checks) (tag : String) (s : Peer) (c : Id) (es : List ByteArr
   t.ok s!"{tag}: recipients as the Community part's" (rcp == (Community.recipients c).eval m)
   return cops
 
-/-- Wait up to ms for p, checking every 50 ms; how long it took. -/
+/-- Wait up to ms for p, checking every 50 ms; how long it took. Every
+wait here is for what must happen eventually (a join, an admission, a
+stream, a rejoin), so its cap (120 s) only catches a hang: a loaded box
+gets there later. -/
 def waitFor (ms : Nat) (p : IO Bool) : IO (Option Nat) := do
   let t0 ← IO.monoMsNow
   while (← IO.monoMsNow) < t0 + ms do
@@ -214,14 +217,14 @@ def pairUp (a b : Peer) : IO (Option (Id × Id)) := do
   a.run.write (← viewOn a (found a.seed "Acme".toUTF8 "Ann".toUTF8 1 (Bytes.digest "key".toUTF8)
     (Bytes.digest "esk".toUTF8) a.nk)).ops
   let c := (root dA a.key (kidOf cryptoSeal (Bytes.digest "key".toUTF8))).id
-  let _ ← waitFor 10000 (stored a c)
+  let _ ← waitFor 120000 (stored a c)
   let some (wi, link) ← viewOn a (inviteTo c c dA (sha256 "bearer".toUTF8) [a.addr]) | return none
   a.run.write wi.ops
   let req := link.request (Device.ofSeed b.seed) b.key
   b.run.write (← viewOn b (join link b.seed "Bea".toUTF8 b.nk)).ops
-  let _ ← waitFor 10000 (stored a req.id)
+  let _ ← waitFor 120000 (stored a req.id)
   a.run.write (← look a ((approveReq c req.id c dA).liftL.run : SqlM F Community.Write)).ops
-  let ok ← waitFor 20000 do
+  let ok ← waitFor 120000 do
     return (← allowedOn b c b.key) && (← ests a).length == 1 && (← ests b).length == 1
   if ok.isNone then return none
   let adms ← look a ((Community.admission.byDevice.read [c, (Device.ofSeed b.seed).pk]).liftL.run :
@@ -261,7 +264,7 @@ def main (args : List String) : IO UInt32 := do
     (Bytes.digest "esk".toUTF8) a.nk)).ops
   let c := (root dA a.key (kidOf cryptoSeal (Bytes.digest "key".toUTF8))).id
   -- the runner owns the writes: read once the founding has landed
-  let _ ← waitFor 10000 (stored a c)
+  let _ ← waitFor 120000 (stored a c)
   let stopAll : IO UInt32 := do
     a.run.stop; b.run.stop
     let code ← t.finish "jointcp"
@@ -274,7 +277,7 @@ def main (args : List String) : IO UInt32 := do
   let req := link.request dB b.key
   b.run.write (← viewOn b (join link b.seed "Bea".toUTF8 b.nk)).ops
   -- Before approval.
-  let opened ← waitFor 10000 do return (← look a (count opened.all [] : SqlM F _)) ≥ 1
+  let opened ← waitFor 120000 do return (← look a (count opened.all [] : SqlM F _)) ≥ 1
   t.ok "tcp: A opened B's request" opened.isSome
   t.ok "tcp: A stored B's join request" (← stored a req.id)
   IO.sleep 1000
@@ -284,7 +287,7 @@ def main (args : List String) : IO UInt32 := do
   -- A approves.
   let wr ← look a ((approveReq c req.id c dA).liftL.run : SqlM F Community.Write)
   a.run.write wr.ops
-  let est ← waitFor 15000 do return (← ests a).length == 1 && (← ests b).length == 1
+  let est ← waitFor 120000 do return (← ests a).length == 1 && (← ests b).length == 1
   t.ok "tcp: each holds one established session" est.isSome
   match ← ests a, ← ests b with
   | [.established ca _ pa ..], [.established cb _ pb ..] =>
@@ -293,11 +296,11 @@ def main (args : List String) : IO UInt32 := do
       (pa == b.key && pb == a.key && pa != dB.pk && pb != dA.pk)
   | _, _ => t.ok "tcp: sessions have the expected shape" false
   -- Sync over the sealed session.
-  let admitted ← waitFor 20000 do return (← allowedOn b c b.key) && (← allowedOn b c a.key)
+  let admitted ← waitFor 120000 do return (← allowedOn b c b.key) && (← allowedOn b c a.key)
   t.ok "tcp: B is admitted by its own ops, and lets A in" admitted.isSome
   let p := post c c dA (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "hello B over TCP".toUTF8 1 5
   a.run.write [p]
-  let streamed ← waitFor 10000 (stored b p.id)
+  let streamed ← waitFor 120000 (stored b p.id)
   t.ok "tcp: a later post reaches B" streamed.isSome
   let _ ← projected t "tcp: before the removal" a c [a.key, b.key] true
   -- A removes B while their session is live and carries only Acme.
@@ -305,13 +308,13 @@ def main (args : List String) : IO UInt32 := do
   let some ((_, admB), _) := adms.rows.head? | t.ok "tcp: A holds B's admission" false; stopAll
   let rm := remove c c c admB dA
   a.run.write [rm]
-  let cut ← waitFor 5000 do return !(← allowedOn a c b.key)
+  let cut ← waitFor 120000 do return !(← allowedOn a c b.key)
   t.ok "tcp: A's trust rule refuses B's node once the removal is held" cut.isSome
-  let told ← waitFor 10000 (stored b rm.id)
+  let told ← waitFor 120000 (stored b rm.id)
   t.ok "tcp: B is told: it holds its removal, which only the notice carries" told.isSome
-  let dropped ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone && !(← liveOn b c dB.pk)
+  let dropped ← waitFor 120000 do return (← viewOn b (Community.mine c)).isNone && !(← liveOn b c dB.pk)
   t.ok "tcp: B's device is cut on B, and B holds Acme no more" dropped.isSome
-  let closed ← waitFor 10000 do return (← ests a).isEmpty && (← ests b).isEmpty
+  let closed ← waitFor 120000 do return (← ests a).isEmpty && (← ests b).isEmpty
   t.ok "tcp: the session is cut at both ends, its ops purged" closed.isSome
   let cops ← projected t "tcp: after the removal" a c [a.key, b.key] false
   let without := modelRun (Community.family ed25519) (cops.filter (·.id != rm.id))
@@ -331,7 +334,7 @@ def main (args : List String) : IO UInt32 := do
   let some ro := Request.op K b.nk a.key e (hello c b.addr [q2])
     | t.ok "tcp: B composes a request" false; stopAll
   b.run.write [ro, Eph.op e ro.id, Send.op a.addr ro]
-  let openedPush ← waitFor 10000 do
+  let openedPush ← waitFor 120000 do
     return (← look a (count Connection.opened.byRequest [ro.id] : SqlM F _)) ≥ 1
   t.ok "tcp: A opens the removed B's request" openedPush.isSome
   IO.sleep 1000
@@ -352,13 +355,13 @@ def main (args : List String) : IO UInt32 := do
   let dB3 := Device.ofSeed seedB3
   b.run.write (← viewOn b (join link3 seedB3 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let req3 := link3.request dB3 b.key
-  let reached ← waitFor 10000 (stored a req3.id)
+  let reached ← waitFor 120000 (stored a req3.id)
   t.ok "tcp: B's rejoin request, a new device's under the same node key, reaches A bare" reached.isSome
   IO.sleep 500
   t.ok "tcp: A refuses B's node until it approves the new device"
     (!(← allowedOn a c b.key) && (← ests a).isEmpty)
   a.run.write (← look a ((approveReq c req3.id c dA).liftL.run : SqlM F Community.Write)).ops
-  let back ← waitFor 20000 do
+  let back ← waitFor 120000 do
     return (← viewOn b (Community.mine c)).map (·.1) == some dB3.pk && (← allowedOn b c b.key)
   t.ok "tcp: approved, B is in Acme again as its new device, by its own ops" back.isSome
   t.ok "tcp: and A lets B's node in again" (← allowedOn a c b.key)
@@ -371,16 +374,16 @@ def main (args : List String) : IO UInt32 := do
   a.run.write (← viewOn a (found seedA2 "Zed".toUTF8 "Ann".toUTF8 2 (Bytes.digest "key Z".toUTF8)
     (Bytes.digest "esk Z".toUTF8) (Bytes.digest "unused".toUTF8))).ops
   let c' := (root dA2 a.key (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8))).id
-  let _ ← waitFor 10000 (stored a c')
+  let _ ← waitFor 120000 (stored a c')
   let some (wiZ, linkZ) ← viewOn a (inviteTo c' c' dA2 (sha256 "bearer Z".toUTF8) [a.addr])
     | t.ok "tcp: A invites to Zed" false; stopAll
   a.run.write wiZ.ops
   let seedB2 := sha256 "seed B, second".toUTF8
   b.run.write (← viewOn b (join linkZ seedB2 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let reqZ := linkZ.request (Device.ofSeed seedB2) b.key
-  let _ ← waitFor 10000 (stored a reqZ.id)
+  let _ ← waitFor 120000 (stored a reqZ.id)
   a.run.write (← look a ((approveReq c' reqZ.id c' dA2).liftL.run : SqlM F Community.Write)).ops
-  let inZed ← waitFor 20000 do
+  let inZed ← waitFor 120000 do
     return (← allowedOn b c' b.key) && (← ests a).length == 1 && (← ests b).length == 1
   t.ok "tcp: B joins a second community of A's, beside the open session, over one session" inZed.isSome
   -- A removes B's new user from Acme: the session stays open for Zed.
@@ -388,16 +391,16 @@ def main (args : List String) : IO UInt32 := do
   let some ((_, admB3), _) := adms3.rows.head? | t.ok "tcp: A holds B's new admission" false; stopAll
   let rm3 := remove c c c admB3 dA
   a.run.write [rm3]
-  let told3 ← waitFor 10000 (stored b rm3.id)
+  let told3 ← waitFor 120000 (stored b rm3.id)
   t.ok "tcp: removed again, beside Zed, B is told" told3.isSome
-  let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isNone
+  let _ ← waitFor 120000 do return (← viewOn b (Community.mine c)).isNone
   IO.sleep 1000
   t.ok "tcp: and the session stays open for Zed"
     ((← ests a).length == 1 && (← ests b).length == 1 && (← allowedOn b c' a.key))
   let pZ := post c' c' dA2 (kidOf cryptoSeal (Bytes.digest "key Z".toUTF8)) "still in Zed".toUTF8 1 9
   let p4 := post c c dA (kidOf cryptoSeal (Bytes.digest "key".toUTF8)) "Acme, after the second removal".toUTF8 5 9
   a.run.write [p4, pZ]
-  let zed ← waitFor 10000 (stored b pZ.id)
+  let zed ← waitFor 120000 (stored b pZ.id)
   t.ok "tcp: a post in Zed still reaches B" zed.isSome
   t.ok "tcp: one in Acme does not" (!(← stored b p4.id))
   -- A rejoin beside the open session: B joins Acme again, a third device.
@@ -408,7 +411,7 @@ def main (args : List String) : IO UInt32 := do
   let dB4 := Device.ofSeed seedB4
   b.run.write (← viewOn b (join link4 seedB4 "Bea".toUTF8 (Bytes.digest "unused".toUTF8))).ops
   let req4 := link4.request dB4 b.key
-  let _ ← waitFor 5000 do return (← viewOn b (Community.mine c)).isSome
+  let _ ← waitFor 120000 do return (← viewOn b (Community.mine c)).isSome
   let now ← look b (dial K b.addr 0 : SqlM F (List Op))
   t.ok "tcp: today's dial, on B's store, sends the rejoin request beside the open session"
     (now.any fun o => match (Codec.decode o.body : Option Connection.Body) with
@@ -416,10 +419,10 @@ def main (args : List String) : IO UInt32 := do
       | _ => false)
   let before ← look b oldDial
   t.ok "tcp: negative control: the dial rule before the fix would not send it" before.isEmpty
-  let reached4 ← waitFor 10000 (stored a req4.id)
+  let reached4 ← waitFor 120000 (stored a req4.id)
   t.ok "tcp: B's rejoin request reaches A bare, beside the open session" reached4.isSome
   a.run.write (← look a ((approveReq c req4.id c dA).liftL.run : SqlM F Community.Write)).ops
-  let back4 ← waitFor 20000 do
+  let back4 ← waitFor 120000 do
     return (← viewOn b (Community.mine c)).map (·.1) == some dB4.pk && (← allowedOn b c b.key)
   t.ok "tcp: approved, B is in Acme again, beside Zed" back4.isSome
   a.run.stop

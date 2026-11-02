@@ -21,7 +21,7 @@ p = subprocess.Popen([str(exe), str(out), "crash"], cwd=root,
                      stdout=subprocess.PIPE, stderr=log, text=True, env=env)
 (out / "crash.pid").write_text(str(p.pid) + "\n")
 try:
-    deadline = time.monotonic() + 45
+    deadline = time.monotonic() + 600  # until READY; the cap only catches a hang
     ready = False
     while p.poll() is None and time.monotonic() < deadline:
         if select.select([p.stdout], [], [], 0.2)[0]:

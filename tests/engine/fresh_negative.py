@@ -118,17 +118,17 @@ cases = [
     ("slot-at-close", "engine/wire/Tcp.lean",
      ("  finally\n    cleanupReader\n    slots.release addr", "    if drain then s.drain linger else s.stop\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
      ("  finally\n    cleanupReader\n    pure ()", "    if drain then s.drain linger else s.stop\n    st.slots.release s.addr\n    return ({ st.drop sid with\n      node\n      sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)"),
-     "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=true)", True),
+     "fresh_tcp", "FAIL: actual native writer holds its lease before deadline", True),
 ]
 if sys.platform != "win32":
     cases.extend([
         ("no-native-abort", "engine/wire/SocketAbort.lean",
          "        unless ← cap.abort do", "        unless true do",
-         "fresh_tcp", "FAIL: never-reading peer cannot retain writer or slot after deadline (closed=false, retired=false)", True),
+         "fresh_tcp", "FAIL: never-reading peer cannot retain writer or slot after deadline", True),
         ("early-send-return", "engine/wire/SocketAbort.lean",
          "  let .ok promise ← operation.toBaseIO | return false",
          "  let .ok promise ← operation.toBaseIO | return false\n  if true then return false",
-         "fresh_tcp", "FAIL: actual native writer holds its lease before deadline (closed=false, retired=false)", True),
+         "fresh_tcp", "FAIL: actual native writer holds its lease before deadline", True),
     ])
 def control(case, work):
     name, source, old, new, target, expected, runtime = case

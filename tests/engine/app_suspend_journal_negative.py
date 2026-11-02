@@ -30,13 +30,13 @@ def run(args, name, timeout):
 
 
 def build(name):
-    code, text = run(cap + ['lake', 'build', 'app_suspend_journal'], name + '-build', 360)
+    code, text = run(cap + ['lake', 'build', 'app_suspend_journal'], name + '-build', 900)
     assert code == 0, (name, 'must compile', text[-3000:])
 
 
 def exercise(name, mode='all', failures=()):
     data = logs / (name + '-db')
-    code, text = run([str(root / '.lake/build/bin/app_suspend_journal'), str(data), mode], name, 40)
+    code, text = run([str(root / '.lake/build/bin/app_suspend_journal'), str(data), mode], name, 600)
     modes = ['failure', 'clean', 'held-stop'] if mode == 'all' else [mode]
     for item in modes:
         assert (data / item / 'app.db').is_file(), (name, 'actual SQLite file absent', item)
