@@ -1,3 +1,4 @@
+import engine.core.UrgentViews
 import engine.core.TurnCost
 import engine.wire.JobOwnersLaws
 import engine.wire.IngressFreezeLaws
@@ -1258,6 +1259,16 @@ end cost
 #print axioms Community.check_cites
 #print axioms Community.validate_urgent
 #print axioms Community.validate_cites
+#print axioms Engine.final_of_settled
+#print axioms Engine.step_final
+#print axioms Engine.drain_final
+#print axioms Engine.view_rest
+#print axioms Engine.status_rest
+#print axioms Community.remove_auth
+#print axioms Connection.urgentKey_rel
+#print axioms Connection.reads_allowPeer_urgent
+#print axioms Connection.node_rest
+#print axioms Connection.Execution.trace_rest
 #print axioms Engine.Sync.handlers_transition
 #print axioms Engine.Sync.closed_terminal
 #print axioms Engine.Sync.open_session
