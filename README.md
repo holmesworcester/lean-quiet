@@ -2300,8 +2300,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 518 kernel witnesses, 189 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 102 of 840 linked declarations still pending.**
+**Coverage: 540 kernel witnesses, 185 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 29 of 785 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
@@ -2566,8 +2566,8 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`flush_notifies`](engine/wire/CloseLaws.lean#L71-L74) | **kernel-witness**: [Vacuity.WireMore.courierNotified](tests/vacuity/WireMore.lean). One actual courier tuple with stored local secret id, address and sealed bytes; proves exact outbox hook premise and retained purge id. Synthetic generic family/held-store fixture; not collected real-user traffic. |
 | [`notice_local`](app/community/notice/Proofs.lean#L43-L48) | Pending: no concrete premise witness audited yet |
 | [`caughtUp_local`](app/community/notice/Proofs.lean#L51-L52) | Pending: no concrete premise witness audited yet |
-| [`notice_signed`](app/community/notice/Proofs.lean#L27-L36) | Pending: no concrete premise witness audited yet |
-| [`noticeRecipients_own`](app/community/Proofs.lean#L1835-L1840) | Pending: no concrete premise witness audited yet |
+| [`notice_signed`](app/community/notice/Proofs.lean#L27-L36) | **runtime-witness**: [Vacuity.NotifyRuntime.noticeSigned](tests/vacuity/NotifyRuntime.lean). vacuity_notify_runtime: Bob signs a notice sealed to his node key with his admitted device in the synthetic signed community (real Ed25519); it is Valid, which certifies the premise before the law is applied. A notice signed by Mallory while citing Bob's admission is refused. |
+| [`noticeRecipients_own`](app/community/Proofs.lean#L1820-L1825) | **kernel-witness**: [Vacuity.Notifications.recipient](tests/vacuity/Notify.lean). Rows read by user u: one admission of u's other device (node key 7); a read (all = false) written on node 2 is sealed to that key, discharging the premise by evaluation. |
 | [`same_ops_same_verdicts`](engine/core/Termination.lean#L118-L126) | **runtime-witness**: [Vacuity.CoreRuntime.eventuallyAgree](tests/vacuity/CoreRuntime.lean). Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior. |
 | [`order_free`](engine/core/Proofs.lean#L634-L639) | **runtime-witness**: [Vacuity.CoreRuntime.ordersAgree](tests/vacuity/CoreRuntime.lean). Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior. |
 | [`reach_drain`](engine/core/Proofs.lean#L529-L530) | **kernel-witness**: [Vacuity.CoreRuntime.reachableDrain](tests/vacuity/CoreRuntime.lean). Actual signed Alice/Bob membership and message ops in the model store; nonempty queue before draining. Invariants constructed from Reach. Runtime checks establish finite distinctness and settlement where required; reversed arrival order and replay controls included. This does not certify SQLite behavior. |
@@ -2967,24 +2967,24 @@ logs are retained in `out/crypto-failure` and the CI log above.
 | [`arrival_order`](app/community/Proofs.lean#L1655-L1667) | **runtime-witness**: [Vacuity.RendererSupplement.arrival](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
 | [`receipt_once`](app/community/Proofs.lean#L1612-L1615) | **runtime-witness**: [Vacuity.RendererSupplement.receiptOnce](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
 | [`display_agrees`](app/community/channel/message/Proofs.lean#L196-L206) | **runtime-witness**: [Vacuity.RendererSupplement.displayAgreement](tests/vacuity/RendererSupplement.lean). Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted. |
-| [`step_post`](app/community/Screen.lean#L1530-L1534) | Pending: no concrete premise witness audited yet |
-| [`notifies_iff`](app/community/Screen.lean#L1398-L1398) | Pending: no concrete premise witness audited yet |
-| [`own_silent`](app/community/Screen.lean#L1395-L1396) | Pending: no concrete premise witness audited yet |
-| [`can_alert`](app/community/Screen.lean#L1401-L1402) | Pending: no concrete premise witness audited yet |
-| [`once`](app/community/Screen.lean#L1404-L1405) | Pending: no concrete premise witness audited yet |
-| [`step_quiet`](app/community/Screen.lean#L1482-L1486) | Pending: no concrete premise witness audited yet |
-| [`step_read`](app/community/Screen.lean#L1513-L1516) | Pending: no concrete premise witness audited yet |
-| [`step_removed`](app/community/Screen.lean#L1500-L1504) | Pending: no concrete premise witness audited yet |
-| [`step_keeps`](app/community/Screen.lean#L1522-L1526) | Pending: no concrete premise witness audited yet |
-| [`marks_le`](app/community/Screen.lean#L1542-L1544) | Pending: no concrete premise witness audited yet |
-| [`target_roundtrip`](app/community/Proofs.lean#L1863-L1865) | Pending: no concrete premise witness audited yet |
-| [`target_opens`](app/Proofs.lean#L4016-L4022) | Pending: no concrete premise witness audited yet |
-| [`targetOf_member`](app/Proofs.lean#L4026-L4029) | Pending: no concrete premise witness audited yet |
-| [`syncs_kept`](app/Proofs.lean#L3986-L3989) | Pending: no concrete premise witness audited yet |
-| [`syncs_off`](app/Proofs.lean#L3992-L3993) | Pending: no concrete premise witness audited yet |
-| [`keepSync_keeps`](app/Proofs.lean#L3996-L4000) | Pending: no concrete premise witness audited yet |
-| [`keepSync_set`](app/Proofs.lean#L4002-L4004) | Pending: no concrete premise witness audited yet |
-| [`unmount_keeps_node`](app/Proofs.lean#L4006-L4012) | Pending: no concrete premise witness audited yet |
+| [`step_post`](app/community/Screen.lean#L1574-L1578) | **kernel-witness**: [Vacuity.Notifications.posted](tests/vacuity/Notify.lean). One community, one post from another device and user (Bea's "hi", minute 10) above this device's mark (5), nothing on screen, nothing read, default level: the running turn (Notify.step, evaluated by the kernel) posts exactly that post's card, discharging the premise; the law then gives the post is one the rule admits. |
+| [`notifies_iff`](app/community/Screen.lean#L1442-L1442) | Pending: no concrete premise witness audited yet |
+| [`own_silent`](app/community/Screen.lean#L1439-L1440) | **kernel-witness**: [Vacuity.Notifications.ownSilent](tests/vacuity/Notify.lean). A post whose author device is this device (both the same 1-byte id), at the default settings: its premise holds by rfl, and the law gives it never alerts. |
+| [`can_alert`](app/community/Screen.lean#L1445-L1446) | Pending: no concrete premise witness audited yet |
+| [`once`](app/community/Screen.lean#L1448-L1449) | Pending: no concrete premise witness audited yet |
+| [`step_quiet`](app/community/Screen.lean#L1526-L1530) | Pending: no concrete premise witness audited yet |
+| [`step_read`](app/community/Screen.lean#L1557-L1560) | **kernel-witness**: [Vacuity.Notifications.notRead](tests/vacuity/Notify.lean). That card standing, a turn with its community held, nothing on screen and no read: the kernel evaluates the turn and the card still stands, discharging the premise. |
+| [`step_removed`](app/community/Screen.lean#L1544-L1548) | **kernel-witness**: [Vacuity.Notifications.held](tests/vacuity/Notify.lean). The same standing card after the same turn: its community is held (the premise, by evaluation). |
+| [`step_keeps`](app/community/Screen.lean#L1566-L1570) | **kernel-witness**: [Vacuity.Notifications.kept](tests/vacuity/Notify.lean). The card is active before the turn, and the turn's gone does not name it (both premises by evaluation): it stays. |
+| [`marks_le`](app/community/Screen.lean#L1586-L1588) | **kernel-witness**: [Vacuity.Notifications.markLe](tests/vacuity/Notify.lean). A community read for the first time (no mark yet) at minute 7: the running marks function writes (c, 7), discharging the premise. |
+| [`target_roundtrip`](app/community/Proofs.lean#L1848-L1850) | **kernel-witness**: [Vacuity.Notifications.roundtrip](tests/vacuity/Notify.lean). A link to a message with three 32-byte ids and no thread root: Target.Valid holds by decide before the law is applied. |
+| [`target_opens`](app/Proofs.lean#L4094-L4100) | Pending: no concrete premise witness audited yet |
+| [`targetOf_member`](app/Proofs.lean#L4104-L4107) | **kernel-witness**: [Vacuity.Notifications.member](tests/vacuity/Notify.lean). One admitted entry (adm 32 bytes, not removed) in the link's community: the running targetOf finds it (by rfl), discharging the premise. |
+| [`syncs_kept`](app/Proofs.lean#L4064-L4067) | **runtime-witness**: [Vacuity.NotifyRuntime.kept](tests/vacuity/NotifyRuntime.lean). vacuity_notify_runtime: a real headless App.start state (SQLite, refs, tasks) on the twin, which has the service, with Sync in the background turned on through the running keepSyncSt: the premise holds, and out of the front it syncs. |
+| [`syncs_off`](app/Proofs.lean#L4070-L4071) | **runtime-witness**: [Vacuity.NotifyRuntime.stopped](tests/vacuity/NotifyRuntime.lean). The same real state with it turned off: the premise holds, and out of the front it does not sync. |
+| [`keepSync_keeps`](app/Proofs.lean#L4074-L4078) | Pending: no concrete premise witness audited yet |
+| [`keepSync_set`](app/Proofs.lean#L4080-L4082) | Pending: no concrete premise witness audited yet |
+| [`unmount_keeps_node`](app/Proofs.lean#L4084-L4090) | Pending: no concrete premise witness audited yet |
 | [`parse_segsBits`](engine/renderer/qr/SegLaws.lean#L157-L161) | **kernel-witness**: [Vacuity.Formats.segmentRound](tests/vacuity/Formats.lean). Version 1, numeric 123, alphanumeric QUIET and binary 00 FE FF segments with terminator; every segment validity premise proved. |
 | [`parse_dataStream`](engine/renderer/qr/SegLaws.lean#L193-L197) | **kernel-witness**: [Vacuity.Formats.streamRound](tests/vacuity/Formats.lean). Three nonempty segments fit 19 data codewords and roundtrip; one-byte capacity is rejected. |
 | [`RS.correct_sound`](engine/renderer/qr/Laws.lean#L55-L57) | **kernel-witness**: [Vacuity.Formats.rsSound](tests/vacuity/Formats.lean). One symbol corrupted in ABC plus two parity symbols; successful correction premise proved and soundness theorem applied. |
