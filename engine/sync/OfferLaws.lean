@@ -403,10 +403,10 @@ theorem recv_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix
         · obtain ⟨a, d⟩ := start_keeps fam cfg hx (c := { c with heard := now, peerFloor := some f, session := c.session.hearHello }) now
           exact ⟨rfl, a, fun o ho => discloses_rooms fam rfl (d o ho)⟩
         · refine ⟨rfl, rfl, ?_⟩
+          -- whatever the responder sends here is its hello, which offers nothing
           intro o ho
-          change o ∈ [(Msg.hello c.floor).op] at ho
-          simp only [List.mem_singleton] at ho
-          subst o
+          have e : o = (Msg.hello c.floor).op := by simpa using ho
+          subst e
           exact Or.inl ⟨.hello c.floor, rfl, by simp [Msg.offers]⟩
       | rbsr r k cs =>
         dsimp only
