@@ -57,12 +57,14 @@ native cleanup still needs progress outside this slot protocol. Counts refer
 to completed service stages; measured native milliseconds are regression
 observations, not an OS scheduling or whole-pipeline latency bound.
 
-On the merged source (origin/main `eadcee3` plus the stop-UI, frame-time
-and Reader ownership repairs), all 1,435 audited laws pass the standard-axiom
-audit and the evidence inventory passes (732 entries; the 16 declarations
-main leaves pending are unchanged). This suite passes 52
-checks, all five controls and restoration. Compatibility: normal suspend 51
-with three controls and boot admission 13 with two, all restored;
+On the merged source (origin/main `1e418e62` plus the stop-UI, frame-time
+and Reader ownership repairs) every audited law passes the standard-axiom
+audit and the evidence inventory passes (the declarations main leaves
+pending are unchanged). This suite passes 52
+checks, all five controls and restoration. Compatibility on earlier merges
+(main `b399644`): normal suspend 51 with three controls and boot admission
+13 with two, all restored; main's own snapshot lists lack `engine/world`
+since `5797a90b`, so those suites no longer build on main. On this source:
 lifecycle-node 40/0 with 18 of its 20 controls (since `eadcee3`, main's own
 `accept-revoked-act` anchor is stale and its `commit-on-frame` mutant
 survives). Failed-runner passed 77 checks with
