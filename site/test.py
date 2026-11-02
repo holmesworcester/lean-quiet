@@ -4,7 +4,8 @@ the built site (site/build.py):
 
 - a real invite (the app's own Community.Invite.text, from
   `.lake/build/bin/linkcheck --print`) shows the invite and links to
-  leanquiet://join/ with exactly the fields after "#";
+  leanquiet://join/ with exactly the fields after "#"; a device link
+  (`--print-device`) on link.html links to leanquiet://link/;
 - a link with anything but base62 after "#" (a quote, a tag, a scheme
   smuggled in), or too short, shows "broken" and links nowhere;
 - no "#" shows the downloads only;
@@ -38,8 +39,8 @@ def ok(what, cond):
 def build(out, *extra):
     subprocess.run([sys.executable, str(root / "site/build.py"), str(out), *extra], check=True, capture_output=True)
 
-def dom(site, frag, ua=None, name="page"):
-    url = (site / "join.html").as_uri() + frag
+def dom(site, frag, ua=None, name="page", page="join.html"):
+    url = (site / page).as_uri() + frag
     with tempfile.TemporaryDirectory(dir=os.environ.get("TMPDIR")) as prof:
         cmd = [chrome, "--headless", "--no-sandbox", "--disable-gpu", "--password-store=basic",
                f"--user-data-dir={prof}", "--virtual-time-budget=2000", "--dump-dom", url]
@@ -80,6 +81,23 @@ d = dom(site, "#" + code, name="invite")
 ok("an invite shows the invite", shown(d, "invite") and not shown(d, "broken") and not shown(d, "none"))
 ok("Open links leanquiet://join/ and the fields after #", opens(d) == "leanquiet://join/" + code)
 ok("that is the URI the app's Invite.uri gives", uris[:1] == [opens(d)])
+
+# A device link (Community.webLink): its own page, opening leanquiet://link/.
+r = subprocess.run([str(root / ".lake/build/bin/linkcheck"), "--print-device"], capture_output=True, text=True)
+dlinks = [l for l in r.stdout.splitlines() if l.startswith("https://")]
+duris = [l for l in r.stdout.splitlines() if l.startswith("leanquiet://")]
+ok("linkcheck --print-device gives the app's device link", len(dlinks) == 1)
+dlink = dlinks[0] if dlinks else "https://holmesworcester.github.io/lean-quiet/link#x"
+dpage, dcode = dlink.split("#", 1)
+ok("a device link links to the published link page", dpage == "https://holmesworcester.github.io/lean-quiet/link")
+dbuilt = (site / "link.html").read_text()
+dcsp = re.search(r'Content-Security-Policy" content="([^"]*)"', dbuilt).group(1)
+ok("the link page's policy: default-src 'none', hashed script and style only",
+   "default-src 'none'" in dcsp and "script-src 'sha256-" in dcsp and "unsafe" not in dcsp)
+d = dom(site, "#" + dcode, name="device", page="link.html")
+ok("a device link shows on the link page", shown(d, "invite") and not shown(d, "broken") and "device" in d)
+ok("Open links leanquiet://link/ and the fields after #", opens(d) == "leanquiet://link/" + dcode)
+ok("that is the URI the app's Invite.uri gives for it", duris[:1] == [opens(d)])
 
 for name, frag in [("quote", "#" + code[:60] + '"onmouseover="x'), ("tag", "#" + code[:60] + "<script>x</script>"),
                    ("scheme", "#javascript:alert(1)//" + code[:60]), ("short", "#abc"),

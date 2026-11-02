@@ -299,6 +299,10 @@ lean_exe two_nodes where
 lean_exe notify where
   root := `platforms.headless.Notify
 
+-- Linked devices app to app: link, approve, sync, removal cuts both.
+lean_exe link_devices where
+  root := `platforms.headless.LinkDevices
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
@@ -306,6 +310,10 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `platforms.headless.NetJoin
+
+-- Linked devices over real TCP on loopback: four apps, four nodes.
+lean_exe net_link where
+  root := `platforms.headless.NetLink
 
 lean_exe write_admission where
   root := `platforms.headless.WriteAdmission
@@ -474,6 +482,15 @@ lean_exe fullsync where
 lean_exe simplify where
   root := `tests.engine.Simplify
 
+-- Newest first: a fresh node gets structure, then the newest messages
+-- and their photos first (docs/SYNC.md, "Windows and order")
+lean_exe newest where
+  root := `tests.engine.Newest
+
+-- A windowed node gets its window and its requirements in one round
+lean_exe window_sync where
+  root := `tests.engine.WindowSync
+
 -- T-fresh: a fresh post's latency while a backlog syncs, simulated time
 lean_exe fresh where
   root := `tests.engine.Fresh
@@ -489,6 +506,9 @@ lean_exe people_reader where
 -- Actual RBSR exchange at its proved non-leaf logarithmic depth.
 lean_exe claim_tree where
   root := `tests.engine.ClaimTree
+
+lean_exe live_rounds where
+  root := `tests.engine.LiveRounds
 
 lean_exe clump_lists where
   root := `tests.app.ClumpLists

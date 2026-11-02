@@ -245,9 +245,11 @@ The headless twin appends packets to `notifications.jsonl`, or to the
 `Sim`'s ref.
 
 **Links.** `Target.uri` is `leanquiet://open/` followed by the base62 of
-`(version, community, conversation, message, root)`, beside the invites'
-`leanquiet://join/`. `target_roundtrip` proves a link parses back to
-exactly its target. `openTarget` waits until the message is held, then:
+`(3, community, conversation, message, root)`, beside the member links'
+`leanquiet://join/` (kind 1) and the device links' `leanquiet://link/`
+(kind 2). The leading kind keeps one kind of link from ever reading as
+another. `target_roundtrip` proves a link parses back to exactly its
+target. `openTarget` waits until the message is held, then:
 - selects this device's admitted entry in the community
   (`targetOf_member`);
 - opens the conversation anchored at the message (`target_opens`).

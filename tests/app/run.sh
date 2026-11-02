@@ -54,7 +54,7 @@ stage() {
 (cd engine/native/crypto && CARGO_TARGET_DIR="$PWD/target" cargo build --release --quiet)
 [ -f assets/font.bin ] || tools/fetch_assets.sh
 tools/noto_assets.sh
-lake build host two_nodes net_join cross arrival attach inkless nodequeue pic_retry ux notify
+lake build host two_nodes link_devices net_join net_link cross arrival attach inkless nodequeue pic_retry ux notify
 # One part, timed; a case, if given, goes to its command.
 part() {
   local name=$1 cmd t0

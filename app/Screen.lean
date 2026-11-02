@@ -117,6 +117,10 @@ inductive Act where
   | continue_
   | agree
   | addMembers
+  /-- Link devices: on Get started, this device's side (scan or paste the
+  other's link); in a community, the other's (show this one's). -/
+  | linkDevices
+  | linkShare
   | share
   | copy
   | approve (i : Nat)
@@ -695,7 +699,7 @@ def make (me : Me) (k : Key32) (srcs : Array Image.Src) (seed n top now : Nat) :
                                       preview := preview bytes },
                             bytes, key := sizedOf (tag ++ " file key") 32, nonce := sizedOf (tag ++ " file nonce") 24,
                             metaNonce := sizedOf (tag ++ " meta nonce") 24 }
-      let (a, cs) := attach c u o.id d k nf
+      let (a, cs) := attach c u o.id t d k nf
       pending := pending ++ #[a] ++ cs.toArray
     -- reactions on this message, arriving with it
     let (r, g9) := g.below 3
@@ -746,23 +750,27 @@ structure Data where
   approvals : List Id
   pending : Nat
   admitted : Bool
+  /-- A device link's request: another device of this user. -/
+  link : Bool := false
   deriving Inhabited, BEq
 
 variable {m : Type → Type} [Monad m] [Reads m]
 
 def read (c r : Id) (f : Fact) (deps : Array Q) : m (Option Data × Array Q) := do
-  let .request _ _ d _ _ := f | return (none, deps)
+  let .request _ _ d _ l := f | return (none, deps)
   let (aps, pend, deps) ← readList (approval.byRequest.query [c, r]) deps
   let ids := aps.rows.map (·.1.2)
   let (adm, _, deps) ← readList (admission.byDevice.query [c, d] (limit := some 0)) deps
-  return (some ⟨r, d, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0⟩, deps)
+  return (some ⟨r, d, ids.filter (!pend.contains ·), (ids.filter pend.contains).length, adm.total > 0, l⟩, deps)
 
-/-- The requests to c no admission answers yet. -/
-def waiting (c : Id) : m (Array Data × Array Q) := do
+/-- The requests to c no admission answers yet that user `me` is asked
+about (`Community.asks`: a device link's only by its issuer's user). -/
+def waiting (c me : Id) : m (Array Data × Array Q) := do
   let (rq, _, deps) ← readList (request.all.query [c]) #[]
   let mut out := #[]
   let mut deps := deps
   for (pos, f) in rq.rows do
+    if !Community.asks me f then continue
     let (r, d) ← read c pos.2 f deps
     deps := d
     if let some r := r then
@@ -781,7 +789,7 @@ def hexShort (b : ByteArray) : String :=
 
 /-- Its row on the Join requests page. -/
 def Data.row (r : Data) : Pages.Asking :=
-  { device := s!"Device {hexShort r.device}", when := if r.going then "approved" else "waiting",
+  { device := s!"{if r.link then "Your device" else "Device"} {hexShort r.device}", when := if r.going then "approved" else "waiting",
     going := r.going }
 
 end Kinds.Request
@@ -857,8 +865,9 @@ inductive Want where
   /-- c's present member identities/devices and whether `user` is an
   admin. Mounted author components supply their profiles. -/
   | members (c user : Id)
-  /-- c's join requests no admission answers yet. -/
-  | asking (c : Id)
+  /-- c's join requests no admission answers yet that `user` is asked
+  about (a device link's only by its issuer's user). -/
+  | asking (c user : Id)
   /-- How many present members c has. -/
   | people (c : Id)
   /-- Session-owned reconciliation, not a visible widget subscription. -/
@@ -1157,8 +1166,8 @@ def eval : Want → RM (Val × Array Q)
     -- an admin: the founder's user (the community's id), or one granted admin
     let (ad, _, deps) ← readList (Community.admin.byUser.query [c, user] (limit := some 0)) deps
     return (.members (ms.toArray.map fun (u, ds) => (u, ds, "…")) (!user.isEmpty && (user == c || ad.total > 0)), deps)
-  | .asking c => do
-    let (rs, deps) ← Kinds.Request.waiting c
+  | .asking c user => do
+    let (rs, deps) ← Kinds.Request.waiting c user
     return (.asking rs, deps)
   | .people c => do
     let ((n, all), deps) ← readView (Kinds.Profile.presentCount c 999 1024) #[]
@@ -1771,7 +1780,7 @@ def hero (f : Font.Font) (dm : Dim) (w h : Nat) (name id tally : String) (commun
     b := b.line font l (tx + px 26) (buttonY + px 14) ink
   b := b.fill 0 (px 256) w (px 257) (color .selected)
   return ⟨b, #[(⟨ax, ay, px 96, px 96⟩, .stub "Edit profile"),
-    (⟨px 16, buttonY, bw, px 44⟩, if community then .addMembers else .stub "Link a device"),
+    (⟨px 16, buttonY, bw, px 44⟩, if community then .addMembers else .linkShare),
     (⟨right, buttonY, bw, px 44⟩, .stub "Edit profile")]⟩
 
 /-- Text at the reference's line height, retaining fractional font advances. -/
@@ -1812,7 +1821,7 @@ def you (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (communities d
     (keepSync : Option Bool := none) : Page := Id.run do
   let tally := s!"{communities} {if communities == 1 then "community" else "communities"} · {devices} {if devices == 1 then "device" else "devices"}"
   let pg := hero f dm w (max h (dm.px 1400)) name id tally false
-  let (pg, y) := group f dm pg (dm.px 257) "Devices" #[{ text := "Linked devices", action := .stub "Linked devices", icon := "icon-devices", detail := toString devices }]
+  let (pg, y) := group f dm pg (dm.px 257) "Devices" #[{ text := "Linked devices", action := .linkShare, icon := "icon-devices", detail := toString devices }]
   -- libquiet's SettingsDrawer.svelte: Android only, off by default
   let background : Array Item := match keepSync with
     | some on => #[{ text := "Sync in the background", action := .backgroundSync, icon := "icon-signal", sub := "Keeps Quiet connected while it is off screen.", toggle := some on }]
@@ -2080,28 +2089,29 @@ abbrev ImgKey := FileImage.Key
 inductive PageId where
   | home | chat | getStarted | create | createName | joinChoice | openInvite | paste | scan | name | agree | waiting
   | requests | invite | switcher | profile | removeConfirm | duplicate | you | appearance | label
-  | communitySettings | channelSettings | stub
+  | communitySettings | channelSettings | stub | linkShare | linkReceive
   deriving DecidableEq, Repr, Inhabited
 
 /-- Every page (Nav.depth: back reaches a root in fewer steps than this). -/
 def PageId.all : List PageId :=
   [.home, .chat, .getStarted, .create, .createName, .joinChoice, .openInvite, .paste, .scan, .name, .agree,
    .waiting, .requests, .invite, .switcher, .profile, .removeConfirm, .duplicate, .you, .appearance, .label,
-   .communitySettings, .channelSettings, .stub]
+   .communitySettings, .channelSettings, .stub, .linkShare, .linkReceive]
 
 def PageId.code : PageId → Nat
   | .home => 0 | .chat => 1 | .getStarted => 2 | .create => 3 | .createName => 4
   | .joinChoice => 5 | .openInvite => 6 | .paste => 7 | .scan => 8 | .name => 9
   | .agree => 10 | .waiting => 11 | .requests => 12 | .invite => 13 | .switcher => 14
   | .profile => 15 | .removeConfirm => 16 | .duplicate => 17 | .you => 18 | .appearance => 19 | .label => 20
-  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23
+  | .communitySettings => 21 | .channelSettings => 22 | .stub => 23 | .linkShare => 24 | .linkReceive => 25
 
 def PageId.ofCode : Nat → PageId
   | 0 => .home | 1 => .chat | 2 => .getStarted | 3 => .create | 4 => .createName
   | 5 => .joinChoice | 6 => .openInvite | 7 => .paste | 8 => .scan | 9 => .name
   | 10 => .agree | 11 => .waiting | 12 => .requests | 13 => .invite | 14 => .switcher
   | 15 => .profile | 16 => .removeConfirm | 17 => .duplicate | 18 => .you | 19 => .appearance | 20 => .label
-  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | _ => .getStarted
+  | 21 => .communitySettings | 22 => .channelSettings | 23 => .stub | 24 => .linkShare | 25 => .linkReceive
+  | _ => .getStarted
 
 theorem page_round (p : PageId) : PageId.ofCode p.code = p := by cases p <;> rfl
 
@@ -2113,7 +2123,7 @@ def PageId.drawer : PageId → Bool
 the scan overlay): the ways into a community, drawn without the shell. -/
 def PageId.stage : PageId → Bool
   | .getStarted | .create | .createName | .joinChoice | .openInvite | .paste | .scan | .name | .agree
-  | .waiting => true
+  | .waiting | .linkReceive => true
   | _ => false
 
 /-- Pages whose bodies use the native scroll view. -/
@@ -2164,6 +2174,13 @@ structure PageIn where
   asking : Array Pages.Asking
   askingAll : Nat
   link : Option String
+  /-- This device's device link (Link devices), this user's devices in
+  this community (this one marked), whether the paste and scan pages are
+  Link devices', and whether the link taken is a device link. -/
+  deviceLink : Option String := none
+  ownDevices : Array String := #[]
+  linking : Bool := false
+  deviceInvite : Bool := false
   members : Array (String × Bool)
   memberIds : Array String := #[]
   backEmpty : Bool
@@ -2223,6 +2240,13 @@ structure St where
   editorFocused : Bool := false
   ownName : String := "…"
   ownDevices : Nat := 1
+  /-- This user's devices in the current community, as Link devices lists
+  them; and whether the paste and scan pages are Link devices'. -/
+  ownDeviceKeys : Array String := #[]
+  linking : Bool := false
+  /-- This node's key, read when Link devices opens: which listed device
+  is this one. -/
+  nodePk : ByteArray := .empty
   window : Safe.Input := ⟨1080, 2400, {}, {}, {}⟩
   nowMs : Nat := 0
   noticeClock : Option (String × Nat) := none
@@ -3914,21 +3938,32 @@ def cancelPhoto : M Unit := do
   if s.photoRequest.isSome then discard <| s.io.pickPhoto 0
   modify fun s => { s with photoRequest := none, photoWork := none }
 
+/-- The current community's link of this kind held for this session: a
+member's (Add members) or a device link (Link devices), told apart by its
+page (`Community.webLink`). -/
+def linkOf (s : St) (device : Bool) : Option String :=
+  (s.links.find? fun (a, l) => a == s.me.acc && Community.webLink.isPrefixOf l.toList == device).map (·.2)
+
 /-- Open a page (the current one goes on the back stack). -/
 def openPage (p : PageId) : M Unit := do
   let s ← get
   if s.page == p then return
   cancelPhoto
-  -- Add members issues this community's link once per session: an
-  -- invitation op of mine, and the link that carries its bearer secret
-  if p == .invite && !s.me.waiting && !(s.links.any (·.1 == s.me.acc)) then
+  -- Add members (Link devices) issues this community's link (device
+  -- link) once per session: an invitation op of mine, and the link that
+  -- carries its bearer secret
+  let device := p == .linkShare
+  if device then
+    let nk ← intentView Community.nodeKey
+    modify fun s => { s with nodePk := (nk.map (·.1)).getD .empty }
+  if (p == .invite || device) && !s.me.waiting && !s.me.c.isEmpty && (linkOf s device).isNone then
     let bearer ← newSeed
     -- dial hints: this device's private LAN addresses (Link.hints)
     -- the link names this node's key (Community.inviteTo reads it)
     let (c, adm, dev, hints) := (s.me.c, s.me.adm, s.me.dev, ← listenHints)
     let link ← IO.mkRef none
     let _ ← actWith (.invite s.me.acc link) do
-      let (issued, _) ← readView (Community.inviteTo c adm dev bearer hints) #[]
+      let (issued, _) ← readView (Community.inviteTo c adm dev bearer hints device) #[]
       let some (w, i) := issued | throw (IO.userError "no invitation to issue")
       link.set (some i.text)
       return w
@@ -4015,7 +4050,8 @@ def switchToAcc (a : Id) : M Unit := do
 def switchTo (i : Nat) : M Unit := do
   if let some m := (← get).comms[i]? then switchToAcc m.acc
 
-/-- A link pasted or scanned: Choose a name, then Agree & join; but a link
+/-- A link pasted or scanned: Choose a name, then Agree & join (a device
+link: Agree & join alone, as libquiet's `DeviceLinkConfirm`); but a link
 to a community this device already holds (a member, or its join pending)
 goes to that community instead, and joins nothing (libquiet's rule: a
 node holds a community at most once). -/
@@ -4028,8 +4064,13 @@ def takeInvite (i : Community.Invite) : M Unit := do
     say (if m.waiting then "You're already waiting to join this community." else "You're already in this community.")
     return
   modify fun s => { s with invite := some i, field := "", refusal := none }
-  openPage .name
-  s.io.ime true
+  -- a device link joins its issuer's user: no name to choose
+  if i.link then
+    s.io.ime false
+    openPage .agree
+  else
+    openPage .name
+    s.io.ime true
 
 /-- The acceptance a write makes (found's, join's): its accept op. -/
 def acceptOf (w : Community.Write) : Option Id :=
@@ -4075,7 +4116,7 @@ def netStep : M Unit := do
     return
   let listen := ((← listenHints).head?).getD s!"127.0.0.1:{port}".toUTF8
   let x : Engine.Sync.Sync SF (SqlM SF) :=
-    { fam, cfg := { every := 30000, askTime := 20000 },
+    { fam, cfg := { askTime := 20000 },
       hooks := Data.hooks listen }
   let path := s.dbPath
   let sh := s.sh
@@ -4240,7 +4281,7 @@ def refreshMembers : M Unit := do
 def refreshAsking : M Unit := do
   let s ← get
   if s.me.c.isEmpty then return
-  if let some (.asking out) ← query ⟨["page".toUTF8, s.cur, "requests".toUTF8], true⟩ (.asking s.me.c) then
+  if let some (.asking out) ← query ⟨["page".toUTF8, s.cur, "requests".toUTF8], true⟩ (.asking s.me.c s.me.user) then
     modify fun s => { s with asking := out }
 
 /-- My approval of request r (my device in this community signs it). -/
@@ -4264,8 +4305,11 @@ def observeSettings (owner : Demand.Owner) (profile counts : Bool) : M Unit := d
     let (name, _) ← Component.author ⟨owner ++ ["author".toUTF8], true⟩ s.me.c s.me.user (s.ownName, false)
     modify fun s => { s with ownName := name }
     if let some (.members ms _) ← query ⟨owner ++ ["devices".toUTF8], true⟩ (.members s.me.c s.me.user) then
-      let devices := (ms.find? (·.1 == s.me.user)).map (·.2.1.length) |>.getD 1
-      modify fun s => { s with ownDevices := devices }
+      let mine := (ms.find? (·.1 == s.me.user)).map (·.2.1) |>.getD []
+      -- this user's devices by node key, this one first and marked (Link devices)
+      let keys := (mine.filter (· == s.nodePk)).map (fun d => s!"Device {Kinds.Request.hexShort d} (this device)") ++
+        (mine.filter (· != s.nodePk)).map (fun d => s!"Device {Kinds.Request.hexShort d}")
+      modify fun s => { s with ownDevices := max 1 mine.length, ownDeviceKeys := keys.toArray }
   if counts then
     if let some (.people n all) ← query ⟨owner ++ ["people".toUTF8], true⟩ (.people s.me.c) then
       modify fun s => { s with people := n, peopleAll := all }
@@ -4284,6 +4328,7 @@ def pageTitle : PageId → String × Bool
   | .invite => ("Add members", true) | .switcher => ("Communities", true) | .chat => ("", false)
   | .profile => ("", true) | .removeConfirm => ("", true) | .duplicate => ("Warning!", true)
   | .home => ("", false) | .label => ("Full label", true)
+  | .linkShare => ("Link devices", true) | .linkReceive => ("", false)
 
 /-- A page and its bar, from its key alone (and the font, background and
 camera frame): nothing else of the app's state can reach the pixels, so a
@@ -4294,22 +4339,27 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
   let h := k.h
   let me := k.me
   let pg : Pages.Page := match k.page with
-    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity (Pages.Act.stub "Linked devices") f dm W h k.stage
+    | .getStarted => Pages.getStarted Pages.Act.joinCommunity Pages.Act.createCommunity Pages.Act.linkDevices f dm W h k.stage
+    | .linkReceive => Pages.linkChoice Pages.Act.qrCode Pages.Act.pasteLink f dm W h
+    | .linkShare => Pages.invite Pages.Act.share Pages.Act.copy f dm W h (k.deviceLink.bind fun l => Link.qr l (Pages.qrSide dm W h))
+        (k.deviceLink.getD "…") (device := true) (devices := k.ownDevices)
     | .create => Pages.create Pages.Act.continue_ Pages.Act.field f dm W h k.field true
     | .joinChoice => Pages.joinChoice Pages.Act.inviteLink Pages.Act.qrCode f dm W h none
     | .openInvite => Pages.openInvite Pages.Act.pasteLink f dm W h
-    | .paste => Pages.paste Pages.Act.continue_ Pages.Act.field f dm W h k.field true k.refusal
+    | .paste => Pages.paste Pages.Act.continue_ Pages.Act.field f dm W h k.field true k.refusal (device := k.linking)
     | .name => Pages.chooseName Pages.Act.continue_ Pages.Act.field f dm W h k.field
     | .createName => Pages.chooseName Pages.Act.continue_ Pages.Act.field f dm W h k.field
-    | .scan => Pages.scan Pages.Act.pasteLink f dm W h cam "Starting the camera…"
-    | .agree => Pages.agree Pages.Act.agree f dm W h "this community"
+    | .scan => Pages.scan Pages.Act.pasteLink f dm W h cam "Starting the camera…" (device := k.linking)
+    | .agree => Pages.agree Pages.Act.agree f dm W h "this community" (device := k.deviceInvite)
     | .waiting => Pages.waiting Pages.Act.stopWaiting f dm W h (Kinds.Request.hexShort me.c)
         -- the request is stored and waits for the community's ops; until the
         -- network says more, the first beat is where it is
         #[(if me.dialing.isEmpty then "Looking for someone to hand your join to" else s!"Sending your request to {me.dialing}",
             "Quiet sends it again until a member's device answers.", .now),
-          ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next),
+          (if me.linking then ("Waiting for your other device to let this one in", "Open Quiet on the device that showed the code and approve this one under Waiting to join.", .next)
+            else ("Waiting for a member to let you in", "Quiet asks again whenever it finds one. They see you waiting the next time they open the app.", .next)),
           ("Keys and history arrive", "Then the community opens, with what was shared before you got here.", .next)] #[]
+        (device := me.linking)
     | .requests => Pages.requests Pages.Act.addMembers Pages.Act.hide Pages.Act.approve f dm W h k.asking
     | .invite => Pages.invite Pages.Act.share Pages.Act.copy f dm W h (k.link.bind fun l => Link.qr l (Pages.qrSide dm W h)) (k.link.getD "…")
     | .switcher => Pages.switcher Pages.Act.switchTo Pages.Act.addMembers Pages.Act.communitySettings Pages.Act.joinCommunity Pages.Act.createCommunity Pages.Act.stub Pages.Act.back f dm W h (k.comms.map fun m =>
@@ -4356,7 +4406,8 @@ def pageIn (s : St) : PageIn :=
     ownName := s.ownName, ownId := Pages.identity s.me.user, communityId := Pages.identity s.me.c, devices := s.ownDevices, people := s.people,
     refusal := s.refusal, me := s.me.key, comms := s.comms.map (·.key),
     asking := (s.asking.filter fun r => !s.hidden.contains r.id).map (·.row), askingAll := s.asking.size,
-    link := (s.links.find? (·.1 == s.me.acc)).map (·.2), members := s.members, memberIds := s.memberIds.map Pages.identity,
+    link := linkOf s false, deviceLink := linkOf s true, ownDevices := s.ownDeviceKeys, linking := s.linking,
+    deviceInvite := (s.invite.map (·.link)).getD false, members := s.members, memberIds := s.memberIds.map Pages.identity,
     backEmpty := s.backStack.isEmpty, drawerBack := s.backStack.head?.any PageId.drawer,
     camFrame := s.camFrame, labelText := s.labelText, labelPage := s.labelPage,
     profile := match s.profileOf with
@@ -4460,7 +4511,13 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
     let last := (n - 1) / Label.capacity s.dim (viewH s)
     modify fun s => { s with labelPage := min last (s.labelPage + 1) }
   | .labelPrev => modify fun s => { s with labelPage := s.labelPage - 1 }
-  | .joinCommunity => openPage .joinChoice
+  | .joinCommunity =>
+    modify fun s => { s with linking := false }
+    openPage .joinChoice
+  | .linkDevices =>
+    modify fun s => { s with linking := true }
+    openPage .linkReceive
+  | .linkShare => openPage .linkShare
   | .createCommunity =>
     modify fun s => { s with field := "" }
     openPage .create
@@ -4519,9 +4576,9 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
         return w
   | .addMembers => openPage .invite
   | .share | .copy =>
-    if let some (_, l) := s.links.find? (·.1 == s.me.acc) then
+    if let some l := linkOf s (s.page == .linkShare) then
       s.io.copy l
-      say "Invitation copied."
+      say (if s.page == .linkShare then "Link copied." else "Invitation copied.")
   | .stopWaiting =>
     -- a local op superseding my joining fact: the request stays with the
     -- members, and an approval would still let this device in
@@ -5074,11 +5131,12 @@ def command (line : String) : M Bool := do
       | some "openInvite" => some .openInvite | some "paste" => some .paste | some "scan" => some .scan
       | some "agree" => some .agree | some "waiting" => some .waiting | some "requests" => some .requests
       | some "invite" => some .invite | some "switcher" => some .switcher | some "chat" => some .chat
+      | some "linkShare" => some .linkShare | some "linkReceive" => some .linkReceive
       | _ => none
     match p with
     | some .chat => back; s.io.ctlReply "chat"
     | some p => openPage p; s.io.ctlReply s!"page {repr p}"
-    | none => s.io.ctlReply "open getStarted|create|join|openInvite|paste|scan|agree|waiting|requests|invite|switcher|chat"
+    | none => s.io.ctlReply "open getStarted|create|join|openInvite|paste|scan|agree|waiting|requests|invite|switcher|chat|linkShare|linkReceive"
   | "back" => back; s.io.ctlReply s!"page {repr (← get).page}"
   | "channel" => onPageAct (.openChannel 0); s.io.ctlReply s!"page {repr (← get).page}"
   | "page" =>
@@ -5113,7 +5171,9 @@ def command (line : String) : M Bool := do
   -- button the page shows, Add photos, and the composer sent with its
   -- text and photos.
   | "link" =>
-    s.io.ctlReply (((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "")
+    s.io.ctlReply ((linkOf s false).getD "")
+  | "devicelink" =>
+    s.io.ctlReply ((linkOf s true).getD "")
   | "field" =>
     modify fun s => { s with field := rest, refusal := none, pageKey := none }
     s.io.ctlReply s!"field {rest.length}"
@@ -5765,7 +5825,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   refreshHomeCount
   let viewPage := (← get).page
   observeSettings ["page".toUTF8, (← get).cur, "settings".toUTF8]
-    (viewPage == .you || viewPage == .home) (viewPage == .communitySettings || viewPage == .channelSettings)
+    (viewPage == .you || viewPage == .home || viewPage == .linkShare) (viewPage == .communitySettings || viewPage == .channelSettings)
   netStep
   scanStep
   -- admitted in a community I joined: my first profile (the name I chose),

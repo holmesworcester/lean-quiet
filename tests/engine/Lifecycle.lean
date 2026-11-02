@@ -316,14 +316,14 @@ def main (args : List String) : IO UInt32 := do
   let atts ← rows b (attachment.byMessage.query [c, postId])
   t.ok "on B, the post lists its attachment" (atts.length == 1)
   match atts.head? with
-  | some (_, .attachment _ _ _ root len akid sealedInfo) =>
+  | some (_, .attachment _ _ _ root len _ akid sealedInfo) =>
     let cs ← rows b (chunk.byAttachment.query [c, (wf.ops.getD 1 default).id] (desc := false))
     t.ok "B holds every chunk: progress is a count" (cs.length == Merkle.nChunks len)
     let mut slicesB : List ByteArray := []
     for ((_, x), _) in cs do
       match ← ((Store.getOp x : SqlM Fact _).run b) with
       | some o => match (Codec.decode o.body : Option Body) with
-        | some (.chunk _ _ _ sl _) => slicesB := slicesB ++ [sl]
+        | some (.chunk _ _ _ _ sl _) => slicesB := slicesB ++ [sl]
         | _ => pure ()
       | none => pure ()
     match openInfo c akid sealedInfo kA with
@@ -364,17 +364,21 @@ def main (args : List String) : IO UInt32 := do
   t.ok "the same file sent twice shares no chunk op"
     (chunks2.length == nc && chunks2.all fun o => !(chunkOps.any (·.id == o.id)))
   match (chunkOps.headD default |>.body |> fun b => (Codec.decode b : Option Body)) with
-  | some (.chunk r l i sl p) =>
-    let bad := mkOp [c, att] (.chunk r l i (sl.set! 5 (sl.get! 5 ^^^ 1)) p)
-    let short := mkOp [c, att] (.chunk r l i sl p.tail)
-    let wrongIndex := mkOp [c, att] (.chunk r l (i + 1) sl p)
-    let wrongLen := mkOp [c, att] (.chunk r (l + 1) i sl p)
+  | some (.chunk r l tm i sl p) =>
+    let bad := mkOp [c, att] (.chunk r l tm i (sl.set! 5 (sl.get! 5 ^^^ 1)) p)
+    let short := mkOp [c, att] (.chunk r l tm i sl p.tail)
+    let wrongIndex := mkOp [c, att] (.chunk r l tm (i + 1) sl p)
+    let wrongLen := mkOp [c, att] (.chunk r (l + 1) tm i sl p)
+    -- the true slice and path, claimed at time 0 (where chunks sorted
+    -- before they carried their message's time) or a minute later
+    let atZero := mkOp [c, att] (.chunk r l 0 i sl p)
+    let wrongTime := mkOp [c, att] (.chunk r l (tm + 1) i sl p)
     -- another post's attachment, with another file: this chunk is not its
     let nf3 : NewFile := { nf with bytes := "other bytes".toUTF8, key := Bytes.digest "file key 3".toUTF8 }
     let wf3 ← sendOn a (send c c dA kA ((Bytes.fit 24 (sha256 "nonce 4".toUTF8))) "other".toUTF8 9 [nf3])
     let att3 := (wf3.ops.getD 1 default).id
-    let foreign := mkOp [c, att3] (.chunk r l i sl p)
-    fromPeer solo ([wf3.ops.headD default, wf3.ops.getD 1 default] ++ [bad, short, wrongIndex, wrongLen, foreign])
+    let foreign := mkOp [c, att3] (.chunk r l tm i sl p)
+    fromPeer solo ([wf3.ops.headD default, wf3.ops.getD 1 default] ++ [bad, short, wrongIndex, wrongLen, foreign, atZero, wrongTime])
     let st (o : Op) : IO Bool := do
       return match ← ((Store.getStatus o.id : SqlM Fact _).run solo) with | some .invalid => true | _ => false
     t.ok "a tampered chunk is Invalid" (← st bad)
@@ -382,6 +386,10 @@ def main (args : List String) : IO UInt32 := do
     t.ok "a chunk under the wrong index is Invalid" (← st wrongIndex)
     t.ok "a chunk with a length not its attachment's is Invalid" (← st wrongLen)
     t.ok "a chunk cited under another file's attachment is Invalid" (← st foreign)
+    t.ok "a chunk at time 0 is Invalid" (← st atZero)
+    t.ok "a chunk at a time not its attachment's is Invalid" (← st wrongTime)
+    t.ok "a Valid chunk sorts at its message's time"
+      (orderOf (chunkOps.headD default) == orderOf postOp && orderOf attOp == orderOf postOp && orderOf postOp != 0)
     let st (o : Op) : IO Bool := do
       return match ← ((Store.getStatus o.id : SqlM Fact _).run solo) with | some .invalid => true | _ => false
     t.ok "a tampered chunk is Invalid" (← st bad)
