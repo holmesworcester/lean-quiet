@@ -666,6 +666,8 @@ Rests on: `Connection.Noise.Symbolic.sym`, `Engine.Model.run`
 | h2 | `Connection.Noise.read1 Connection.Noise.Symbolic.sym (Connection.Noise.Symbolic.T.lit pro) (Connection.Noise.Symbolic.T.atom sR) (Connection.Noise.Symbolic.T…` | [crypto] |
 | h3 | `Connection.Noise.write2 Connection.Noise.Symbolic.sym st' (Connection.Noise.Symbolic.T.atom f) (Connection.Noise.Symbolic.T.atom sI).pub re (Connection.Noise…` | [crypto] |
 | h4 | `Connection.Noise.read2 Connection.Noise.Symbolic.sym st (Connection.Noise.Symbolic.T.atom sI) (Connection.Noise.Symbolic.T.atom e) m2 = some (si, q2)` | [crypto] |
+| o1 | `O ((Connection.Noise.Symbolic.T.lit pro).pair ((Connection.Noise.Symbolic.T.atom sR).pub.pair (Connection.Noise.Symbolic.T.lit b1))) m1` | [discharged] |
+| o2 | `O ((Connection.Noise.Symbolic.T.lit pro).pair ((Connection.Noise.Symbolic.T.atom sI).pub.pair (m1.pair (Connection.Noise.Symbolic.T.lit b2)))) m2` | [discharged] |
 
 **`Engine.purge_named`** (wired)
 
@@ -779,7 +781,7 @@ Rests on: `Engine.Model.run`
 
 ## ✅ The trust rule lets in exactly the live members' nodes.
 
-Rests on: `Engine.Model.run`
+Rests on: `(a World's network)`, `Engine.Model.run`
 
 **`Community.connect_iff`** (wired)
 
@@ -826,9 +828,24 @@ Rests on: `Engine.Model.run`
 | hops | `s.ops = t.ops` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+**`Connection.Execution.connect_iff_trace`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.refuse_nonmember_trace`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `∀ (u : Engine.Id) (d : Community.Key), Community.Admitted Community.ed25519 (Connection.community Community.ed25519 ((Connection.Execution.trace S (Connectio…` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
 ## ✅ A removal cuts every device of the removed user,
 
-Rests on: `Engine.Model.run`
+Rests on: `(a World's network)`, `Engine.Model.run`
 
 **`Community.removal_cuts_off`** (wired)
 
@@ -873,6 +890,22 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | he | `Engine.Extends ops ops'` | [discharged] |
 | h | `Community.Removed C ops c u` | [discharged] |
+
+**`Connection.Execution.removal_cuts_off_trace`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hr | `Community.Removed Community.ed25519 (Connection.community Community.ed25519 ((Connection.Execution.trace S (Connection.Execution.empty ea eb) actions).peer s…` | [discharged] |
+| only | `∀ (u' : Engine.Id) (d : Community.Key), Community.Admitted Community.ed25519 (Connection.community Community.ed25519 ((Connection.Execution.trace S (Connecti…` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.removed_trace`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 ## 🟡 A removed member's node stops holding the community, and can rejoin only as a new device.
 
@@ -1791,6 +1824,32 @@ Rests on: `Engine.Model.run`
 |---|---|---|
 | (none) | | |
 
+## 🟡 Your notifications are yours.
+
+**`Community.notice_local`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.caughtUp_local`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Community.notice_signed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Community.V C ops x (Community.Fact.notice c u r bx tm)` | [untagged] |
+
+**`Community.noticeRecipients_own`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `e ∈ Community.noticeRecipients pk all rows` | [untagged] |
+
 ## ✅ Honest nodes agree.
 
 Rests on: `Engine.CollisionFree`, `Engine.Model.run`
@@ -2063,6 +2122,31 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | hd | `Engine.Distinct L` | [crypto] |
 | hr | `Engine.Reach (Connection.node C K) L s` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+
+## 🟡 ...and at every peer, after every event.
+
+Rests on: `(a World's network)`, `Engine.Model.run`
+
+**`Connection.Execution.trace_good`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.Run.good`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Connection.Execution.admitted_trace`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 ## ✅ The app's own state is ops, beside the node's.
 
@@ -2360,6 +2444,19 @@ Rests on: `Engine.Model.run`
 | sound | `∀ (t : Nat), Engine.Sync.Sound Prod.fst Prod.snd Engine.sha256 (Engine.Sync.RoundRun.State.items cfg r k (states t)) (Z t)` | [discharged] |
 | ranks | `∀ (cl : Engine.Sync.Claim), cl ∈ (states 0).pending → Engine.Sync.RoundRun.rankIn U cl ≤ bound` | [discharged] |
 
+**`Engine.Sync.RoundRun.quiet_round_log`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| run | `Engine.Sync.RoundRun.Run cfg r k times states` | [discharged] |
+| cur | `Engine.Sync.RoundRun.Current r k states` | [discharged] |
+| hX | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t)) = X` | [discharged] |
+| hY | `∀ (t : Nat), Engine.Sync.RoundRun.State.items cfg r k (states (2 * t + 1)) = Y` | [discharged] |
+| sx | `Engine.Sync.Sorted Prod.fst X` | [discharged] |
+| sy | `Engine.Sync.Sorted Prod.fst Y` | [discharged] |
+| hxw | `X.length ≤ cfg.params.leaf * cfg.params.fan ^ w` | [discharged] |
+| hyw | `Y.length ≤ cfg.params.leaf * cfg.params.fan ^ w` | [discharged] |
+
 **`Engine.Sync.exchange_complete`** (model)
 
 | premise | statement | tag |
@@ -2558,6 +2655,7 @@ Rests on: `Engine.Model.run`
 | available | `∀ (o : Engine.Op), o ∈ whole → ∀ (j : Nat), j ≥ start → (send.store j).db.ops o.id = some o ∧ Engine.Sync.Conn.shows x.fam (send.conn j) o = true` | [base] |
 | requested | `∀ (o : Engine.Op), o ∈ whole → (recv.store start).db.ops o.id = some o ∨ ∃ j, j ≥ start ∧ o.id ∈ (send.conn j).owed` | [base] |
 | transport | `∀ (j : Nat), j ≥ start → ∀ (o : Engine.Op), o ∈ send.emitted j → ∃ k, k ≥ j ∧ o ∈ recv.input k` | [base] |
+| capped | `∀ (o : Engine.Op), o ∈ whole → o.capped = true` | [discharged] |
 
 ## 🟡 New ops reach connected members.
 
@@ -2567,16 +2665,17 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hm | `(w.peer s).node.managed = []` | [model] |
+| hm | `(w.peer s).node.managed = []` | [discharged] |
+| hcp | `∀ (y : Engine.Op), y ∈ ops → y.capped = true` | [discharged] |
 | ho | `o ∈ ops` | [discharged] |
-| hn | `(w.peer s).held.db.ops o.id = none` | [model] |
+| hn | `(w.peer s).held.db.ops o.id = none` | [discharged] |
 | hu | `∀ (y : Engine.Op), y ∈ ops → y.id = o.id → y = o` | [discharged] |
-| hc | `(cid, c) ∈ (w.peer s).node.conns` | [model] |
+| hc | `(cid, c) ∈ (w.peer s).node.conns` | [discharged] |
 | hr | `S.fam.room o = some r` | [discharged] |
 | hs | `r ∈ S.rooms s cid` | [discharged] |
 | hk | `¬o.id ∈ c.known` | [discharged] |
 | hof | `¬o.id ∈ c.offered` | [discharged] |
-| ha | `(w.peer s).node.addr? cid = some a` | [model] |
+| ha | `(w.peer s).node.addr? cid = some a` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
@@ -2584,17 +2683,18 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hca | `(w.peer s).node.conns = [(cid, ca)]` | [model] |
-| hcb | `(w.peer s.other).node.conns = [(cid, cb)]` | [model] |
-| hma | `(w.peer s).node.managed = []` | [model] |
-| hmb | `(w.peer s.other).node.managed = []` | [model] |
-| haddr | `(w.peer s).node.addr? cid = some (w.peer s.other).addr` | [model] |
+| hca | `(w.peer s).node.conns = [(cid, ca)]` | [discharged] |
+| hcb | `(w.peer s.other).node.conns = [(cid, cb)]` | [discharged] |
+| hma | `(w.peer s).node.managed = []` | [discharged] |
+| hmb | `(w.peer s.other).node.managed = []` | [discharged] |
+| haddr | `(w.peer s).node.addr? cid = some (w.peer s.other).addr` | [discharged] |
 | hr | `S.fam.room o = some r` | [discharged] |
 | hra | `r ∈ S.rooms s cid` | [discharged] |
-| hrb | `r ∈ S.rooms s.other cid` | [model] |
+| hrb | `r ∈ S.rooms s.other cid` | [discharged] |
 | hw | `Engine.Sync.isWire o.kind = false` | [discharged] |
-| hna | `(w.peer s).held.db.ops o.id = none` | [model] |
-| hnb | `(w.peer s.other).held.db.ops o.id = none` | [model] |
+| hcp | `o.capped = true` | [discharged] |
+| hna | `(w.peer s).held.db.ops o.id = none` | [discharged] |
+| hnb | `(w.peer s.other).held.db.ops o.id = none` | [discharged] |
 | hk | `¬o.id ∈ ca.known` | [discharged] |
 | ho | `¬o.id ∈ ca.offered` | [discharged] |
 | hq | `¬o.id ∈ cb.asked` | [discharged] |
@@ -2604,7 +2704,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hb | `0 < S.cfg.burst` | [discharged] |
 | hkn | `0 < S.cfg.maxKnown` | [discharged] |
 | hcap | `(cb.asked.insert o.id).size ≤ S.cfg.maxKnown` | [discharged] |
-| hix | `Engine.Sync.authorize (Engine.Sync.Index.add S.fam (w.peer s).node.ix o) (ca.setRooms (S.rooms s cid)) [o.id] = [o.id]` | [model] |
+| hix | `Engine.Sync.authorize (Engine.Sync.Index.add S.fam (w.peer s).node.ix o) (ca.setRooms (S.rooms s cid)) [o.id] = [o.id]` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
@@ -2612,17 +2712,18 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 
 | premise | statement | tag |
 |---|---|---|
-| hca | `(w.peer s).node.conns = [(cid, ca)]` | [model] |
-| hcb | `(w.peer s.other).node.conns = [(cid, cb)]` | [model] |
-| hma | `(w.peer s).node.managed = []` | [model] |
-| hmb | `(w.peer s.other).node.managed = []` | [model] |
-| haddr | `(w.peer s).node.addr? cid = some (w.peer s.other).addr` | [model] |
+| hca | `(w.peer s).node.conns = [(cid, ca)]` | [discharged] |
+| hcb | `(w.peer s.other).node.conns = [(cid, cb)]` | [discharged] |
+| hma | `(w.peer s).node.managed = []` | [discharged] |
+| hmb | `(w.peer s.other).node.managed = []` | [discharged] |
+| haddr | `(w.peer s).node.addr? cid = some (w.peer s.other).addr` | [discharged] |
 | hr | `S.fam.room o = some r` | [discharged] |
 | hra | `r ∈ S.rooms s cid` | [discharged] |
-| hrb | `r ∈ S.rooms s.other cid` | [model] |
+| hrb | `r ∈ S.rooms s.other cid` | [discharged] |
 | hw | `Engine.Sync.isWire o.kind = false` | [discharged] |
-| hna | `(w.peer s).held.db.ops o.id = none` | [model] |
-| hnb | `(w.peer s.other).held.db.ops o.id = none` | [model] |
+| hcp | `o.capped = true` | [discharged] |
+| hna | `(w.peer s).held.db.ops o.id = none` | [discharged] |
+| hnb | `(w.peer s.other).held.db.ops o.id = none` | [discharged] |
 | hk | `¬o.id ∈ ca.known` | [discharged] |
 | ho | `¬o.id ∈ ca.offered` | [discharged] |
 | hq | `¬o.id ∈ cb.asked` | [discharged] |
@@ -2632,7 +2733,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hb | `0 < S.cfg.burst` | [discharged] |
 | hkn | `0 < S.cfg.maxKnown` | [discharged] |
 | hcap | `(cb.asked.insert o.id).size ≤ S.cfg.maxKnown` | [discharged] |
-| hix | `Engine.Sync.authorize (Engine.Sync.Index.add S.fam (w.peer s).node.ix o) (ca.setRooms (S.rooms s cid)) [o.id] = [o.id]` | [model] |
+| hix | `Engine.Sync.authorize (Engine.Sync.Index.add S.fam (w.peer s).node.ix o) (ca.setRooms (S.rooms s cid)) [o.id] = [o.id]` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
 | h1 | `w.now ≤ t1` | [discharged] |
 | h2 | `t1 ≤ t2` | [discharged] |
@@ -2665,6 +2766,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hr | `S.fam.room o = some r` | [discharged] |
 | hs | `r ∈ S.rooms s cid` | [discharged] |
 | hmax | `0 < S.cfg.maxIds` | [discharged] |
+| hcp | `o.capped = true` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
@@ -2673,6 +2775,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | premise | statement | tag |
 |---|---|---|
 | hm | `n.managed = []` | [discharged] |
+| hcp | `∀ (y : Engine.Op), y ∈ ops → y.capped = true` | [discharged] |
 | ho | `o ∈ ops` | [discharged] |
 | hn | `h.db.ops o.id = none` | [discharged] |
 | hu | `∀ (y : Engine.Op), y ∈ ops → y.id = o.id → y = o` | [discharged] |
@@ -2708,6 +2811,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hc | `n.conns = [(cid, c)]` | [discharged] |
 | hn | `h.db.ops o.id = none` | [discharged] |
 | hw | `Engine.Sync.isWire o.kind = false` | [discharged] |
+| hcp | `o.capped = true` | [discharged] |
 | hr | `S.fam.room o = some r` | [discharged] |
 | hs | `r ∈ S.rooms s cid` | [discharged] |
 | hmore | `∀ (b : ByteArray), b ∈ more → ∃ r l, b = (Engine.Sync.Msg.hold r l).op.bytes` | [discharged] |
@@ -2722,7 +2826,7 @@ Rests on: `(a World's network)`
 
 | premise | statement | tag |
 |---|---|---|
-| success | `Goal (Connection.Execution.trace S initial actions)` | [model] |
+| success | `Goal (Connection.Execution.trace S initial actions)` | [discharged] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Connection.Execution.fairRun_fair`** (world)
@@ -2943,6 +3047,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hi | `Engine.Inv x.fam s.held.db` | [discharged] |
 | ho | `o ∈ ops` | [discharged] |
 | hs | `(x.fam.room o).isSome = true` | [discharged] |
+| hc | `o.capped = true` | [discharged] |
 | sameInput | `∀ (p : Engine.Op), p ∈ ops → p.id = o.id → p = o` | [discharged] |
 | sameStore | `∀ (p : Engine.Op), s.held.db.ops o.id = some p → p = o` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
@@ -2976,6 +3081,150 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | a | `Engine.World.Holds Q.setup (E.world k) j r x` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
+**`Engine.World.Plain.want_reaches`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hN | `N.Admits E` | [base] |
+| hinj | `∀ (i j : Fin Q.n), Q.addr i = Q.addr j → i = j` | [untagged] |
+| hca | `∀ (m : Nat), k ≤ m → (((Engine.World.Exec.world E m).node a).conn? cid).isSome = true` | [base] |
+| hcb | `∀ (m : Nat), k ≤ m → (((Engine.World.Exec.world E m).node b).conn? cid).isSome = true` | [base] |
+| haddr | `∀ (m : Nat), k ≤ m → ((Engine.World.Exec.world E m).node a).addr? cid = some (Q.addr b)` | [base] |
+| hGab | `N.G a b` | [untagged] |
+| hGba | `N.G b a` | [untagged] |
+| hra | `r ∈ Q.rooms a cid` | [untagged] |
+| hrb | `r ∈ Q.rooms b cid` | [untagged] |
+| hno | `∀ (m : Nat) (j : Fin Q.setup.n) (dl : Bool) (t : Nat), k ≤ m → E.act m ≠ Engine.World.Act.connect a j cid dl t` | [base] |
+| hburst | `0 < Q.cfg.burst` | [untagged] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hw | `Engine.Sync.isWire o.kind = false` | [untagged] |
+| hcp | `o.capped = true` | [untagged] |
+| hox | `o.id = x` | [untagged] |
+| hcl | `Engine.World.Plain.NoClash E o` | [base] |
+| hg | `((Engine.World.Exec.world E k).box a).db.ops x = some o` | [base] |
+| hp | `p ∈ (Engine.World.Exec.world E k).flight` | [base] |
+| hsrc | `p.src = some b` | [untagged] |
+| hdst | `p.dst = Q.addr a` | [untagged] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid g` | [untagged] |
+| hwL | `(Engine.Sync.Msg.want Lw).op.bytes ∈ g` | [untagged] |
+| hxL | `x ∈ Lw` | [untagged] |
+| hL | `Lw.length ≤ Q.cfg.maxIds` | [untagged] |
+| hroom | `∀ (m : Nat) (c : Engine.Sync.Conn), k ≤ m → ((Engine.World.Exec.world E m).node a).conn? cid = some c → c.owed.length + (List.map Engine.World.wantsOf g).sum…` | [base] |
+| hgst | `N.gst ≤ p.sent` | [untagged] |
+| hlive | `N.Live a b p.sent T` | [untagged] |
+| hT | `p.sent + 3 * N.Δ + Q.cfg.maxKnown * N.τ ≤ T` | [untagged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.drain`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hN | `N.Admits E` | [base] |
+| hJ | `∀ (m : Nat), k ≤ m → (((Engine.World.Exec.world E m).node a).conn? cid).isSome = true` | [base] |
+| haddr | `∀ (m : Nat), k ≤ m → ((Engine.World.Exec.world E m).node a).addr? cid = some (Q.addr b)` | [base] |
+| hm | `∀ (m : Nat), ((Engine.World.Exec.world E m).node a).managed = []` | [base] |
+| hnc | `∀ (m : Nat) (j : Fin Q.setup.n) (dl : Bool) (t : Nat), k ≤ m → E.act m ≠ Engine.World.Act.connect a j cid dl t` | [base] |
+| hx | `∀ (m : Nat), k ≤ m → ((Engine.World.Exec.world E m).box a).db.ops x = some o` | [base] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hs | `r ∈ Q.rooms a cid` | [untagged] |
+| hb | `0 < Q.cfg.burst` | [untagged] |
+| hgst | `N.gst ≤ (Engine.World.Exec.world E k).now` | [base] |
+| hup | `N.Up a (Engine.World.Exec.world E k).now T` | [base] |
+| a | `∀ (c : Engine.Sync.Conn), ((Engine.World.Exec.world E k).node a).conn? cid = some c → Engine.World.Waits x p c` | [base] |
+| a | `(Engine.World.Exec.world E k).now + (p + 1) * N.τ ≤ T` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.want_to_op`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hN | `N.Admits E` | [base] |
+| hinj | `∀ (a b : Fin Q.n), Q.addr a = Q.addr b → a = b` | [untagged] |
+| hs0 | `∀ (p : Engine.World.Packet Q.n), p ∈ w₀.flight → p.sent ≤ w₀.now` | [base] |
+| hJa | `∀ (m : Nat), k ≤ m → ∃ c, ((E.world m).node a).conn? cid = some c ∧ Engine.World.OwesQueued c` | [base] |
+| hJb | `∀ (m : Nat), k ≤ m → (((E.world m).node b).conn? cid).isSome = true` | [base] |
+| hm | `∀ (m : Nat), ((E.world m).node a).managed = []` | [base] |
+| hGab | `N.G a b` | [untagged] |
+| hGba | `N.G b a` | [untagged] |
+| hsa | `r ∈ Q.rooms a cid` | [untagged] |
+| hsb | `r ∈ Q.rooms b cid` | [untagged] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hw | `Engine.Sync.isWire o.kind = false` | [untagged] |
+| hcp | `o.capped = true` | [untagged] |
+| hox | `o.id = x` | [untagged] |
+| hcl | `Engine.World.Plain.NoClash E o` | [untagged] |
+| hx | `∀ (m : Nat), k ≤ m → ((E.world m).box a).db.ops x = some o ∧ ∃ it, it ∈ ((E.world m).node a).ix.items r ∧ it.snd = x` | [base] |
+| hp | `p ∈ (E.world k).flight` | [base] |
+| hsrc | `p.src = some b` | [untagged] |
+| hdst | `p.dst = Q.addr a` | [untagged] |
+| hor | `p.origin = Q.addr b` | [untagged] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid g` | [untagged] |
+| hwL | `(Engine.Sync.Msg.want L).op.bytes ∈ g` | [untagged] |
+| hxL | `x ∈ L` | [untagged] |
+| hL | `L.length ≤ Q.cfg.maxIds` | [untagged] |
+| hroom | `∀ (m : Nat) (c : Engine.Sync.Conn), k ≤ m → ((E.world m).node a).conn? cid = some c → c.owed.length + (List.map Engine.World.wantsOf g).sum ≤ Q.cfg.maxKnown` | [base] |
+| hgst | `N.gst ≤ p.sent` | [untagged] |
+| hlive | `N.Live a b p.sent (p.sent + 2 * N.Δ)` | [untagged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.op_hop`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hN | `N.Admits E` | [base] |
+| hinj | `∀ (a b : Fin Q.n), Q.addr a = Q.addr b → a = b` | [untagged] |
+| hJ | `∀ (m : Nat), k ≤ m → (((E.world m).node b).conn? cid).isSome = true` | [base] |
+| hG | `N.G a b` | [untagged] |
+| hs | `r ∈ Q.rooms b cid` | [untagged] |
+| hp | `p ∈ (E.world k).flight` | [base] |
+| hsrc | `p.src = some a` | [untagged] |
+| hdst | `p.dst = Q.addr b` | [untagged] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid g` | [untagged] |
+| ho | `o.bytes ∈ g` | [untagged] |
+| hw | `Engine.Sync.isWire o.kind = false` | [untagged] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hcp | `o.capped = true` | [untagged] |
+| hgst | `N.gst ≤ p.sent` | [untagged] |
+| hlive | `N.Live a b p.sent (p.sent + N.Δ)` | [untagged] |
+| hpre | `∀ (m : Nat) (o' : Engine.Op), ((E.world m).box b).db.ops o.id = some o' → o' = o` | [base] |
+| hfr | `∀ (c : ByteArray), c ∈ g → ∀ (o' : Engine.Op), Engine.Op.decode c = some o' → o'.id = o.id → o' = o` | [untagged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.write_hop`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| ha | `E.act k = Engine.World.Act.write i ops t` | [base] |
+| hm | `((E.world k).node i).managed = []` | [base] |
+| hcps | `∀ (y : Engine.Op), y ∈ ops → y.capped = true` | [untagged] |
+| ho | `o ∈ ops` | [untagged] |
+| hn | `((E.world k).box i).db.ops o.id = none` | [base] |
+| hu | `∀ (y : Engine.Op), y ∈ ops → y.id = o.id → y = o` | [untagged] |
+| hc | `((E.world k).node i).conn? cid = some c` | [base] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hs | `r ∈ Q.rooms i cid` | [untagged] |
+| hk | `¬o.id ∈ c.known` | [untagged] |
+| hof | `¬o.id ∈ c.offered` | [untagged] |
+| hd | `((E.world k).node i).addr? cid = some dst` | [base] |
+| hmax | `0 < Q.cfg.maxIds` | [untagged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.step_waits`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hm | `((Engine.World.Exec.world E k).node a).managed = []` | [base] |
+| hw | `∀ (c : Engine.Sync.Conn), ((Engine.World.Exec.world E k).node a).conn? cid = some c → Engine.World.Waits x p c` | [base] |
+| hg | `((Engine.World.Exec.world E k).box a).db.ops x = some o` | [base] |
+| hr | `Q.fam.room o = some r` | [untagged] |
+| hs | `r ∈ Q.rooms a cid` | [untagged] |
+| hb | `0 < Q.cfg.burst` | [untagged] |
+| hnc | `∀ (j : Fin Q.setup.n) (dl : Bool) (t : Nat), E.act k ≠ Engine.World.Act.connect a j cid dl t` | [base] |
+| ha | `((Engine.World.Exec.world E k).node a).addr? cid = some (Q.addr b)` | [base] |
+| ha' | `((Engine.World.Exec.world E (k + 1)).node a).addr? cid = some (Q.addr b)` | [base] |
+| hcs | `(((Engine.World.Exec.world E k).node a).conn? cid).isSome = true` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
 **`Engine.World.Plain.grows`** (world)
 
 | premise | statement | tag |
@@ -3004,13 +3253,20 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
+**`Engine.World.Plain.owed_bounded_start`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `((E.world k).node i).conn? cid = some c` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
 **`Engine.World.Plain.deliver_wants`** (world)
 
 | premise | statement | tag |
 |---|---|---|
 | hp | `w.flight[idx]? = some p` | [base] |
 | hj | `Q.setup.at? p.dst = some j` | [base] |
-| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [model] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [untagged] |
 | hh | `(Engine.Sync.Msg.hold r l).op.bytes ∈ inner` | [untagged] |
 | hx | `x ∈ l` | [untagged] |
 | hs | `r ∈ Q.rooms j cid` | [untagged] |
@@ -3028,7 +3284,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | hp | `w.flight[idx]? = some p` | [base] |
 | hj | `Q.setup.at? p.dst = some j` | [base] |
-| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [model] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [untagged] |
 | hw' | `(Engine.Sync.Msg.want L).op.bytes ∈ inner` | [untagged] |
 | hxL | `x ∈ L` | [untagged] |
 | hL | `L.length ≤ Q.cfg.maxIds` | [untagged] |
@@ -3048,12 +3304,13 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 |---|---|---|
 | hp | `w.flight[idx]? = some p` | [base] |
 | hj | `Q.setup.at? p.dst = some j` | [base] |
-| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [model] |
+| hb | `p.bytes = Engine.Sync.plainFrame cid inner` | [untagged] |
 | ho | `o.bytes ∈ inner` | [untagged] |
 | hc | `((w.node j).conn? cid).isSome = true` | [base] |
 | hw | `Engine.Sync.isWire o.kind = false` | [untagged] |
 | hr | `Q.fam.room o = some r` | [untagged] |
 | hs | `r ∈ Q.rooms j cid` | [untagged] |
+| hcp | `o.capped = true` | [untagged] |
 | hpre | `∀ (o' : Engine.Op), (w.box j).db.ops o.id = some o' → o' = o` | [base] |
 | hfr | `∀ (b : ByteArray), b ∈ inner → ∀ (o' : Engine.Op), Engine.Op.decode b = some o' → o'.id = o.id → o' = o` | [untagged] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
@@ -3101,9 +3358,53 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hw | `Engine.Sync.isWire o.kind = false` | [untagged] |
 | hr | `S.fam.room o = some r` | [untagged] |
 | hs | `r ∈ S.rooms s cid` | [untagged] |
+| hcp | `o.capped = true` | [untagged] |
 | hpre | `∀ (o' : Engine.Op), h.db.ops o.id = some o' → o' = o` | [untagged] |
 | hfr | `∀ (b : ByteArray), b ∈ inner → ∀ (o' : Engine.Op), Engine.Op.decode b = some o' → o'.id = o.id → o' = o` | [untagged] |
 | (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.onSealed_waits`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hm | `n.managed = []` | [untagged] |
+| hw | `∀ (c : Engine.Sync.Conn), n.conn? cid = some c → Engine.World.Waits x p c` | [untagged] |
+| hg | `h.db.ops x = some o` | [untagged] |
+| hr | `S.fam.room o = some r` | [untagged] |
+| hs | `r ∈ S.rooms s cid` | [untagged] |
+| hb | `0 < S.cfg.burst` | [untagged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.onTick_moves`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hc0 | `n.conn? cid = some c0` | [untagged] |
+| hx0 | `x ∈ c0.owed` | [untagged] |
+| hm | `n.managed = []` | [untagged] |
+| ha | `n.addr? cid = some a` | [untagged] |
+| hg | `h.db.ops x = some o` | [untagged] |
+| hr | `S.fam.room o = some r` | [untagged] |
+| hs | `r ∈ S.rooms s cid` | [untagged] |
+| hb | `0 < S.cfg.burst` | [untagged] |
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.serve_moves`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hf | `y.fam = S.fam` | [base] |
+| hcfg | `y.cfg = S.cfg` | [base] |
+| hh | `y.hooks = (S.sync s).hooks` | [base] |
+| hc | `n.conn? cid = some c` | [untagged] |
+| hx | `x ∈ c.owed` | [untagged] |
+| hg | `h.db.ops x = some o` | [untagged] |
+| hr | `S.fam.room o = some r` | [untagged] |
+| hs | `r ∈ S.rooms s cid` | [untagged] |
+| hb | `0 < ((n.addr? cid).bind y.room).getD y.cfg.burst` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
 **`Engine.World.onHold_wants`** (wired)
@@ -3132,6 +3433,12 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hq | `Engine.World.OwesQueued c` | [untagged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
+**`Engine.World.recv_appends`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
 **`Engine.World.node_serve`** (world)
 
 | premise | statement | tag |
@@ -3143,6 +3450,187 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | hs | `r ∈ S.rooms s cid` | [untagged] |
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+## 🟡 Every world of n nodes stays good.
+
+Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
+
+**`Engine.World.Plain.good_always`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.good_keeps`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.moves_always`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.verdicts_spec`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.agree`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `Engine.Distinct (((E.world k).box i).log ++ ((E.world k').box j).log)` | [crypto] |
+| hsame | `∀ (o : Engine.Op), o ∈ ((E.world k).box i).log ↔ o ∈ ((E.world k').box j).log` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.sent_keeps`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Keeps.always`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hk | `Engine.World.Keeps P adv G G` | [discharged] |
+| h0 | `G w₀` | [discharged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Guar.always`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| hk | `Engine.World.Keeps P adv G G` | [discharged] |
+| hR | `Engine.World.Guar P adv G R` | [discharged] |
+| h0 | `G w₀` | [discharged] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+## 🟡 A node invariant is proven once, for any hooks.
+
+Rests on: `(a World's network)`, `Engine.Model.run`
+
+**`Engine.World.onTick_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| L | `Engine.World.Lawful fun {α} => P.run` | [discharged] |
+| Pc | `Engine.World.Pieces P i Φ` | [discharged] |
+| hn | `Φ n (P.held s)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.World.onFrame_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| L | `Engine.World.Lawful fun {α} => P.run` | [discharged] |
+| Pc | `Engine.World.Pieces P i Φ` | [discharged] |
+| hn | `Φ n (P.held s)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.World.onWrite_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| L | `Engine.World.Lawful fun {α} => P.run` | [discharged] |
+| Pc | `Engine.World.Pieces P i Φ` | [discharged] |
+| hn | `Φ n (P.held s)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.World.onClose_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| L | `Engine.World.Lawful fun {α} => P.run` | [discharged] |
+| Pc | `Engine.World.Pieces P i Φ` | [discharged] |
+| hn | `Φ n (P.held s)` | [discharged] |
+| (stated over) | `Engine.Model.run` | [base] |
+
+**`Engine.World.Plain.oq_pieces`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.ix_pieces`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.bounded_pieces`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.Plain.managed_pieces`** (world)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+| (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
+
+**`Engine.World.dial_mutant_unindexed`** (control)
+
+| premise | statement | tag |
+|---|---|---|
+| (stated over) | `Engine.Model.run` | [base] |
+
+## ✅ A room's fingerprints and answers come from its canonical Merkle treap, in O(height) hashes, with no change on the wire.
+
+**`Engine.Sync.Index.answer_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.Index.opening_eq`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.answerT_canon`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hs | `Engine.Sync.Sorted key l` | [discharged] |
+
+**`Engine.Sync.answerTM_hashes`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.openingTM_hashes`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.insert_hashes`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Engine.Sync.label_canon`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| a | `l.length ≤ n` | [discharged] |
 
 ## ✅ Component work has revocable ownership.
 
@@ -4365,6 +4853,125 @@ Rests on: `Engine.Model.run`
 | hm | `Community.V C s.ops y (Community.Fact.message c u d kid sealed n tm clump)` | [discharged] |
 | hk | `Community.V C s.ops x (Community.Fact.key c kid k)` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
+
+## 🟡 A card is exactly libquiet's policy.
+
+**`Notify.step_post`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `Notify.Effect.post d ∈ (Notify.step s present v reads ins).snd` | [untagged] |
+
+**`Notify.notifies_iff`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Notify.own_silent`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `f.device = f.authorDevice` | [untagged] |
+
+**`Notify.can_alert`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Notify.once`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+## 🟡 The conversation on screen is quiet; reads and removal clear cards; a partial read keeps newer ones.
+
+**`Notify.step_quiet`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`Notify.step_read`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [untagged] |
+
+**`Notify.step_removed`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `d ∈ (Notify.step s present v reads ins).fst.active` | [untagged] |
+
+**`Notify.step_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hd | `d ∈ s.active` | [untagged] |
+| hg | `Notify.gone present ins v reads d = false` | [untagged] |
+
+## 🟡 A mark never runs ahead of the clock,
+
+**`Notify.marks_le`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `p ∈ Notify.marks now ins` | [untagged] |
+
+## 🟡 A card's link opens exactly its message:
+
+**`Community.target_roundtrip`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| hv | `t.Valid` | [untagged] |
+
+**`App.target_opens`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`App.targetOf_member`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `App.targetOf comms t = some m` | [untagged] |
+
+## 🟡 Sync in the background keeps sync running; off, it stops as before.
+
+**`App.syncs_kept`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `s.keepSync = true` | [untagged] |
+
+**`App.syncs_off`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| h | `s.keepSync = false` | [untagged] |
+
+**`App.keepSync_keeps`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`App.keepSync_set`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
+
+**`App.unmount_keeps_node`** (wired)
+
+| premise | statement | tag |
+|---|---|---|
+| (none) | | |
 
 ## ✅ What the encoders write reads back:
 

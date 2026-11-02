@@ -132,12 +132,12 @@ theorem items_ofOps (L : List Op) (r : Id) (a : Item) :
   constructor
   · intro h
     rcases mem_items_foldl fam h with h | ⟨o, ho, e, hr⟩
-    · simp [Index.items] at h
+    · simp [Index.items, Index.room?] at h
     · exact ⟨o, ho, hr, e⟩
   · rintro ⟨o, ho, hr, rfl⟩
     obtain ⟨b, hb, e⟩ := items_foldl_key fam (ix := {}) ho hr
     rcases mem_items_foldl fam hb with h | ⟨p, _, rfl, _⟩
-    · simp [Index.items] at h
+    · simp [Index.items, Index.room?] at h
     · have := keyOf_id fam e
       simp only at e this
       rw [e, this] at hb

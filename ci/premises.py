@@ -139,7 +139,12 @@ class Model:
         rows, covered = [], set()
         for b, stmt, consts in self.prem.get(law, []):
             names = sorted({a for a in (self.assumption(c) for c in consts) if a})
-            models = [c for c in consts if c in info["missing"] or c in info["pmodels"]]
+            # a World law's missing definitions are its World's (the
+            # network, the schedule, the run): a premise about them is
+            # about the run, discharged by evidence like any other, not
+            # about code that does not run
+            world = set(info["missing"]) if info["cls"] == "world" else set()
+            models = [c for c in consts if (c in info["missing"] or c in info["pmodels"]) and c not in world]
             if names:
                 tag = min((self.reg[a]["tag"] for a in names), key=WORST.index)
                 covered |= set(names)

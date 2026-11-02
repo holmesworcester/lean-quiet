@@ -16,7 +16,8 @@
 #    check   every law of tests/Axioms.lean rests on standard axioms only
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
-#            code, against tests/Wiring.lean (ci/proof-links.py)
+#            code, against tests/Wiring.lean (ci/proof-links.py); the proof
+#            tree, from that run's graph (docs/PROOF-TREE.md, ci/proof-tree.py);
 #            and the premise tables (ci/premises.py): no ✅ row resting on a
 #            [trusted] or [model] premise, no untagged premise, every
 #            assumption tagged with both its sides (or in the baseline)
@@ -39,6 +40,9 @@
 #    make:assets    make install's assets step and its controls, and the
 #                   pinned assets tarball against this tree (stale: pack
 #                   and publish it again, docs/BUILD.md)
+#    scale          a round's work and the capped write turn at 1k, 10k
+#                   and 100k items against the proven bounds, with
+#                   negative controls (tests/scale)
 # 3. --full: every other part, 4 at once (the box is shared), longest first (by each part's
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
@@ -80,7 +84,7 @@ done
 [ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 4 || echo 6)
 
 proofs=(driver build check layout readme reorg headline)
-fast=(engine:suites visual headless vacuity make:assets forensics)
+fast=(engine:suites visual headless vacuity make:assets scale forensics)
 # The app's parts (tests/app/parts.txt): a part with cases in slices, at
 # most CASE_LANES (6), app:<part>/<k>; slice k is every case whose line
 # number is k modulo the number of slices (slice).
@@ -167,6 +171,7 @@ gate() {
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
     vacuity) mise run test:vacuity ;;
+    scale) mise run test:scale ;;
     forensics) mise run forensics:check ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;

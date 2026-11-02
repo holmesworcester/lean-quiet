@@ -124,9 +124,10 @@ everything both sides held during it (`RoundRun.terminates`, linear in
 the room), and every op either side held at the start and kept reaches
 the other side or the wire (`RoundRun.discovers`,
 `live_round_complete`). With both indices fixed during the round it is
-`exchange` (`conn_runs_exchange`), so 2k + 2 answers for a room of at
-most leaf·fanᵏ items (`exchange_log`); under concurrent writes only the
-linear bound is proven. A message with no claims ends the round.
+`exchange` (`conn_runs_exchange`), and the actual run's batches run out
+within 2k + 2 for rooms of at most leaf·fanᵏ items (`quiet_round_log`,
+engine/sync/RoundDepth.lean: each answer lowers every claim's level
+budget); under concurrent writes only the linear bound is proven. A message with no claims ends the round.
 
 **When rounds open.** Only on events. Only the dialer opens rounds,
 each over the overlap of the two windows, in every shown room that is
