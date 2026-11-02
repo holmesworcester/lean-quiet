@@ -112,7 +112,7 @@ test("definition edits are checked against the retained module and its actual pr
   const root = fileURLToPath(new URL("../", import.meta.url));
   const source = await readFile(new URL("../lean/Kernel.lean", import.meta.url), "utf8");
   const directory = await mkdtemp(root + "build/definition-test-");
-  const installed = "/mnt/storage/elan/toolchains/leanprover--lean4---v4.34.0/bin/lean";
+  const installed = "/mnt/storage/elan/toolchains/leanprover--lean4---v4.35.0/bin/lean";
   const lean = process.env.LEAN || (existsSync(installed) ? installed : "lean");
   const definition = definitionRange(source, "validate").text;
   const check = async draft => {

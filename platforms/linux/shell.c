@@ -145,7 +145,11 @@ static void init(void) {
         XCB_EVENT_MASK_STRUCTURE_NOTIFY | XCB_EVENT_MASK_KEY_PRESS | XCB_EVENT_MASK_BUTTON_PRESS |
         XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_POINTER_MOTION | XCB_EVENT_MASK_FOCUS_CHANGE |
         XCB_EVENT_MASK_ENTER_WINDOW | XCB_EVENT_MASK_LEAVE_WINDOW};
-    xcb_create_window(q.c, XCB_COPY_FROM_PARENT, q.win, q.screen->root, 0, 0, q.w, q.h, 0,
+    /* QUIET_X and QUIET_Y: where the window opens, asked of the window
+       manager as the user's choice (USPosition below); make demo puts two
+       windows side by side with them. */
+    unsigned x = setting("QUIET_X", 0, 0, 16383), y = setting("QUIET_Y", 0, 0, 16383);
+    xcb_create_window(q.c, XCB_COPY_FROM_PARENT, q.win, q.screen->root, x, y, q.w, q.h, 0,
         XCB_WINDOW_CLASS_INPUT_OUTPUT, q.screen->root_visual,
         XCB_CW_BACK_PIXMAP | XCB_CW_BIT_GRAVITY | XCB_CW_EVENT_MASK, values);
     xcb_create_gc(q.c, q.gc, q.win, 0, NULL);
@@ -177,13 +181,15 @@ static void init(void) {
         nprotocols = 2;
     }
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, q.protocols, XCB_ATOM_ATOM, 32, nprotocols, protocols);
-    const char *title = "Lean Quiet";
+    /* QUIET_TITLE names the window, "Lean Quiet" by default */
+    const char *title = getenv("QUIET_TITLE"); if (!title || !*title) title = "Lean Quiet";
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, XCB_ATOM_WM_NAME, XCB_ATOM_STRING, 8, strlen(title), title);
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, atom("_NET_WM_NAME"), q.utf8, 8, strlen(title), title);
     /* Instance and class, matched by the menu entry's StartupWMClass. */
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, XCB_ATOM_WM_CLASS, XCB_ATOM_STRING, 8,
         sizeof "lean-quiet\0lean-quiet", "lean-quiet\0lean-quiet");
     uint32_t hints[18] = {0}; hints[0] = (1u << 4) | (1u << 5);
+    if (getenv("QUIET_X") || getenv("QUIET_Y")) { hints[0] |= 1u; hints[1] = x; hints[2] = y; }
     hints[5] = 320 * q.scale; hints[6] = 480 * q.scale;
     hints[7] = 4096 * q.scale; hints[8] = 2160 * q.scale;
     xcb_change_property(q.c, XCB_PROP_MODE_REPLACE, q.win, atom("WM_NORMAL_HINTS"), atom("WM_SIZE_HINTS"), 32, 18, hints);
@@ -606,6 +612,11 @@ static void links_start(void) {
     }
     fail("another instance holds this database and does not answer");
 }
+// Notifications and background sync are Android's (docs/NOTIFICATIONS.md):
+// this shell has neither.
+lean_obj_res lq_notify(b_lean_obj_arg json) { (void)json; return lean_io_result_mk_ok(lean_box(0)); }
+lean_obj_res lq_service(uint8_t on) { (void)on; return lean_io_result_mk_ok(lean_box(0)); }
+
 lean_obj_res lq_links(void) {
     int c;
     while (links.fd >= 0 && (c = accept4(links.fd, NULL, NULL, SOCK_CLOEXEC)) >= 0) {

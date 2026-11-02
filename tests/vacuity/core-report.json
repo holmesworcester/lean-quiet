@@ -201,5 +201,40 @@
     "theorem": "Community.parse_uri",
     "witness": "Vacuity.Core.inviteUriRound",
     "detail": "The same nonempty invite with four 32-byte fields and a network hint roundtrips through the application URI. All Invite.Valid premises are proved before applying parse_uri."
+  },
+  "parse_other_kind": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.parse_other_kind",
+    "witness": "Vacuity.Core.deviceLinkOtherKind",
+    "detail": "A valid device link (the core invite with link) is refused behind the join page and behind leanquiet://join/; its own text and URI parse back (deviceLinkRound, deviceLinkUriRound)."
+  },
+  "issue_link": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.issue_link",
+    "witness": "Vacuity.Core.issueDeviceLink",
+    "detail": "A device link issued with a hint: its invitation op, its fields and its bearer key, for concrete 32-byte ids and seed."
+  },
+  "asks_link": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.asks_link",
+    "witness": "Vacuity.Core.asksIssuerOnly",
+    "detail": "A device link's request of user 7 is asked of user 7 and not of user 8: both sides of the iff are reached."
+  },
+  "joinOps_link_unnamed": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.joinOps_link_unnamed",
+    "witness": "Vacuity.Core.deviceLinkUnnamed",
+    "detail": "A device link's join with the name \"Ann\" given writes a joining op with no name; the premise i.link holds of the concrete device link."
+  },
+  "introduce_named": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Core",
+    "theorem": "Community.introduce_named",
+    "witness": "Vacuity.Core.introduceNamed",
+    "detail": "No premises: the law holds of introduce for a concrete community, device and time; shipped_introduce_unnamed reaches both branches on concrete answers."
   }
 }

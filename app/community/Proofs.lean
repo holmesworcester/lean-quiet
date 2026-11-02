@@ -30,6 +30,7 @@ import app.community.member.remove.Commands
 import app.community.member.remove.Proofs
 import app.community.name.Commands
 import app.community.name.Proofs
+import app.community.notice.Proofs
 import app.community.profile.Commands
 import app.community.profile.Proofs
 import app.community.Op
@@ -188,8 +189,8 @@ theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.
   cases hrest with
   | cons hz _ => exact isAdmin_sound hz ha
 
-/-- **A shared op's validator reads only shared facts.** -/
-theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+/-- A shared op's validator reads no fact of a device's own state. -/
+private theorem reads_shared_facts {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     (h : check C o b fs = some f) (hb : b.isLocal = false) : ∀ g ∈ fs, g.isLocal = false := by
   unfold check at h
   split at h <;> (try (simp at h; done)) <;> (try (simp [Body.isLocal] at hb; done))
@@ -221,7 +222,8 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · rfl
       · rfl
       · rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh
-        · simpa using hh
+        · obtain ⟨rfl, -⟩ := by simpa using hh
+          rfl
         · exact isAdmin_shared hh
       · rfl
     · cases hf'
@@ -236,6 +238,21 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · exact isAdmin_shared hc.2.2.2.1
       · exact counterOk_shared hc.2.2.2.2.2.1 g hg
     · cases hf'
+
+/-- **A shared op's validator reads only what shared ops made.** Every
+fact a shared op's check reads is made, by any check that makes it, of a
+body the running `scopeOf` shares (`Body.isLocal` false): never of a
+device's own secrets, keys, endpoints, acceptances, joins, receipts or
+drafts. -/
+theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hb : b.isLocal = false) :
+    ∀ g ∈ fs, ∀ {o' : Op} {b' : Body} {fs' : List Fact}, check C o' b' fs' = some g → b'.isLocal = false := by
+  intro g hg o' b' fs' hc
+  cases hl : b'.isLocal
+  · rfl
+  · have := local_of_body hc hl
+    rw [reads_shared_facts h hb g hg] at this
+    cases this
 
 /-- **A sealed body opens with its key.** -/
 theorem openSealed_seal {S : Seal} (G : S.Good) {c kid text : ByteArray} (k : Key32) (n : Nonce24)
@@ -520,7 +537,7 @@ number of distinct indices i at which this device holds a Valid chunk
 of the attachment, each below the chunk count; the total is the chunk
 count. -/
 theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ∃ is : List Nat, is.Nodup ∧
       (∀ i, i ∈ is ↔ ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i)) ∧
       (∀ i ∈ is, i < Merkle.nChunks len) ∧
@@ -535,10 +552,10 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     obtain ⟨hv, hargs⟩ := (filed (C := C) (r := chunk.byAttachment) (by simp [rels]) h hq _ y f).1 ⟨hy, hf⟩
     cases f <;> (try (rename_i x; cases x)) <;> simp [chunk.byAttachment] at hargs
     obtain ⟨rfl, rfl⟩ := hargs
-    obtain ⟨_, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
+    obtain ⟨_, _, _, _, _, _, _, _, _, hav⟩ := chunk_of_attachment hv
     have := spec_det hav ha
     simp only [Verdict.valid.injEq, Fact.attachment.injEq] at this
-    obtain ⟨_, _, _, rfl, rfl, _, _⟩ := this
+    obtain ⟨_, _, _, rfl, rfl, _, _, _⟩ := this
     exact ⟨y, _, rfl, hv⟩
   have hheld : ∀ i, (∃ p ∈ M, ix p = i) ↔ ∃ y, V C s.ops y (.chunk c att root len i) := by
     intro i; constructor
@@ -555,16 +572,16 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
     have hn' : List.Pairwise (fun a b : Pos × Fact => a.1.2 ≠ b.1.2) M := by
       have := matching_nodup h { key := chunkKey c att }
       unfold List.Nodup at this; rwa [List.pairwise_map] at this
-    refine hn'.imp_of_mem fun ha hb hne heq => hne ?_
-    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ ha
-    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hb
+    refine hn'.imp_of_mem fun hpa hpb hne heq => hne ?_
+    obtain ⟨y1, i1, rfl, hv1⟩ := hrow _ hpa
+    obtain ⟨y2, i2, rfl, hv2⟩ := hrow _ hpb
     simp only [ix] at heq; subst heq
-    exact chunk_unique h.key hsize hspr hv1 hv2
+    exact chunk_unique h.key hsize hspr ha hv1 hv2
   · intro i; rw [List.mem_map]; exact hheld i
   · intro i hi
     obtain ⟨y, hv⟩ := (hheld i).1 (List.mem_map.1 hi)
     obtain ⟨o, b, fs, _, _, _, hc⟩ := valid_inv hv
-    obtain ⟨_, _, _, _, _, hver, _⟩ := check_chunk hc
+    obtain ⟨_, _, _, _, _, _, hver, _⟩ := check_chunk hc
     exact (Merkle.index_bound hver).1
   · unfold progress
     simp only [View.eval_bind, View.eval_pure, List.length_map]
@@ -575,7 +592,7 @@ theorem progress_exact (h : Inv (family C) s) (hq : s.queue = []) {c att m u : I
 
 /-- **Progress never passes the total.** -/
 theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 ≤ ((progress c att len).eval s).2 := by
   obtain ⟨is, hnd, _, hb, he⟩ := progress_exact hsize hspr h hq ha
   rw [he]
@@ -584,7 +601,7 @@ theorem progress_le (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} 
 
 /-- **Progress is full exactly when every chunk is here.** -/
 theorem progress_full (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x)) :
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x)) :
     ((progress c att len).eval s).1 = ((progress c att len).eval s).2 ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
   obtain ⟨is, hnd, hmem, hb, he⟩ := progress_exact hsize hspr h hq ha
@@ -598,17 +615,17 @@ total, the attachment's length is the file's and the store holds each
 of the attachment's chunk ops (`fileChunk`), whose slices are the file
 (`Merkle.assemble_slices`). -/
 theorem progress_done (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     (hd : ((progress c att len).eval s).1 = ((progress c att len).eval s).2) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att tm ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hall := (progress_full hsize hspr h hq ha).1 hd
   obtain ⟨y0, h0⟩ := hall 0 (Merkle.one_le_nChunks len)
   obtain ⟨o, b, fs, ho, hb, _, hc⟩ := valid_inv h0
-  obtain ⟨_, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
+  obtain ⟨_, _, _, rfl, _⟩ := chunk_is_slice hsize (hspr y0 o b ho hb) hc
   refine ⟨rfl, fun i hi => ?_⟩
   obtain ⟨y, hy⟩ := hall i hi
-  rw [← chunk_id h.key hsize hspr hy]
+  rw [← chunk_id h.key hsize hspr hy ha]
   exact hy
 end
 end
@@ -1351,6 +1368,68 @@ theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray)
   all_goals (try simp only [Always, pure_eq])
   all_goals simp
 
+/-- **A device link's join names nobody** (`joinOps_link_unnamed`): the
+new device joins its issuer's user, so its joining op carries no name. -/
+theorem joinOps_link_unnamed (i : Invite) (seed name : ByteArray) (key : Key) (h : i.link = true) :
+    (joinOps i seed name key).ops = [secret seed, i.request (Device.ofSeed seed) key,
+      accept i.community (Device.ofSeed seed).pk,
+      joining i (i.request (Device.ofSeed seed) key).id .empty (Device.ofSeed seed).pk] := by
+  simp [joinOps, h]
+
+/-- **A join with no name writes no profile** (`introduce_named`): what
+`introduce` writes is nothing, or one profile under a name its join
+gave. With `joinOps_link_unnamed`, a linked device never names its
+user. -/
+theorem introduce_named (c : Id) (d : Device) (time : Nat) :
+    Always (fun w : Write => w.ops = [] ∨ ∃ adm nm, nm.isEmpty = false ∧ w.ops = [profile c adm d nm time])
+      (introduce c d time) := by
+  unfold introduce
+  refine always_bind fun adms => ?_
+  dsimp only [Always]
+  split
+  · refine always_bind fun prof => ?_
+    dsimp only [Always]
+    refine always_bind fun joins => ?_
+    dsimp only [Always]
+    split
+    · rename_i nm _
+      by_cases hc : prof.total = 0 ∧ nm.isEmpty = false
+      · simp only [Always, pure_eq, hc, and_self, ↓reduceIte]; exact Or.inr ⟨_, nm, hc.2, rfl⟩
+      · simp [Always, pure_eq, hc]
+    · simp [Always, pure_eq]
+  · simp [Always, pure_eq]
+
+/-- `introduce` as it shipped before device links: a join's name taken
+as it is, an empty one too. A negative control: never run. -/
+def introduceShipped (c : Id) (d : Device) (time : Nat) : View Fact Write := do
+  let adms ← admission.byDevice.read [c, d.pk]
+  match adms.rows.head? with
+  | some ((_, adm), .admission _ u _ _) =>
+    let prof ← profile.byUser.read [c, u] (limit := some 0)
+    let joins ← joining.all.read []
+    let name := joins.rows.findSome? fun (_, f) => match f with
+      | .joining c' _ _ _ nm d' _ => if c' = c ∧ d' = d.pk then some nm else none
+      | _ => none
+    match name with
+    | some nm => return (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
+    | none => return ⟨[]⟩
+  | _ => return ⟨[]⟩
+
+/-- **As shipped, a linked device admitted before its user's profile
+synced would name its user ""** (`shipped_introduce_unnamed`): on a
+store holding its admission and its device link's join (no name) and
+no profile yet, the shipped `introduce` writes a profile with an empty
+name, where `introduce` writes nothing. -/
+theorem shipped_introduce_unnamed (c u adm : Id) (d : Device) (e : Key) (time : Nat) (sk : ByteArray)
+    (q : Pos) (k : Key) (hs : List ByteArray) (r : Id) (n : Nat) :
+    let as : List (Answer Fact) := [⟨[((sk, adm), .admission c u d.pk e)], 1, 1⟩, ⟨[], 0, 0⟩,
+      ⟨[(q, .joining c k hs r .empty d.pk n)], 1, 1⟩]
+    runWith as (introduceShipped c d time) = some ⟨[profile c adm d .empty time]⟩ ∧
+      runWith as (introduce c d time) = some ⟨[]⟩ := by
+  simp only [introduceShipped, introduce, Rel.read, View.read, bind_eq, pure_eq, View.bind, runWith,
+    List.head?_cons, List.findSome?_cons, and_self, ite_true]
+  exact ⟨trivial, rfl⟩
+
 /-- The mutant: an approval that wraps the key to every member. -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
   let ok := approve c req myAdm d
@@ -1630,7 +1709,7 @@ theorem send_after (h : Inv (family C) s) (hq : s.queue = []) (c myAdm : Id) (d 
   let p := sealedPost c myAdm d k nonce text n now group
   have hw : (send c myAdm d k nonce text now files).eval s =
       ⟨p :: (receiptFor p).eval s ++ files.flatMap (fun f =>
-        let (a, cs) := attach c myAdm p.id d k f; a :: cs)⟩ := by
+        let (a, cs) := attach c myAdm p.id now d k f; a :: cs)⟩ := by
     simp only [send, View.eval_bind, View.eval_pure]; rfl
   refine ⟨n, by rw [hw]; rfl, fun hnew => ?_⟩
   -- every message of c the device lists is at most T
@@ -1746,4 +1825,375 @@ theorem anchor_read (h : Inv (family C) s) (hq : s.queue = []) (c : Id) (desc : 
     | _ => simp [received.byKey] at hargs
 
 end
+end Community
+namespace Community
+open Engine Codec
+
+theorem openScheme_prefix (x : List Char) : openScheme.isPrefixOf (openScheme ++ x) = true := by
+  simp [List.isPrefixOf_iff_prefix]
+
+/-- **A notice goes only to the user's own devices**: every key a notice
+is sealed to is the node key of an admission among the rows read (the
+user's own), and a read is never sealed back to this node. -/
+theorem noticeRecipients_own (pk : Key) (all : Bool) (rows : List (Pos × Fact)) (e : Key)
+    (h : e ∈ noticeRecipients pk all rows) :
+    (∃ p c u d, (p, Fact.admission c u d e) ∈ rows) ∧ (all = true ∨ e ≠ pk) := by
+  induction rows with
+  | nil => simp [noticeRecipients] at h
+  | cons x rest ih =>
+    rcases x with ⟨p, f⟩
+    cases f with
+    | ofAdmission a =>
+      rcases a with ⟨c, u, d, enc⟩
+      simp only [noticeRecipients] at h
+      split at h
+      · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+        exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+      · rename_i hn
+        rcases List.mem_cons.1 h with rfl | h
+        · refine ⟨⟨p, c, u, d, List.mem_cons_self ..⟩, ?_⟩
+          cases all <;> simp_all
+        · obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+          exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+    | _ =>
+      simp only [noticeRecipients] at h
+      obtain ⟨⟨p', c', u', d', hm⟩, hs⟩ := ih h
+      exact ⟨⟨p', c', u', d', List.mem_cons_of_mem _ hm⟩, hs⟩
+
+/-- **A message link parses back to exactly its message**: the
+community, the conversation, the message and any thread root it names. -/
+theorem target_roundtrip {t : Target} (hv : t.Valid) : Target.parse t.uri = some t := by
+  unfold Target.parse Target.uri Target.code
+  rw [String.toList_ofList]
+  simp only [openScheme_prefix, Bool.not_true, Bool.false_eq_true, ↓reduceIte, List.drop_left',
+    Base62.decode_encode]
+  rw [show (⟨(encode (messageKind, t.community, t.conversation, t.message, t.root)).data.toList.toArray⟩ : ByteArray)
+    = encode (messageKind, t.community, t.conversation, t.message, t.root) from rfl, Codec.decode_encode]
+  simp only
+  rw [if_pos (by first | exact ⟨rfl, hv⟩ | exact ⟨trivial, hv⟩ | exact hv)]
+
+end Community
+
+/-! ## Every op this node's intents write is within the intake cap
+
+The intake cap (engine/core/Sync.lean, `maxReqs` = 64) refuses an op
+citing more requirements, from a peer or from this node. These laws say
+it refuses no honest write: every op the Community family's intents
+write cites a constant number, none growing with the community. A root,
+a key, a secret, an acceptance, an endpoint and a pending join cite
+nothing; a wrap, a receipt and an abandon one op; an invitation, a
+request and a profile two; a post two or three (its clump); a reaction
+and an attachment three; a removal four; a chunk two; a name three and
+the name it supersedes (one, as `rename` writes it); an admission three
+(one approval admits).
+-/
+
+namespace Community
+open Engine Engine.View
+
+/-- Every op of a write cites at most `maxReqs` requirements. -/
+def Authored (w : Write) : Prop := ∀ o ∈ w.ops, o.reqs.length ≤ maxReqs
+
+@[simp] theorem mkOp_reqs (reqs : List Id) (b : Body) : (mkOp reqs b).reqs = reqs := rfl
+
+theorem maxReqs_eq : maxReqs = 64 := rfl
+
+theorem post_reqs_le (c adm : Id) (d : Device) (k t : ByteArray) (n tm : Nat) (cl : Option Id) :
+    (post c adm d k t n tm cl).reqs.length ≤ 3 := by
+  cases cl <;> simp [post]
+
+theorem attach_reqs (c adm msg : Id) (time : Nat) (d : Device) (k : Key32) (f : NewFile) :
+    (attach c adm msg time d k f).1.reqs.length = 3 ∧ ∀ o ∈ (attach c adm msg time d k f).2, o.reqs.length = 2 := by
+  refine ⟨rfl, fun o ho => ?_⟩
+  simp only [attach, List.mem_map] at ho
+  obtain ⟨_, _, rfl⟩ := ho
+  rfl
+
+/-- Whatever the first view answers. -/
+theorem always_bind_all {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a)) :
+    ∀ v : View Fact α, Always P (v.bind f)
+  | .pure a => h a
+  | .list _ k => fun a => always_bind_all h (k a)
+
+/-- What the first view answers, with what it always has. -/
+theorem always_bindV {α β : Type} {P : β → Prop} {Q : α → Prop} {f : α → View Fact β}
+    (h : ∀ a, Q a → Always P (f a)) : ∀ {v : View Fact α}, Always Q v → Always P (v.bind f)
+  | .pure a, hv => h a hv
+  | .list _ k, hv => fun a => always_bindV h (v := k a) (hv a)
+
+@[simp] theorem always_pure {α : Type} {P : α → Prop} (a : α) : Always P (Pure.pure a : View Fact α) ↔ P a :=
+  Iff.rfl
+
+@[simp] theorem always_list {α : Type} {P : α → Prop} (q : ListQ) (k : Answer Fact → View Fact α) :
+    Always P (View.list q k) ↔ ∀ a, Always P (k a) := Iff.rfl
+
+theorem always_bindM {α β : Type} {P : β → Prop} {f : α → View Fact β} (h : ∀ a, Always P (f a))
+    (v : View Fact α) : Always P (v >>= f) := always_bind_all h v
+
+/-- Close a goal that a write of these ops is authored. -/
+macro "authored" : tactic => `(tactic| (
+  simp only [always_pure, Always, Authored]
+  intro o ho
+  simp only [List.mem_cons, List.not_mem_nil, or_false, List.mem_singleton, List.mem_ite_nil_left,
+    List.mem_ite_nil_right, List.not_mem_nil] at ho
+  try subst ho
+  try simp_all [maxReqs, profile, remove, setName, react, abandon, receipt, approve, admit, wrapKey, wrap]))
+
+theorem nodeKeyOr_authored (fresh : Key32) :
+    Always (fun p : Key × List Op => ∀ o ∈ p.2, o.reqs.length ≤ maxReqs) (nodeKeyOr fresh) := by
+  unfold nodeKeyOr
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | some p => simp [Always]
+  | none => simp [Always, endpoint, maxReqs]
+
+theorem found_authored (seed nm my : ByteArray) (tm : Nat) (k esk fresh : Key32) :
+    Always Authored (found seed nm my tm k esk fresh) := by
+  unfold found
+  refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+  simp only []
+  intro o ho
+  simp only [List.mem_append, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with ho | rfl | rfl | rfl | rfl | rfl | rfl | rfl
+  · exact hp o ho
+  all_goals simp [secret, root, accept, setName, profile, contentKey, wrapKey, wrap, maxReqs]
+
+theorem joinOps_authored (i : Invite) (seed nm : ByteArray) (key : Key) : Authored (joinOps i seed nm key) := by
+  intro o ho
+  simp only [joinOps, List.mem_cons, List.not_mem_nil, or_false] at ho
+  rcases ho with rfl | rfl | rfl | rfl <;>
+    simp [secret, accept, joining, Invite.request, request, maxReqs]
+
+theorem inviteTo_authored (c a : Id) (d : Device) (b : ByteArray) (hs : List ByteArray) :
+    Always (fun r : Option (Write × Invite) => ∀ p, r = some p → Authored p.1) (inviteTo c a d b hs) := by
+  unfold inviteTo
+  refine always_bind_all (fun k => ?_) _
+  cases k with
+  | none => simp
+  | some p =>
+    intro q hq
+    cases hq
+    intro o ho
+    simp only [List.mem_cons, List.not_mem_nil, or_false] at ho
+    subst ho; simp [issue, invite, maxReqs]
+
+theorem join_authored (i : Invite) (seed nm : ByteArray) (fresh : Key32) : Always Authored (join i seed nm fresh) := by
+  unfold join
+  refine always_bind_all (fun held => ?_) _
+  split
+  · simp [Always, Authored]
+  · intro joins
+    refine always_bind_all (fun d => ?_) _
+    cases d with
+    | some p =>
+      obtain ⟨k, hs, r, nm', d, n⟩ := p
+      simp [Always, Authored, maxReqs]
+    | none =>
+      intro adm
+      dsimp only
+      split
+      · authored
+      · refine always_bindV (fun p hp => ?_) (nodeKeyOr_authored fresh)
+        intro o ho
+        simp only [List.mem_append] at ho
+        rcases ho with ho | ho
+        · exact hp o ho
+        · exact joinOps_authored i seed nm p.1 o ho
+
+theorem introduce_authored (c : Id) (d : Device) (tm : Nat) : Always Authored (introduce c d tm) := by
+  unfold introduce
+  refine always_bind_all (fun adms => ?_) _
+  split
+  · refine always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _
+    dsimp only
+    repeat' split
+    all_goals authored
+  · authored
+
+theorem removeMember_authored (c t : Id) (d : Device) : Always Authored (removeMember c t d) := by
+  unfold removeMember
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  repeat' split
+  all_goals first
+    | authored
+    | (refine always_bind_all (fun _ => ?_) _; dsimp only; repeat' split
+       all_goals authored)
+
+theorem approveReq_authored (c req myAdm : Id) (d : Device) (esk : ByteArray) :
+    Always Authored (approveReq c req myAdm d esk) := by
+  unfold approveReq
+  refine always_bind_all (fun _ => always_bind_all (fun _ => always_bind_all (fun _ => ?_) _) _) _
+  dsimp only
+  repeat' split
+  all_goals simp [Authored, approve, admit, wrapKey, wrap, maxReqs]
+
+theorem stopWaiting_authored (j : Id) : Authored (stopWaiting j) := by
+  intro o ho
+  simp only [stopWaiting, List.mem_cons, List.not_mem_nil, or_false] at ho
+  subst ho; simp [abandon, maxReqs]
+
+/-- **A reaction cites three** (the app writes `react` directly). -/
+theorem react_reqs_le (c a t : Id) (d : Device) (e : ByteArray) (tm : Nat) :
+    (react c a t d e tm).reqs.length ≤ maxReqs := by
+  simp [react, maxReqs]
+
+theorem receiptFor_authored (o : Op) :
+    Always (fun os : List Op => ∀ p ∈ os, p.reqs.length ≤ maxReqs) (receiptFor o) := by
+  unfold receiptFor
+  split
+  · simp
+  · split
+    · split
+      · simp
+      · refine always_bind_all (fun _ => ?_) _
+        split
+        · simp
+        · refine always_bind_all (fun _ => ?_) _
+          simp [receipt, maxReqs]
+    · simp
+
+theorem send_authored (c a : Id) (d : Device) (k : Key32) (nonce : Nonce24) (t : ByteArray) (now : Nat) (files : List NewFile) :
+    Always Authored (send c a d k nonce t now files) := by
+  unfold send
+  refine always_bind_all (fun cl => always_bind_all (fun n => ?_) _) _
+  refine always_bindV (fun r hr => ?_) (receiptFor_authored _)
+  intro o ho
+  simp only [List.mem_cons, List.mem_append, List.mem_flatMap] at ho
+  rcases ho with (rfl | ho) | ⟨f, _, ho⟩
+  · have := post_reqs_le c a d (kidOf cryptoSeal k) (nonce.1 ++ sealBody cryptoSeal k nonce c (kidOf cryptoSeal k) t)
+      (min (n + 1) countCap) now cl
+    simp only [sealedPost]; rw [maxReqs_eq]; omega
+  · exact hr o ho
+  · have h := attach_reqs c a (sealedPost c a d k nonce t (min (n + 1) countCap) now cl).id now d k f
+    rcases ho with rfl | ho
+    · rw [h.1, maxReqs_eq]; decide
+    · rw [h.2 o ho, maxReqs_eq]; decide
+
+end Community
+
+/-! ## How deep a Valid op's timed requirements go (`timed_chain_le`)
+
+A windowed round brings its window's requirements within
+`Params.depth` steps (engine/sync/WindowLaws). For this family that
+reaches all of them: past the structure range (time 0, in every window),
+a Valid op's requirements that claim a time chain at most four steps. -/
+
+namespace Community
+open Engine Codec
+section
+variable {C : Crypto} {ops : Id → Option Op}
+
+/-- A fact whose op claims a time (`orderOf`): a message, a profile, a
+reaction, an attachment or a chunk. -/
+def Fact.timed : Fact → Bool
+  | .ofMessage _ | .ofProfile _ | .ofReact _ | .ofAttachment _ | .ofChunk _ => true
+  | _ => false
+
+/-- How many requirement steps through timed ops can follow a timed
+fact's op: a chunk's attachment, its message, the message's clump root. -/
+def Fact.depth : Fact → Nat
+  | .ofChunk _ => 3
+  | .ofAttachment _ => 2
+  | .ofReact _ => 2
+  | .ofMessage m => if m.clump.isSome then 1 else 0
+  | _ => 0
+
+theorem Fact.depth_le (f : Fact) : f.depth ≤ 3 := by
+  cases f <;> simp only [Fact.depth] <;> (try split) <;> omega
+
+/-- A path of n requirement steps from x through stored ops that each
+claim a time. -/
+inductive TimedChain (ops : Id → Option Op) : Id → Nat → Prop
+  | nil (x : Id) : TimedChain ops x 0
+  | cons {x y : Id} {n : Nat} {o p : Op} : ops x = some o → y ∈ o.reqs → ops y = some p →
+      orderOf p ≠ 0 → TimedChain ops y n → TimedChain ops x (n + 1)
+
+theorem all2_mem {α β} {R : α → β → Prop} :
+    ∀ {l : List α} {gs : List β}, All2 R l gs → ∀ {a}, a ∈ l → ∃ b ∈ gs, R a b
+  | _, _, .nil, _, h => by cases h
+  | _, _, .cons hr t, _, h => by
+    rcases List.mem_cons.1 h with rfl | h
+    · exact ⟨_, List.mem_cons_self .., hr⟩
+    · obtain ⟨b, hb, r⟩ := all2_mem t h
+      exact ⟨b, List.mem_cons_of_mem _ hb, r⟩
+
+/-- A body whose op claims a time (`orderOf`). -/
+def Body.timed : Body → Bool
+  | .ofPost _ | .ofProfile _ | .ofReact _ | .ofAttach _ | .ofChunk _ => true
+  | _ => false
+
+/-- A body's fact is timed exactly when the body is. -/
+theorem check_timed {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {g : Fact}
+    (h : check C o b fs = some g) : g.timed = b.timed := by
+  unfold check at h
+  split at h <;> simp only [Option.map_eq_some_iff, reduceCtorEq] at h <;>
+    (obtain ⟨_, _, rfl⟩ := h) <;> rfl
+
+/-- An op that claims a time is Valid only as a timed fact. -/
+theorem timed_of_order {y : Id} {g : Fact} {p : Op} (hv : V C ops y g) (hp : ops y = some p)
+    (ho : orderOf p ≠ 0) : g.timed = true := by
+  obtain ⟨o, b, fs, hy, hb, _, hc⟩ := valid_inv hv
+  rw [hp] at hy; cases hy
+  rw [check_timed hc]
+  unfold orderOf at ho; rw [hb] at ho
+  cases b <;> simp_all [Body.timed]
+
+/-- A child post's clump root is a root: no clump of its own. -/
+theorem post_child {C : Crypto} {o : Op} {b : Post.Body} {r a : Root.Fact} {p x : Post.Fact}
+    (h : Post.check C o b r a (some p) = some x) : p.clump = none ∧ x.clump.isSome = true := by
+  rcases b with ⟨_, _, _, _, _⟩; rcases r with ⟨_, _, _, _⟩; rcases a with ⟨_, _, _, _⟩
+  rcases p with ⟨_, _, _, _, _, _, _, _ | _⟩
+  · simp only [Post.check] at h
+    split at h
+    · simp only [Option.some.injEq] at h; subst h; simp
+    · simp at h
+  · simp [Post.check] at h
+
+/-- A timed fact's timed requirements are shallower than it. -/
+theorem depth_step {o : Op} {b : Body} {fs : List Fact} {f g : Fact} (hc : check C o b fs = some f)
+    (hg : g ∈ fs) (ht : g.timed = true) (hf : f.timed = true) : g.depth < f.depth := by
+  unfold check at hc
+  split at hc <;> simp only [Option.map_eq_some_iff, reduceCtorEq] at hc <;>
+    obtain ⟨x, hx, rfl⟩ := hc <;> simp only [Fact.timed, Bool.false_eq_true] at hf <;>
+    simp only [List.mem_cons, List.mem_singleton, List.not_mem_nil, or_false] at hg
+  all_goals first
+    | (rcases hg with rfl | rfl <;> simp [Fact.timed, Fact.depth] at ht ⊢ <;> done)
+    | (rcases hg with rfl | rfl | rfl <;> simp [Fact.timed] at ht
+       all_goals first
+         | (have := post_child hx; simp [Fact.depth, this.1, this.2])
+         | (simp only [Fact.depth]; split <;> omega))
+
+/-- From a timed Valid op, a timed chain is at most its fact's depth. -/
+theorem timed_chain_depth {x : Id} {f : Fact} {n : Nat} (hv : V C ops x f) (ht : f.timed = true)
+    (hc : TimedChain ops x n) : n ≤ f.depth := by
+  induction hc generalizing f with
+  | nil => exact Nat.zero_le _
+  | cons hx hy hp hord _ ih =>
+    obtain ⟨o', b, fs, hx', _, hr, hck⟩ := valid_inv hv
+    rw [hx] at hx'; cases hx'
+    obtain ⟨g, hg, hvg⟩ := all2_mem hr hy
+    have hgt := timed_of_order hvg hp hord
+    have := ih hvg hgt
+    have := depth_step hck hg hgt ht
+    omega
+
+/-- **A Valid op's timed requirements lie within four steps**: one step
+from any op (a structure op may cite a timed op) into a timed op, then
+at most three (a chunk's attachment, its message, the message's clump
+root). So a windowed round with `Config.depth` 4 brings every Valid op
+of its window with everything it needs, whatever the window. -/
+theorem timed_chain_le {x : Id} {f : Fact} {n : Nat} (hv : V C ops x f)
+    (hc : TimedChain ops x n) : n ≤ 4 := by
+  cases hc with
+  | nil => omega
+  | cons hx hy hp hord hc' =>
+    obtain ⟨o', b, fs, hx', _, hr, _⟩ := valid_inv hv
+    rw [hx] at hx'; cases hx'
+    obtain ⟨g, _, hvg⟩ := all2_mem hr hy
+    have := timed_chain_depth hvg (timed_of_order hvg hp hord) hc'
+    have := g.depth_le
+    omega
+
+end
+
 end Community

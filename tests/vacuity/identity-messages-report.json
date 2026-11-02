@@ -1,11 +1,4 @@
 {
-  "message_read": {
-    "status": "runtime-witness",
-    "theorem": "ViewLaws.message_read",
-    "witness": "Vacuity.IdentityMessages.messageRead",
-    "module": "tests.vacuity.IdentityMessages",
-    "detail": "Successful composed row read of actual sealed Bob message; theorem extracts its stored fact. Exact plaintext, name and time independently checked. Deterministic synthetic community; production Ed25519/SHA-256/XChaCha execution."
-  },
   "message_own": {
     "status": "runtime-witness",
     "theorem": "ViewLaws.message_own",

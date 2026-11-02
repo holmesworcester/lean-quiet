@@ -10,11 +10,12 @@ def invite (c issuerAdm : Id) (by_ : Device) (bearer : Key) (link : Bool) : Op :
 
 /-- An invitation of c by `by_` (whose admission is `issuerAdm`), on the
 node with key `key`, and its link: the bearer key pair from `secret`,
-dial hints for the joiner. -/
+dial hints for the joiner. A device link (`link`) invites another device
+of the issuer's user; the link says so, as its invitation does. -/
 def issue (c issuerAdm : Id) (by_ : Device) (key : Key) (secret : ByteArray)
-    (hints : List ByteArray) : Op × Invite :=
-  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk false
-  (inv, ⟨c, inv.id, key, hints, secret⟩)
+    (hints : List ByteArray) (link : Bool := false) : Op × Invite :=
+  let inv := invite c issuerAdm by_ (Device.ofSeed secret).pk link
+  (inv, ⟨c, inv.id, key, hints, secret, link⟩)
 open Engine Codec
 namespace Base62
 
@@ -71,11 +72,14 @@ def Invite.Valid (i : Invite) : Prop :=
 
 instance (i : Invite) : Decidable i.Valid := by unfold Invite.Valid; infer_instance
 
-def linkVersion : Nat := 1
+/-- The kind a link's fields lead with: 1 for a member's link, 2 for a
+device link (the user's call, 2026-11-01: a device link has a scheme of
+its own, as libquiet's `quiet://link/`, and the kind must match it). -/
+def kindOf (link : Bool) : Nat := if link then 2 else 1
 
-/-- The fields' bytes, behind a version. -/
+/-- The fields' bytes, behind their kind. -/
 def Invite.bytes (i : Invite) : ByteArray :=
-  encode (linkVersion, i.community, i.invitation, i.inviter, i.hints, i.secret)
+  encode (kindOf i.link, i.community, i.invitation, i.inviter, i.hints, i.secret)
 
 /-- The join page (site/join in this repo). The fields ride after `#`,
 which a browser never sends to the server; the page hands them to the
@@ -86,32 +90,43 @@ def web : List Char := "https://holmesworcester.github.io/lean-quiet/join#".toLi
 the app. -/
 def scheme : List Char := "leanquiet://join/".toList
 
+/-- A device link's page (site/link, built from the join page). -/
+def webLink : List Char := "https://holmesworcester.github.io/lean-quiet/link#".toList
+
+/-- A device link's URI. -/
+def schemeLink : List Char := "leanquiet://link/".toList
+
 /-- The fields in base62. -/
 def Invite.code (i : Invite) : List Char := Base62.encode i.bytes.data.toList
 
-/-- The link's text, shared and shown as a QR code: the join page, with
-the fields after `#`. -/
-def Invite.text (i : Invite) : String := String.ofList (web ++ i.code)
+/-- The link's text, shared and shown as a QR code: the join page (a
+device link's page), with the fields after `#`. -/
+def Invite.text (i : Invite) : String := String.ofList ((if i.link then webLink else web) ++ i.code)
 
-/-- The URI the join page opens: the scheme and the fields. -/
-def Invite.uri (i : Invite) : String := String.ofList (scheme ++ i.code)
+/-- The URI the page opens: the scheme and the fields. -/
+def Invite.uri (i : Invite) : String := String.ofList ((if i.link then schemeLink else scheme) ++ i.code)
 
-/-- The join page or the scheme in front, dropped; either is optional. -/
-def unprefix (cs : List Char) : List Char :=
-  if web.isPrefixOf cs then cs.drop web.length
-  else if scheme.isPrefixOf cs then cs.drop scheme.length else cs
+/-- The page or the scheme in front, dropped, and whether it was a device
+link's (none: no prefix); any is optional. -/
+def unprefix (cs : List Char) : Option Bool × List Char :=
+  if web.isPrefixOf cs then (some false, cs.drop web.length)
+  else if scheme.isPrefixOf cs then (some false, cs.drop scheme.length)
+  else if webLink.isPrefixOf cs then (some true, cs.drop webLink.length)
+  else if schemeLink.isPrefixOf cs then (some true, cs.drop schemeLink.length)
+  else (none, cs)
 
 /-- An invite from text: whitespace anywhere is ignored (a link broken
-across lines still reads); the join page or the scheme is optional. -/
+across lines still reads); the page or the scheme is optional, but one
+of the other kind's refuses it. -/
 def Invite.parse (s : String) : Option Invite :=
-  let cs := unprefix (s.toList.filter fun c => !c.isWhitespace)
+  let (pre, cs) := unprefix (s.toList.filter fun c => !c.isWhitespace)
   match Base62.decode cs with
   | none => none
   | some bs =>
     match (Codec.decode ⟨bs.toArray⟩ : Option (Nat × Id × Id × Key × List ByteArray × ByteArray)) with
     | some (v, c, inv, k, hs, sec) =>
-      let i : Invite := ⟨c, inv, k, hs, sec⟩
-      if v = linkVersion ∧ i.Valid then some i else none
+      let i : Invite := ⟨c, inv, k, hs, sec, v == 2⟩
+      if v = kindOf i.link ∧ (pre = none ∨ pre = some i.link) ∧ i.Valid then some i else none
     | none => none
 
 end Community

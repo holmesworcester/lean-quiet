@@ -154,6 +154,10 @@ def sameTables (t : Checks) (tag : String) (db : Db) (m : DB ByteArray) (ids0 : 
   t.ok s!"{tag}: reqs" (reqs.length == edges.length && edges.all reqs.contains)
   t.ok s!"{tag}: counts" (cnt.length == keysUsed.length &&
     keysUsed.all fun k => cnt.contains (k, (m.idx k).length))
+  -- the tally rows the write turn's budget reads, after purges too
+  let tally ← run (tallyRows (F := ByteArray))
+  t.ok s!"{tag}: tally" (tally == (← run (budgetScan (F := ByteArray))) &&
+    tally == (m.queue.length, (m.stored.filter fun x => (m.status x).isNone).length, m.stored.length))
 
 /-- The conn and local ops among targets and their stored dependents,
 by a plain fixpoint over the stored ops: the meaning `mem_purgeSet`

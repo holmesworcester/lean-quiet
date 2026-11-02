@@ -59,6 +59,15 @@ theorem check_child {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {c u root 
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
+/-- A Valid message's op claims the message's time: sync sorts it there. -/
+theorem message_order {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}
+    (h : V C ops x (.message c u d k t n tm clump)) : ∃ o, ops x = some o ∧ orderOf o = tm := by
+  obtain ⟨o, b, fs, hx, hb, hr, hv⟩ := valid_inv h
+  refine ⟨o, hx, ?_⟩
+  cases clump with
+  | none => obtain ⟨_, _, _, _, rfl, _⟩ := check_message hv; simp [orderOf, hb]
+  | some r => obtain ⟨_, _, _, _, _, _, _, _, _, rfl, _⟩ := check_child hv; simp [orderOf, hb]
+
 /-- A Valid message cites an admission of its author's device into its
 author's user, and that device signed it. -/
 theorem message_authorized {x c u : Id} {d k t : ByteArray} {n tm : Nat} {clump : Option Id}
@@ -160,10 +169,6 @@ theorem order_local {M : List Op} (hf : Fed (family C) M s) {c x : Id} {sk : Byt
     exact .inl ⟨o, kid, sealed, n, tm, sig, hx, hb, hn, rfl⟩
   · obtain ⟨o, hm, hx⟩ := local_fact_mine hf hz rfl
     exact .inr ⟨z, o, kid, k, clump, hm, hx, hz, rfl⟩
-
-/-- Post x claims counter n and time tm: its op's body says so. -/
-def Posted (ops : Id → Option Op) (x : Id) (n tm : Nat) : Prop :=
-  ∃ o kid sealed sig, ops x = some o ∧ (decode o.body : Option Body) = some (.post kid sealed n tm sig)
 
 theorem posted_unique {ops : Id → Option Op} {x : Id} {n tm n' tm' : Nat} (h : Posted ops x n tm)
     (h' : Posted ops x n' tm') : n = n' ∧ tm = tm' := by

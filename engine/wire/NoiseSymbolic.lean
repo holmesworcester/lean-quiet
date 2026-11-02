@@ -31,8 +31,8 @@ bytes. Nothing here restates the protocol.
   any message it can derive and learns what they send back (`Sends`),
   in the calls `O` allows, and what they read (`Reveals`). `Sends` is
   what an honest party would send; `O` is which of those calls
-  happened. The secrecy laws hold for every `O`, `AllCalls` (every
-  call) among them; the authentication laws name the call that must be
+  happened. The secrecy laws hold for every `O`, the one with every
+  call among them; the authentication laws name the call that must be
   in `O`. Honest parties may be any names: any name serves as a static
   or an ephemeral, in any number of runs, so ephemeral reuse is covered
   too. They take every input from the attacker: prologue, peer static
@@ -116,7 +116,7 @@ What it does not cover:
   purges the ephemerals (`closing`, Engine/Purge.lean), which is what
   makes "once the ephemerals are gone" true.
 -/
-import engine.wire.Noise
+import engine.wire.NoiseModel
 
 namespace Connection.Noise
 
@@ -242,51 +242,12 @@ end
 
 namespace Symbolic
 
-/-! ## Terms, and the suite over them -/
+/-! The model itself (`T`, the suite `sym`, the attacker's `Derivable`,
+and the predicates the laws below are stated with) is in
+engine/wire/NoiseModel.lean, apart from its laws, so that a Comparator
+challenge can import it without them.
 
-/-- Symbolic values. `atom i` is a name: a secret exponent, or anything
-fresh. `dh i j` is the DH value of names `i ≤ j`. -/
-inductive T where
-  | atom (i : Nat)
-  | lit (b : ByteArray)
-  | pub (x : T)
-  | dh (i j : Nat)
-  | hash (x : T)
-  | hk1 (ck ikm : T)
-  | hk2 (ck ikm : T)
-  | aead (k : T) (n : Nat) (ad p : T)
-  | pair (a b : T)
-  deriving DecidableEq
-
-/-- DH over names: a name and a name's public key give their shared
-value, the same from either end. Any other shape fails. -/
-def dh : T → T → Option T
-  | .atom i, .pub (.atom j) => some (.dh (min i j) (max i j))
-  | _, _ => none
-
-/-- A ciphertext opens under its exact key, nonce and associated data. -/
-def dec (k : T) (n : Nat) (ad : T) : T → Option T
-  | .aead k' n' ad' p => if k' = k ∧ n' = n ∧ ad' = ad then some p else none
-  | _ => none
-
-def unpair : T → Option (T × T)
-  | .pair a b => some (a, b)
-  | _ => none
-
-/-- The symbolic suite: every operation a free constructor, but DH. -/
-def sym : Suite T where
-  dh := dh
-  pub := .pub
-  ValidKey _ := True
-  ValidPayload _ := True
-  ValidAD _ := True
-  enc := .aead
-  dec := dec
-  hash := .hash
-  hkdf ck ikm := (.hk1 ck ikm, .hk2 ck ikm)
-  pair := .pair
-  split := unpair
-  lit := .lit
+## Terms, and the suite over them -/
 
 theorem dh_atom (i j : Nat) : dh (.atom i) (.pub (.atom j)) = some (.dh (min i j) (max i j)) := rfl
 
@@ -336,82 +297,7 @@ theorem kk_runs (pro : T) (sI sR e f : Nat) (p1 p2 : T) :
 
 /-! ## The attacker -/
 
-/-- What honest parties send, as `Sends q m`: an honest party handed
-`q` by the attacker sends `m`. Its secrets are any names. -/
-inductive Sends : T → T → Prop
-  /-- Message 1, by an initiator with static `s` and ephemeral `e`, to any static key. -/
-  | request (s e : Nat) {pro rs p m1 : T} {st : Sym T} :
-      write1 sym pro (.atom s) (.atom e) rs p = some (st, m1) →
-      Sends (.pair pro (.pair rs p)) m1
-  /-- Message 2, by a responder with static `s` and ephemeral `f`, to any message 1 it reads. -/
-  | answer (s f : Nat) {pro rs m1 re p1 p m2 : T} {st : Sym T} {ses : Session T} :
-      read1 sym pro (.atom s) rs m1 = some (st, re, p1) →
-      write2 sym st (.atom f) rs re p = some (ses, m2) →
-      Sends (.pair pro (.pair rs (.pair m1 p))) m2
-  /-- Traffic from an initiator's session, as `sent1` and `read2` give it. -/
-  | initSeals (s e n : Nat) {pro rs m1 m2 p1 p2 ad q : T} {st : Sym T} {ses : Session T} :
-      sent1 sym pro (.atom s) (.atom e) rs m1 = some (st, p1) →
-      read2 sym st (.atom s) (.atom e) m2 = some (ses, p2) →
-      Sends (.pair pro (.pair rs (.pair m1 (.pair m2 (.pair ad q))))) (.aead ses.send.k n ad q)
-  /-- Traffic from a responder's session, as `read1` and `write2` give it. -/
-  | respSeals (s f n : Nat) {pro rs m1 re p1 p m2 ad q : T} {st : Sym T} {ses : Session T} :
-      read1 sym pro (.atom s) rs m1 = some (st, re, p1) →
-      write2 sym st (.atom f) rs re p = some (ses, m2) →
-      Sends (.pair pro (.pair rs (.pair m1 (.pair p (.pair ad q))))) (.aead ses.send.k n ad q)
-
-/-- What honest parties let out of what they read: the payloads. -/
-inductive Reveals : T → T → Prop
-  /-- Message 1's payload, as a responder with static `s` reads it. -/
-  | opened (s : Nat) {pro rs m1 re p1 : T} {st : Sym T} :
-      read1 sym pro (.atom s) rs m1 = some (st, re, p1) →
-      Reveals (.pair pro (.pair rs m1)) p1
-  /-- Message 2's payload, as an initiator with static `s` and ephemeral `e` reads it. -/
-  | accepted (s e : Nat) {pro rs m1 m2 p1 p2 : T} {st : Sym T} {ses : Session T} :
-      sent1 sym pro (.atom s) (.atom e) rs m1 = some (st, p1) →
-      read2 sym st (.atom s) (.atom e) m2 = some (ses, p2) →
-      Reveals (.pair pro (.pair rs (.pair m1 m2))) p2
-
-/-- **The attacker**: what it derives from `K`, by the Dolev-Yao rules
-and by asking honest parties. `O` is the honest calls it may make: it
-learns what an honest party sends, `m` handed `q`, only if `O q m`.
-`Sends` says what an honest party would send; `O` says which of those
-sends happen. The secrecy laws hold for every `O`, `AllCalls` among
-them; the authentication laws say which call must be in `O`. What
-honest parties read (`Reveals`) is open to the attacker whatever `O`
-is. -/
-inductive Derivable (O : T → T → Prop) (K : T → Prop) : T → Prop
-  | know {t} : K t → Derivable O K t
-  | lit (b : ByteArray) : Derivable O K (.lit b)
-  | pair {a b} : Derivable O K a → Derivable O K b → Derivable O K (.pair a b)
-  | fst {a b} : Derivable O K (.pair a b) → Derivable O K a
-  | snd {a b} : Derivable O K (.pair a b) → Derivable O K b
-  | pub {x} : Derivable O K x → Derivable O K (.pub x)
-  | dh {x y z} : Derivable O K x → Derivable O K y → sym.dh x y = some z → Derivable O K z
-  | hash {x} : Derivable O K x → Derivable O K (.hash x)
-  | hk1 {a b} : Derivable O K a → Derivable O K b → Derivable O K (.hk1 a b)
-  | hk2 {a b} : Derivable O K a → Derivable O K b → Derivable O K (.hk2 a b)
-  | encrypt {k ad p} (n : Nat) : Derivable O K k → Derivable O K ad → Derivable O K p →
-      Derivable O K (.aead k n ad p)
-  | decrypt {k n ad p} : Derivable O K (.aead k n ad p) → Derivable O K k → Derivable O K p
-  | sent {q m} : Derivable O K q → Sends q m → O q m → Derivable O K m
-  | revealed {q m} : Derivable O K q → Reveals q m → Derivable O K m
-
-/-- Every honest call: an attacker that asks any honest party anything. -/
-def AllCalls (_ _ : T) : Prop := True
-
 /-! ## What the attacker may know -/
-
-/-- What may be known when the names in `S` are secret. -/
-def Clean (S : Nat → Prop) : T → Prop
-  | .atom i => ¬ S i
-  | .lit _ => True
-  | .pub _ => True
-  | .dh i j => ¬ S i ∨ ¬ S j
-  | .hash x => Clean S x
-  | .hk1 a b => Clean S a ∧ Clean S b
-  | .hk2 a b => Clean S a ∧ Clean S b
-  | .aead _ _ ad p => Clean S ad ∧ Clean S p
-  | .pair a b => Clean S a ∧ Clean S b
 
 section
 variable {S : Nat → Prop} {O : T → T → Prop}
@@ -611,21 +497,14 @@ theorem kk_secret_resp {K : T → Prop} (hK : ∀ t, K t → Clean S t) {sI sR f
 
 end
 
-/-- What the attacker starts with when the names in `S` are secret:
-every other name, and every public key. -/
-def Exposed (S : Nat → Prop) (t : T) : Prop := (∃ i, t = .atom i ∧ ¬ S i) ∨ ∃ x, t = .pub x
-
 theorem exposed_clean {S : Nat → Prop} {t : T} (h : Exposed S t) : Clean S t := by
   rcases h with ⟨i, rfl, hi⟩ | ⟨x, rfl⟩
   · exact hi
   · trivial
 
-/-- A session's four secrets: both statics, both ephemerals. -/
-def secrets (sI sR e f : Nat) (i : Nat) : Prop := i = sI ∨ i = sR ∨ i = e ∨ i = f
-
 /-- **KK keeps session keys secret against an active attacker**, which
 knows every name but the session's four secrets and every public key,
-and talks to honest parties in any calls `O`, `AllCalls` among them:
+and talks to honest parties in any calls `O`, every call among them:
 whatever message 2 the initiator accepts, and whatever message 1 the
 responder answers, neither side's keys are derivable. -/
 theorem kk_secret {O : T → T → Prop} {sI sR e f : Nat} {pro pro' m1 m2 m1' m2' re p1 p2 q1 q2 : T}
@@ -716,52 +595,42 @@ end
 
 /-- **KK is forward secret.** An honest run, with prologue and payloads
 in the clear. Afterwards the attacker knows both statics, every other
-name but the two ephemerals, every public key, and both messages; it
-still derives neither side's keys. So once the ephemerals are purged,
-nothing left opens the session. -/
-theorem kk_forward_secret {sI sR e f : Nat} (hI : sI ≠ e ∧ sI ≠ f) (hR : sR ≠ e ∧ sR ≠ f)
+name but the two ephemerals and every public key, and makes any honest
+calls `O` that include the run's two, so it has both messages; it still
+derives neither side's keys. So once the ephemerals are purged, nothing
+left opens the session. -/
+theorem kk_forward_secret {O : T → T → Prop} {sI sR e f : Nat} (hI : sI ≠ e ∧ sI ≠ f)
+    (hR : sR ≠ e ∧ sR ≠ f)
     {pro b1 b2 : ByteArray} {st st' : Sym T} {m1 m2 re q1 q2 : T} {sr si : Session T}
     (h1 : write1 sym (.lit pro) (.atom sI) (.atom e) (.pub (.atom sR)) (.lit b1) = some (st, m1))
     (h2 : read1 sym (.lit pro) (.atom sR) (.pub (.atom sI)) m1 = some (st', re, q1))
     (h3 : write2 sym st' (.atom f) (.pub (.atom sI)) re (.lit b2) = some (sr, m2))
-    (h4 : read2 sym st (.atom sI) (.atom e) m2 = some (si, q2)) :
+    (h4 : read2 sym st (.atom sI) (.atom e) m2 = some (si, q2))
+    (o1 : O (.pair (.lit pro) (.pair (.pub (.atom sR)) (.lit b1))) m1)
+    (o2 : O (.pair (.lit pro) (.pair (.pub (.atom sI)) (.pair m1 (.lit b2)))) m2) :
     let K := Exposed (fun i => i = e ∨ i = f)
-    Derivable AllCalls K (.atom sI) ∧ Derivable AllCalls K (.atom sR) ∧
-      Derivable AllCalls K m1 ∧ Derivable AllCalls K m2 ∧
-      ¬ Derivable AllCalls K si.send.k ∧ ¬ Derivable AllCalls K si.recv.k ∧
-      ¬ Derivable AllCalls K sr.send.k ∧ ¬ Derivable AllCalls K sr.recv.k := by
+    Derivable O K (.atom sI) ∧ Derivable O K (.atom sR) ∧ Derivable O K m1 ∧ Derivable O K m2 ∧
+      ¬ Derivable O K si.send.k ∧ ¬ Derivable O K si.recv.k ∧
+      ¬ Derivable O K sr.send.k ∧ ¬ Derivable O K sr.recv.k := by
   intro K
   have hK : ∀ t, K t → Clean (fun i => i = e ∨ i = f) t := fun _ => exposed_clean
-  have hsI : Derivable AllCalls K (.atom sI) := .know (.inl ⟨sI, rfl, by omega⟩)
-  have hsR : Derivable AllCalls K (.atom sR) := .know (.inl ⟨sR, rfl, by omega⟩)
-  have hpub : ∀ x, Derivable AllCalls K (.pub x) := fun x => .know (.inr ⟨x, rfl⟩)
-  have hm1 : Derivable AllCalls K m1 :=
-    .sent (.pair (.lit _) (.pair (hpub _) (.lit _))) (.request sI e h1) trivial
-  have hm2 : Derivable AllCalls K m2 :=
-    .sent (.pair (.lit _) (.pair (hpub _) (.pair hm1 (.lit _)))) (.answer sR f h2 h3) trivial
-  have ⟨i1, i2⟩ := kk_forward_secret_init (O := AllCalls) hK (Or.inl rfl) (Or.inr rfl) h3 h4
-  have ⟨r1, r2⟩ := kk_forward_secret_resp (O := AllCalls) hK (Or.inl rfl) (Or.inr rfl) h1 h2 h3
+  have hsI : Derivable O K (.atom sI) := .know (.inl ⟨sI, rfl, by omega⟩)
+  have hsR : Derivable O K (.atom sR) := .know (.inl ⟨sR, rfl, by omega⟩)
+  have hpub : ∀ x, Derivable O K (.pub x) := fun x => .know (.inr ⟨x, rfl⟩)
+  have hm1 : Derivable O K m1 :=
+    .sent (.pair (.lit _) (.pair (hpub _) (.lit _))) (.request sI e h1) o1
+  have hm2 : Derivable O K m2 :=
+    .sent (.pair (.lit _) (.pair (hpub _) (.pair hm1 (.lit _)))) (.answer sR f h2 h3) o2
+  have ⟨i1, i2⟩ := kk_forward_secret_init (O := O) hK (Or.inl rfl) (Or.inr rfl) h3 h4
+  have ⟨r1, r2⟩ := kk_forward_secret_resp (O := O) hK (Or.inl rfl) (Or.inr rfl) h1 h2 h3
   exact ⟨hsI, hsR, hm1, hm2, i1, i2, r1, r2⟩
 
 /-! ## Authentication -/
-
-/-- `Part x t`: `x` comes out of `t` by unpairing and opening. -/
-inductive Part (x : T) : T → Prop
-  | refl : Part x x
-  | fst {a b : T} : Part x a → Part x (.pair a b)
-  | snd {a b : T} : Part x b → Part x (.pair a b)
-  | body {k ad p : T} {n : Nat} : Part x p → Part x (.aead k n ad p)
 
 /-- `c` is sealed in a message an honest party sent, handed something
 the attacker derived, in a call `O` allows. -/
 def Sealed (O : T → T → Prop) (K : T → Prop) (c : T) : Prop :=
   ∃ q m, Derivable O K q ∧ Sends q m ∧ O q m ∧ (m = c ∨ ∃ x, m = .pair x c)
-
-/-- The honest call `q ↦ m` is responder `s` answering message 1 `m1`
-(`Sends.answer` with static `s`), with any ephemeral and payload. -/
-def Answers (s : Nat) (m1 q m : T) : Prop :=
-  ∃ f pro rs re p1 p st ses, read1 sym pro (.atom s) rs m1 = some (st, re, p1) ∧
-    write2 sym st (.atom f) rs re p = some (ses, m) ∧ q = .pair pro (.pair rs (.pair m1 p))
 
 /-- The honest call `q ↦ m` is initiator `s` writing message 1 to static
 key `rs` with payload `p` (`Sends.request` with static `s`), with any
@@ -858,8 +727,8 @@ attacker can derive only if the honest responder `sR` wrote exactly that
 message, in a call `O` allows, answering this very message 1 as from
 `sI` with some ephemeral `f` and payload `p`; and then the two sessions
 match. `O` is what honest parties did, so this names a call that
-happened, not one that could have (with `O := AllCalls` the call part
-says nothing). As for secrecy, `sR` must be secret, and `sI` or `e`
+happened, not one that could have (with every call in `O`, the call
+part says nothing). As for secrecy, `sR` must be secret, and `sI` or `e`
 (`kk_authentic_tight`). The attacker may start with any clean terms
 that hold no ciphertext under a secret key. Non-injective: one answer
 in `O` can be accepted again. -/

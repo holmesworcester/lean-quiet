@@ -1,0 +1,30 @@
+{
+  "challenge_module": "tests.comparator.Challenge",
+  "solution_module": "tests.comparator.Solution",
+  "theorem_names": [
+    "Headline.no_impersonation",
+    "Headline.admission_needs_approval",
+    "Headline.removal_authorized",
+    "Headline.removed_stays",
+    "Headline.connect_iff",
+    "Headline.removal_reaches_session",
+    "Headline.recv_send",
+    "Headline.sealed_auth",
+    "Headline.kk_secret",
+    "Headline.kk_authentic",
+    "Headline.same_ops_same_verdicts",
+    "Headline.display_agrees",
+    "Headline.covered",
+    "Headline.back_open",
+    "Headline.select_tapped_dedupe",
+    "Headline.approveReq_ops",
+    "Headline.ingest_costs",
+    "Headline.deviceCut_removal"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

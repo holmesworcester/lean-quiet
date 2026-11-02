@@ -15,6 +15,13 @@ model reads them off its ops). Afterwards it rebuilds the file (`VACUUM`)
 and truncates the WAL, so no file keeps a deleted byte; that changes no
 row (`scrubSql`). `secure_delete`, on for every connection, zeroes the
 cells deletes free.
+
+`synchronous = FULL`, on for every connection, makes a commit survive
+power loss and OS crashes too: in WAL mode, the commit syncs the WAL to
+storage before it returns, given storage that keeps what it has synced.
+(NORMAL can lose the last commits.)
+tests/engine/SqliteBuild.lean checks it on a store opened as the app
+opens one.
 -/
 import engine.core.Core
 import engine.core.Codec
@@ -40,7 +47,7 @@ operations, write turns, budget and list queries answer as the model's
 def schemaCore : String := "
 PRAGMA secure_delete = ON;
 PRAGMA journal_mode = WAL;
-PRAGMA synchronous = NORMAL;
+PRAGMA synchronous = FULL;
 CREATE TABLE IF NOT EXISTS ops (id BLOB PRIMARY KEY, bytes BLOB NOT NULL) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS catalog (seq INTEGER PRIMARY KEY AUTOINCREMENT, id BLOB NOT NULL UNIQUE);
 CREATE TABLE IF NOT EXISTS catalog_version (version INTEGER PRIMARY KEY);
@@ -68,6 +75,45 @@ CREATE TRIGGER IF NOT EXISTS idx_uncount AFTER DELETE ON idx BEGIN
   UPDATE cnt SET n = n - 1 WHERE k = OLD.k;
   DELETE FROM cnt WHERE k = OLD.k AND n <= 0;
 END;
+CREATE TABLE IF NOT EXISTS tally (k TEXT PRIMARY KEY, n INTEGER NOT NULL) WITHOUT ROWID;
+CREATE TRIGGER IF NOT EXISTS tally_ops_insert AFTER INSERT ON ops BEGIN
+  UPDATE tally SET n = n + 1 WHERE k = 'ops';
+  UPDATE tally SET n = n + 1 WHERE k = 'undecided' AND NOT EXISTS (SELECT 1 FROM status WHERE id = NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS tally_ops_delete AFTER DELETE ON ops BEGIN
+  UPDATE tally SET n = n - 1 WHERE k = 'ops';
+  UPDATE tally SET n = n - 1 WHERE k = 'undecided' AND NOT EXISTS (SELECT 1 FROM status WHERE id = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS tally_status_insert BEFORE INSERT ON status BEGIN
+  UPDATE tally SET n = n - 1 WHERE k = 'undecided'
+    AND EXISTS (SELECT 1 FROM ops WHERE id = NEW.id) AND NOT EXISTS (SELECT 1 FROM status WHERE id = NEW.id);
+END;
+CREATE TRIGGER IF NOT EXISTS tally_status_delete AFTER DELETE ON status BEGIN
+  UPDATE tally SET n = n + 1 WHERE k = 'undecided' AND EXISTS (SELECT 1 FROM ops WHERE id = OLD.id);
+END;
+CREATE TRIGGER IF NOT EXISTS tally_queue_insert AFTER INSERT ON queue BEGIN
+  UPDATE tally SET n = n + 1 WHERE k = 'queue';
+END;
+CREATE TRIGGER IF NOT EXISTS tally_queue_delete AFTER DELETE ON queue BEGIN
+  UPDATE tally SET n = n - 1 WHERE k = 'queue';
+END;
+"
+
+/-- The three counts a write turn's budget reads (`budgetSql`), set from
+the tables themselves when a database has no tally rows yet (new,
+wiped, or older than the tally); the `tally` triggers keep them exact
+from then on, so a turn reads three rows, not three scans of the store.
+An open that finds the rows only reads them: the app reopens its store
+often (the reader about once a second), and seeding on every open took
+the write lock and scanned the store each time (tests/app/headless.sh:
+writes slowed past its timeouts). -/
+def tallySeed : String := "
+BEGIN IMMEDIATE;
+INSERT OR REPLACE INTO tally (k, n) VALUES
+  ('ops', (SELECT count(*) FROM ops)),
+  ('undecided', (SELECT count(*) FROM ops WHERE NOT EXISTS (SELECT 1 FROM status WHERE status.id = ops.id))),
+  ('queue', (SELECT count(*) FROM queue));
+COMMIT;
 "
 
 /-- The guard stays inside the transaction as well: concurrent first opens
@@ -88,6 +134,8 @@ def Db.openAt (path : String) : IO Db := do
   db.exec schemaCore
   let version ← db.query "SELECT version FROM catalog_version WHERE version = 1" #[]
   if version.isEmpty then db.exec catalogMigration
+  let tally ← db.query "SELECT k FROM tally" #[]
+  if tally.size != 3 then db.exec tallySeed
   return db
 
 /-- Store F on a database: one connection, read by every statement. -/
@@ -170,7 +218,7 @@ instance sqlStore [Codec F] [SortKey F] : Store F (SqlM F) where
     sqlDo "DELETE FROM ops WHERE id = ?" #[x]
     sqlDo "DELETE FROM waits WHERE blocker = ?" #[x]
     sqlDo "DELETE FROM waits WHERE waiter = ?" #[x]
-  countOps := countSql "SELECT CAST(count(*) AS TEXT) FROM ops"
+  countOps := countSql "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'ops'"
 
 /-- Run act as one transaction: all of it commits, or none of it. -/
 def transact {α} (act : SqlM F α) : SqlM F α := do
@@ -185,12 +233,30 @@ def transact {α} (act : SqlM F α) : SqlM F α := do
     throw e
 
 /-- The judging steps the tables need at most (Engine.budget): the
-queue's length, plus the undecided stored ops times the stored ops. -/
+queue's length, plus the undecided stored ops times the stored ops,
+read from the `tally` rows: three point reads, whatever the store holds
+(tests/engine/Differential.lean and Purge.lean check them against the
+tables, across writes, judging, purges and a reopen). -/
 def budgetSql : SqlM F Nat := do
+  let q ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'queue'"
+  let u ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'undecided'"
+  let n ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'ops'"
+  return q + u * n
+
+/-- The same three counts, scanned from the tables: what the tally rows
+must equal (the tests' oracle; nothing on the running path reads it). -/
+def budgetScan : SqlM F (Nat × Nat × Nat) := do
   let q ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM queue"
   let u ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM ops WHERE id NOT IN (SELECT id FROM status)"
   let n ← countSql (F := F) "SELECT CAST(count(*) AS TEXT) FROM ops"
-  return q + u * n
+  return (q, u, n)
+
+/-- The tally rows: queue, undecided, stored. -/
+def tallyRows : SqlM F (Nat × Nat × Nat) := do
+  let q ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'queue'"
+  let u ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'undecided'"
+  let n ← countSql (F := F) "SELECT CAST(n AS TEXT) FROM tally WHERE k = 'ops'"
+  return (q, u, n)
 
 /-- One write turn: take in ops and judge everything that became
 decidable, atomically, with the proven `drain` and a budget read in the

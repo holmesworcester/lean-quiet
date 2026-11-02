@@ -2,7 +2,9 @@
 Wall times of the byte codec on the paths a photo takes, on SQLite with
 real Ed25519: build a 100-chunk attachment (its Merkle root, every
 chunk's proof, the chunk ops), encode and decode one 64 KiB chunk op, validate one chunk
-against its cited facts, ingest 100 chunk ops in one `receive`, and
+against its cited facts, ingest 100 chunk ops in one `receive` and 100
+posts in a `receive` each (as the app commits, `synchronous = FULL`, and
+at NORMAL for comparison: FULL syncs each commit to storage), and
 decode a 48 KiB frame bundle (the bundle's list, then `Op.decode` of
 each op in it). Then an adversarial input: numbers thousands of bytes
 long. Each line is the mean over its repetitions. A checksum of every
@@ -57,7 +59,7 @@ with the setup's. -/
 
 /-- Attach file f: its root, every chunk's proof, and the chunk ops. -/
 @[noinline] def attachFile (c : Id) (d : Device) (k : Key32) (f : NewFile) (_ : Nat) : Nat :=
-  let (a, cs) := attach c c c d k f
+  let (a, cs) := attach c c c 1 d k f
   cs.foldl (fun n o => n + o.id.size) a.id.size
 
 /-- n rows newest first, as each list of a union reads them. -/
@@ -131,25 +133,40 @@ def main (args : List String) : IO UInt32 := do
   IO.println s!"a chunk cites {o.reqs.length} ops, {facts.length} of them Valid here"
   bench sum "validate one chunk (Family.validate)" fun i => pure (validateOp o facts i)
 
-  let mut k := 0
-  let mut el := 0
+  -- Write turns on fresh stores: as the app commits them (synchronous
+  -- FULL, each commit synced to storage), and at NORMAL for comparison.
+  -- 100 chunk ops in one turn, then 100 short posts in a turn each, as
+  -- messages arrive.
+  let arrivals := (List.range 100).map fun t =>
+    ((send c c dA kA ((Bytes.fit 24 (sha256 s!"turn {t}".toUTF8))) s!"message {t}".toUTF8 (t + 10)).eval
+      DB.empty).ops.headD default
+  -- The settings take turns, so load on the machine falls on both alike.
   let reps := 3
-  for _ in [0:reps] do
-    let db ← fresh dir s!"ingest{k}.db"
-    (receive fam (intake fam true w.ops)).run db
-    (receive fam (intake fam true (wf.ops.take 2))).run db
-    let t ← IO.monoNanosNow
-    (receive fam (intake fam false chunks)).run db
-    el := el + ((← IO.monoNanosNow) - t)
-    let mut valid := 0
-    for x in chunks do
-      if let some (.valid _) ← ((Store.getStatus x.id : SqlM Fact _).run db) then valid := valid + 1
-    sum.modify (· + valid)
-    if valid != chunks.length then
-      IO.eprintln s!"FAIL: only {valid} of {chunks.length} chunks Valid"
-      return 1
-    k := k + 1
-  IO.println s!"ingest {chunks.length} chunk ops into SQLite (receive): {usStr (el / reps)}  ({reps} runs, every chunk Valid)"
+  let syncs := ["FULL", "NORMAL"]
+  let mut el : Array Nat := #[0, 0, 0, 0]
+  for k in [0:reps] do
+    for (sync, i) in syncs.zipIdx do
+      for (turns, ops) in [(false, chunks), (true, arrivals)] do
+        let db ← fresh dir s!"ingest-{sync}-{turns}-{k}.db"
+        db.exec s!"PRAGMA synchronous = {sync}"
+        (receive fam (intake fam true w.ops)).run db
+        (receive fam (intake fam true (wf.ops.take 2))).run db
+        let t ← IO.monoNanosNow
+        if turns then
+          for x in ops do (receive fam (intake fam false [x])).run db
+        else (receive fam (intake fam false ops)).run db
+        let j := 2 * i + (if turns then 1 else 0)
+        el := el.modify j (· + ((← IO.monoNanosNow) - t))
+        let mut valid := 0
+        for x in ops do
+          if let some (.valid _) ← ((Store.getStatus x.id : SqlM Fact _).run db) then valid := valid + 1
+        sum.modify (· + valid)
+        if valid != ops.length then
+          IO.eprintln s!"FAIL: only {valid} of {ops.length} ops Valid"
+          return 1
+  for (sync, i) in syncs.zipIdx do
+    IO.println s!"ingest {chunks.length} chunk ops into SQLite in one write turn (receive), synchronous {sync}: {usStr (el[2 * i]! / reps)}  ({reps} runs, every chunk Valid)"
+    IO.println s!"ingest {arrivals.length} posts in {arrivals.length} write turns, one each, synchronous {sync}: {usStr (el[2 * i + 1]! / reps)}  ({reps} runs, every post Valid)"
 
   -- A 48 KiB frame bundle: posts' bytes, as a session seals them.
   let mut payloads : Array ByteArray := #[]

@@ -3,7 +3,8 @@ import app.community.Op
 /-
 One 64 KiB slice of a file's ciphertext with its Merkle path. It cites
 its community and its attachment, and is Valid iff it names its
-attachment's root and length and its path verifies against them.
+attachment's root, length and time (its message's claimed time, so it
+sorts in sync with its message) and its path verifies against them.
 -/
 
 namespace Community
@@ -15,14 +16,15 @@ namespace Chunk
 structure Body where
   root : ByteArray
   len : Nat
+  time : Nat
   index : Nat
   slice : ByteArray
   sibs : List ByteArray
   deriving DecidableEq, Inhabited
 
-instance : Codec Body := Codec.tagged 19 (fun x => (x.root, x.len, x.index, x.slice, x.sibs)) (fun (p : B × Nat × Nat × B × List B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2⟩) (fun _ => rfl)
+instance : Codec Body := Codec.tagged 19 (fun x => (x.root, x.len, x.time, x.index, x.slice, x.sibs)) (fun (p : B × Nat × Nat × Nat × B × List B) => ⟨p.1, p.2.1, p.2.2.1, p.2.2.2.1, p.2.2.2.2.1, p.2.2.2.2.2⟩) (fun _ => rfl)
 
-@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 19 :: Codec.enc (x.root, x.len, x.index, x.slice, x.sibs) := rfl
+@[simp] theorem Body.enc_tag (x : Body) : Codec.enc x = 19 :: Codec.enc (x.root, x.len, x.time, x.index, x.slice, x.sibs) := rfl
 
 /-- Nothing to blank: the body is unsigned. -/
 def Body.unsigned (b : Body) : Body := b

@@ -2,24 +2,6 @@ import app.community.Family
 
 namespace Community
 open Engine Codec
-section
-variable (C : Crypto) (ops : Id → Option Op)
-
-/-- User u of community c has been removed (by anyone allowed to). -/
-def Removed (c u : Id) : Prop := ∃ x r, V C ops x (.removal c u r)
-
-/-- A member: an admitted user not removed. -/
-def Member (c u : Id) : Prop := (∃ d e, Admitted C ops c u d e) ∧ ¬ Removed C ops c u
-
-/-- Device d is live in c: admitted, and none of the users it is
-admitted into (under any key) removed. A device may be admitted into
-several users; removing any of them cuts it (docs/REMOVAL.md). -/
-def Live (c : Id) (d : Key) : Prop :=
-  (∃ u e, Admitted C ops c u d e) ∧ ∀ u e, Admitted C ops c u d e → ¬ Removed C ops c u
-
-/-- Device d is cut in c: admitted into a user that is removed. -/
-def Cut (c : Id) (d : Key) : Prop := ∃ u e, Admitted C ops c u d e ∧ Removed C ops c u
-end
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 

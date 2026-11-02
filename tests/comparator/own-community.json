@@ -1,0 +1,23 @@
+{
+  "challenge_module": "tests.comparator.own.CommunityChallenge",
+  "solution_module": "tests.comparator.own.CommunitySolution",
+  "theorem_names": [
+    "Community.no_impersonation",
+    "Community.admission_needs_approval",
+    "Community.removal_authorized",
+    "Community.removed_stays",
+    "Community.connect_iff",
+    "Connection.Noise.Symbolic.kk_secret",
+    "Connection.Noise.Symbolic.kk_authentic",
+    "Community.display_agrees",
+    "Cover.covered",
+    "Community.approveReq_ops",
+    "PeopleLaws.deviceCut_removal"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

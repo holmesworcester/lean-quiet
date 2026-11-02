@@ -32,7 +32,7 @@ include hsize hspr
 attachment's progress (as `pic_progress` reads them) is complete exactly
 when the store holds a Valid chunk of that attachment at every index. -/
 theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s) :
     p.complete = true ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) := by
@@ -50,11 +50,11 @@ theorem complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u 
 attachment's length is the file's and the store holds each of the
 file's chunk ops, whose slices are the file. -/
 theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     {p : Pic} (hp : (p.got, p.total) = (progress c att len).eval s)
     {α : Type} (pre full : Option α) (hs : (p.shown pre full).2 = true) :
     len = ct.size ∧ ∀ i < Merkle.nChunks ct.size,
-      V C s.ops (fileChunk c att ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
+      V C s.ops (fileChunk c att tm ct i).id (.chunk c att (Merkle.fileRoot sha256 ct) ct.size i) := by
   have hc := ((shown_file p pre full).1 hs).1
   have hle := progress_le hsize hspr h hq ha
   refine progress_done hsize hspr h hq ha ?_
@@ -66,7 +66,7 @@ theorem file_whole (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {
 /-- **The picture the app reads is complete exactly when its file is
 held**: `Kinds.File.pic` over the store, composed with `complete_iff_held`. -/
 theorem pic_complete_iff_held (h : Inv (family C) s) (hq : s.queue = []) {c att m u : Id} {len : Nat}
-    {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len k x))
+    {tm : Nat} {k x : ByteArray} (ha : V C s.ops att (.attachment c m u (Merkle.fileRoot sha256 ct) len tm k x))
     (info : FileMeta) (fk fn : ByteArray) (deps : Array Q) :
     ((Kinds.File.pic (m := Model) c att (Merkle.fileRoot sha256 ct) len info fk fn deps).run s).1.complete = true ↔
       ∀ i < Merkle.nChunks len, ∃ y, V C s.ops y (.chunk c att (Merkle.fileRoot sha256 ct) len i) :=
@@ -263,7 +263,7 @@ def slicesFromOps (raw : List ByteArray) : Option (List ByteArray) :=
   raw.mapM fun b => do
     let o ← Engine.Op.decode b
     match (Codec.decode o.body : Option Community.Body) with
-    | some (.chunk _ _ _ slice _) => some slice
+    | some (.chunk _ _ _ _ slice _) => some slice
     | _ => none
 
 /-- An attachment's file from its chunk ops' bytes: opened with the
@@ -326,14 +326,6 @@ def startFull (p : Row.Pic) (w h : Nat) (theme : Theme.Value := .dark) : m (Opti
     | Pics.retryLater k; return none
   return some (← Pics.spawn fun _ => decodeFile p raw w h theme)
 
-/-- An attachment drawn at its size, if ready, and whether it is the
-file (not its preview), as `Row.Pic.shown` chooses: the preview
-(softened, `Arrival.soften`) until every chunk is here and the file is
-decoded, then the file. -/
-def image (p : Row.Pic) (w h : Nat) (theme : Theme.Value := .dark) : m (Option Bitmap × Bool) := do
-  let pre ← decoded (p.hash.push 0, w, h) fun _ => startPre p w h theme
-  let full ← if !p.complete then pure none else decoded (p.hash.push 1, w, h) fun _ => startFull p w h theme
-  return p.shown pre full
 
 end
 
@@ -417,217 +409,6 @@ variable {α β : Type}
     run (Pics.spawn f : CostT PicM _) w = ((Task.spawn f, { spawns := 1 }), w) := rfl
 
 end
-
-/-! ## Laws -/
-
-section
-variable {k : Key} {w : World}
-
-theorem run_decoded_some {start : Unit → CostT PicM (Option (Task Bitmap))} {t : Task Bitmap}
-    (h : w.imgs k = some t) :
-    run (decoded k start) w = ((if w.done t then some t.get else none, 0), w) := by
-  simp only [decoded, run_bind, run_started, h]
-  by_cases hd : w.done t = true <;> simp [hd]
-
-theorem run_decoded_none {start : Unit → CostT PicM (Option (Task Bitmap))} (h : w.imgs k = none) :
-    run (decoded k start) w =
-      ((none, (run (start ()) w).1.2),
-        match (run (start ()) w).1.1 with
-        | some t => { (run (start ()) w).2 with
-            imgs := fun k' => if k' = k then some t else (run (start ()) w).2.imgs k' }
-        | none => (run (start ()) w).2) := by
-  simp only [decoded, run_bind, run_started, h]
-  cases h' : (run (start ()) w).1.1 <;> simp
-
-end
-
-/-- **A key whose decode has started costs nothing**, whatever its
-start would do: no spawn, no read, and the world unchanged. -/
-theorem decoded_started (k : Key) (start : Unit → CostT PicM (Option (Task Bitmap))) (w : World)
-    {t : Task Bitmap} (h : w.imgs k = some t) :
-    costIn (decoded k start) w = 0 ∧ after (decoded k start) w = w := by
-  simp [costIn, after, run_decoded_some h]
-
-/-- The two stages' keys differ. -/
-theorem key_ne (p : Row.Pic) (w h : Nat) : ((p.hash.push 0, w, h) : Key) ≠ (p.hash.push 1, w, h) := by
-  intro e
-  have := congrArg (fun k : Key => k.1.data.toList) e
-  simp at this
-
-section
-variable {theme : Theme.Value}
-
-theorem run_startPre (p : Row.Pic) (wd ht : Nat) (w : World) :
-    (p.preview.isEmpty = true → run (startPre p wd ht theme) w = ((none, 0), w)) ∧
-    (p.preview.isEmpty = false → ∃ t, run (startPre p wd ht theme) w = ((some t, { spawns := 1 }), w)) := by
-  refine ⟨fun he => by simp [startPre, he],
-    fun he => ⟨Task.spawn fun _ => Arrival.soften (Palette.color theme .bg) (decodePic p.preview wd ht false theme), ?_⟩⟩
-  simp [startPre, he]
-
-/-- The file's start: it waits while a retry is not due; else it reads
-the chunk ops, and spawns the decode if they are all here, or sets a
-retry. -/
-theorem run_startFull (p : Row.Pic) (wd ht : Nat) (w : World) :
-    let k := (p.hash.push 1, wd, ht)
-    ((∃ t, w.retry k = some t ∧ w.frames < t) → run (startFull p wd ht theme) w = ((none, 0), w)) ∧
-    ((∀ t, w.retry k = some t → t ≤ w.frames) →
-      (∀ raw, w.store p = some raw →
-        ∃ t, run (startFull p wd ht theme) w = ((some t, { reads := p.chunks.length, spawns := 1 }), w)) ∧
-      (w.store p = none →
-        run (startFull p wd ht theme) w = ((none, { reads := p.chunks.length }),
-          { w with retry := fun k' => if k' = k then some (w.frames + 120) else w.retry k' }))) := by
-  intro k
-  refine ⟨fun ⟨t, hr, hlt⟩ => by simp [startFull, k, hr, hlt],
-    fun hdue => ⟨fun raw hs => ⟨Task.spawn fun _ => decodeFile p raw wd ht theme, ?_⟩, fun hs => ?_⟩⟩
-  · cases hr : w.retry k with
-    | none => simp [startFull, k, hr, hs]; ext <;> simp
-    | some t =>
-      have := hdue t hr
-      simp [startFull, k, hr, hs, Nat.not_lt.2 this]; ext <;> simp
-  · cases hr : w.retry k with
-    | none => simp [startFull, k, hr, hs]
-    | some t =>
-      have := hdue t hr
-      simp [startFull, k, hr, hs, Nat.not_lt.2 this]
-
-/-- `image` is the preview's `decoded`, then (every chunk here) the
-file's. -/
-theorem run_image (p : Row.Pic) (wd ht : Nat) (w : World) :
-    let pre := decoded (p.hash.push 0, wd, ht) fun _ => startPre p wd ht theme
-    let full := decoded (p.hash.push 1, wd, ht) fun _ => startFull p wd ht theme
-    costIn (image p wd ht theme) w = costIn pre w + (if p.complete then costIn full (after pre w) else 0) ∧
-      after (image p wd ht theme) w = (if p.complete then after full (after pre w) else after pre w) := by
-  intro pre full
-  simp only [costIn, after, image, run_bind]
-  by_cases hc : p.complete = true <;> simp [hc, pre, full]
-
-/-- A picture is steady in a world: its preview's decode has started
-(or it has no preview), and if every chunk is here, its file's decode
-has started or its retry is not yet due. -/
-def Steady (p : Row.Pic) (wd ht : Nat) (w : World) : Prop :=
-  (p.preview.isEmpty = false → (w.imgs (p.hash.push 0, wd, ht)).isSome) ∧
-  (p.complete = true → (w.imgs (p.hash.push 1, wd, ht)).isSome ∨
-    ∃ t, w.retry (p.hash.push 1, wd, ht) = some t ∧ w.frames < t)
-
-/-- The preview's decoded, steady, costs nothing. -/
-theorem pre_steady (p : Row.Pic) (wd ht : Nat) (w : World)
-    (h : p.preview.isEmpty = false → (w.imgs (p.hash.push 0, wd, ht)).isSome) :
-    costIn (decoded (p.hash.push 0, wd, ht) fun _ => startPre p wd ht theme) w = 0 ∧
-      after (decoded (p.hash.push 0, wd, ht) fun _ => startPre p wd ht theme) w = w := by
-  cases hk : w.imgs (p.hash.push 0, wd, ht) with
-  | some t => exact decoded_started _ _ w hk
-  | none =>
-    have he : p.preview.isEmpty = true := by
-      cases hp : p.preview.isEmpty
-      · have := h hp; rw [hk] at this; cases this
-      · rfl
-    simp [costIn, after, run_decoded_none hk, ((run_startPre (theme := theme) p wd ht w).1 he)]
-
-/-- The file's decoded, steady, costs nothing. -/
-theorem full_steady (p : Row.Pic) (wd ht : Nat) (w : World)
-    (h : (w.imgs (p.hash.push 1, wd, ht)).isSome ∨
-      ∃ t, w.retry (p.hash.push 1, wd, ht) = some t ∧ w.frames < t) :
-    costIn (decoded (p.hash.push 1, wd, ht) fun _ => startFull p wd ht theme) w = 0 ∧
-      after (decoded (p.hash.push 1, wd, ht) fun _ => startFull p wd ht theme) w = w := by
-  cases hk : w.imgs (p.hash.push 1, wd, ht) with
-  | some t => exact decoded_started _ _ w hk
-  | none =>
-    rw [hk] at h
-    have hw := h.resolve_left (by simp)
-    simp [costIn, after, run_decoded_none hk, ((run_startFull (theme := theme) p wd ht w).1 hw)]
-
-/-- **A steady picture costs nothing**: no spawn and no store read, and
-the world is unchanged. -/
-theorem image_steady (p : Row.Pic) (wd ht : Nat) (w : World) (h : Steady p wd ht w) :
-    costIn (image p wd ht theme) w = 0 ∧ after (image p wd ht theme) w = w := by
-  obtain ⟨c, a⟩ := run_image (theme := theme) p wd ht w
-  obtain ⟨c1, a1⟩ := pre_steady (theme := theme) p wd ht w h.1
-  rw [c, a, c1, a1]
-  by_cases hc : p.complete = true
-  · obtain ⟨c2, a2⟩ := full_steady (theme := theme) p wd ht w (h.2 hc)
-    simp [hc, c2, a2]
-  · simp [hc]
-
-/-- After the preview's decoded, its key is started (if it has a
-preview), and the other keys, the retries and the frame are as they
-were. -/
-theorem pre_after (p : Row.Pic) (wd ht : Nat) (w : World) :
-    let w' := after (decoded (p.hash.push 0, wd, ht) fun _ => startPre p wd ht theme) w
-    (p.preview.isEmpty = false → (w'.imgs (p.hash.push 0, wd, ht)).isSome) ∧
-      (∀ k, k ≠ (p.hash.push 0, wd, ht) → w'.imgs k = w.imgs k) ∧
-      w'.retry = w.retry ∧ w'.frames = w.frames := by
-  intro w'
-  cases hk : w.imgs (p.hash.push 0, wd, ht) with
-  | some t =>
-    have e : w' = w := (decoded_started _ (fun _ => startPre p wd ht theme) w hk).2
-    rw [e, hk]; exact ⟨fun _ => rfl, fun _ _ => rfl, rfl, rfl⟩
-  | none =>
-    cases he : p.preview.isEmpty
-    · obtain ⟨t, ht'⟩ := (run_startPre (theme := theme) p wd ht w).2 he
-      simp only [w', after, run_decoded_none hk, ht']
-      refine ⟨fun _ => by simp, fun k hk' => by simp [hk'], ?_⟩
-      simp
-    · simp [w', after, run_decoded_none hk, (run_startPre (theme := theme) p wd ht w).1 he]
-
-/-- After the file's decoded, its key is started or its retry is not
-yet due, and the other keys and the frame are as they were. -/
-theorem full_after (p : Row.Pic) (wd ht : Nat) (w : World) :
-    let k := (p.hash.push 1, wd, ht)
-    let w' := after (decoded k fun _ => startFull p wd ht theme) w
-    ((w'.imgs k).isSome ∨ ∃ t, w'.retry k = some t ∧ w'.frames < t) ∧
-      (∀ k', k' ≠ k → w'.imgs k' = w.imgs k') ∧ w'.frames = w.frames := by
-  intro k w'
-  cases hk : w.imgs k with
-  | some t =>
-    have e : w' = w := (decoded_started _ (fun _ => startFull p wd ht theme) w hk).2
-    rw [e, hk]; exact ⟨Or.inl rfl, fun _ _ => rfl, rfl⟩
-  | none =>
-    obtain ⟨hwait, hgo⟩ := run_startFull (theme := theme) p wd ht w
-    by_cases hd : ∃ t, w.retry k = some t ∧ w.frames < t
-    · simp only [w', after, run_decoded_none hk, hwait hd]
-      exact ⟨Or.inr hd, fun _ _ => trivial, trivial⟩
-    · have hdue : ∀ t, w.retry k = some t → t ≤ w.frames := fun t hr =>
-        Nat.not_lt.1 fun hlt => hd ⟨t, hr, hlt⟩
-      obtain ⟨hyes, hno⟩ := hgo hdue
-      cases hs : w.store p with
-      | some raw =>
-        obtain ⟨t, ht'⟩ := hyes raw hs
-        simp only [w', after, run_decoded_none hk, ht']
-        refine ⟨Or.inl (by simp), fun k' hk' => by simp [hk'], ?_⟩
-        simp
-      | none =>
-        simp [w', k, after, run_decoded_none hk, hno hs]
-
-/-- **One frame's `image` leaves the picture steady.** -/
-theorem image_settles (p : Row.Pic) (wd ht : Nat) (w : World) :
-    Steady p wd ht (after (image p wd ht theme) w) := by
-  rw [(run_image (theme := theme) p wd ht w).2]
-  obtain ⟨p1, -, -, -⟩ := pre_after (theme := theme) p wd ht w
-  by_cases hc : p.complete = true
-  · simp only [hc, ite_true]
-    obtain ⟨f1, f2, -⟩ := full_after (theme := theme) p wd ht (after (decoded (p.hash.push 0, wd, ht) fun _ => startPre p wd ht theme) w)
-    refine ⟨fun hp => ?_, fun _ => f1⟩
-    rw [f2 _ (key_ne p wd ht)]; exact p1 hp
-  · simp only [hc]
-    exact ⟨p1, fun h => absurd h hc⟩
-
-/-- **A frame whose data has not changed spawns no decode task and does
-no store read**: `image` run again on the world one run left costs
-nothing. -/
-theorem image_twice (p : Row.Pic) (wd ht : Nat) (w : World) :
-    costIn (image p wd ht theme) (after (image p wd ht theme) w) = 0 :=
-  (image_steady (theme := theme) p wd ht _ (image_settles (theme := theme) p wd ht w)).1
-
-end
-
-/-- **Steady stays steady** as frames pass, until a retry falls due. -/
-theorem steady_later (p : Row.Pic) (wd ht : Nat) (w : World) (d : Nat) (h : Steady p wd ht w)
-    (hd : ∀ t, w.retry (p.hash.push 1, wd, ht) = some t → w.frames + d < t) :
-    Steady p wd ht { w with frames := w.frames + d } := by
-  refine ⟨h.1, fun hc => ?_⟩
-  rcases h.2 hc with h' | ⟨t, hr, _⟩
-  · exact Or.inl h'
-  · exact Or.inr ⟨t, hr, hd t hr⟩
 
 /-! ## The negative control: the start as a value -/
 

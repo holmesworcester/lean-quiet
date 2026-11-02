@@ -26,7 +26,7 @@ class InventoryTest(unittest.TestCase):
 
     def test_removed_checked_reference_fails(self):
         with self.assertRaisesRegex(ValueError, 'checked references disappeared'):
-            vacuity.report(self.readme.replace('[`fit_small`]:', '[`renamed`]:'))
+            vacuity.report(self.readme.replace('[`fit_small`]', '[`renamed`]'))
 
     def test_existing_report_is_not_counted_again(self):
         self.assertEqual(vacuity.report(self.readme), vacuity.report((ROOT / 'README.md').read_text()))
@@ -91,7 +91,7 @@ class OrderingTest(unittest.TestCase):
     def test_readme_begins_with_identity_membership_theorems(self):
         source = (ROOT / 'README.md').read_text()
         expected = ['no_impersonation', 'admission_needs_approval', 'admission_approved',
-                    'request_invited', 'removal_authorized', 'admin_granted',
+                    'request_invited', 'removal_authorized', 'removal_anchored', 'admin_granted',
                     'removed_stays', 'valid_stays']
         self.assertEqual(list(vacuity.ordered_references(source))[:len(expected)], expected)
 

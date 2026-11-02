@@ -41,10 +41,12 @@ def freshWriteCertificate (p : Peer) (o : Op) (now : Nat)
     (hi : Inv Connection.Execution.family p.memory.held.db) :=
   if hn : p.memory.held.db.ops o.id = none then
     if hs : (Connection.Execution.family.room o).isSome then
-      some (PLift.up (production_write_receives setup .b p.node p.memory
-        [o] now hi (o := o) (List.mem_singleton_self _) hs
-        (by intro q hq _; exact List.mem_singleton.mp hq)
-        (by intro q hq; rw [hn] at hq; cases hq)))
+      if hc : o.capped = true then
+        some (PLift.up (production_write_receives setup .b p.node p.memory
+          [o] now hi (o := o) (List.mem_singleton_self _) hs hc
+          (by intro q hq _; exact List.mem_singleton.mp hq)
+          (by intro q hq; rw [hn] at hq; cases hq)))
+      else none
     else none
   else none
 
@@ -94,6 +96,127 @@ def runCertificateFor (w : World) (o : Op)
 
 def runCertificate (s : Scenario) :=
   runCertificateFor (finished s) s.message (source_reachable s) (source_history s)
+
+/-! The community laws in every production trace. After the bootstrap,
+Alice's actual remover intent removes Bob's user; each certificate takes
+the trace's store from `trace_good`, never from a checked replacement. -/
+
+def storeAfter (acts : List Action) (side : Connection.Execution.Side) : DB Connection.F :=
+  ((trace setup initial acts).peer side).memory.held.db
+
+def removal (s : Scenario) : List Op :=
+  (view (finished s) .a (removeMember c s.request.id alice)).ops
+
+def removedActions (s : Scenario) : List Action := s.completed ++ [.write .a (removal s)]
+
+/-- Every Valid admission of node key e in c is of user u, checked over the
+stored rows; `Inv` rules out a verdict on an unstored id. -/
+def ownedBy (st : DB Connection.F) (e : Community.Key) (u x : Id) : Bool :=
+  match st.status x with
+  | some (.valid (.inl (.admission c' u' _ e'))) => decide ((c' = c ∧ e' = e) → u' = u)
+  | _ => true
+
+theorem owned {st : DB Connection.F} (hi : Inv Connection.Execution.family st)
+    {e : Community.Key} {u : Id} (hb : st.stored.all (ownedBy st e u) = true)
+    {x u' : Id} {d : Community.Key} (hx : st.status x = some (.valid (.inl (.admission c u' d e)))) :
+    u' = u := by
+  obtain ⟨o, _, ho, _⟩ := spec_valid_inv (hi.sound x _ hx)
+  have hs : x ∈ st.stored := (hi.stored x).2 (by rw [ho]; rfl)
+  have hh := (List.all_eq_true.1 hb) x hs
+  simp only [ownedBy, hx] at hh
+  exact of_decide_eq_true hh (by simp)
+
+/-- The op's own verdict at the peer is a Valid removal of user u from c. -/
+def removedIn (st : DB Connection.F) (o : Op) (u : Id) :
+    Option (PLift (∃ x r, st.status x = some (.valid (.inl (.removal c u r))))) :=
+  match hst : st.status o.id with
+  | some (.valid (.inl (.removal c' u' r))) =>
+    if h : c' = c ∧ u' = u then some (PLift.up ⟨o.id, r, by rw [hst, h.1, h.2]⟩) else none
+  | _ => none
+
+/-- An admitted member is allowed: Alice's trust rule takes Bob's node,
+and the trace law names the admitted live device under it. -/
+def admittedCertificateFor (acts : List Action) :=
+  if h : ((allowPeer c keyB).liftL : View Connection.F Bool).eval (storeAfter acts .a) = true then
+    some (PLift.up ((connect_iff_trace setup (entropy "alice") (entropy "bob") acts .a c keyB).1 h))
+  else none
+
+/-- x's verdict at the peer is a Valid admission of Bob's device and node
+key, for user u. -/
+def admits (st : DB Connection.F) (u x : Id) : Bool :=
+  match st.status x with
+  | some (.valid (.inl (.admission c' u' d e))) => decide (c' = c ∧ u' = u ∧ d = bob.pk ∧ e = keyB)
+  | _ => false
+
+theorem admits_status {st : DB Connection.F} {u x : Id} (h : admits st u x = true) :
+    st.status x = some (.valid (.inl (.admission c u bob.pk keyB))) := by
+  unfold admits at h
+  split at h
+  next _ _ _ _ hx => obtain ⟨rfl, rfl, rfl, rfl⟩ := of_decide_eq_true h; exact hx
+  next => cases h
+
+/-- Bob's admission is a stored Valid verdict at Alice, so `Admitted`. -/
+def admissionCertificateFor (acts : List Action) (u : Id) :=
+  if h : (storeAfter acts .a).stored.any (admits (storeAfter acts .a) u) = true then
+    some (PLift.up ((admitted_trace setup (entropy "alice") (entropy "bob") acts .a).2
+      (let ⟨x, _, hx⟩ := List.any_eq_true.1 h; ⟨x, admits_status hx⟩)))
+  else none
+
+/-- A removal stored and the removed key refused: Alice holds a Valid
+removal of u, every admission of Bob's node key is u's, and the trace law
+refuses that key. Withholding the removal must reject it. -/
+def removalCertificateFor (acts : List Action) (o : Op) (u : Id) :=
+  match removedIn (storeAfter acts .a) o u with
+  | none => none
+  | some ⟨hr⟩ =>
+    if hb : (storeAfter acts .a).stored.all (ownedBy (storeAfter acts .a) keyB u) = true then
+      some (PLift.up (removal_cuts_off_trace setup (entropy "alice") (entropy "bob") acts .a
+        ((removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr)
+        fun u' d had => by
+          obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
+          rw [owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1 hb hx] at had
+          exact ⟨keyB, had⟩))
+    else none
+
+/-- The same premises, as every admission of Bob's node key being cut.
+The certificate carries that premise too, so its proof is not the removal
+certificate's (whose conclusion it shares). -/
+def refuseCertificateFor (acts : List Action) (o : Op) (u : Id) :=
+  match removedIn (storeAfter acts .a) o u with
+  | none => none
+  | some ⟨hr⟩ =>
+    if hb : (storeAfter acts .a).stored.all (ownedBy (storeAfter acts .a) keyB u) = true then
+      let hd : ∀ u' d, Admitted ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c u' d keyB →
+          Community.Cut ed25519 (Connection.community ed25519 (storeAfter acts .a)).ops c d :=
+        fun u' d had => by
+          obtain ⟨x, hx⟩ := (admitted_trace setup (entropy "alice") (entropy "bob") acts .a).1 had
+          have hu := owned (trace_good setup (entropy "alice") (entropy "bob") acts .a).1 hb hx
+          subst hu
+          exact ⟨u', keyB, had, (removed_trace setup (entropy "alice") (entropy "bob") acts .a).2 hr⟩
+      some (PLift.up (And.intro hd (refuse_nonmember_trace setup (entropy "alice") (entropy "bob") acts .a c keyB hd)))
+    else none
+
+def syncs (rs : List Engine.Sync.Room) : Bool :=
+  rs.any fun | .sync r => decide (r = c) | _ => false
+
+def peersAt (acts : List Action) (cid : Id) : List Community.Key :=
+  Connection.peersOf (Engine.eval (storeAfter acts .a) (Connection.established.byConn.query [cid]))
+
+/-- A run from `empty`: the given actions, then idling. -/
+def walk (acts : List Action) : Nat → World
+  | 0 => initial
+  | n + 1 => step setup (walk acts n) (acts.getD n .idle)
+
+def prefixRun (acts : List Action) : Run setup initial :=
+  ⟨walk acts, fun n => acts.getD n .idle, rfl, fun _ => rfl⟩
+
+/-- `Run.good` on a run through the bootstrap and the removal; its state
+there is that trace (`Run.state_trace`), which the runner checks holds the
+Valid removal. -/
+def runGoodCertificate (s : Scenario) :=
+  let acts := removedActions s
+  some (PLift.up (And.intro (Run.good (prefixRun acts) acts.length .a)
+    ((prefixRun acts).state_trace acts.length)))
 
 def isValid (s : Memory) (o : Op) : Bool :=
   match s.held.db.status o.id with
@@ -174,6 +297,46 @@ def main : IO UInt32 := do
   let absentScene := { scene with message := scene.recoveryMessage }
   t.ok "unheld-operation premise rejects the retention certificate"
     (!(eventCertificate absentScene .tick).isSome)
+  -- The community laws in every production trace.
+  let bobUser := scene.request.id
+  let some rm := (removal scene).head? |
+    t.ok "Alice's remover intent writes a removal of Bob" false; t.finish "storage-effects"
+  t.ok "remover intent writes one removal" ((removal scene).length == 1)
+  let acts := removedActions scene
+  let some (acid, _) := w.a.node.conns.head? |
+    t.ok "Alice holds a production session" false; t.finish "storage-effects"
+  t.ok "admitted member: the trace law takes Bob's node at Alice"
+    (admittedCertificateFor scene.completed).isSome
+  t.ok "admitted member: Bob's admission is a Valid verdict at Alice"
+    (admissionCertificateFor scene.completed bobUser).isSome
+  t.ok "before removal: the session names Bob's node and carries c's sync"
+    ((peersAt scene.completed acid).contains keyB &&
+      syncs ((Connection.roomsV acid).eval (storeAfter scene.completed .a)))
+  t.ok "removal stored: Alice holds a Valid removal of Bob's user"
+    (removedIn (storeAfter acts .a) rm bobUser).isSome
+  t.ok "removal stored: the trace law refuses Bob's node"
+    (removalCertificateFor acts rm bobUser).isSome
+  t.ok "removal stored: so does the cut-admissions form"
+    (refuseCertificateFor acts rm bobUser).isSome
+  t.ok "removal stored: Alice's trust rule natively refuses Bob's node"
+    (!(view (trace setup initial acts) .a (allowPeer c keyB)))
+  t.ok "removal stored: Bob's admission is still Valid, so the ownership premise is not vacuous"
+    (admissionCertificateFor acts bobUser).isSome
+  -- Observed, not a law here: the write's own entry point closes Alice's
+  -- session with Bob, so no reachable two-peer state keeps a session
+  -- naming a removed peer.
+  t.ok "removal stored: the same write closed Alice's session with Bob"
+    ((trace setup initial acts).a.node.conns.isEmpty && (peersAt acts acid).isEmpty)
+  t.ok "a run from empty through the removal: Run.good applies, and its state holds the removal"
+    ((runGoodCertificate scene).isSome &&
+      decide ((walk acts acts.length).a.memory.held.db.ops rm.id = some rm))
+  t.ok "removal withheld: removal and refusal certificates reject"
+    (!(removalCertificateFor scene.completed rm bobUser).isSome &&
+      !(refuseCertificateFor scene.completed rm bobUser).isSome)
+  t.ok "removal withheld: Alice's trust rule still takes Bob's node"
+    (view w .a (allowPeer c keyB))
+  t.ok "wrong user: a removal of Alice's own user is not held"
+    (!(removalCertificateFor acts rm c).isSome)
   t.finish "full production node storage effects"
 
 end Vacuity.StorageEffects

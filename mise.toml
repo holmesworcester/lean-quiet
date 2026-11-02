@@ -15,6 +15,11 @@ run = "tests/check.sh"
 description = "Scenario (Ed25519 + SQLite), SQLite-vs-model differential, purge and its on-disk erasure, kill -9 atomicity"
 run = "tests/engine/run.sh"
 
+[tasks."test:scale"]
+description = "Scaling: a round's work at 1k, 10k and 100k items in one room against the proven bounds, with negative controls (tests/scale/run.sh)"
+depends = ["crypto"]
+run = "tests/scale/run.sh"
+
 [tasks."test:fresh"]
 description = "T-fresh: a fresh post's latency while N chunks sync (simulated time, against the old order), a peer that never reads over TCP, and the lanes' negative controls"
 run = "tests/engine/fresh.sh"
@@ -43,6 +48,11 @@ description = "Real TCP/Noise admitted notice survives transport close/reap; fro
 depends = ["crypto"]
 run = "bash tests/engine/close_ingress.sh"
 
+[tasks."test:sync-full"]
+description = "Negative control: with Sqlite.lean back at synchronous NORMAL, sqlite_build's durability check fails"
+depends = ["crypto"]
+run = "bash tests/engine/sync_full.sh"
+
 [tasks."test:expiry-grace"]
 description = "Actual admitted TCP/Noise/SQLite input survives silence expiry under UI priority; junk cannot rearm grace and authenticated removal erases keys"
 depends = ["crypto"]
@@ -64,12 +74,12 @@ depends = ["crypto"]
 run = "bash tests/engine/reader_prune.sh"
 
 [tasks."test:ref-publications"]
-description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap; four compiling controls"
+description = "Actual checkpoint, writer resume and reader/prune publications under forced SDK overlap"
 depends = ["crypto"]
 run = "bash tests/engine/ref_publications.sh"
 
 [tasks."test:native-lifetimes"]
-description = "Real connect/reader lifetime checks and deterministic SDK stop race; eleven compiling controls"
+description = "Real connect/reader lifetime checks and deterministic SDK stop overlap; nine compiling controls"
 depends = ["crypto"]
 run = "bash tests/engine/native_lifetime.sh"
 
@@ -93,11 +103,11 @@ description = "Wall times of the byte codec on a photo's paths: a 64 KiB chunk o
 run = "(cd engine/native/crypto && CARGO_TARGET_DIR=\"$PWD/target\" cargo build --release --quiet) && lake build bench && mkdir -p out && .lake/build/bin/bench out/bench"
 
 [tasks."test:engine-runtime"]
-description = "Build Lean/Init/Std from source with phone options for x86_64 Linux, then run the engine suites; needs local LEAN_SRC 4.34.0 and UV_SRC 1.51.0"
+description = "Build Lean/Init/Std from source with phone options for x86_64 Linux, then run the engine suites; needs local LEAN_SRC 4.35.0 and UV_SRC 1.51.0"
 run = "tests/engine/run.sh --phone-runtime"
 
 [tasks."test:app"]
-description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:net-join, host:cross, host:arrival, host:attach and host:ux"
+description = "The native C twin and the app sessions: host:twin-demo, host:app, host:two-nodes, host:link-devices, host:net-join, host:net-link, host:cross, host:arrival, host:attach and host:ux"
 run = "tests/app/run.sh"
 
 [tasks."host:component-demand"]
@@ -128,8 +138,20 @@ description = "The bootstrap model: its laws built, the scene on the real engine
 run = "tests/net/check.sh"
 
 [tasks."readme:links"]
-description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built)"
-run = "python3 ci/proof-links.py --check"
+description = "The README's theorem links, and its laws not yet about running code (tests/Wiring.lean), match the code (ci/proof-links.py; needs the tree built); the proof tree (docs/PROOF-TREE.md) is drawn from that run's graph (ci/proof-tree.py, its tests first)"
+run = "python3 tests/proof_tree_test.py && python3 ci/proof-links.py --check && python3 ci/proof-tree.py --check --graph out/proof-graph.json"
+
+[tasks."hackathon:refresh"]
+description = "Just before the Vibecheck submission, at main's head: write docs/HACKATHON.md's generated numbers from git (ci/hackathon.py), commit that file alone, then run the self-test and the check"
+run = "python3 ci/hackathon.py --refresh"
+
+[tasks."hackathon:check"]
+description = "ci/hackathon.py's self-test (the base reads 787 of 1016 laws and 20 controls; malformed lead lines, a stale block and an edited number are refused), then docs/HACKATHON.md's block is current for HEAD: nothing but that file changed since the commit it names. Not in the per-push gate: every landing makes the block stale"
+run = "python3 ci/hackathon.py --self-test && python3 ci/hackathon.py --check"
+
+[tasks."hackathon:test"]
+description = "ci/hackathon.py's self-test alone: git only, a few seconds"
+run = "python3 ci/hackathon.py --self-test"
 
 [tasks."layout:check"]
 description = "The op tree's layout (ci/layout.py): eight file names under app/, an op is a folder with its validator, each family registers its ops, imports go down the tree (or to cited op types), and the engine imports no app module; then its negative controls"
@@ -208,6 +230,28 @@ run = "platforms/linux/links.sh"
 description = "The links e2e's negative controls: the old empty lq_links, one socket for every database, a window never raised; each must fail linux:links"
 run = "python3 platforms/linux/negative_links.py"
 
+[tasks."make:assets-test"]
+description = "make install's assets step on made-up tarballs (file://): download, sha256 and per-file checks, repair, deterministic packing; controls: a flipped bit, files not matching the list, plain http, an unreachable URL, a stale pin and changed asset scripts must each fail. No network"
+run = "tests/make/assets_test.sh"
+
+[tasks."make:verify-test"]
+description = "make verify: refused with its reason on this repository while it builds with Lean below 4.35; on a small Lean 4.35 project made here, lake check and lake comparator pass, and a solution proving a different statement, one resting on a new axiom, and a missing comparator.json each fail. Needs the Lean 4.35.0 toolchain and bubblewrap"
+run = "tests/make/verify_test.sh"
+
+[tasks."make:clean-room"]
+description = "make install && make run from a git clone of HEAD in fresh ubuntu:24.04, ubuntu:22.04 and debian:12 containers, as a user with sudo: missing packages, elan, rustup, the pinned assets tarball (packed here, served by file://), the cold build (timed), a second install that redoes nothing, and screenshots of make run and make online under Xvfb (an empty screen must fail), then make demo's e2e from the clone (tests/make/demo_e2e.py). Needs Docker and network; see tests/make/clean_room.sh"
+run = "tests/make/clean_room.sh"
+
+[tasks."make:demo-e2e"]
+description = "make demo under Xvfb (1920x1080), as a judge runs it: Alice's laptop and Bob's side by side, the join done by X input (Bob's name, Agree & Join; Waiting to join and Approve in Alice's window), Alice's message on Bob's screen (his QUIET_STATE, and his conversation's pixels against Alice's), Bob's reply on Alice's, both windows closed and make demo exiting 0; then make demo ARGS=--auto. Needs Xvfb, xdotool, ImageMagick, PIL; screenshots in out/make/demo-e2e"
+depends = ["linux:build"]
+run = "python3 tests/make/demo_e2e.py"
+
+[tasks."make:demo-negative"]
+description = "The make demo e2e's negative control: once Bob is in, his app restarts with --offline; Alice's message must then fail both checks that it reached him (state and screen), and nothing before them"
+depends = ["linux:build"]
+run = "tests/make/demo_negative.sh"
+
 [tasks."host:desktop-negative"]
 description = "The desktop's negative controls: eight layout and control laws broken, two native functions, five UI behaviours (the resize settle among them), two X11 resize mechanisms (gravity, the sync request) and five Get started/shell mutants; each must fail"
 run = "python3 platforms/linux/negative.py && python3 platforms/linux/negative_ui.py && python3 platforms/linux/negative_x11.py && python3 tests/app/start_negative.py"
@@ -227,10 +271,34 @@ description = "Two apps, each its own database, joined by link through their own
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build two_nodes && .lake/build/bin/two_nodes out/two"
 
+[tasks."host:link-devices"]
+description = "Linked devices, four apps by memory transport: a device link shown and scanned, pasted on Get started's Link devices, approved only by the issuer's user, admitted into it with no profile of its own; posts both ways; removing a user cuts both of its devices"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build link_devices && .lake/build/bin/link_devices out/link"
+
+[tasks."host:net-link"]
+description = "Linked devices over TCP on loopback, four apps each with its own node: link, approve, sync both ways, only the issuer's user asked, removal cuts (a sibling-only linked device: GAP until the pre-admission rooms land; --strict fails it)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_link && .lake/build/bin/net_link out/net-link"
+
 [tasks."host:net-join"]
 description = "Two actual apps join through their pages over TCP, then commit, read back and paint local writes during sustained incoming sync"
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
+
+[tasks."host:notify"]
+description = "Notifications on the headless twin: two apps joined by link; cards, quiet, levels, links, Sync in the background, removal, and libquiet's 20,736 reference-policy cases (docs/NOTIFICATIONS.md)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build notify && .lake/build/bin/notify out/notify"
+
+[tasks."host:notify-negative"]
+description = "Notifications' negative controls in a snapshot: ten runtime mutants fail their checks, eight proof mutants break their laws"
+depends = ["crypto"]
+run = "python3 tests/app/notify_negative.py"
+
+[tasks."host:notify-oracle"]
+description = "Regenerate tests/app/notify-policy.txt from libquiet's own policy.rs (local clone, rustc, no network)"
+run = "python3 tests/app/notify_oracle.py"
 
 [tasks."host:write-admission"]
 description = "Actual app Send rejects unframable posts and exhausted pending queues, preserves drafts, and commits after capacity clears"
@@ -292,8 +360,8 @@ description = "Build/setup an owned API36 emulator; actual Activity recreation, 
 run = "bash platforms/android/test/lifecycle/run.sh"
 
 [tasks."android:runtime"]
-description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.34.0 and UV_SRC at v1.51.0)"
-run = "platforms/android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src/libuv}\" \"$PWD/out/leanrt\" x86_64 arm64-v8a"
+description = "Lean's runtime, Init and libuv cross-built for Android into out/leanrt (needs LEAN_SRC at v4.35.0 and UV_SRC at v1.51.0)"
+run = "platforms/android/leanrt/build.sh \"${LEAN_SRC:-/mnt/storage/holmes-wt/lean-src-435/lean4}\" \"${UV_SRC:-/mnt/storage/holmes-wt/lean-src-435/libuv}\" \"$PWD/out/leanrt\" x86_64 arm64-v8a"
 
 [tasks."android:qr-apk"]
 description = "The QR camera harness's APK (x86_64 for the emulator, arm64-v8a for phones)"
@@ -477,11 +545,11 @@ depends = ["android:phone-apk"]
 run = "python3 tests/app/pixel_scroll.py"
 
 [tasks."test:stateless"]
-description = "Full and capped window syncs on real Nodes/SQLite, peaks and negative controls"
+description = "Full and windowed syncs on real Nodes/SQLite (a window at depth 1 gets its closure in the round; at depth 0 its reactions stay Missing), peaks and negative controls"
 run = "tests/engine/stateless.sh"
 
 [tasks."test:simplify"]
-description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, secrecy, purges and negative controls"
+description = "Sync sessions: delayed keepalives on two SQLite nodes, independent rooms, event-driven rounds (a joiner's room opens a round within a tick, none before the safety period, no per-round copy at a hub), secrecy, purges and negative controls"
 run = "tests/engine/simplify.sh"
 
 [tasks."test:read-plan"]
@@ -530,6 +598,19 @@ run = "tests/app/skeleton.sh"
 [tasks."host:mobile-switcher"]
 description = "Shared phone switcher: native densities, identity, real tap dispatch and scroll extent"
 run = "tests/app/mobile_switcher.sh"
+
+[tasks."test:window"]
+depends = ["crypto"]
+description = "Windows and order (docs/SYNC.md): a message's photos sort with it; the negative controls (chunks at time 0, unchecked times) in a scratch snapshot"
+run = "tests/engine/window.sh"
+
+[tasks."test:headline"]
+description = "The headline laws (docs/HEADLINE.md): axioms and spec surfaces (tests/Headline.lean), the Comparator challenge states each law word for word (lake comparator from v4.35, with its control), and four more controls"
+run = "tests/headline.sh"
+
+[tasks."test:headline-own"]
+description = "The headline laws under their own names: each can be stated with definitions only, and lake comparator (v4.35) accepts every own-name group (tests/comparator/own-*.json)"
+run = "tests/headline.sh --own"
 
 [tasks."test:vacuity"]
 depends = ["crypto"]

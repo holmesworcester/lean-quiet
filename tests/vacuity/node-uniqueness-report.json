@@ -82,26 +82,5 @@
     "witness": "Vacuity.NodeUnique.production_prefix",
     "module": "tests.vacuity.NodeUnique",
     "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
-  },
-  "world_trace_unique": {
-    "status": "kernel-witness",
-    "theorem": "Connection.Execution.world_trace_unique",
-    "witness": "Vacuity.NodeUnique.production_prefix",
-    "module": "tests.vacuity.NodeUnique",
-    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
-  },
-  "empty_trace_unique": {
-    "status": "kernel-witness",
-    "theorem": "Connection.Execution.empty_trace_unique",
-    "witness": "Vacuity.NodeUnique.production_prefix",
-    "module": "tests.vacuity.NodeUnique",
-    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook World interpreter applies the invariant to arbitrary finite action prefixes from boot. This is not a concurrent native transport refinement; the named suite separately checks nonempty authenticated sessions."
-  },
-  "unique": {
-    "status": "kernel-witness",
-    "theorem": "Connection.Execution.Run.unique",
-    "witness": "Vacuity.NodeUnique.production_run",
-    "module": "tests.vacuity.NodeUnique",
-    "detail": "Generated wiring-table alias for the same theorem. The existing production-hook infinite Run gets uniqueness at every position from boot and actual World.step, without a fairness assumption. This kernel instance does not claim an empty schedule establishes a session; separate nonempty actual-handler and signed native witnesses cover that boundary."
   }
 }

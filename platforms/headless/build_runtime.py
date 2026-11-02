@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'out/phone-runtime'
 ELAN = Path(os.environ.get('ELAN_HOME', '/mnt/storage/elan'))
 LEAN = Path(subprocess.check_output([ELAN / 'bin/lean', '--print-prefix'], cwd=ROOT, text=True).strip())
-SRC = Path(os.environ.get('LEAN_SRC', '/mnt/storage/holmes-wt/lean-src/lean4')) / 'src'
-UV = Path(os.environ.get('UV_SRC', '/mnt/storage/holmes-wt/lean-src/libuv'))
+SRC = Path(os.environ.get('LEAN_SRC', '/mnt/storage/holmes-wt/lean-src-435/lean4')) / 'src'
+UV = Path(os.environ.get('UV_SRC', '/mnt/storage/holmes-wt/lean-src-435/libuv'))
 CC = os.environ.get('CC', 'clang')
 CXX = os.environ.get('CXX', 'clang++')
 JOBS = int(os.environ.get('JOBS', '8'))
@@ -136,9 +136,12 @@ def closure(module):
     source = local if local.exists() else LEAN / 'src/lean' / rel.with_suffix('.lean')
     c = ROOT / '.lake/build/ir' / rel.with_suffix('.c') if local.exists() else core_c(module)
     deps = {module}
+    # Recorded before its imports, as build_apk.sh's walk does: a line in a
+    # doc comment can read as an import (Std/Http.lean's example imports
+    # Std.Http itself, from Lean 4.35 on), and must not recurse forever.
+    modules[module] = (c, deps)
     for dep in re.findall(r'^\s*(?:public\s+)?(?:meta\s+)?import\s+(?:all\s+)?([\w.]+)', source.read_text(), re.M):
         deps |= closure(dep)
-    modules[module] = (c, deps)
     return deps
 
 

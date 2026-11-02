@@ -1,4 +1,5 @@
 import tests.vacuity.IdentityTrust
+import engine.sync.WindowLaws
 
 /-! Real SHA-256/Ed25519/XChaCha20 attachment fixture. Finite validation and
 progress checks run natively. The laws' no-collision premise (`ChunkSound`,
@@ -19,18 +20,19 @@ def file : NewFile := {
 
 def cipher := fileCipher file
 def rootHash := Merkle.fileRoot sha256 cipher
-def composed := attach c admission.id message.id bob contentKey file
+def msgTime : Nat := 29880000
+def composed := attach c admission.id message.id msgTime bob contentKey file
 def attachment := composed.1
 def kid := kidOf cryptoSeal contentKey
 def sealedMeta : ByteArray := match (decode attachment.body : Option Body) with
-  | some (.attach _ _ _ sealed _) => sealed
+  | some (.attach _ _ _ _ sealed _) => sealed
   | _ => .empty
 
-def attachmentFact : Fact := .attachment c message.id requestB.id rootHash cipher.size kid sealedMeta
+def attachmentFact : Fact := .attachment c message.id requestB.id rootHash cipher.size msgTime kid sealedMeta
 def chunkBody (i : Nat) : Body :=
-  .chunk rootHash cipher.size i (Merkle.slice cipher i) (Merkle.proof sha256 cipher i)
-def chunk0 := fileChunk c attachment.id cipher 0
-def chunk1 := fileChunk c attachment.id cipher 1
+  .chunk rootHash cipher.size msgTime i (Merkle.slice cipher i) (Merkle.proof sha256 cipher i)
+def chunk0 := fileChunk c attachment.id msgTime cipher 0
+def chunk1 := fileChunk c attachment.id msgTime cipher 1
 -- Another relay independently constructs the canonical bytes for index0.
 def relayed0 := mkOp [c, attachment.id] (chunkBody 0)
 def chunkFact (i : Nat) : Fact := .chunk c attachment.id rootHash cipher.size i
@@ -63,12 +65,45 @@ def sliceCertificate :=
   else none
 
 def uniqueCertificate := do
+  let ⟨ha⟩ ← certify full attachment attachmentFact
   let ⟨hx⟩ ← certify full chunk0 (chunkFact 0)
   let ⟨hy⟩ ← certify full relayed0 (chunkFact 0)
   if hp : ∀ o ∈ full, SoundOp o then
     return PLift.up (fun (hs : ∀ x, (sha256 x).size = 32) =>
-      chunk_unique (keyed full) hs (sound_of_list (fun _ _ h => List.mem_of_find?_eq_some h) hp) hx hy)
+      chunk_unique (keyed full) hs (sound_of_list (fun _ _ h => List.mem_of_find?_eq_some h) hp) ha hx hy)
   else none
+
+/-- The fixture's stored ops give a round the same set S in either order
+(`window_set_canonical`), at a floor below its message. -/
+def canonicalCertificate :=
+  if hu : ∀ o ∈ full, ∀ p ∈ full, o.id = p.id → o = p then
+    some (PLift.up (fun a : Engine.Sync.Item =>
+      Engine.Sync.window_set_canonical (family ed25519) full full.reverse (fun _ => List.mem_reverse.symm) hu
+        4 c (msgTime + 1) a))
+  else none
+
+/-- A real timed chain from a Valid chunk: chunk 0 cites its attachment,
+which claims its message's time; it is within four steps (`timed_chain_le`). -/
+def chainCertificate := do
+  let ⟨hv⟩ ← certify full chunk0 (chunkFact 0)
+  if h1 : table full chunk0.id = some chunk0 then
+    if h2 : chunk0.reqs.any (fun i => decide (i = attachment.id)) = true then
+      have h2' : attachment.id ∈ chunk0.reqs := by
+        obtain ⟨i, hi, e⟩ := List.any_eq_true.1 h2
+        simp only [decide_eq_true_eq] at e
+        exact e ▸ hi
+      if h3 : table full attachment.id = some attachment then
+        if h4 : orderOf attachment ≠ 0 then
+          return PLift.up (timed_chain_le hv (TimedChain.cons h1 h2' h3 h4 (TimedChain.nil _)))
+        else none
+      else none
+    else none
+  else none
+
+/-- The real Valid chunk 0 sorts with its message (`chunks_in_window`). -/
+def windowCertificate := do
+  let ⟨hx⟩ ← certify full chunk0 (chunkFact 0)
+  return PLift.up (chunks_in_window hx)
 
 def progressCertificate := do
   let ⟨ha⟩ ← certifyDB incomplete attachment attachmentFact
@@ -84,11 +119,18 @@ def tamperedSlice : ByteArray :=
   let s := Merkle.slice cipher 1
   s.set! 0 (s.get! 0 ^^^ 1)
 def tampered : Op := mkOp [c, attachment.id]
-  (.chunk rootHash cipher.size 1 tamperedSlice (Merkle.proof sha256 cipher 1))
+  (.chunk rootHash cipher.size msgTime 1 tamperedSlice (Merkle.proof sha256 cipher 1))
 def wrongIndex : Op := mkOp [c, attachment.id]
-  (.chunk rootHash cipher.size 2 (Merkle.slice cipher 1) (Merkle.proof sha256 cipher 1))
+  (.chunk rootHash cipher.size msgTime 2 (Merkle.slice cipher 1) (Merkle.proof sha256 cipher 1))
 def wrongSibling : Op := mkOp [c, attachment.id]
-  (.chunk rootHash cipher.size 1 (Merkle.slice cipher 1) [sha256 "wrong sibling".toUTF8])
+  (.chunk rootHash cipher.size msgTime 1 (Merkle.slice cipher 1) [sha256 "wrong sibling".toUTF8])
+/-- Chunk 1 with a true slice and path, claimed at time 0 (where every
+chunk sorted before `chunks_in_window`): not its attachment's time. -/
+def timeZero : Op := mkOp [c, attachment.id]
+  (.chunk rootHash cipher.size 0 1 (Merkle.slice cipher 1) (Merkle.proof sha256 cipher 1))
+/-- The same file attached by its message's author, signed, but claimed
+at time 0 instead of the message's. -/
+def attachedAtZero := (attach c admission.id message.id 0 bob contentKey file).1
 
 def main : IO UInt32 := do
   let t ← Checks.new
@@ -118,6 +160,15 @@ def main : IO UInt32 := do
   t.ok "tampered slice is rejected" ((run (incomplete ++ [tampered])).status tampered.id == some .invalid)
   t.ok "out-of-range index is rejected" ((run (incomplete ++ [wrongIndex])).status wrongIndex.id == some .invalid)
   t.ok "wrong sibling is rejected" ((run (incomplete ++ [wrongSibling])).status wrongSibling.id == some .invalid)
+  t.ok "a chunk at time 0 is rejected" ((run (incomplete ++ [timeZero])).status timeZero.id == some .invalid)
+  t.ok "an attachment at another time than its message is rejected"
+    ((run (before ++ [attachedAtZero])).status attachedAtZero.id == some .invalid)
+  t.ok "chunks_in_window applies to a real Valid chunk" windowCertificate.isSome
+  t.ok "window_set_canonical applies to the fixture's ops in either order" canonicalCertificate.isSome
+  t.ok "timed_chain_le applies to a real chunk's chain to its attachment" chainCertificate.isSome
+  t.ok "the attachment and its chunks sort at the message's time (chunks_in_window)"
+    (orderOf message == msgTime && orderOf attachment == msgTime && orderOf chunk0 == msgTime &&
+      orderOf chunk1 == msgTime)
   t.ok "missing attachment leaves chunk unresolved"
     ((run (before ++ [chunk0])).status chunk0.id == none)
   t.ok "tamper cannot increase progress"

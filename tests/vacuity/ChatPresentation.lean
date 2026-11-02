@@ -44,10 +44,6 @@ def tappedLabel (f : Font.Font) : Option (PLift (∃ bx ln,
 def line : Text.Line := #[⟨65, 10⟩, ⟨66, 20⟩]
 def flushed := RowLaws.flush_shows line
 
-def reactions : List (String × Id) := [("👍", "alice".toUTF8), ("👍", "bob".toUTF8), ("👍", "alice".toUTF8), ("❤️", "bob".toUTF8)]
-def noDuplicateReactors := RowLaws.tally_nodup reactions
-def exactReactors := RowLaws.tally_mem reactions "👍" "alice".toUTF8
-example : (Kinds.React.tally reactions).map (fun p => (p.1, p.2.length)) = [("👍", 2), ("❤️", 1)] := by decide +kernel
 example : Row.clock row.time = "12:45" := by decide
 example : Row.picBox dm 300 pic = (280, 210) := by decide
 

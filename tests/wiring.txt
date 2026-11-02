@@ -122,6 +122,14 @@ wired Nav.depth
 wired NavLaws.backs_nav
 wired Engine.Sync.top_perm
 wired Engine.Sync.lbl_perm
+spec Engine.Sync.lows The items below a key: what a split's left half holds.
+spec Engine.Sync.pres The byte strings a label hashes, for stating collision freedom.
+spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
+spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
+spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
+spec Engine.Sync.delta The items on one side only.
+spec Engine.Sync.Treap.height A tree's height: the measure its cost bounds are in.
+spec Engine.Sync.height The height of a list's canonical treap: the measure the depth hypothesis is about (tests/scale measures it).
 ## Component demand: these laws must keep naming running decisions.
 bridge Demand.Plan.held Demand.heldIndex_agrees
 wired Demand.heldIndex_agrees
@@ -199,6 +207,11 @@ assume Engine.eval = Engine.Model.run
 assume Engine.matching = Engine.Model.run
 assume Engine.DB.empty = Engine.Model.run
 assume Engine.budget = Engine.Model.run
+assume Engine.SeekCost.seek SQLite's cost (docs/PERF.md, `levels`): a seek costs at most c·(log₂ N + 1) for N rows, each next row in index order at most `step`, and an ordered read with a LIMIT and nothing else filtering walks no row past its limit (each statement's plan checked by tests/engine/QueryDiff.lean, not proven).
+assume Engine.Stmt.walks = Engine.SeekCost.seek
+assume Engine.Stmt.cost = Engine.SeekCost.seek
+assume Engine.planCost = Engine.SeekCost.seek
+assume Engine.sideCount = Engine.SeekCost.seek
 assume Engine.Sync.HeldM.run = Engine.Model.run
 assume ArrivalLaws.modelReads = Engine.Model.run
 # the model store's reads and writes, which the held store's instances lift
@@ -234,18 +247,29 @@ instrument Engine.CostT.chargedBy Engine.CostT.erase_chargedBy
 instrument Engine.CostT.lift Engine.CostT.erase_lift
 instrument Engine.Counted.val Engine.Counted.val_erase
 instrument Engine.Counted.cost Engine.Counted.cost_run
+instrument Engine.CostT.instTick Engine.CostT.erase_tick
+instrument Engine.cr Engine.cr_erase
 
 ## Bridges: a mirror, and the law that proves running code equal to it
 
+bridge Engine.Sync.Lanes.take Engine.Sync.Reserved.take_vacant
 bridge Engine.ingestAll Engine.run_ingestEach
 # The model's step, drain, ingest and purge (stepS, drainS, ingestS,
 # purgeS, purgeSet) run themselves since the app's ephemeral log
 # (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
+bridge Engine.Sync.answerT Engine.Sync.val_answerTM
+bridge Engine.Sync.openingT Engine.Sync.val_openingTM
+bridge Engine.Sync.rangeT Engine.Sync.val_rangeTM
+bridge Engine.Sync.Treap.insert Engine.Sync.val_insertM
+bridge Engine.Sync.Treap.split Engine.Sync.val_splitM
 # A want reply's read program: the running interpreter's answer is the
 # trace's (the trace's read list follows the same program, read by read).
 bridge Engine.Sync.Read.trace Engine.Sync.Read.run_model
+bridge Engine.Sync.RoundRun.State.result Engine.Sync.RoundRun.result_eq
+bridge Engine.Sync.RoundRun.State.items Engine.Sync.RoundRun.items_eq
+bridge Engine.Sync.RoundRun.State.advance Engine.Sync.RoundRun.advance_eq
 # The bytes a validator checks a signature over (each op type's
 # `signedBy o b.unsigned`, the family's `signed` by `signedBy_ofX`) are the
 # bytes the writer signs (`toSign`, in `sig`).
@@ -254,6 +278,7 @@ bridge Community.signed Community.signed_eq
 ## Specifications
 
 spec Engine.specAt The spec's verdict on an op, which judging is proven to reach.
+spec Engine.Sync.Claim.range The range a claim is about: the newest-first laws state the order of a message's claims (claimsOf, which onRbsr sends) against it.
 spec Connection.community The node's Community part: the Community ops its store holds, with Community's own verdicts (sum_project states the node's views against it).
 spec Engine.DB.proj A store's part of one family: its ops, with that family's own verdicts over them.
 spec Engine.leftOps The ops of a store whose kinds a family owns.
@@ -264,6 +289,13 @@ spec NodeOffer.run A run of the app's sends and frames' re-offers, against the n
 spec NodeOffer.submitted The writes a run submits, in order.
 spec Engine.Sync.pres The byte strings a label hashes, for the no-collision hypothesis.
 spec Engine.Sync.Msg.offers The ids a sync message offers.
+spec Engine.Sync.returnedClaims The claims a round message carries, read off a step's actual sends.
+spec Engine.Sync.nextClaims The claims among a batch's answers.
+spec Engine.Sync.roundWants The ids a batch's answers want.
+spec Engine.Sync.roundHolds The ids a batch's answers offer.
+spec Engine.Sync.RoundRun.outputs A batch's answers, as `answer` gives them over a list of items.
+spec Engine.Sync.RoundRun.rankIn A claim's rank over a bounding list of items, for a round's bound.
+spec Engine.Sync.Claim.fpBit One for a fingerprint claim, which still has its conversion to ids ahead: a claim's share of a quiet round's budget.
 spec Engine.Sync.replyBytes A reply's payload bytes, for its bound.
 spec Engine.Sync.largestOp A reply's largest op, for its bound.
 spec Merkle.treeInputs A file's Merkle tree inputs, for the no-collision hypothesis.
@@ -273,6 +305,22 @@ spec Merkle.climbInputs What a Merkle climb hashes, for the no-collision hypothe
 spec Merkle.slices A file's chunks, as the tree cuts it.
 spec Engine.Sync.Inbox.Run.selected The result of the actual Inbox.next chooser on a queue trace; every transition runs that chooser with arbitrary FIFO producer appends. Native channel linearization and completion remain assumptions.
 spec Engine.Sync.Inbox.step Interpret the actual Inbox.next with FIFO queue operations and retain its returned preference; this is a harness around the running chooser, not a second selection algorithm.
+spec Engine.Sync.Inbox.Priority.Run.selected The running Priority.step's choice at a poll of a run: every transition of a run runs that step, with arbitrary FIFO producer appends (the loop's channels as queues: Sync.popW).
+spec Engine.Sync.Inbox.Priority.State.append The producers' FIFO appends a run allows: any writes and events after each poll.
+spec Engine.Sync.Inbox.Priority.phaseAfter The phase after n polls: the running `advance`, n times.
+spec Engine.Sync.ExpiryGrace.consumed The grace after n selections: the running `consume` (Tcp's per-turn grace update), n times.
+spec Engine.Sync.Ingress.Run.selected The running State.poll's choice (Hub.poll's core) at a poll of a run: every transition runs poll, then any producers' offers.
+spec Engine.Sync.Ingress.State.arrivals Producers' offers between polls, each the running State.offer (Hub.offer's core); any number, to any source.
+spec Engine.Sync.Ingress.distance How many slots the cursor is from a source: the progress measure of the running scan.
+spec Engine.Sync.Ingress.flooded A run in which every source stays busy forever: the adversary the laws allow, as a witness.
+spec Engine.Sync.Ingress.State.cancelAll Retirements between polls, each the running State.cancel (Hub.retire's core).
+spec Engine.Sync.Ingress.Prioritized.step One turn as Loop.turn runs it: the running Priority.next over the writes queue and the running ingress poll (Tcp's loopBackend: writes.tryRecv, ingress.poll), on the queue model of the channels (Sync.popW).
+spec Engine.Sync.Ingress.Prioritized.Run.selected Prioritized.step's choice at a turn of a run: every transition runs that turn, then any arrivals.
+spec Engine.Sync.Ingress.Prioritized.State.arrivals Local writes and peer offers between turns (the running State.offer).
+spec Engine.Sync.Ingress.Prioritized.rank The progress measure of a queued peer value: its distance and the phase.
+spec Engine.Sync.Ingress.Prioritized.State.changes Local writes, retirements and offers between turns, each by the running cores (State.cancel, State.offer).
+spec Engine.Sync.Ingress.Prioritized.ChurnRun.selected Prioritized.step's choice at a turn of a churning run: every transition runs that turn, then any writes, retirements and offers.
+spec Engine.Sync.Ingress.Prioritized.churnFlood A churning run in which local input and two peers flood forever while a third source is retired and refilled each turn: the adversary the laws allow, as a witness.
 spec Engine.Sync.urgents The urgent frames among a run of pushes, in order.
 spec Engine.Sync.serves The serve frames among a run of pushes, in order.
 spec Community.fileChunk A file's chunk at an index.
@@ -283,6 +331,11 @@ spec Text.numberRuns A line's maximal European or Arabic number runs, as its bid
 spec Text.bidiControls The explicit bidi controls.
 spec ViewLaws.nameIn A user's name, as the store holds it.
 spec ViewLaws.factIn A message's fact, as the store holds it.
+spec Engine.Sync.keeps The buffers the TCP reader keeps over a run of reads: each read runs the running `frames` on the kept buffer and the read, keeping its rest or ending the connection (Tcp.reader: `frames (buf ++ chunk)`).
+spec Engine.Sync.retried The want ids an output carries, decoded: the measure the retry bound counts.
+spec Community.Invite.uri The link the join page opens (site/join.html, tested by site/test.py): leanquiet://join/ and the invite's code.
+spec Hold.messagePlane The uncached placeholder plane: the generator the running cache (cachedMessagePlane) is proven to return exactly.
+spec App.PageId.all Every page (all_pages): the count Nav's depth bound is stated against.
 spec ViewLaws.keyIn A content key, as the store holds it.
 spec ArrivalLaws.readsOf The reads a view makes, on the model.
 spec Mdns.known The record types mDNS validity knows.
@@ -296,13 +349,17 @@ spec Engine.Change.ingests The ops a batch of changes stores.
 spec Engine.searchSteps The steps of a binary search, for its bound.
 
 spec Engine.listCost What a list query costs, for its bound.
+spec Engine.View.listsAt The lists a view reads, on the store model: its cost in lists, for its bound.
+spec PeopleLaws.admIn Whether a row is an admission of community c (what the people views' lists hold).
+spec Engine.readPlan The statements listSql runs for a read walking k: a counter per key of q (pickWalk), then listPlan's.
+spec Engine.Plan.stmts A plan's statements, in the order listSql runs them.
 spec Engine.Meter.time A meter's time on a store of N rows, for a bound.
 spec Engine.Win.has Whether a window holds a row filed under a key at a position.
 
 ## Subjects the heuristic takes too much of
 
 # The running round's answer to a claim, stated against the round's model.
-subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.within Engine.Sync.named Engine.Sync.chunks
+subject Engine.Sync.conn_answers_ids Engine.Sync.Conn.onRbsr Engine.Sync.named Engine.Sync.chunks
 
 ## The World: the running node's code, two nodes (engine/wire/World.lean),
 ## over a modelled network and plain transport
@@ -322,22 +379,31 @@ world Engine.World.Exec.world = Engine.World.World.step
 world Engine.World.Plain.setup = Engine.World.World.step
 world Engine.World.Setup.at? = Engine.World.World.step
 world Engine.World.Plain.start = Engine.World.World.step
+world Engine.World.World.actAt = Engine.World.World.step
 spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
 spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
 world Connection.Execution.trace = Connection.Execution.fairRun
 world Connection.Execution.dequeued = Connection.Execution.fairRun
+world Connection.Execution.World.peer = Connection.Execution.fairRun
+world Connection.Execution.empty = Connection.Execution.fairRun
 
 ## Negative controls: mutants, each kept only to show the old shape breaks
 ## its law (a budget, or freshness). Their laws are counted apart.
 
+control Engine.Sync.Conn.workShipped `Conn.work` as main shipped it until event rounds (b4d103a): the dialer rounds only on its connection-wide timer, the responder never asks; it breaks `responder_asks` and `round_due` (`shipped_responder_silent`, `shipped_dialer_waits`).
 control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before the levels: over `rootAndProofs_hashes`' budget (`slow_over_budget`).
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Demand.reconcileShipped The reader's queue as it shipped: reconcile alone, so work queued in earlier passes stays ahead of a user's act (shipped_late).
+control Engine.World.dialMutant A node whose dial hook stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Community.Approve.checkAnyUser `Approve.check` without its device-link clause: another user's approval of a device link's request passes it, where the running check refuses (`anyUser_approves_link`).
+control Community.Request.checkNewUser `Request.check` naming a new user for every request: a device link's request would name its own user, not the issuer's (`newUser_links`).
+control Community.introduceShipped `introduce` as it shipped before device links: a linked device admitted before its user's profile synced writes a profile with an empty name (`shipped_introduce_unnamed`).
 control Ttf.Memo.shifted A glyph table one key off: no table of its function has its pages (`shifted_not_exact`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet
@@ -364,25 +430,9 @@ todo Engine.Sync.exchange conn_runs_exchange now connects exchange's missing IDs
 todo Community.recipients The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission.
 todo Community.members = Community.recipients
 bridge SheetGeom.Grid.ctop SheetGeom.lineOf_ctop
-todo Engine.Sync.keeps The model of the TCP reader's loop (engine/wire/Tcp.lean): have the loop step by it, or prove its buffers are `keeps`'s.
-todo Pic.add The composer's tray runs only in qr's Android harness; the app attaches with its own: use `Pic`'s tray in the app, or prove these of its code.
-todo Pic.fit = Pic.add
-todo Pic.layout = Pic.add
-todo Pic.render = Pic.add
-todo Pic.scale = Pic.add
-todo Pic.attachEdge = Pic.add
-todo Pic.Geom.box = Pic.add
 spec Pic.Rgba.wellFormed A picture's pixels are 4 bytes for each of its w × h.
 todo Mdns.decode Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it.
 todo Mdns.encode = Mdns.decode
-todo Arrival.lit `paintRing` tests `onRing` and `arc` inline: have it paint by `lit`.
-todo Screen.Frame.wants Nothing that runs wants by `Frame.wants`: the frame wants the conversation's window and the near rows (app/Screen.lean); want by it, the window cut to the near rows' hull (Screen's plan).
-todo Screen.Frame.listWins = Screen.Frame.wants
-todo Screen.Frame.near = Screen.Frame.wants
-todo Screen.Frame.shown = Screen.Frame.wants
-todo Engine.Subs.ofList = Screen.Frame.wants
-todo Pics.after Legacy picture-door model (`PicM`); the app now uses owned Reader wants and Work.Pool continuations. Restate these cost/settling laws over that running path, including decode-unit bounds.
-todo Pics.costIn = Pics.after
 
 # Noto.
 wired Ttf.byte_in_bounds
@@ -400,40 +450,11 @@ wired Ttf.raster_pixel
 wired Ttf.Memo.Table.get_eq
 wired Ttf.Memo.compact_eq
 wired Ttf.Memo.bitmap_eq_fast
-todo Live.Board.apply The change signal's reader and frame, as Worlds (engine/renderer/BoardLaws.lean, ReaderLaws.lean): the app's reader runs `Board.put`, `take` and `keep`, and decides by `Live.staleW`, `mark` and `pick`, but the laws of a pass and a frame are over the Worlds. Todo: state them of `Reader.pass` and the frame's `takeBoard`.
-todo Live.World.afterActs = Live.Board.apply
-todo Live.World.commit = Live.Board.apply
+todo Live.Board.apply The frame's take (seen_take) is still over the Worlds (BoardLaws); the pass's freshness and a user's act first are proven of the running pass (fresh_record, fresh_notice, fresh_keep, settle_fresh; Demand.take_first). Todo: seen_take of the frame's `takeBoard`.
 todo Live.World.frame = Live.Board.apply
-todo Live.World.marked = Live.Board.apply
-todo Live.World.pass = Live.Board.apply
-todo Live.World.passActs = Live.Board.apply
-todo Live.World.type = Live.Board.apply
-todo Live.RWorld.commit = Live.Board.apply
-todo Live.RWorld.evict = Live.Board.apply
 todo Live.RWorld.frame = Live.Board.apply
-todo Live.RWorld.marked = Live.Board.apply
 todo Live.RWorld.pass = Live.Board.apply
-todo Heights.T.sum The row-heights tree (engine/renderer/Heights.lean): the app keeps its rows' heights in a map (`App.heightOf`) and adds them up itself. Have its list frame place rows by `Heights`.
-todo Heights.Both.bottom = Heights.T.sum
-todo Heights.Both.rowAt = Heights.T.sum
-todo Heights.Both.top = Heights.T.sum
-todo Heights.Rows.push = Heights.T.sum
-todo Heights.T.build = Heights.T.sum
-todo Heights.T.buildM = Heights.T.sum
-todo Heights.T.depth = Heights.T.sum
-todo Heights.T.find = Heights.T.sum
-todo Heights.T.findM = Heights.T.sum
-todo Heights.T.set = Heights.T.sum
-todo Heights.T.setM = Heights.T.sum
-todo Heights.T.size = Heights.T.sum
-todo Heights.T.start = Heights.T.sum
-todo Heights.T.startM = Heights.T.sum
-todo Heights.T.toList = Heights.T.sum
-todo Heights.clog = Heights.T.sum
-todo Heights.rebuild = Heights.T.sum
-todo Heights.screenY = Heights.T.sum
 
-spec Lifecycle.Mount.subscriptions The watch-key projection of the mounted tree's running queries; Lifecycle.prune keeps their live entries.
 
 # Same block walk as ca4d713. Only the lifecycle barrier may poll a deadline;
 # all ordinary navigation, resize and resume paths must remain nonblocking.
@@ -550,6 +571,8 @@ extern lq_frame effect Publishes Lean's pixel rows and placement for the OS to s
 extern lq_motion effect Hands the shell the list samples Lean accepted.
 extern lq_ime effect Opens or closes the keyboard.
 extern lq_set_text effect Sets the native text field's text.
+extern lq_notify effect Posts or cancels one conversation's notification card (Notify.packet's JSON), queued for the shell's own thread; Lean decides what alerts (Notify.step's laws).
+extern lq_service effect Turns Sync in the background (Android's foreground service) on or off; whether the platform has it is an input.
 extern lq_editor effect Gives the native editor Lean's text and mode; returns its text and positions.
 extern lq_editor_action effect Settles a native editor action; returns its text and positions.
 extern lq_copy effect Puts text on the clipboard.

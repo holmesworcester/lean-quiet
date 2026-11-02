@@ -55,7 +55,7 @@ open Engine Engine.Sync Community Tests Connection
 
 def K := sodium
 def fam : Family F := node ed25519 K
-def cfg : Config := { every := 30000, askTime := 20000 }
+def cfg : Config := { askTime := 20000 }
 
 structure Peer where
   addr : ByteArray
@@ -214,7 +214,7 @@ def cacheOk (p : Peer) : IO Bool := do
 def snapshot (p : Peer) : IO (List ByteArray × List (Id × List Item) × List Id × List Id × List Id × Nat) := do
   let ops ← (dumpOps (F := F)).run p.db
   let st ← (dumpStatus (F := F)).run p.db
-  return (ops.map (·.bytes), p.n.ix.rooms, p.n.conns.map (·.1), p.n.addrs.map (·.1) ++ p.n.addrs.map (·.2),
+  return (ops.map (·.bytes), p.n.ix.rooms.map (fun q => (q.1, q.2.items)), p.n.conns.map (·.1), p.n.addrs.map (·.1) ++ p.n.addrs.map (·.2),
     p.n.managed ++ p.n.dropped ++ p.n.fresh, st.length)
 
 def dump (name : String) (p : Peer) : IO Unit := do

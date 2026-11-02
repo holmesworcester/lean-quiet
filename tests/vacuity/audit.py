@@ -33,9 +33,11 @@ RUNNERS = {
     'tests.vacuity.CryptoTrust': 'vacuity_crypto_trust',
     'tests.vacuity.StoreTrust': 'vacuity_store_trust',
     'tests.vacuity.CoreRuntime': 'vacuity_core',
+    'tests.vacuity.Good': 'vacuity_good',
     'tests.vacuity.RendererRuntime': 'vacuity_renderer_runtime',
     'tests.vacuity.RendererSupplement': 'vacuity_renderer_runtime',
     'tests.vacuity.Attachment': 'vacuity_attachment',
+    'tests.vacuity.NotifyRuntime': 'vacuity_notify_runtime',
 }
 runtime_modules = {e['module'] for e in checks.values()
                    if e['status'] in {'runtime-witness', 'counterexample'}}

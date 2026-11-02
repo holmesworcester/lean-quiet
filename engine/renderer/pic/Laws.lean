@@ -1,5 +1,5 @@
 /-
-The pictures' laws, on the functions the composer runs.
+The pictures' laws, on the functions the app runs.
 
 Sizes (`fit`, Pic/Fit.lean):
 - `fit_small`: a picture within the edge keeps its size.
@@ -9,24 +9,15 @@ Sizes (`fit`, Pic/Fit.lean):
 - `fit_round`: its other side is the nearest pixel to the scaled side
   (2·q·l is within l of 2·w·e), unless that rounds to 0 and 1 is used.
 
-The tray (`layout`, Pic/Tray.lean), for any pictures:
-- `layout_sizes`: each thumbnail is its picture fitted into the box.
-- `layout_inside`: every slot is inside the tray, both ways.
-- `layout_apart`: any two slots, in order, are at least `gap` apart, so
-  no two thumbnails overlap.
-
 QOI (Pic/Qoi.lean):
 - `decode_sized`: whatever bytes it is given, a picture the decoder
   returns has sides of 1 to 2048 and exactly their pixels' bytes.
   (`decode (encode p) = p` is tested, not proven.)
 
-The composer (Pic/Composer.lean):
-- `add_stored`: a picture `add` accepts is exactly `fit` of its original
-  and well formed, and its stored QOI decodes back to exactly its pixels.
-- `scale_wellFormed`, `render_wellFormed`: a scaled picture and the tray
-  have exactly their pixels' bytes.
-- `render_opaque`: every pixel of the tray has alpha 255, whatever the
-  pictures' alpha (a fix: transparent pictures left holes in the tray).
+The tray and the composer (Pic/Tray.lean, Composer.lean) run only in qr's
+Android harness; their laws went on 2026-11-01 (no proofs over code the
+app does not run; git keeps them). The app sizes a photo it sends by
+`fit` (App.preparePhoto) and draws its own chips.
 -/
 import engine.renderer.pic.Composer
 
@@ -111,77 +102,6 @@ theorem fit_round {w h e : Nat} (hl : e < max w h) :
     subst hqd
     exact ⟨Or.inl d1, by omega⟩
 
-/-! ## The tray -/
-
-theorem place_sizes (g : Geom) : ∀ (x : Nat) (ss : List (Nat × Nat)),
-    (place g x ss).map (fun s => (s.w, s.h)) = ss.map (fun p => fit p.1 p.2 g.box)
-  | _, [] => rfl
-  | x, (w, h) :: rest => by
-    simp only [place, List.map_cons]
-    rw [place_sizes g _ rest]
-
-/-- Every slot from `x` on starts at or after `x`, lies within the tray's
-height, and the slots are pairwise at least `gap` apart. -/
-theorem place_props (g : Geom) (hg : 2 * g.pad + 1 ≤ g.height) : ∀ (x : Nat) (ss : List (Nat × Nat)),
-    (∀ s ∈ place g x ss, x ≤ s.x ∧ g.pad ≤ s.y ∧ s.y + s.h + g.pad ≤ g.height) ∧
-    (place g x ss).Pairwise (fun a b => a.x + a.w + g.gap ≤ b.x)
-  | _, [] => by simp [place]
-  | x, (w, h) :: rest => by
-    have ih := place_props g hg (x + (fit w h g.box).1 + g.gap) rest
-    have hb : 1 ≤ g.box := by simp [Geom.box]; omega
-    have hf := fit_le (w := w) (h := h) hb
-    simp only [place, List.mem_cons, List.pairwise_cons]
-    refine ⟨?_, ?_, ih.2⟩
-    · intro s hs
-      rcases hs with rfl | hs
-      · simp only [Geom.box] at hf ⊢; omega
-      · have := ih.1 s hs; omega
-    · intro s hs
-      have := ih.1 s hs
-      omega
-
-theorem layout_sizes (g : Geom) (ss : List (Nat × Nat)) :
-    (layout g ss).1.map (fun s => (s.w, s.h)) = ss.map (fun p => fit p.1 p.2 g.box) :=
-  place_sizes g g.pad ss
-
-theorem layout_apart (g : Geom) (hg : 2 * g.pad + 1 ≤ g.height) (ss : List (Nat × Nat)) :
-    (layout g ss).1.Pairwise (fun a b => a.x + a.w + g.gap ≤ b.x) :=
-  (place_props g hg g.pad ss).2
-
-/-- The last slot ends furthest right. -/
-theorem le_last (g : Geom) {l : List Slot} (hp : l.Pairwise (fun a b => a.x + a.w + g.gap ≤ b.x))
-    {s last : Slot} (hs : s ∈ l) (hl : l.getLast? = some last) : s.x + s.w ≤ last.x + last.w := by
-  induction l with
-  | nil => simp at hs
-  | cons a rest ih =>
-    rw [List.pairwise_cons] at hp
-    cases rest with
-    | nil =>
-      simp at hs hl; subst hs; subst hl; exact Nat.le_refl _
-    | cons b rest' =>
-      have hl' : (b :: rest').getLast? = some last := by
-        simpa [List.getLast?_cons_cons] using hl
-      rcases List.mem_cons.mp hs with rfl | hs'
-      · have hm : last ∈ b :: rest' := List.mem_of_getLast? hl'
-        have := hp.1 last hm
-        omega
-      · exact ih hp.2 hs' hl'
-
-theorem layout_inside (g : Geom) (hg : 2 * g.pad + 1 ≤ g.height) (ss : List (Nat × Nat)) :
-    ∀ s ∈ (layout g ss).1, g.pad ≤ s.x ∧ s.x + s.w + g.pad ≤ (layout g ss).2 ∧
-      g.pad ≤ s.y ∧ s.y + s.h + g.pad ≤ g.height := by
-  intro s hs
-  have hp := place_props g hg g.pad ss
-  have h1 := hp.1 s hs
-  refine ⟨h1.1, ?_, h1.2⟩
-  simp only [layout, width] at hs ⊢
-  cases hl : (place g g.pad ss).getLast? with
-  | none => simp [List.getLast?_eq_none_iff.mp hl] at hs
-  | some last =>
-    simp only
-    have := le_last g hp.2 hs hl
-    omega
-
 /-! ## QOI's decoder -/
 
 theorem pixels_size (b : ByteArray) : ∀ (n : Nat) (s : Dec) (acc out : ByteArray),
@@ -213,54 +133,5 @@ theorem decode_sized {b : ByteArray} {p : Rgba} (h : decode b = some p) :
     simp only [Rgba.wellFormed, beq_iff_eq]
     refine ⟨by omega, by omega, by omega, by omega, ?_⟩
     rw [this, Nat.mul_assoc]; omega
-
-/-! ## The composer -/
-
-theorem render_wellFormed (g : Geom) (pics : List Rgba) : (render g pics).wellFormed = true := by
-  simp [render, Rgba.wellFormed, ByteArray.size]
-
-/-- **The tray is opaque**: every pixel's alpha is 255, whatever the
-pictures' alpha (a transparent picture is blended over the ground, never
-left as a hole in the tray). -/
-theorem render_opaque (g : Geom) (pics : List Rgba) (k : Nat) (hk : k < (render g pics).w * (render g pics).h) :
-    (render g pics).px[4 * k + 3]? = some 255 := by
-  have mk : ∀ (a : Array UInt8) (i : Nat), (ByteArray.mk a)[i]? = a[i]? := fun _ _ => rfl
-  simp only [render] at hk ⊢
-  rw [mk, Array.getElem?_ofFn]
-  have : 4 * k + 3 < 4 * (layout g (pics.map fun p => (p.w, p.h))).2 * g.height := by
-    have := Nat.mul_le_mul_left 4 (Nat.succ_le_of_lt hk)
-    rw [Nat.mul_assoc]; omega
-  simp only [this, dite_true, trayByte]
-  simp [show (4 * k + 3) % 4 = 3 by omega]
-
-theorem scale_wellFormed (src : Rgba) (tw th : Nat) : (scale src tw th).wellFormed = true := by
-  simp [scale, Rgba.wellFormed, ByteArray.size]
-
-theorem add_stored {c : Composer} {ow oh w h : Nat} {px : ByteArray} {c' : Composer} {msg : String}
-    (hadd : add c ow oh w h px = (c', msg)) (grew : c'.size = c.size + 1) :
-    fit ow oh attachEdge = (w, h) ∧ px.size = 4 * w * h ∧
-      ∃ a, c' = c.push a ∧ decode a.qoi = some { w, h, px } := by
-  unfold add at hadd
-  simp only at hadd
-  split at hadd
-  · simp only [Prod.mk.injEq] at hadd; obtain ⟨rfl, -⟩ := hadd; omega
-  · split at hadd
-    · simp only [Prod.mk.injEq] at hadd; obtain ⟨rfl, -⟩ := hadd; omega
-    · rename_i h1 h2
-      split at hadd
-      · rename_i back hback
-        split at hadd
-        · rename_i heq
-          obtain ⟨hw, hh, hp⟩ := heq
-          simp only [Prod.mk.injEq] at hadd
-          obtain ⟨rfl, -⟩ := hadd
-          simp only [bne_iff_ne, ne_eq, Decidable.not_not] at h2
-          simp [Rgba.wellFormed] at h1
-          refine ⟨h2, by omega, _, rfl, ?_⟩
-          rw [hback]
-          cases back
-          simp_all
-        · simp only [Prod.mk.injEq] at hadd; obtain ⟨rfl, -⟩ := hadd; omega
-      · simp only [Prod.mk.injEq] at hadd; obtain ⟨rfl, -⟩ := hadd; omega
 
 end Pic

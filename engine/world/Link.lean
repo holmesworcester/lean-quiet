@@ -84,12 +84,12 @@ theorem deliver_takes (w : World (Held F) Q.n) (idx t : Nat) (p : Packet Q.n) (j
     (inner : List ByteArray) (o : Op) (r : Id)
     (hp : w.flight[idx]? = some p) (hj : Q.setup.at? p.dst = some j) (hb : p.bytes = plainFrame cid inner)
     (ho : o.bytes ∈ inner) (hc : ((w.node j).conn? cid).isSome = true) (hw : isWire o.kind = false)
-    (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms j cid)
+    (hr : Q.fam.room o = some r) (hs : r ∈ Q.rooms j cid) (hcp : o.capped = true)
     (hpre : ∀ o', (w.box j).db.ops o.id = some o' → o' = o)
     (hfr : ∀ b ∈ inner, ∀ o', Op.decode b = some o' → o'.id = o.id → o' = o) :
     ((w.step Q.setup (.deliver idx t)).box j).db.ops o.id = some o := by
   rw [deliver_box w idx t p j hp hj, hb]
-  exact onFrame_takes (Q.two j) .a _ p.origin cid inner o r t _ hc ho hw hr hs hpre hfr
+  exact onFrame_takes (Q.two j) .a _ p.origin cid inner o r t _ hc ho hw hr hs hcp hpre hfr
 
 /-- **H4 at a delivery:** a frame delivered on a session the receiver has
 open, carrying a have in a room it shows of an op it has not asked for,

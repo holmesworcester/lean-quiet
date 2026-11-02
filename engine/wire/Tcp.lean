@@ -110,6 +110,9 @@ structure Outbox where
   stopped : Bool := false
   /-- Finish queued frames before closing a retired session. -/
   draining : Bool := false
+  /-- That drain delivers final frames (a removal's notice): read until the
+  peer's end before closing (`linger`), so the peer meets no reset first. -/
+  linger : Bool := false
   /-- When the writer's write under way began; none between writes. -/
   since : Option Nat := none
 
@@ -170,9 +173,10 @@ def Sock.lanes (s : Sock) : IO Lanes := s.out.atomically do
   return { o.queued.ordinary with serve := o.retry.take.1.toList ++ o.lanes.serve }
 
 def Sock.offerRetry (s : Sock) (ticket : RetryTicket) (payload : ByteArray) : IO Bool := do
+  -- the reserved retry slot's offer (Reserved.offer: offer_bounded)
   let ok ← s.out.atomically (modifyGetThe Outbox fun o =>
-    let (ok, retry) := o.retry.offer maxFrame ticket payload
-    (ok, { o with retry }))
+    let (ok, q) := o.queued.offer maxFrame ticket payload
+    (ok, { o with retry := q.retry }))
   s.wake.notifyAll
   return ok
 
@@ -199,10 +203,20 @@ def Sock.stop (s : Sock) : IO Unit := do
   s.out.atomically (modify fun o => { o with stopped := true, lanes := {}, control := {}, retry := .vacant })
   s.wake.notifyAll
 
+/-- Drain, and whether the drain delivers final frames (`linger`). -/
+def Outbox.drain (linger : Bool) (o : Outbox) : Outbox :=
+  { o with draining := true, linger }
+
+/-- Whether the writer, its drain done, reads until the peer's end: only
+when that drain delivered final frames, and never once stopped. A drain
+with nothing of its own to deliver (a silence expiry) closes at once and
+releases its quota (`OutboxLaws.drain_quiet_closes`). -/
+def Outbox.lingers (o : Outbox) : Bool := !o.stopped && o.linger
+
 /-- A protocol retirement sends its final notice before closing. Transport
 failures still use `stop`, which discards queued frames immediately. -/
-def Sock.drain (s : Sock) : IO Unit := do
-  s.out.atomically (modify fun o => { o with draining := true })
+def Sock.drain (s : Sock) (linger : Bool := false) : IO Unit := do
+  s.out.atomically (modify (Outbox.drain linger))
   s.wake.notifyAll
 
 /-- Failure requests stop immediately without waiting for native callbacks.
@@ -383,8 +397,8 @@ def linger (cap : SocketAbort) (c : TCP.Socket.Client) (stallMs : Nat)
 
 /-- A socket's writer, on its own thread: each native write is the next
 `Outbox.take` batch, marked with when it began, until it is
-stopped (then it shuts the socket down), drained (then it `linger`s first)
-or a write fails (then the loop hears the socket closed). Its end releases
+stopped (then it shuts the socket down), drained (then it `linger`s first
+if the drain delivered final frames) or a write fails (then the loop hears the socket closed). Its end releases
 the socket's slot. -/
 def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c : TCP.Socket.Client)
     (addr : ByteArray) (out : Std.Mutex Outbox) (wake : Std.Condvar) (burst : Nat)
@@ -402,9 +416,9 @@ def writer (ch : Std.CloseableChannel.Sync Event) (slots : Slots) (sid : Nat) (c
       | none =>
         match aborter with
         | some cap =>
-          -- Not stopped, so a drain ended: a retirement, whose last frames
-          -- the peer must still be able to read.
-          unless ← out.atomically (do return (← getThe Outbox).stopped) do
+          -- A drain that delivered final frames: the peer must still be
+          -- able to read them.
+          if ← out.atomically (do return (← getThe Outbox).lingers) then
             linger cap c stallMs cleanupReader
           discard <| c.native.cancelRecv.toBaseIO
           discard <| cap.abort
@@ -525,14 +539,15 @@ def RunState.addSock (cfg : RunConfig) (st : RunState) (c : TCP.Socket.Client) (
 
 /-- Every socket end notifies the node, then stops the socket's reader
 and writer; the writer releases its slot when it ends. -/
-def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) : IO (RunState × Effects) := do
+def RunState.close (st : RunState) (sid now : Nat) (drain : Bool := false) (linger : Bool := false) :
+    IO (RunState × Effects) := do
   match st.sockOf (·.id == sid) with
   | none => return (st, {})
   | some s =>
     let (node, e) ← (st.node.step x (.close s.addr) now).run st.db
     s.stopped.request
     if let some input := s.input then st.ingress.retire input
-    if drain then s.drain else s.stop
+    if drain then s.drain linger else s.stop
     return ({ st.drop sid with
       node
       sessionGrace := st.sessionGrace.filter fun (cid, _) => node.conns.any (·.1 == cid) }, e)
@@ -545,8 +560,8 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
   let close (st : RunState) (sid : Nat) : IO RunState := do
     let (st, more) ← st.close x sid now
     st.apply cfg more now
-  let closeDrain (st : RunState) (sid : Nat) : IO RunState := do
-    let (st, more) ← st.close x sid now true
+  let closeDrain (st : RunState) (sid : Nat) (linger : Bool) : IO RunState := do
+    let (st, more) ← st.close x sid now true linger
     st.apply cfg more now
   let mut st := st
   let retryCount := e.retry.length
@@ -555,9 +570,12 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
   let criticalAddrs := e.critical ++ e.drop.filterMap st.node.addr?
   let sockOf (st : RunState) (a : ByteArray) := (st.sockOf fun s => s.addr == a).map (·.id)
   let mut over : List Nat := []
+  -- The sockets this step sends to: a drain below lingers only on these.
+  let mut sent : List Nat := []
   for s in st.socks do
     let ps := framesFor (sockOf st) s.id frames
     unless ps.isEmpty do
+      sent := s.id :: sent
       let critical := ps.filter fun p => criticalAddrs.contains s.addr || p.2[0]? == some bareTag
       let ordinary := ps.filter fun p => !(criticalAddrs.contains s.addr || p.2[0]? == some bareTag)
       unless critical.isEmpty do
@@ -590,7 +608,7 @@ partial def RunState.apply (cfg : RunConfig) (st : RunState) (e : Effects) (now 
       -- A dropped session is already out of `conns` (Node.drop).
       unless st.node.conns.any fun (c, _) => st.node.addr? c == some addr do
         for s in st.socks do
-          if s.addr == addr then st ← closeDrain st s.id
+          if s.addr == addr then st ← closeDrain st s.id (sent.contains s.id)
   unless e.stored.isEmpty do notify e.stored
   unless e.purged.isEmpty do notify e.purged
   return st
