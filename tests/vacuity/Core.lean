@@ -104,7 +104,25 @@ example : (Counted.cost (CostT.bind action continuation)).reads = 2 ∧
 open Community
 -- Seed/ids are deterministic 32-byte fixtures, not production credentials.
 def bytes32 (n : UInt8) : ByteArray := ⟨Array.replicate 32 n⟩
-def invite : Invite := ⟨bytes32 1, bytes32 2, bytes32 3, ["127.0.0.1:7447".toUTF8], bytes32 4⟩
+def invite : Invite := ⟨bytes32 1, bytes32 2, bytes32 3, ["127.0.0.1:7447".toUTF8], bytes32 4, false⟩
+def deviceLink : Invite := { invite with link := true }
+theorem deviceLinkValid : deviceLink.Valid := by decide +kernel
+theorem deviceLinkRound : Invite.parse deviceLink.text = some deviceLink := parse_text deviceLinkValid
+theorem deviceLinkUriRound : Invite.parse deviceLink.uri = some deviceLink := parse_uri deviceLinkValid
+theorem deviceLinkOtherKind :
+    Invite.parse (String.ofList ((if deviceLink.link then web else webLink) ++ deviceLink.code)) = none ∧
+    Invite.parse (String.ofList ((if deviceLink.link then scheme else schemeLink) ++ deviceLink.code)) = none :=
+  parse_other_kind deviceLink
+def issueDeviceLink := issue_link (bytes32 1) (bytes32 1) (Device.ofSeed (bytes32 5)) (bytes32 3) (bytes32 4)
+  ["127.0.0.1:7447".toUTF8] true
+theorem asksIssuerOnly : asks (bytes32 7) (.request (bytes32 1) (bytes32 7) (bytes32 2) (bytes32 3) true) = true ∧
+    asks (bytes32 8) (.request (bytes32 1) (bytes32 7) (bytes32 2) (bytes32 3) true) = false := by
+  refine ⟨asks_link.2 fun _ => rfl, ?_⟩
+  cases h : asks (bytes32 8) (.request (bytes32 1) (bytes32 7) (bytes32 2) (bytes32 3) true)
+  · rfl
+  · exact absurd (asks_link.1 h rfl) (by decide)
+def deviceLinkUnnamed := joinOps_link_unnamed deviceLink (bytes32 5) "Ann".toUTF8 (bytes32 3) rfl
+def introduceNamed := introduce_named (bytes32 1) (Device.ofSeed (bytes32 5)) 29880000
 theorem inviteValid : invite.Valid := by decide +kernel
 theorem inviteRound : Invite.parse invite.text = some invite := parse_text inviteValid
 theorem inviteUriRound : Invite.parse invite.uri = some invite := parse_uri inviteValid

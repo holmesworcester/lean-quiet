@@ -205,7 +205,7 @@ def bareJoin (s : Session) :=
     else none
   else none
 
-def invite : Community.Invite := ⟨c, invitation.id, pkA, ["127.0.0.1:7447".toUTF8], (sha256 "vacuity-invitation".toUTF8)⟩
+def invite : Community.Invite := ⟨c, invitation.id, pkA, ["127.0.0.1:7447".toUTF8], (sha256 "vacuity-invitation".toUTF8), false⟩
 def joinTravels := Community.joinOps_travels ed25519 invite (sha256 "vacuity-carol".toUTF8) "Carol".toUTF8 pkB
 def stopLocal := Community.stopWaiting_local ed25519 requestB.id
 def foundTravels := Community.found_travels ed25519 (DB.empty : DB Community.Fact)

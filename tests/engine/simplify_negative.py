@@ -50,9 +50,12 @@ cases = [
     ("purge-forward", "engine/wire/Node.lean", "purged := purged ++ (← Node.endSession x cid).purged", "discard <| Node.endSession x cid", "simplify", "silent peer drops and notifies purge"),
     ("purge-notify", "engine/wire/Tcp.lean", "unless e.purged.isEmpty do notify e.purged", "unless e.purged.isEmpty do pure ()", "simplify", "TCP apply notifies purges"),
     ("stream-secret", "engine/sync/Conn.lean", "if c.shows fam o then\n          offer :=", "if true then\n          offer :=", "engine.sync.SecrecyLaws", None),
-    ("closure-secret", "engine/sync/Conn.lean", "if c.shows fam o then\n          let offer :=", "if true then\n          let offer :=", "engine.sync.SecrecyLaws", None),
+    # a windowed round's set S (the window and its closure) reaching past its room's items: Index.over_sub
+    ("closure-secret", "engine/sync/Conn.lean", "  (ix.items r).filter fun a => seen.contains a.2",
+     "  (ix.items r).filter (fun a => seen.contains a.2) ++ seen.toList.map fun i => (⟨0, 0⟩, i)", "engine.sync.SecrecyLaws", None),
     ("stream-absent", "engine/sync/Conn.lean", "| none => pure ()\n  return { conn := c, send := holdsOf", "| none => offer := (c.rooms.headD .empty, i) :: offer\n  return { conn := c, send := holdsOf", "engine.sync.SecrecyLaws", None),
-    ("closure-absent", "engine/sync/Conn.lean", "| none => c.walkN offer budget", "| none => c.walkN ((c.rooms.headD .empty, x) :: offer) budget", "engine.sync.SecrecyLaws", None),
+    # S's closure following requirements outside the room: next_ofOps (so window_set_canonical)
+    ("closure-absent", "engine/sync/Conn.lean", "  | some (_, rs) => rs.filter (ix.inRoom r)", "  | some (_, rs) => rs", "engine.sync.WindowLaws", None),
     ("completion", "engine/sync/Conn.lean", "take := [o]", "take := []", "engine.wire.WorldLaws", None),
 ]
 def control(case, work):

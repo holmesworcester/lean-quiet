@@ -1,6 +1,5 @@
 /-
-Every reachable connection bounds its stream hints, pending and visited
-closure ids, and its round state (the rounds in flight, when each room's
+Every reachable connection bounds its stream hints and its round state (the rounds in flight, when each room's
 last round opened, each room's epoch) as well as known and asked. Bounds
 are preserved by every public entry point, including room changes. None
 of them mentions the index: a connection holds no copy of a room, so its
@@ -8,7 +7,6 @@ state does not grow with a room's size, however many peers a hub has
 mid-round.
 -/
 import engine.sync.BoundsLaws
-import engine.sync.ClosureLaws
 import engine.wire.WorldLaws
 
 namespace Engine.Sync
@@ -22,13 +20,13 @@ def Conn.RoundBounded (c : Conn) : Prop :=
 
 /-- The additional bounds beyond known and asked. -/
 def Conn.ExtraBounded (cfg : Config) (c : Conn) : Prop :=
-  c.offered.size ≤ cfg.maxKnown ∧ c.ClosureBounded cfg ∧ c.RoundBounded
+  c.offered.size ≤ cfg.maxKnown ∧ c.RoundBounded
 
 variable {F : Type} (fam : Family F) (cfg : Config)
 
 theorem extra_begin (c : Conn) (k : Nat) (hb : c.ExtraBounded cfg) :
     (c.beginRound k).ExtraBounded cfg :=
-  ⟨hb.1, begin_closure_bounded cfg c k hb.2.1, hb.2.2⟩
+  hb
 
 /-- Noting rooms one by one keeps at most `limit` records. -/
 theorem notes_bounded (limit k : Nat) (rs : List Id) (es : List (Id × Nat)) (he : es.length ≤ limit) :
@@ -45,9 +43,9 @@ theorem extra_start (ix : Index) (c : Conn) (now : Nat) (hb : c.ExtraBounded cfg
   · dsimp only
     split
     · exact hb
-    · exact ⟨hb.1, begin_closure_bounded cfg c _ hb.2.1, List.length_take_le ..,
-        notes_bounded _ _ _ _ hb.2.2.2.1, notes_bounded _ _ _ _ hb.2.2.2.2.1,
-        Nat.le_trans (List.length_filter_le ..) hb.2.2.2.2.2⟩
+    · exact ⟨hb.1, List.length_take_le ..,
+        notes_bounded _ _ _ _ hb.2.2.1, notes_bounded _ _ _ _ hb.2.2.2.1,
+        Nat.le_trans (List.length_filter_le ..) hb.2.2.2.2⟩
 
 theorem extra_ask (c : Conn) (now : Nat) (hb : c.ExtraBounded cfg) : (c.ask cfg now).conn.ExtraBounded cfg := by
   unfold Conn.ask
@@ -56,13 +54,13 @@ theorem extra_ask (c : Conn) (now : Nat) (hb : c.ExtraBounded cfg) : (c.ask cfg 
   · dsimp only
     split
     · exact hb
-    · exact ⟨hb.1, hb.2.1, hb.2.2.1, notes_bounded _ _ _ _ hb.2.2.2.1, hb.2.2.2.2.1,
-        Nat.le_trans (List.length_filter_le ..) hb.2.2.2.2.2⟩
+    · exact ⟨hb.1, hb.2.1, notes_bounded _ _ _ _ hb.2.2.1, hb.2.2.2.1,
+        Nat.le_trans (List.length_filter_le ..) hb.2.2.2.2⟩
 
 theorem extra_onAsk (c : Conn) (r : Id) (hb : c.ExtraBounded cfg) : (c.onAsk r).ExtraBounded cfg := by
   unfold Conn.onAsk
   split
-  · exact ⟨hb.1, hb.2.1, hb.2.2.1, Nat.le_trans (List.length_filter_le ..) hb.2.2.2.1, hb.2.2.2.2⟩
+  · exact ⟨hb.1, hb.2.1, Nat.le_trans (List.length_filter_le ..) hb.2.2.1, hb.2.2.2⟩
   · exact hb
 
 theorem noteRoom_short (c : Conn) (r : Id) (cut : Bool) (hb : c.short.length ≤ c.carried.length) :
@@ -81,19 +79,19 @@ theorem extra_round (ix : Index) (c : Conn) (r : Id) (k : Nat) (cs : List Claim)
     rename_i fresh
     have hb' := extra_begin cfg c k hb
     have ht : ((c.beginRound k).active.filter (fun p => !Decidable.decide (p.1 = r))).length ≤ c.carried.length :=
-      Nat.le_trans (List.length_filter_le ..) hb.2.2.1
+      Nat.le_trans (List.length_filter_le ..) hb.2.1
     have hr : (if c.dialer = true then c.rounded else noteEpoch c.carried.length c.rounded r now).length ≤
         c.carried.length := by
       split
-      · exact hb.2.2.2.1
+      · exact hb.2.2.1
       · exact List.length_take_le ..
     dsimp only
     split
-    · exact ⟨hb'.1, hb'.2.1, ht, hr, List.length_take_le .., hb.2.2.2.2.2⟩
+    · exact ⟨hb'.1, ht, hr, List.length_take_le .., hb.2.2.2.2⟩
     · split
-      · exact ⟨hb'.1, hb'.2.1, ht, hr, List.length_take_le .., noteRoom_short _ r _ hb.2.2.2.2.2⟩
-      · exact ⟨hb'.1, hb'.2.1, List.length_take_le .., hr, List.length_take_le ..,
-          noteRoom_short _ r _ hb.2.2.2.2.2⟩
+      · exact ⟨hb'.1, ht, hr, List.length_take_le .., noteRoom_short _ r _ hb.2.2.2.2⟩
+      · exact ⟨hb'.1, List.length_take_le .., hr, List.length_take_le ..,
+          noteRoom_short _ r _ hb.2.2.2.2⟩
 
 theorem extra_hold (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.ExtraBounded cfg) :
     ((c.onHold fam cfg r ids : HeldM F Step) h).1.conn.ExtraBounded cfg := by
@@ -102,7 +100,7 @@ theorem extra_hold (c : Conn) (r : Id) (ids : List Id) (h : Held F) (hb : c.Extr
   · exact hb
   · split
     · exact hb
-    · exact ⟨hb.1, hb.2.1, hb.2.2.1, hb.2.2.2.1, hb.2.2.2.2.1, noteRoom_short _ r _ hb.2.2.2.2.2⟩
+    · exact ⟨hb.1, hb.2.1, hb.2.2.1, hb.2.2.2.1, noteRoom_short _ r _ hb.2.2.2.2⟩
 
 theorem extra_want (ix : Index) (c : Conn) (ids : List Id) (hb : c.ExtraBounded cfg) :
     (c.onWant cfg ix ids).conn.ExtraBounded cfg := by
@@ -112,56 +110,7 @@ theorem extra_want (ix : Index) (c : Conn) (ids : List Id) (hb : c.ExtraBounded 
 theorem extra_serve (c : Conn) (budget : Nat) (first : List Id) (h : Held F)
     (hb : c.ExtraBounded cfg) : ((c.serveOwed fam cfg budget first : HeldM F _) h).1.1.ExtraBounded cfg := by
   rw [serveOwed_eq]
-  exact ⟨hb.1, queue_bounded cfg _ _ hb.2.1, hb.2.2⟩
-
-theorem walk_offered (h : Held F) : ∀ fuel (c : Conn) offers,
-    ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1.offered = c.offered := by
-  intro fuel
-  induction fuel with
-  | zero => intros; rfl
-  | succ fuel ih =>
-    intro c offers
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => rfl
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
-/-- The closure walk leaves the round state alone. -/
-theorem walk_rounds (h : Held F) : ∀ fuel (c : Conn) offers,
-    let d := ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1
-    d.active = c.active ∧ d.rounded = c.rounded ∧ d.epochs = c.epochs ∧ d.short = c.short ∧
-      d.takes = c.takes := by
-  intro fuel
-  induction fuel with
-  | zero => intros; exact ⟨rfl, rfl, rfl, rfl, rfl⟩
-  | succ fuel ih =>
-    intro c offers
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => exact ⟨rfl, rfl, rfl, rfl, rfl⟩
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
-theorem extra_walk (h : Held F) (c : Conn) (hb : c.ExtraBounded cfg) :
-    ((c.walk fam cfg : HeldM F _) h).1.1.ExtraBounded cfg := by
-  have hk := walk_keeps fam cfg h c
-  obtain ⟨e1, e2, e3, e4, e5⟩ := walk_rounds fam cfg h cfg.walk c []
-  exact ⟨by simpa [Conn.walk, walk_offered] using hb.1,
-    closure_capped fam cfg h cfg.walk c [] hb.2.1,
-    by simp only [Conn.RoundBounded, Conn.carried, Conn.walk, e1, e2, e3, e4, e5]; rw [← Conn.walk, hk.2.1]; exact hb.2.2⟩
+  exact hb
 
 theorem extra_tick (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hb : c.ExtraBounded cfg) :
     ((c.tick fam cfg ix now : HeldM F Step) h).1.conn.ExtraBounded cfg := by
@@ -169,8 +118,7 @@ theorem extra_tick (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hb : c.Extr
   split
   · exact hb
   · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.pulse_conn]
-    have hw := extra_walk fam cfg h c hb
-    have he : ((c.walk fam cfg : HeldM F _) h).1.1.expireAsks cfg now |>.ExtraBounded cfg := hw
+    have he : (c.expireAsks cfg now).ExtraBounded cfg := hb
     split
     · exact extra_start cfg _ _ _ he
     · exact extra_ask cfg _ _ he
@@ -194,7 +142,7 @@ theorem extra_recv (ix : Index) (c : Conn) (bytes : ByteArray) (now : Nat) (h : 
         dsimp only
         split
         · exact extra_start cfg _ _ _ hb
-        · exact ⟨hb.1, hb.2.1, hb.2.2.1, by simp [Conn.carried], hb.2.2.2.2⟩
+        · exact ⟨hb.1, hb.2.1, by simp [Conn.carried], hb.2.2.2⟩
       | rbsr r k cs => exact (extra_round cfg _ _ _ _ _ _ hb)
       | hold r ids =>
         dsimp only
@@ -246,7 +194,7 @@ mentions the index
 of a room, however large the room or however many peers are mid-round. -/
 theorem conn_state_bounded {c : Conn} (hc : c.Reachable fam cfg) :
     c.known.size ≤ cfg.maxKnown ∧ c.asked.size ≤ cfg.maxKnown ∧
-    c.offered.size ≤ cfg.maxKnown ∧ c.closed.size + c.frontier.length ≤ cfg.closureCap ∧
+    c.offered.size ≤ cfg.maxKnown ∧
     c.active.length ≤ c.carried.length ∧ c.rounded.length ≤ c.carried.length ∧
     c.epochs.length ≤ c.carried.length ∧ c.short.length ≤ c.carried.length := by
   have hb := conn_bounded fam cfg hc
@@ -254,7 +202,7 @@ theorem conn_state_bounded {c : Conn} (hc : c.Reachable fam cfg) :
   change c.ExtraBounded cfg
   clear hb
   induction hc with
-  | «open» => simp [Conn.open, Conn.ExtraBounded, Conn.ClosureBounded, Conn.RoundBounded]
+  | «open» => simp [Conn.open, Conn.ExtraBounded, Conn.RoundBounded]
   | start _ _ _ ih => exact extra_start cfg _ _ _ ih
   | round _ _ _ _ _ _ ih => exact extra_round cfg _ _ _ _ _ _ ih
   | hold _ _ _ _ ih => exact extra_hold fam cfg _ _ _ _ ih
@@ -263,9 +211,9 @@ theorem conn_state_bounded {c : Conn} (hc : c.Reachable fam cfg) :
   | recv _ _ _ _ _ ih => exact extra_recv fam cfg _ _ _ _ _ ih
   | tick _ _ _ _ ih => exact extra_tick fam cfg _ _ _ _ ih
   | filed _ _ _ ih => exact extra_filed fam cfg _ _ _ ih
-  | rooms _ _ ih => exact ⟨ih.1, ih.2.1, List.length_take_le .., List.length_take_le .., List.length_take_le ..,
+  | rooms _ _ ih => exact ⟨ih.1, List.length_take_le .., List.length_take_le .., List.length_take_le ..,
       List.length_take_le ..⟩
-  | carry _ _ ih => exact ⟨ih.1, ih.2.1, List.length_take_le .., List.length_take_le .., List.length_take_le ..,
+  | carry _ _ ih => exact ⟨ih.1, List.length_take_le .., List.length_take_le .., List.length_take_le ..,
       List.length_take_le ..⟩
   | notify _ _ ih => exact extra_give fam cfg _ _ _ ih
 

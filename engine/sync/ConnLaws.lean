@@ -247,7 +247,7 @@ theorem work_send (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
   simp only [List.mem_append] at ho
   rcases ho with ho | ho
   · exact (due_send cfg ix _ now).1 o ho
-  · exact ho.elim (holdsOf_wire cfg _ o) (chunks_wire cfg _ _ o)
+  · exact chunks_wire cfg _ _ o ho
 
 theorem tick_send (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     (∀ o ∈ ((c.tick fam cfg ix now : Model F Step).run s).1.send, isWire o.kind = true) ∧

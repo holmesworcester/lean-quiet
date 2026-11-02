@@ -121,7 +121,7 @@ theorem keepalive_runs (dialer : Bool) :
       apply List.eq_nil_of_length_eq_zero
       have hs := Std.HashSet.size_filter_le_size (m := ({} : Std.HashSet Id)) (f := p)
       simpa using hs
-    cases hw : cfg.walk <;> cases dialer <;> simp [Conn.work, Conn.open, Conn.walk, Conn.walkN, hw, Conn.expireAsks,
+    cases dialer <;> simp [Conn.work, Conn.open, Conn.expireAsks,
       Conn.retryIds, Conn.start, Conn.ask, holdsOf, chunks, pieceIds, empty_filter] <;>
       split <;> simp [pieceIds]
 
@@ -137,7 +137,8 @@ doing: the premise names room r only. -/
 theorem room_independent (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
     (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms) (due : (c.due cfg r now || c.retake cfg r) = true) :
     (Msg.rbsr r (c.round + 1)
-      ((window (max c.floor pf)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
+      ((window 0).map (opening Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (max c.floor pf))))).op ∈
       (c.start cfg ix now).send := by
   have hm : r ∈ c.carried.filter fun r => c.due cfg r now || c.retake cfg r :=
     List.mem_filter.mpr ⟨List.mem_append_left _ hr, due⟩
@@ -147,15 +148,16 @@ theorem room_independent (ix : Index) (c : Conn) (r : Id) (now pf : Nat)
   simp only [Conn.start, hp, hne, Bool.false_eq_true, ite_false, List.mem_map]
   exact ⟨r, hm, by rw [hv, Index.opening_fun]⟩
 
-/-- A shown room answers from the live index, whatever other rooms' rounds
-are doing. -/
+/-- A shown room answers from the live index (its set S at the round's
+floor), whatever other rooms' rounds are doing. -/
 theorem uncarried_room_answered (ix : Index) (c : Conn) (r : Id) (k now : Nat) (cs : List Claim)
     (hr : has c.rooms r = true) (hc : cs.isEmpty = false)
     (fresh : c.oldRound r k = false) :
     (c.onRbsr cfg ix r k cs now).send.head? = some (Msg.rbsr r k
-      ((cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))).filterMap
-        fun | .claim x => some x | _ => none)).op := by
-  have hv : Conn.answer cfg.params ix c r = ix.answer cfg.params r := Conn.answer_shown hr
-  simp [Conn.onRbsr, Conn.has_carried_eq, hr, hc, fresh, hv, Index.answer_fun]; rfl
+      (claimsOf (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (c.beginRound k).roundFloor))))).op := by
+  simp only [Conn.onRbsr, Conn.has_carried_eq, hr, Bool.true_or, hc, fresh, Bool.not_true, Bool.false_eq_true,
+    ite_false, Conn.answer_shown hr, Index.answer_fun]
+  split <;> rfl
 
 end Engine.Sync

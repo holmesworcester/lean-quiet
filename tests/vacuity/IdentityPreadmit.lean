@@ -29,7 +29,7 @@ def eM := sha256 "vacuity-mallory-ephemeral".toUTF8
 def eBob := sha256 "vacuity-bob-rejoin-ephemeral".toUTF8
 def malAddr := "127.0.0.1:7449".toUTF8
 def malloryInvite : Community.Invite :=
-  ⟨c, sha256 "vacuity-mallory-invitation".toUTF8, pkM, [malAddr], sha256 "vacuity-mallory-bearer".toUTF8⟩
+  ⟨c, sha256 "vacuity-mallory-invitation".toUTF8, pkM, [malAddr], sha256 "vacuity-mallory-bearer".toUTF8, false⟩
 def rejoinSeed := sha256 "vacuity-bob-rejoin".toUTF8
 def rejoinName := "Bob again".toUTF8
 def unusedFresh := Bytes.digest "unused-node-seed".toUTF8

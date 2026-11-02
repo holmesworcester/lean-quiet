@@ -148,7 +148,7 @@ theorem answer_offers {key : Item → Key} {P : Params} {mine : List Item} {cl :
 /-- An id a round's answer offers is an item of a shown room: a taken
 room's answers offer none (`Conn.answer_blank`). -/
 theorem Conn.answer_offers {ix : Index} {s : DB F} (hx : IxShown fam ix s) {P : Params} {c : Conn}
-    {r : Id} {cl : Claim} {o : Out} (ho : o ∈ Conn.answer P ix c r cl) :
+    {r : Id} {f : Nat} {cl : Claim} {o : Out} (ho : o ∈ Conn.answer P ix c r f cl) :
     ∀ i ∈ o.offers, Shown fam s c i := by
   intro i hi
   cases h : has c.rooms r
@@ -156,7 +156,7 @@ theorem Conn.answer_offers {ix : Index} {s : DB F} (hx : IxShown fam ix s) {P : 
     simp [Out.offers, Claim.offers] at hi
   · rw [Conn.answer_shown h, Index.answer_eq] at ho
     obtain ⟨a, ha, rfl⟩ := Engine.Sync.answer_offers ho i hi
-    exact shown_item fam hx ((Engine.has_iff _ _).1 h) ha
+    exact shown_item fam hx ((Engine.has_iff _ _).1 h) (Index.over_sub _ _ _ _ ha)
 
 theorem opening_offers {key : Item → Key} {P : Params} {mine : List Item} {r : Range} :
     ∀ i ∈ (opening key Prod.snd sha256 P mine r).offers, ∃ a ∈ mine, a.2 = i := by
@@ -187,7 +187,7 @@ theorem start_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix 
     simp only [Msg.offers, List.mem_flatMap, List.mem_map, Index.opening_fun] at hi
     obtain ⟨cl, ⟨q, _, rfl⟩, hi⟩ := hi
     obtain ⟨a, ha, rfl⟩ := opening_offers i hi
-    obtain ⟨hs, ha⟩ := Conn.view_items ha
+    obtain ⟨hs, ha⟩ := Conn.view_items (Index.over_sub _ _ _ _ ha)
     exact shown_item fam hx ((Engine.has_iff _ _).1 hs) ha
 
 /-- The responder's asks name rooms and offer no id. -/
@@ -225,7 +225,7 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
   by_cases h2 : cs.isEmpty = true
   · rw [ite_eq_left h2]; exact ⟨rfl, by simp⟩
   rw [ite_eq_right h2]
-  generalize hos : cs.flatMap (Conn.answer cfg.params ix c r) = outs
+  generalize hos : cs.flatMap (Conn.answer cfg.params ix c r (c.beginRound k).roundFloor) = outs
   have hout : ∀ o ∈ outs, ∀ i ∈ o.offers, Shown fam s c i := by
     rw [← hos]
     intro o ho
@@ -253,50 +253,6 @@ theorem onRbsr_keeps (cfg : Config) {ix : Index} {s : DB F} (hx : IxShown fam ix
         | claim => cases hi
         | want => cases hi
       · exact chunks_want fam cfg _ o hm
-
-/-- What a walk returns, run at h from c: h unchanged, c's rooms, and
-offers of shown ids only. -/
-def WalkOk (h : Held F) (c : Conn) (r : (Conn × List (Id × Id)) × Held F) : Prop :=
-  r.2 = h ∧ r.1.1.rooms = c.rooms ∧ ∀ p ∈ r.1.2, Shown fam h.db c p.2
-
-theorem walkN_keeps (cfg : Config) (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    (∀ p ∈ offer, Shown fam h.db c p.2) → WalkOk fam h c ((c.walkN fam cfg offer k : HeldM F _) h) := by
-  intro k
-  induction k with
-  | zero => intro c offer ho; exact ⟨rfl, rfl, fun i hi => ho i (List.mem_reverse.1 hi)⟩
-  | succ k ih =>
-    intro c offer ho
-    have leaf : ∀ (c' : Conn) (offer' : List (Id × Id)), c'.rooms = c.rooms →
-        (∀ p ∈ offer', Shown fam h.db c p.2) → WalkOk fam h c ((c'.walkN fam cfg offer' k : HeldM F _) h) := by
-      intro c' offer' e1 ho'
-      obtain ⟨a, b, f⟩ := ih c' offer' fun p hp => shown_rooms fam e1.symm (ho' p hp)
-      exact ⟨a, b.trans e1, fun p hp => shown_rooms fam e1 (f p hp)⟩
-    rw [Conn.walkN]
-    cases hf : c.frontier with
-    | nil => exact ⟨rfl, rfl, fun i hi => ho i (List.mem_reverse.1 hi)⟩
-    | cons x rest =>
-      dsimp only
-      split
-      · exact leaf _ _ rfl ho
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases hx : h.db.ops x with
-        | none => exact leaf _ _ rfl ho
-        | some o =>
-          dsimp only
-          split
-          · next hs =>
-            split
-            · apply leaf
-              · rfl
-              intro p hp
-              rcases List.mem_cons.1 hp with rfl | hp
-              · exact ⟨o, hx, hs⟩
-              · exact ho p hp
-            · exact leaf _ _ rfl ho
-          · exact leaf _ _ rfl ho
-
-theorem walk_keeps (cfg : Config) (h : Held F) (c : Conn) : WalkOk fam h c ((c.walk fam cfg : HeldM F _) h) :=
-  walkN_keeps fam cfg h _ c [] (by simp)
 
 /-- What a connection step keeps, run on held data at h from c: it reads
 only, keeps c's rooms, and sends only what `Discloses` allows. -/
@@ -477,30 +433,21 @@ theorem work_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix
     (now : Nat) :
     Keeps fam c h ((c.work fam cfg ix now : HeldM F Step) h) := by
   unfold Conn.work
-  rw [HeldM.bind_apply]
-  obtain ⟨w1, w2, w4⟩ := walk_keeps fam cfg h c
-  generalize (c.walk fam cfg : HeldM F (Conn × List (Id × Id))) h = r at w1 w2 w4 ⊢
-  obtain ⟨⟨c', offer⟩, h'⟩ := r
-  dsimp only at w1 w2 w4 ⊢
-  subst h'
-  let d := c'.expireAsks cfg now
-  have ho : ∀ o ∈ holdsOf cfg offer, Discloses fam h.db c o := holdsOf_hold fam cfg w4
-  have htail : ∀ o ∈ holdsOf cfg offer ++ chunks cfg (d.retryIds cfg now) .want,
-      Discloses fam h.db c o := by
-    intro o hm
-    rcases List.mem_append.1 hm with hm | hm
-    · exact ho o hm
-    · exact chunks_want fam cfg _ o hm
+  rw [HeldM.pure_apply]
+  let d := c.expireAsks cfg now
+  have htail : ∀ o ∈ chunks cfg (d.retryIds cfg now) .want, Discloses fam h.db c o :=
+    fun o hm => chunks_want fam cfg _ o hm
+  have w2 : d.rooms = c.rooms := rfl
   split
-  · obtain ⟨a, d⟩ := start_keeps fam cfg hx (c := d) now
+  · obtain ⟨a, d'⟩ := start_keeps fam cfg hx (c := d) now
     refine ⟨rfl, a.trans w2, fun o hm => ?_⟩
     rcases List.mem_append.1 hm with hm | hm
-    · exact discloses_rooms fam w2 (d o hm)
+    · exact discloses_rooms fam w2 (d' o hm)
     · exact htail o hm
-  · obtain ⟨a, d⟩ := ask_keeps fam cfg (s := h.db) d now
+  · obtain ⟨a, d'⟩ := ask_keeps fam cfg (s := h.db) d now
     refine ⟨rfl, a.trans w2, fun o hm => ?_⟩
     rcases List.mem_append.1 hm with hm | hm
-    · exact discloses_rooms fam w2 (d o hm)
+    · exact discloses_rooms fam w2 (d' o hm)
     · exact htail o hm
 
 theorem tick_keeps (cfg : Config) {ix : Index} {h : Held F} (hx : IxShown fam ix h.db) {c : Conn}

@@ -99,7 +99,7 @@ def roomsCutNode (s : Session) :=
     else none
   else none
 
-def pendingInvite : Community.Invite := ⟨c,invitation.id,pkA,[addr],(sha256 "vacuity-invitation".toUTF8)⟩
+def pendingInvite : Community.Invite := ⟨c,invitation.id,pkA,[addr],(sha256 "vacuity-invitation".toUTF8),false⟩
 def pendingJoin := Community.joining pendingInvite requestB.id "Bob".toUTF8 bob.pk
 def endpointB := Community.endpoint staticB
 def acceptB := Community.accept c bob.pk

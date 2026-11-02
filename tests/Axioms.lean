@@ -24,8 +24,10 @@ import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
 import engine.sync.NewestLaws
+import engine.sync.WindowLaws
 import engine.sync.StateLaws
-import engine.sync.ClosureComplete
+import engine.sync.OfferLaws
+import engine.sync.ServeLaws
 import engine.sync.TimeLaws
 import engine.sync.SessionLaws
 import engine.sync.SecrecyLaws
@@ -139,6 +141,20 @@ open Engine Community
 #print axioms Engine.Sync.window_first
 #print axioms Engine.Sync.newest_first
 #print axioms Engine.Sync.opening_newest_first
+#print axioms Engine.Sync.walk_near
+#print axioms Engine.Sync.walk_from
+#print axioms Engine.Sync.walk_cost
+#print axioms Engine.Sync.byId_add
+#print axioms Engine.Sync.byId_ofOps
+#print axioms Engine.Sync.items_ofOps
+#print axioms Engine.Sync.over_mem
+#print axioms Engine.Sync.over_cost
+#print axioms Engine.Sync.window_set_canonical
+#print axioms Engine.Sync.window_round_complete
+#print axioms Engine.Sync.window_covers
+#print axioms Engine.Sync.closure_delivered_under_bound
+#print axioms Engine.Sync.Index.over_sub
+#print axioms Engine.Sync.RoundRun.items_full
 #print axioms Engine.Sync.opening_honest
 #print axioms Engine.intakeConn_conn
 #print axioms Engine.Sync.recv_take
@@ -172,8 +188,18 @@ open Engine Community
 #print axioms Community.approve_valid
 #print axioms Community.admit_admits
 #print axioms Community.admission_needs_approval
+#print axioms Community.link_approved_by_issuer
+#print axioms Community.link_admits_issuer
+#print axioms Community.issue_link
+#print axioms Community.anyUser_approves_link
+#print axioms Community.newUser_links
+#print axioms Community.asks_link
+#print axioms Community.joinOps_link_unnamed
+#print axioms Community.introduce_named
+#print axioms Community.shipped_introduce_unnamed
 #print axioms Community.removed_approver_admits
 #print axioms Community.removal_authorized
+#print axioms Community.removal_anchored
 #print axioms Community.admin_removal_stands
 #print axioms Community.mutual_removal
 #print axioms Community.admin_granted
@@ -205,6 +231,7 @@ open Engine Community
 #print axioms Community.parse_text
 #print axioms Community.parse_uri
 #print axioms Community.parse_valid
+#print axioms Community.parse_other_kind
 #print axioms Community.Base62.decode_encode
 #print axioms Community.secret_derives
 #print axioms Community.named_by_admin
@@ -342,6 +369,7 @@ open Engine Community
 #print axioms Community.message_order
 #print axioms Community.attach_order
 #print axioms Community.chunks_in_window
+#print axioms Community.timed_chain_le
 #print axioms Community.chunk_own
 #print axioms Engine.Op.decode_exact
 #print axioms Engine.Op.decode_parts
@@ -364,7 +392,6 @@ open Engine Community
 #print axioms Engine.Sync.cached_shown
 #print axioms Engine.Sync.start_keeps
 #print axioms Engine.Sync.onRbsr_keeps
-#print axioms Engine.Sync.walk_keeps
 #print axioms Engine.Sync.onHold_keeps
 #print axioms Engine.Sync.onWant_keeps
 #print axioms Engine.Sync.filed_keeps
@@ -419,7 +446,6 @@ open Engine Community
 #print axioms Engine.Sync.round_bounded
 #print axioms Engine.Sync.hold_bounded
 #print axioms Engine.Sync.onWant_bounded
-#print axioms Engine.Sync.walkN_bounded
 #print axioms Engine.Sync.tick_bounded
 #print axioms Engine.Sync.recv_bounded
 #print axioms Engine.Sync.filed_bounded
@@ -831,15 +857,9 @@ end windows
 
 #print axioms Engine.Sync.conn_state_bounded
 #print axioms Engine.Sync.notes_bounded
-#print axioms Engine.Sync.walk_rounds
 #print axioms Engine.Sync.extra_ask
 #print axioms Engine.Sync.extra_onAsk
 #print axioms Engine.Sync.noteRoom_short
-#print axioms Engine.Sync.full_round_stateless
-#print axioms Engine.Sync.closure_capped
-#print axioms Engine.Sync.closure_complete_under_cap
-#print axioms Engine.Sync.full_round_runs
-#print axioms Engine.Sync.closure_under_cap_runs
 
 section cost
 -- Budgets over the code that runs (docs/PERF.md), and the negative
@@ -1206,7 +1226,6 @@ end cost
 #print axioms Engine.Sync.round_session
 #print axioms Engine.Sync.hold_session
 #print axioms Engine.Sync.want_session
-#print axioms Engine.Sync.walk_session
 #print axioms Engine.Sync.work_session
 #print axioms Engine.Sync.filed_session
 #print axioms Engine.Sync.recv_transition
@@ -1454,8 +1473,6 @@ end cost
 #print axioms Engine.Sync.RoundRun.items_par
 #print axioms Engine.Sync.conn_runs_exchange
 #print axioms Engine.Sync.live_round_complete
-#print axioms Engine.Sync.walkN_frame
-#print axioms Engine.Sync.queue_frame
 #print axioms Engine.Sync.pulse_mem
 #print axioms Engine.Sync.due_iff
 #print axioms Engine.Sync.retake_fewer
