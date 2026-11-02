@@ -713,7 +713,7 @@ a new device on its own node (the 🟡 row under Connections).
 | 🟡 | 🥊🥊🥊 | **Notices are exact.** A screen watches windows of lists. Proven: after any batch of commits and purges, a subscriber is notified exactly when a window it watches changed, and its watch misses nothing it reads. Not yet: the running frame watches its whole window, wider than its rows near the viewport (the hull want that would watch exactly those is a plan: docs/PERF.md), and SQLite's triggers are tested, not proven. | [`notice_iff`], [`read_notice_iff`], [`read_rows_iff`], [`Engine.window_rows`], [`watch_stable`], [`run_exact`], [`fact_stable`], [`find_costs`], [`notify_cost`], [`key_notice_imprecise`], [`unnetted_imprecise`], [`agrees_notice`], [`agrees_unmount`], [`watched_held`] |
 | ✅ | 🥊🥊🥊 | **Removing someone takes two confirmations.** Nothing is written before the second, and cancelling writes nothing. Each attempt starts fresh, and one in flight cannot be replaced. The action is offered only to an admin, on another present member. | [`writes_only_after_two`], [`cancel_writes_nothing`], [`open_fresh`], [`no_replace`], [`offered_only`] |
 | ✅ | 🥊🥊 | **Back goes back.** Back after opening a page restores the state before it (clearing only that page's one-line field; the ephemeral log's newest nav op names the place before); back at a root does nothing; after a switch, backs never leave the new home; and no step changes the composer's draft. | [`back_go`], [`NavLaws.back_open`], [`NavLaws.back_root`], [`back_switch`], [`go_inv`], [`NavLaws.depth`], [`draft_back`], [`into_native`] |
-| ✅ | 🥊🥊 | **The people list is the present members,** each once: users with a live device. A removed member leaves it and its count, but keeps their name on their messages. The app tells a member "You've been removed" only when the store holds a removal of them. | [`present_iff`], [`present_not_removed`], [`present_nodup`], [`deviceCut_removal`] |
+| ✅ | 🥊🥊 | **The people list is the present members,** each once: users with a live device. A removed member leaves it and its count, but keeps their name on their messages. The list and its count read a window: one list of the newest m admissions and each one's liveness, at most 1 + m·(1 + D) lists for at most D admissions per device, not every admission (D is a premise: nothing caps a device's admissions). The app tells a member "You've been removed" only when the store holds a removal of them. | [`present_iff`], [`present_not_removed`], [`present_nodup`], [`presentW_lists`], [`presentW_lists_eq`], [`present_lists_eq`], [`present_scans`], [`live_lists_le`], [`live_lists_ge`], [`deviceLive_lists`], [`unremoved_lists`], [`deviceCut_removal`] |
 | 🟡 | 🥊🥊🥊 | **The screen is one moment.** Every frame is drawn over one store state, the latest the app has seen: every read through the running cache returns its moment's answer, given SQLite's snapshot isolation and the journal hypothesis. Not yet: the reader's pass as a law, and one moment across the reader and the frame. | [`read_one_moment`], [`answer_agrees`], [`agrees_store`], [`agrees_notice`], [`agrees_keep`], [`agrees_empty`], [`eval_stable`], [`view_stable`] |
 | 🟡 | 🥊🥊🥊 | **Scrolling always shows something.** Proven of the running frame: from the bottom up to the last loaded row, and above it while older messages are outside the window, no position is blank; each vsync shifts the published buffer and fills the rest. Rows are placed by the running `bottoms` (each row's bottom is the heights below it) and the row at an offset is exactly the one whose span holds it (`rowAt`), walking only the window (at most `half` = 100 rows each side of the anchor). Not yet: a law that the frame's rows are the window read's, bounded frame work as a whole, or OS scheduling. | [`Cover.covered`], [`Cover.line_painted`], [`Translate.covered`], [`Translate.equivariance`], [`Translate.fill_pixel`], [`Slide.edge_eq`], [`bottoms_eq`], [`rowAt_iff`] |
 | ✅ | 🥊 | **Cached placeholders keep every pixel.** The frame's single cached period matches the original generator for every height; width, density, theme or background changes select matching pixels. | [`Hold.messageLine_key`], [`Hold.prepare_key`], [`Hold.prepare_reuses`], [`Hold.prepare_rows`], [`Hold.cachedMessagePlane_exact`], [`Hold.cachedMessagePlane_reuses`] |
@@ -1518,7 +1518,7 @@ opportunities and full native delivery remain open.
 [`stopWaiting_local`]: app/community/member/join/joining/abandon/Proofs.lean#L7-L8
 [`filed_send`]: engine/sync/ConnLaws.lean#L218-L221
 [`offer_stored`]: engine/sync/SecrecyLaws.lean#L77-L80
-[`tick_send`]: engine/sync/ConnLaws.lean#L245-L247
+[`tick_send`]: engine/sync/ConnLaws.lean#L239-L241
 [`recipients_iff`]: app/community/Proofs.lean#L905-L910
 [`members_iff`]: app/community/Proofs.lean#L895-L897
 [`member_reads`]: app/community/Proofs.lean#L326-L339
@@ -1530,11 +1530,11 @@ opportunities and full native delivery remain open.
 [`unbox_box`]: app/community/Op.lean#L120-L122
 [`check_reads_shared`]: app/community/Proofs.lean#L242-L249
 [`approveReq_wrap_admits`]: app/community/Proofs.lean#L1354-L1363
-[`kk_secret`]: engine/wire/NoiseSymbolic.lean#L624-L638
-[`kk_secret_init`]: engine/wire/NoiseSymbolic.lean#L576-L585
-[`kk_secret_resp`]: engine/wire/NoiseSymbolic.lean#L590-L598
-[`kk_secret_init_tight`]: engine/wire/NoiseSymbolic.lean#L645-L655
-[`kk_runs`]: engine/wire/NoiseSymbolic.lean#L326-L334
+[`kk_secret`]: engine/wire/NoiseSymbolic.lean#L505-L519
+[`kk_secret_init`]: engine/wire/NoiseSymbolic.lean#L464-L473
+[`kk_secret_resp`]: engine/wire/NoiseSymbolic.lean#L478-L486
+[`kk_secret_init_tight`]: engine/wire/NoiseSymbolic.lean#L526-L536
+[`kk_runs`]: engine/wire/NoiseSymbolic.lean#L287-L295
 [`handshake_agrees`]: engine/wire/Noise.lean#L357-L371
 [`kk_authentic`]: engine/wire/NoiseSymbolic.lean#L794-L807
 [`kk_agree`]: engine/wire/NoiseSymbolic.lean#L724-L743
@@ -1564,7 +1564,7 @@ opportunities and full native delivery remain open.
 [`established_endpoint`]: app/Proofs.lean#L417-L430
 [`endpoint_signed`]: app/community/member/invite/request/Proofs.lean#L66-L73
 [`endpoint_derives`]: app/community/device/endpoint/Proofs.lean#L30-L32
-[`meV_node`]: app/connection/Proofs.lean#L246-L251
+[`meV_node`]: app/connection/Proofs.lean#L253-L258
 [`new_device_trusted`]: app/community/Proofs.lean#L947-L953
 [`connect_iff`]: app/community/Proofs.lean#L835-L839
 [`deviceLive_iff`]: app/community/Proofs.lean#L725-L729
@@ -1574,7 +1574,7 @@ opportunities and full native delivery remain open.
 [`connect_iff_trace`]: app/Proofs.lean#L2866-L2871
 [`refuse_nonmember_trace`]: app/Proofs.lean#L2883-L2888
 [`removal_cuts_off`]: app/community/Proofs.lean#L931-L938
-[`cut_stays`]: app/community/member/remove/Proofs.lean#L47-L50
+[`cut_stays`]: app/community/member/remove/Proofs.lean#L29-L32
 [`cut_consented`]: app/community/member/Proofs.lean#L124-L131
 [`removals_iff`]: app/community/Proofs.lean#L642-L643
 [`removal_cuts_off_trace`]: app/Proofs.lean#L2874-L2880
@@ -1607,7 +1607,7 @@ opportunities and full native delivery remain open.
 [`bare_takes_only_join`]: app/Proofs.lean#L605-L617
 [`intake_local`]: engine/core/Sync.lean#L58-L60
 [`stored_local`]: engine/core/Sync.lean#L165-L168
-[`local_fact_mine`]: app/community/Family.lean#L1416-L1420
+[`local_fact_mine`]: app/community/Family.lean#L1431-L1435
 [`order_local`]: app/community/channel/message/Proofs.lean#L154-L166
 [`intakeConn_conn`]: engine/core/Sync.lean#L53-L54
 [`established_agrees_sodium`]: app/Proofs.lean#L95-L107
@@ -1621,7 +1621,7 @@ opportunities and full native delivery remain open.
 [`Op.id_decode`]: engine/core/Core.lean#L92-L94
 [`distinct_of_collisionFree`]: engine/core/Proofs.lean#L546-L549
 [`oneOpPerId_of`]: engine/core/WindowLaws.lean#L670-L673
-[`op_of_valid`]: app/community/Family.lean#L1346-L1351
+[`op_of_valid`]: app/community/Family.lean#L1361-L1366
 [`Pic.decode_sized`]: engine/renderer/pic/Laws.lean#L118-L121
 [`Image.decode_sized`]: engine/renderer/ImageLaws.lean#L11-L14
 [`Mdns.decode_valid`]: engine/wire/mdns/Laws.lean#L540-L541
@@ -1805,7 +1805,7 @@ opportunities and full native delivery remain open.
 [`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
 [`fresh_served`]: engine/wire/WorldLaws.lean#L680-L687
 [`write_hot`]: engine/wire/WorldLaws.lean#L1500-L1505
-[`onWrite_receives`]: app/Proofs.lean#L3121-L3130
+[`onWrite_receives`]: app/Proofs.lean#L3114-L3123
 [`Priority.served`]: engine/wire/PriorityLaws.lean#L150-L152
 [`waiting_step`]: engine/wire/PriorityLaws.lean#L61-L65
 [`phase_cycle`]: engine/wire/PriorityLaws.lean#L21-L22
@@ -1964,27 +1964,20 @@ opportunities and full native delivery remain open.
 [`present_iff`]: app/community/Screen.lean#L396-L399
 [`present_not_removed`]: app/community/Screen.lean#L406-L409
 [`present_nodup`]: app/community/Screen.lean#L413-L414
-[`presentW_lists`]: app/community/Screen.lean#L659-L665
-[`presentW_lists_eq`]: app/community/Screen.lean#L642-L646
-[`present_lists_eq`]: app/community/Screen.lean#L652-L653
-[`present_scans`]: app/community/Screen.lean#L673-L676
-[`live_lists_le`]: app/community/Screen.lean#L596-L600
-[`live_lists_ge`]: app/community/Screen.lean#L617-L619
-[`deviceLive_lists`]: app/community/Screen.lean#L515-L517
-[`unremoved_lists`]: app/community/Screen.lean#L498-L499
+[`deviceCut_removal`]: app/community/Screen.lean#L557-L565
 [`read_one_moment`]: app/Commands.lean#L1039-L1044
 [`answer_agrees`]: app/Commands.lean#L920-L922
 [`agrees_store`]: app/Commands.lean#L931-L934
 [`agrees_keep`]: app/Commands.lean#L1011-L1013
 [`agrees_empty`]: app/Commands.lean#L917-L917
-[`Cover.covered`]: engine/renderer/Cover.lean#L81-L86
-[`Cover.line_painted`]: engine/renderer/Cover.lean#L122-L125
+[`Cover.covered`]: engine/renderer/Cover.lean#L50-L55
+[`Cover.line_painted`]: engine/renderer/Cover.lean#L91-L94
 [`Translate.covered`]: engine/renderer/TranslateLaws.lean#L81-L88
 [`Translate.equivariance`]: engine/renderer/TranslateLaws.lean#L12-L14
 [`Translate.fill_pixel`]: engine/renderer/TranslateLaws.lean#L143-L149
 [`Slide.edge_eq`]: engine/renderer/SlideLaws.lean#L126-L130
-[`bottoms_eq`]: app/Proofs.lean#L4178-L4187
-[`rowAt_iff`]: app/Proofs.lean#L4249-L4256
+[`bottoms_eq`]: app/Proofs.lean#L4171-L4180
+[`rowAt_iff`]: app/Proofs.lean#L4242-L4249
 [`Hold.messageLine_key`]: engine/renderer/HoldCacheLaws.lean#L5-L7
 [`Hold.prepare_key`]: engine/renderer/HoldCacheLaws.lean#L9-L10
 [`Hold.prepare_reuses`]: engine/renderer/HoldCacheLaws.lean#L17-L19
@@ -2062,7 +2055,7 @@ opportunities and full native delivery remain open.
 [`send_after`]: app/community/Proofs.lean#L1684-L1695
 [`arrival_order`]: app/community/Proofs.lean#L1655-L1667
 [`receipt_once`]: app/community/Proofs.lean#L1612-L1615
-[`display_agrees`]: app/community/channel/message/Proofs.lean#L196-L206
+[`display_agrees`]: app/community/channel/message/Proofs.lean#L192-L202
 [`step_post`]: app/community/Screen.lean#L1530-L1534
 [`notifies_iff`]: app/community/Screen.lean#L1398-L1398
 [`own_silent`]: app/community/Screen.lean#L1395-L1396
@@ -2074,13 +2067,13 @@ opportunities and full native delivery remain open.
 [`step_keeps`]: app/community/Screen.lean#L1522-L1526
 [`marks_le`]: app/community/Screen.lean#L1542-L1544
 [`target_roundtrip`]: app/community/Proofs.lean#L1863-L1865
-[`target_opens`]: app/Proofs.lean#L4016-L4022
-[`targetOf_member`]: app/Proofs.lean#L4026-L4029
-[`syncs_kept`]: app/Proofs.lean#L3986-L3989
-[`syncs_off`]: app/Proofs.lean#L3992-L3993
-[`keepSync_keeps`]: app/Proofs.lean#L3996-L4000
-[`keepSync_set`]: app/Proofs.lean#L4002-L4004
-[`unmount_keeps_node`]: app/Proofs.lean#L4006-L4012
+[`target_opens`]: app/Proofs.lean#L4009-L4015
+[`targetOf_member`]: app/Proofs.lean#L4019-L4022
+[`syncs_kept`]: app/Proofs.lean#L3979-L3982
+[`syncs_off`]: app/Proofs.lean#L3985-L3986
+[`keepSync_keeps`]: app/Proofs.lean#L3989-L3993
+[`keepSync_set`]: app/Proofs.lean#L3995-L3997
+[`unmount_keeps_node`]: app/Proofs.lean#L3999-L4005
 [`parse_segsBits`]: engine/renderer/qr/SegLaws.lean#L157-L161
 [`parse_dataStream`]: engine/renderer/qr/SegLaws.lean#L193-L197
 [`RS.correct_sound`]: engine/renderer/qr/Laws.lean#L55-L57
@@ -2130,7 +2123,7 @@ opportunities and full native delivery remain open.
 [`World.inv_frame`]: engine/renderer/BoardLaws.lean#L401-L401
 [`World.settle`]: engine/renderer/BoardLaws.lean#L407-L412
 [`seen_take`]: engine/renderer/BoardLaws.lean#L247-L248
-[`production_step_unique`]: app/Proofs.lean#L3889-L3893
+[`production_step_unique`]: app/Proofs.lean#L3882-L3886
 [`has_ofList`]: engine/core/WindowIndex.lean#L452-L453
 [`ofList_wf`]: engine/core/WindowIndex.lean#L445-L445
 [`held_run_observed`]: engine/sync/SweepRun.lean#L51-L55
@@ -2160,8 +2153,8 @@ opportunities and full native delivery remain open.
 [`fair_loss_delivered`]: engine/sync/SweepLaws.lean#L214-L218
 [`empty_log_agrees`]: engine/sync/SharedLog.lean#L11-L11
 [`nodup`]: engine/wire/RetryOrderLaws.lean#L214-L215
-[`nodup_full`]: app/community/Family.lean#L1637-L1639
-[`sum_map_add`]: app/community/channel/message/Proofs.lean#L232-L233
+[`nodup_full`]: app/community/Family.lean#L1652-L1654
+[`sum_map_add`]: app/community/channel/message/Proofs.lean#L228-L229
 [`Costs.mono`]: engine/core/Cost.lean#L397-L397
 [`costs_bind`]: engine/core/Cost.lean#L410-L411
 [`costs_bindP`]: engine/core/Cost.lean#L425-L429
@@ -2216,11 +2209,11 @@ opportunities and full native delivery remain open.
 [`Sweep.step_progress`]: engine/sync/SweepLaws.lean#L52-L61
 [`same_inputs`]: engine/wire/IngressChurnLaws.lean#L93-L95
 [`distance_lt`]: engine/wire/IngressLaws.lean#L5-L6
-[`Symbolic.good`]: engine/wire/NoiseSymbolic.lean#L316-L318
+[`Symbolic.good`]: engine/wire/NoiseSymbolic.lean#L277-L279
 [`eligible_spec`]: engine/wire/RetryOrderLaws.lean#L186-L188
 [`RetryOrder.filter_rank`]: engine/wire/RetryOrderLaws.lean#L84-L87
 [`offerM`]: app/Screen.lean#L368-L374
-[`Symbolic.sym`]: engine/wire/NoiseSymbolic.lean#L276-L289
+[`Symbolic.sym`]: engine/wire/NoiseModel.lean#L42-L55
 [`SeekCost.seek`]: engine/core/Query.lean#L536-L537
 [`Sync.popW`]: engine/wire/Lanes.lean#L132-L135
 [`Engine.runJ`]: engine/core/WindowLaws.lean#L148-L151
