@@ -35,6 +35,17 @@ def carry (src dst : St) : IO Nat := do
     k := k + 1
   return ops.length
 
+/-- A tap on the page's button for an act, as a finger would (two_nodes'). -/
+def tapAct (sm : Sim) (a : Pages.Act) : M Bool := do
+  let s ← get
+  let some pg := s.pageNow | return false
+  match pg.taps.find? (·.2 == a) with
+  | some (b, _) =>
+    sm.cmds.modify (·.push s!"page {b.x + b.w / 2} {b.y + b.h / 2}")
+    steps 3
+    return true
+  | none => return false
+
 def fresh (dir : String) : IO Unit := do
   IO.FS.createDirAll dir
   for f in ["quiet.db", "quiet.db-wal", "quiet.db-shm"] do
@@ -85,12 +96,14 @@ def holds (s : St) (text : String) : Bool :=
   s.notesKey.any fun (_, _, xs) => xs.any fun (_, sn) => sn.rows.any (·.text == text)
 
 /-- Steps until everything this app wrote is committed: its writer idle,
-nothing pending in its outbox, nothing parked for the node. It waits on
+nothing pending in its outbox, nothing parked for the node, no act
+waiting (the reader caught up, its done queue applied). It waits on
 the app's own state, not a clock (the bound only ends a hung run). -/
 def settle : M Bool := do
   for _ in [0:60000] do
     let s ← get
-    if (← s.wr.busy.get) == 0 && (← s.wr.jobs.get).isEmpty && s.out.isEmpty && s.toNode.isEmpty then
+    if (← s.wr.busy.get) == 0 && (← s.wr.jobs.get).isEmpty && s.out.isEmpty && s.toNode.isEmpty &&
+        s.doneQ.isEmpty && (← s.sh.acts.get).isEmpty && (← readerCaughtUp) then
       steps 2
       return true
     discard <| step []
@@ -145,30 +158,40 @@ def main (args : List String) : IO UInt32 := do
     discard <| settle
     let s ← get
     return ((s.links.find? (·.1 == s.me.acc)).map (·.2)).getD "").run a0
+  -- B pastes it and agrees, page by page (as two_nodes does)
   let ((), b1) ← (show M Unit from do
-    sb.urls.modify (·.push link)
-    steps 3
-    sb.cmds.modify (·.push "field Bea")
-    steps 1
-    sb.cmds.modify (·.push "act continue")
     steps 2
-    sb.cmds.modify (·.push "act agree")
-    discard <| settle
+    check "Join a community" (← tapAct sb .joinCommunity)
+    check "Join with invite link" (← tapAct sb .inviteLink)
+    check "Paste a link" (← tapAct sb .pasteLink)
+    modify fun s => { s with field := "  " ++ link ++ "\n" }
+    steps 1
+    check "Continue with the link" (← tapAct sb .continue_)
+    modify fun s => { s with field := "Bea" }
+    steps 1
+    check "Continue with a name" (← tapAct sb .continue_)
+    check "Agree & Join" (← tapAct sb .agree)
+    waitIdle sb
     steps 5
-    check "B waits to join" ((← get).me.waiting)).run b0
+    check "B waits to join" ((← get).me.waiting && (← get).page == .waiting)).run b0
   let _ ← carry b1 a1
+  -- A approves it from Join requests
   let ((), a2) ← (show M Unit from do
-    discard <| settle
+    waitIdle sa
     steps 3
-    let some r := (← get).asking[0]? | check "A sees B's request" false
-    approveReq r.id
-    discard <| settle
+    sa.cmds.modify (·.push "switch club")
+    steps 3
+    check s!"A sees B's request ({(← get).asking.size})" ((← get).asking.size == 1)
+    check "its row opens Waiting to join" ((← tapAct sa .requests) && (← get).page == .requests)
+    check "A approves it" (← tapAct sa (.approve 0))
+    waitIdle sa
+    steps 5
+    check "and nobody waits any more" ((← get).asking.isEmpty)
+    sa.cmds.modify (·.push "switch club")
     steps 3).run a1
   let _ ← carry a2 b1
   let ((), b2) ← (show M Unit from do
-    discard <| settle
-    steps 10
-    discard <| settle
+    waitIdle sb
     steps 5
     let s ← get
     check s!"B is in, on its home (page {repr s.page})" (!s.me.waiting && s.page == .home)
@@ -259,15 +282,13 @@ def main (args : List String) : IO UInt32 := do
     steps 2
     discard <| settle
     -- 120 more posts: the history a link must open through
-    -- a send the outbox refuses (it is bounded) is sent again once it drains
-    let mut sent := 0
-    let mut tries := 0
-    while sent < 120 && tries < 20000 do
-      if ← sendText s!"history {sent}" then sent := sent + 1
-      else
-        steps 1
-        IO.sleep 2
-      tries := tries + 1
+    -- each send is an act the reader runs, and the outbox is bounded: one
+    -- at a time, each committed before the next (an act can still refuse)
+    let before ← heldTotal
+    for k in [0:120] do
+      discard <| sendText s!"history {k}"
+      discard <| settle
+    let sent := (← heldTotal) - before
     check s!"A sends 120 more posts ({sent})" (sent == 120)
     discard <| settle
     steps 3).run a5
@@ -365,11 +386,18 @@ def main (args : List String) : IO UInt32 := do
     let some u := bUser.head? | check "A finds B's user" false
     let ok ← removeWrite u
     discard <| settle
+    waitIdle sa
+    steps 5
     check "A removes B" ok).run a8
   let _ ← carry a9 b8
   let ((), _) ← (show M Unit from do
     let n0 := (← sb.notes.get).size
+    waitIdle sb
+    steps 5
     let got ← packetsUntil sb n0 200 (·.any fun p => field p "action" == "cancel")
+    if !got then
+      let s ← get
+      IO.println s!"  diag: comms {s.comms.size} page {repr s.page} active {s.notes.active.length} packets {((← sb.notes.get).extract n0 (← sb.notes.get).size).toList}"
     check "B's removal withdraws its standing card" got
     check "and no card stands" (← get).notes.active.isEmpty).run b8
   check "over the whole run, A's own posts never alerted A" ((← sa.notes.get).all (!alerts ·))
