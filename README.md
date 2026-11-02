@@ -575,7 +575,7 @@ for list queries, and Purge.lean for purges. It rests on five promises:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1578 rest on Lean's standard axioms only, and about three quarters of its theorems (1211 of 1547, not counting 31 negative controls) are about the code that runs; another 46 run the
+hypotheses. All 1579 rest on Lean's standard axioms only, and about three quarters of its theorems (1212 of 1548, not counting 31 negative controls) are about the code that runs; another 46 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -725,7 +725,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1211 of 1547 laws are about running code;** another 46 run its node code in a World, and 290 are not yet. Stated only: none. 31 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1212 of 1548 laws are about running code;** another 46 run its node code in a World, and 290 are not yet. Stated only: none. 31 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
@@ -738,7 +738,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | Community | 252 | 221 |  | 31 |
 | QR codes | 10 | 10 |  |  |
 | Pictures | 13 | 1 |  | 12 |
-| Screen | 282 | 220 |  | 62 |
+| Screen | 283 | 221 |  | 62 |
 | App | 147 | 96 | 17 | 34 |
 | Node | 16 | 16 |  |  |
 | App state | 9 | 7 |  | 2 |
@@ -2235,8 +2235,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 536 kernel witnesses, 189 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 19 of 775 linked declarations still pending.**
+**Coverage: 537 kernel witnesses, 189 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 19 of 776 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.

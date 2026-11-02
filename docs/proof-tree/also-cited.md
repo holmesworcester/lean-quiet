@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README cites outside its guarantee rows. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1211) · 🌐 world: the node's code in a World (46) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (290) · 🧪 control: a negative control (31) · ▫️ lemma: not audited (2105)
+✅ wired: about running code (1212) · 🌐 world: the node's code in a World (46) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (290) · 🧪 control: a negative control (31) · ▫️ lemma: not audited (2105)
 
 ## Towards Proofs for n Clients
 
@@ -787,6 +787,7 @@
 
 <ul>
 <li>✅ <a href="#law-Engine.Sync.RetryOrder.offered_or_retired">Engine.Sync.RetryOrder.offered_or_retired</a> ↪ · 12 below</li>
+<li>✅ <a href="quality-proofs-the-screen.md#law-FrameTimes.bounded">FrameTimes.bounded</a> ↪</li>
 <li>✅ <a href="#law-Engine.Sync.Ingress.Registry.freeze_input">Engine.Sync.Ingress.Registry.freeze_input</a> ↪</li>
 <li>✅ <a href="#law-Engine.Sync.Ingress.Registry.freeze_preserves_state">Engine.Sync.Ingress.Registry.freeze_preserves_state</a> ↪</li>
 <li>✅ <a href="#law-Engine.Sync.Ingress.Registry.freeze_preserves_owner">Engine.Sync.Ingress.Registry.freeze_preserves_owner</a> ↪</li>

@@ -680,7 +680,7 @@ recommended law, and the details of every other law above, are in
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
 | [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:202](../app/community/channel/message/Proofs.lean#L202) | propext, Classical.choice, Quot.sound | 343 | 335 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:84](../engine/renderer/Cover.lean#L84) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 730 | 724 | 2 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 735 | 729 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:812](../app/community/Screen.lean#L812) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
 | [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1328](../app/community/Proofs.lean#L1328) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
@@ -874,7 +874,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`view_stable`](HEADLINE-SURFACES.md#engineview_stable) | [engine/core/View.lean:164](../engine/core/View.lean#L164) | propext, Classical.choice, Quot.sound | 74 | 56 | 6 | 0 | 1 |
 | [`eval_stable`](HEADLINE-SURFACES.md#engineeval_stable) | [engine/core/View.lean:141](../engine/core/View.lean#L141) | propext, Classical.choice, Quot.sound | 71 | 55 | 5 | 0 | 0 |
 | [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1037](../app/Commands.lean#L1037) | propext, Classical.choice, Quot.sound | 72 | 69 | 3 | 0 | 0 |
-| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:394](../app/Screen.lean#L394) | propext | 3 | 1 | 0 | 2 | 0 |
+| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:395](../app/Screen.lean#L395) | propext | 3 | 1 | 0 | 2 | 0 |
 | [`next_visible`](HEADLINE-SURFACES.md#demandnext_visible) | [engine/renderer/Demand.lean:149](../engine/renderer/Demand.lean#L149) | propext, Quot.sound | 1 | 1 | 0 | 0 | 0 |
 | [`selected_within`](HEADLINE-SURFACES.md#demandselected_within) | [engine/renderer/DemandRank.lean:138](../engine/renderer/DemandRank.lean#L138) | propext, Classical.choice, Quot.sound | 4 | 3 | 1 | 0 | 0 |
 | [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 52 | 5 | 0 | 0 |
@@ -903,7 +903,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`rows_cost`](HEADLINE-SURFACES.md#heightsrows_cost) | [engine/renderer/Heights.lean:631](../engine/renderer/Heights.lean#L631) | propext, Classical.choice, Quot.sound | 25 | 2 | 13 | 0 | 7 |
 | [`settle_passes`](HEADLINE-SURFACES.md#liveworldsettle_passes) | [engine/renderer/BoardLaws.lean:481](../engine/renderer/BoardLaws.lean#L481) | propext, Classical.choice, Quot.sound | 13 | 6 | 7 | 0 | 0 |
 | [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 406 | 381 | 15 | 0 | 0 |
-| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:431](../app/Screen.lean#L431) | propext | 5 | 1 | 2 | 2 | 0 |
+| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:432](../app/Screen.lean#L432) | propext | 5 | 1 | 2 | 2 | 0 |
 | [`list_costs`](HEADLINE-SURFACES.md#enginelist_costs) | [engine/core/ListCost.lean:34](../engine/core/ListCost.lean#L34) | propext, Classical.choice, Quot.sound | 21 | 8 | 9 | 0 | 4 |
 | [`Prioritized.write_within`](HEADLINE-SURFACES.md#enginesyncingressprioritizedwrite_within) | [engine/wire/IngressPriorityLaws.lean:220](../engine/wire/IngressPriorityLaws.lean#L220) | propext, Quot.sound | 19 | 11 | 8 | 0 | 0 |
 | [`Priority.write_within`](HEADLINE-SURFACES.md#enginesyncinboxprioritywrite_within) | [engine/wire/PriorityLaws.lean:167](../engine/wire/PriorityLaws.lean#L167) | propext, Quot.sound | 14 | 11 | 3 | 0 | 0 |
