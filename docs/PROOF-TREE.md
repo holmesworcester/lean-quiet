@@ -18,8 +18,8 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | Isolated (roots that use no law) | 529 (14.3%) |
 | Deepest chain | 23 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 635 |
-| Laws the headlines build on, or are | 2558 (69.1%) |
+| Headlines (laws the README's guarantee rows cite) | 634 |
+| Laws the headlines build on, or are | 2516 (68.0%) |
 
 ## Headlines
 
@@ -31,7 +31,7 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 66 | 173 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 65 | 200 |
 | [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 151 | 448 |
-| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 210 | 411 |
+| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 386 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 13 | 30 |
 | [Also cited](proof-tree/also-cited.md) | 91 | 118 |
 

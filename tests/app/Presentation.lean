@@ -101,6 +101,7 @@ def run (ck : Checks) : IO Unit := do
     let pending := queuedOut.toList.map (·.op.id)
     modify fun s => { s with text := "Do not lose this draft" }
     sendNow
+    settleSends
     let refused ← get
     ck.ok "full presentation capacity refuses the ninth send without replacing an obligation or draft"
       (refused.text == "Do not lose this draft" && refused.queuedWrites == bytes &&
@@ -287,6 +288,7 @@ def run (ck : Checks) : IO Unit := do
         String.ofList [Char.ofNat 0xa0, '\n', Char.ofNat 0x200b]] do
       modify fun s => { s with text }
       sendNow
+      settleSends
       let refused ← get
       ck.ok "a wholly inkless composer draft is refused before outbox or presentation admission"
         (refused.text == text && (← refused.sh.out.get).toList.map (·.op.id) == outBefore &&
@@ -294,6 +296,7 @@ def run (ck : Checks) : IO Unit := do
     let enormousInvisible := String.ofList (List.replicate (Sync.maxFrame / 2 + 1) (Char.ofNat 0xa0))
     modify fun s => { s with text := enormousInvisible }
     sendNow
+    settleSends
     let refused ← get
     ck.ok "an impossible-size inkless draft is refused before text raster validation"
       (refused.text == enormousInvisible && (← refused.sh.out.get).toList.map (·.op.id) == outBefore &&
