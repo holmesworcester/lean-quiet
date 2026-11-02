@@ -9,7 +9,6 @@ from pathlib import Path
 import shutil
 import struct
 import sys
-from fontTools.ttLib import TTFont
 
 ROOT = Path(__file__).resolve().parents[1]
 source = ROOT / 'ui/fonts/noto-sans-latin.woff2'
@@ -18,6 +17,7 @@ static = ROOT / 'ui/fonts/NotoSans-UI-Medium.ttf'
 # Ordinary builds only copy the reviewed static face; Brotli and variable-font
 # instancing are needed solely to explicitly regenerate this small source asset.
 if '--regenerate' in sys.argv:
+    from fontTools.ttLib import TTFont
     from fontTools.varLib.instancer import instantiateVariableFont
     font = TTFont(source, recalcTimestamp=False)
     instantiateVariableFont(font, {'wght': 500}, inplace=True)
@@ -29,7 +29,10 @@ target = ROOT / 'assets/NotoSans-UI-Medium.ttf'
 index = ROOT / 'assets/noto-ui-index.bin'
 stamp = ROOT / 'assets/noto-ui.sha256'
 key = hashlib.sha256(Path(__file__).read_bytes() + static.read_bytes()).hexdigest()
+# fontTools only to rebuild: with the stamp current (the pinned assets
+# tarball, make install) the build needs no Python packages.
 if not (target.exists() and index.exists() and stamp.exists() and stamp.read_text() == key):
+    from fontTools.ttLib import TTFont
     target.parent.mkdir(parents=True, exist_ok=True)
     shutil.copyfile(static, target)
     font = TTFont(target)

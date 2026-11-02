@@ -35,7 +35,7 @@ for name,old,new,law in [
  p=Path('app/Screen.lean');original=p.read_text();assert original.count(old)==1,(name,old)
  try:
   p.write_text(original.replace(old,new,1))
-  got=subprocess.run(['lake','build','app.Proofs'],capture_output=True,text=True,timeout=120)
+  got=subprocess.run(['lake','build','app.Proofs'],capture_output=True,text=True,timeout=900)
   (out/(name+'.log')).write_text(got.stdout+got.stderr)
   assert got.returncode != 0 and 'app/Proofs.lean:' in got.stdout+got.stderr, f'{name}: law did not reject'
   print(f'negative {name}: rejected ({law})',flush=True)

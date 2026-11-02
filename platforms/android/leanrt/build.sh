@@ -26,6 +26,11 @@ ndk=$(ls -d "$sdk"/ndk/* | sort -V | tail -1)
 bin=$ndk/toolchains/llvm/prebuilt/linux-x86_64/bin
 export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 T=$("$ELAN_HOME/bin/lean" --print-prefix)
+# The runtime's source must be the toolchain's own version: lean.h and
+# the C of Init change with it (4.35 renamed the ST.Ref primitives).
+want=$(sed -n 's/.*LEAN_VERSION_STRING "\([^"]*\)".*/\1/p' "$T/include/lean/version.h")
+have=$(for p in MAJOR MINOR PATCH; do sed -n "s/^set(LEAN_VERSION_$p \([0-9]*\) .*/\1/p" "$src/CMakeLists.txt"; done | paste -sd.)
+[ "$want" = "$have" ] || { echo "LEAN_SRC is Lean $have, the toolchain is $want" >&2; exit 2; }
 api=29
 [ -d "$root/out/initc" ] || "$root/tools/gen_init_c.sh" "$root/out/initc"
 

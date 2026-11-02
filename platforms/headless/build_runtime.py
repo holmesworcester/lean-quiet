@@ -18,8 +18,8 @@ ROOT = Path(__file__).resolve().parents[2]
 OUT = ROOT / 'out/phone-runtime'
 ELAN = Path(os.environ.get('ELAN_HOME', '/mnt/storage/elan'))
 LEAN = Path(subprocess.check_output([ELAN / 'bin/lean', '--print-prefix'], cwd=ROOT, text=True).strip())
-SRC = Path(os.environ.get('LEAN_SRC', '/mnt/storage/holmes-wt/lean-src/lean4')) / 'src'
-UV = Path(os.environ.get('UV_SRC', '/mnt/storage/holmes-wt/lean-src/libuv'))
+SRC = Path(os.environ.get('LEAN_SRC', '/mnt/storage/holmes-wt/lean-src-435/lean4')) / 'src'
+UV = Path(os.environ.get('UV_SRC', '/mnt/storage/holmes-wt/lean-src-435/libuv'))
 CC = os.environ.get('CC', 'clang')
 CXX = os.environ.get('CXX', 'clang++')
 JOBS = int(os.environ.get('JOBS', '8'))

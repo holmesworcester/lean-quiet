@@ -33,3 +33,4 @@ demand-rank	mise run test:demand-rank
 community-key	mise run test:community-key-negative
 restart	tests/engine/restart.sh
 shipped	tests/shipped/check.sh engine
+sync-full	mise run test:sync-full

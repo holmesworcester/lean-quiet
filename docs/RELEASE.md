@@ -67,3 +67,18 @@ The asset names stay fixed, because the join page links
   non-Quiet Apple account (see the walkthrough in the PR or session notes).
   `platforms/ios/project.yml` still names the development team it was
   built with for devices.
+
+## The hackathon submission
+
+Just before the Vibecheck submission, refresh the numbers in
+[HACKATHON.md](HACKATHON.md) at main's head, so that every number it
+gives is true of the submitted commit:
+
+    mise run hackathon:refresh
+
+It writes the generated block from git (`ci/hackathon.py`), commits
+docs/HACKATHON.md alone, then runs the script's self-test and its check.
+Submit that commit, or a later one that changes only docs/HACKATHON.md:
+`mise run hackathon:check` fails once any other file changes after the
+commit the block names. The check is not in the per-push gate, because
+every landing makes the block stale.
