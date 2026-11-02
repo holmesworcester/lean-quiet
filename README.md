@@ -595,7 +595,7 @@ model unless a proven bridge ties the model to running code
 `tests/wiring-models.txt`, a list that only shrinks, does not name.
 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1583 rest on Lean's standard axioms only, and about nine tenths of its theorems (1349 of 1491, not counting 59 proof steps and 33 negative controls) are about the code that runs; another 69 run the
+hypotheses. All 1577 rest on Lean's standard axioms only, and about nine tenths of its theorems (1349 of 1487, not counting 57 proof steps and 33 negative controls) are about the code that runs; another 69 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -762,12 +762,12 @@ law's statement names only the record. A negative control in
 note and checks that the law turns to a model only because of the field.
 
 <!-- wiring:begin -->
-**1349 of 1491 laws are about running code;** another 69 run its node code in a World, and 73 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 59 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 33 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
+**1349 of 1487 laws are about running code;** another 69 run its node code in a World, and 69 are not yet: `tests/wiring-models.txt` lists them, CI fails on any other law over a model, and the list only shrinks. Stated only: none. 57 are proof steps: lemmas that would be models, but that a law about running code uses in its proof (tests/Wiring.lean finds the use; a row citing one cites that law too). 33 laws are negative controls: each proves a mutant breaks its law (neither is counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 190 | 182 |  | 8 |
-| Sync | 314 | 298 |  | 16 |
+| Sync | 318 | 302 |  | 16 |
 | The n-node World | 43 | 8 | 35 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 204 | 188 | 16 |  |
@@ -785,7 +785,7 @@ note and checks that the law turns to a model only because of the field.
 | `Execution.fairRun`, `Execution.World.peer`, `Execution.dequeued` +3 | 14 World laws; not yet: [`world_step_moves`], [`world_trace_moves`], [`empty_trace_store`], [`Run.shared_retained`], [`world_step_history`], [`world_trace_history`], [`empty_trace_history`], [`history`] | Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these. |
 | `Execution.lift` | 4 World laws; not yet: [`run_count`]*, [`run_get`], [`run_view`]*, [`run_arrivedFrom`]*, [`ProgressTape.answer_ready`]*, [`production_step_moves`], [`production_step_retains`], [`production_step_reachable`], [`production_step_settled`], [`write_store_tape`], [`production_write_receives`], [`production_step_history`] +1 more | Explicit Held store adapter inside the production-node entropy-tape interpreter. Native SQLite and entropy refinement remains external; answer_ready proves one actual handler call consumes its next tape value. |
 | `Sync.World.peer`, `Sync.Setup.sync`, `Who.other` +7 | 32 World laws | Real: both nodes are the running `Engine.Sync.Node`, its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any frame, and sessions open directly, with plain frames (no handshake). Wanted: the World with the app's own `Sync` (the Connection family, sealed sessions, the handshake), which makes these laws wired. |
-| `World.step`, `Exec.world`, `Plain.setup` +3 | 28 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
+| `World.step`, `Exec.world`, `Plain.setup` +4 | 28 World laws | Real: n nodes, each the running `Engine.Sync.Node` with a3's `Setup.sync` (fixed rooms), its entry points run on held stores. Assumed: the network may deliver, duplicate, drop or delay any packet (from gst, `Net.Admits`'s timely delivery across live edges), sessions open by the harness's `connect`, frames in the clear, and a transport close drops only that address's sessions (S1: no loss without a close). Wanted: the n-node World with the app's own Sync (the Connection family, sealed sessions, the handshake; holmes-71's session forms), which makes these laws wired. |
 | `Sync.exchange` | [`exchange_complete`]†, [`conn_answers_ids`]°†, [`exchange_ids_stable`], [`exchange_log`]†, [`exchange_stable`], [`conn_runs_exchange`]† | conn_runs_exchange now connects exchange's missing IDs to exact alternating onRbsr batches and proves termination under snapshot/fingerprint/capacity premises. Still needed: embedding uninterrupted rounds and directed announcements in the full Node/TCP execution across timeouts and capped windows. |
 | `Community.recipients`, `Community.members` | [`recipients_iff`]†, [`members_iff`]†, [`reads_members`], [`reads_recipients`], [`members_iff_node`]†, [`recipients_iff_node`]† | The key-wrap writers (`found`, `approve`) do not read `recipients`: wrap through the query, and tie a wrap's recipient to an admission. |
 | `Mdns.decode`, `Mdns.encode` | [`Mdns.decode_encode`]†, [`decode_valid`]*†, [`decode_roundtrip`]† | Nothing that runs discovers peers by mDNS (tests/mdns runs `Mdns.Net`): have the runner announce and browse with it. |
@@ -817,7 +817,7 @@ note and checks that the law turns to a model only because of the field.
 | `World.commit` | [`World.inv_commit`] | Nothing that runs calls it; `Live.Gated.w4`, `Live.World.runActs` do. |
 | `World.marked` | [`World.settle`] | Nothing that runs calls it; `World.pass` do. |
 | `World.pass` | [`inv_pass`], [`World.settle`] | Nothing that runs calls it; `Live.Gated.w4`, `Gated.w5`, `Live.World.passActs` do. |
-| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`empty_log_agrees`], [`nodup`] | Nothing to wire: each is about a specification or an assumption. |
+| (none) | [`unscoped_signs_all`]†, [`no_injective_hash`]†, [`Costs.time`], [`list_costs`], [`model_fits`], [`id_bind`], [`sideCount_run`]†, [`run_bind`], [`run_fresh`], [`empty_log_agrees`] | Nothing to wire: each is about a specification or an assumption. |
 
 | Proof steps in | Steps | Used by (about running code) |
 |---|---|---|
@@ -850,14 +850,14 @@ note and checks that the law turns to a model only because of the field.
 | Assumption | Laws | |
 |---|---|---|
 | [`Unforgeable`] | 3 | Ed25519 unforgeability over the signatures one store holds (no forgery in the store): a computational assumption, not provable in Lean. |
-| [`CollisionFree`] | 22 | SHA-256 has no collision among the ops a node received. |
+| [`CollisionFree`] | 30 | SHA-256 has no collision among the ops a node received. |
 | [`offerM`] | 2 | The node's channel, answering each offer yes or no in any sequence: `offerList` is generic over it, run with `trySend`. |
 | [`NoCollision`] | 14 | No SHA-256 collision between what a file's root hashes and what checking the chunks at hand hashed: finite bytes, decided on real SHA-256 in tests/vacuity/Attachment.lean. |
 | [`NativeCrypto`] | 14 | The crypto trust file (engine/core/Trust.lean), all of it: XChaCha20-Poly1305 and ChaCha20-Poly1305 open what they seal, X25519 agrees, a SHA-256 digest is 32 bytes (correctness of the crates, not security). Keys and nonces are sized types, so no size is assumed. Each part is satisfied by the native crates and failed by a broken model (tests/vacuity/CryptoTrust.lean). |
 | [`Suite.Good`] | 7 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 16 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 454 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) and the catalog's reads change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn, purge and sweep take (`receive_as_model`, `purge_as_model`, `sql_run_step`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
+| [`Model.run`] | 475 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) and the catalog's reads change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn, purge and sweep take (`receive_as_model`, `purge_as_model`, `sql_run_step`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
 | [`SeekCost.seek`] | 8 | SQLite's cost (docs/PERF.md, `levels`): a seek costs at most c·(log₂ N + 1) for N rows, each next row in index order at most `step`, and an ordered read with a LIMIT and nothing else filtering walks no row past its limit (each statement's plan checked by tests/engine/QueryDiff.lean, not proven). |
 | [`Sync.popW`] | 2 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
@@ -2292,8 +2292,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 526 kernel witnesses, 193 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 85 of 835 linked declarations still pending.**
+**Coverage: 525 kernel witnesses, 192 runtime witnesses,
+32 conditional checks, 0 recorded runtime counterexamples; 82 of 831 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
