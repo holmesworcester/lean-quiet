@@ -286,6 +286,20 @@ description = "Two actual apps join through their pages over TCP, then commit, r
 depends = ["crypto"]
 run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build net_join && .lake/build/bin/net_join out/net"
 
+[tasks."host:notify"]
+description = "Notifications on the headless twin: two apps joined by link; cards, quiet, levels, links, Sync in the background, removal, and libquiet's 20,736 reference-policy cases (docs/NOTIFICATIONS.md)"
+depends = ["crypto"]
+run = "[ -f assets/font.bin ] || tools/fetch_assets.sh; tools/noto_assets.sh; lake build notify && .lake/build/bin/notify out/notify"
+
+[tasks."host:notify-negative"]
+description = "Notifications' negative controls in a snapshot: ten runtime mutants fail their checks, eight proof mutants break their laws"
+depends = ["crypto"]
+run = "python3 tests/app/notify_negative.py"
+
+[tasks."host:notify-oracle"]
+description = "Regenerate tests/app/notify-policy.txt from libquiet's own policy.rs (local clone, rustc, no network)"
+run = "python3 tests/app/notify_oracle.py"
+
 [tasks."host:write-admission"]
 description = "Actual app Send rejects unframable posts and exhausted pending queues, preserves drafts, and commits after capacity clears"
 depends = ["crypto"]

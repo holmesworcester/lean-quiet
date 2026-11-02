@@ -58,14 +58,14 @@ reader = 'foreground starts the actual threaded Reader while cleanup remains hel
 typing = 'the next completed frame accepts typing during normal cleanup'
 answers = 'resumed threaded Reader publishes real SQLite answers before native cleanup'
 controls = [
-    ('wait-to-frame', 'if !s.active || !s.surface then\n      IO.sleep 16',
-     'if !s.active || !s.surface || s.netStop.isSome then\n      IO.sleep 16',
+    ('wait-to-frame', 'if !s.active || !s.surface then\n      -- Sync in the background',
+     'if !s.active || !s.surface || s.netStop.isSome then\n      -- Sync in the background',
      [frame, mount, reader, typing, answers]),
     ('wait-to-mount', 'if !s.active || !s.surface then return\n  if s.mountedPage',
      'if !s.active || !s.surface || s.netStop.isSome then return\n  if s.mountedPage',
      [mount, reader, typing, answers]),
-    ('wait-to-read', 'if !s.threaded || !s.active || !s.surface || s.reader.isSome then return',
-     'if !s.threaded || !s.active || !s.surface || s.netStop.isSome || s.reader.isSome then return',
+    ('wait-to-read', 'if !s.threaded || !s.syncs || s.reader.isSome then return',
+     'if !s.threaded || !s.syncs || s.netStop.isSome || s.reader.isSome then return',
      [reader, answers]),
 ]
 source = root / 'app/Screen.lean'
