@@ -131,5 +131,12 @@
     "witness": "Vacuity.IdentityTrust.wrapAdmits",
     "module": "tests.vacuity.IdentityTrust",
     "detail": "Alice's actual approveReq over a Reach-built store holding her community, the invitation and Bob's signed request: the law is applied to the write the intent produces, and the write is not the bare approval, so it is her approval then the admission citing exactly it (the law's second case). Control: without the request in the store the write is the bare approval."
+  },
+  "removal_anchored": {
+    "status": "runtime-witness",
+    "theorem": "Community.removal_anchored",
+    "witness": "Vacuity.IdentityTrust.removalAnchored",
+    "module": "tests.vacuity.IdentityTrust",
+    "detail": "Bob's signed self-removal citing his own admission as its authority is judged Valid on the Reach-built signed store, and the theorem is applied to it. Controls: the same self-removal citing his message (which the old rule, any shared fact, took) and one citing Alice's admission are refused. Synthetic signed fixture, real crypto."
   }
 }

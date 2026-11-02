@@ -298,6 +298,10 @@ lean_exe pic_retry where
 lean_exe two_nodes where
   root := `platforms.headless.TwoNodes
 
+-- Linked devices app to app: link, approve, sync, removal cuts both.
+lean_exe link_devices where
+  root := `platforms.headless.LinkDevices
+
 -- A real invite and its QR code (the camera e2e's poster).
 lean_exe invite_link where
   root := `platforms.headless.InviteLink
@@ -305,6 +309,10 @@ lean_exe invite_link where
 -- Two apps joined over real TCP on loopback, each with its own node.
 lean_exe net_join where
   root := `platforms.headless.NetJoin
+
+-- Linked devices over real TCP on loopback: four apps, four nodes.
+lean_exe net_link where
+  root := `platforms.headless.NetLink
 
 lean_exe write_admission where
   root := `platforms.headless.WriteAdmission
@@ -477,6 +485,10 @@ lean_exe simplify where
 -- and their photos first (docs/SYNC.md, "Windows and order")
 lean_exe newest where
   root := `tests.engine.Newest
+
+-- A windowed node gets its window and its requirements in one round
+lean_exe window_sync where
+  root := `tests.engine.WindowSync
 
 -- T-fresh: a fresh post's latency while a backlog syncs, simulated time
 lean_exe fresh where

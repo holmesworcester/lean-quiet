@@ -28,44 +28,6 @@ attribute [local instance] byteArray_lawfulBEq
 section
 variable {F : Type} (fam : Family F) (cfg : Config)
 
-theorem queue_frame (c : Conn) (ids : List Id) :
-    ∃ fr cut, c.queue cfg ids = { c with frontier := fr, closureCut := cut } := by
-  unfold Conn.queue
-  split
-  · exact ⟨_, _, rfl⟩
-
-/-- The closure walk changes only the closure state. -/
-theorem walkN_frame (h : Held F) : ∀ fuel (c : Conn) offers,
-    ∃ fr cl cut, ((c.walkN fam cfg offers fuel : HeldM F _) h).1.1 =
-      { c with frontier := fr, closed := cl, closureCut := cut } := by
-  intro fuel
-  induction fuel with
-  | zero => intro c offers; exact ⟨c.frontier, c.closed, c.closureCut, rfl⟩
-  | succ fuel ih =>
-    intro c offers
-    rw [Conn.walkN]
-    cases hf : c.frontier with
-    | nil => exact ⟨c.frontier, c.closed, c.closureCut, rfl⟩
-    | cons x rest =>
-      dsimp only
-      split
-      · obtain ⟨fr, cl, cut, e⟩ := ih { c with frontier := rest } offers
-        exact ⟨fr, cl, cut, by rw [e]⟩
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none =>
-          obtain ⟨fr, cl, cut, e⟩ := ih { c with frontier := rest, closed := c.closed.insert x } offers
-          exact ⟨fr, cl, cut, by rw [e]⟩
-        | some o =>
-          dsimp only
-          split
-          · obtain ⟨fr0, cut0, eq⟩ := queue_frame cfg { c with frontier := rest, closed := c.closed.insert x } o.reqs
-            rw [eq]
-            obtain ⟨fr, cl, cut, e⟩ := ih { c with frontier := fr0, closed := c.closed.insert x, closureCut := cut0 } _
-            exact ⟨fr, cl, cut, by rw [e]⟩
-          · obtain ⟨fr, cl, cut, e⟩ := ih { c with frontier := rest, closed := c.closed.insert x } offers
-            exact ⟨fr, cl, cut, by rw [e]⟩
-
 /-- A pulse only fills an empty send. -/
 theorem pulse_mem (s : Step) (sent now : Nat) (x : Op) (hx : x ∈ s.send) : x ∈ (s.pulse cfg sent now).send := by
   unfold Step.pulse
@@ -90,18 +52,14 @@ theorem retake_fewer {c d : Conn} (r : Id) (hs : d.short = c.short) (ha : d.acti
   simp only [Bool.and_eq_true, decide_eq_true_eq] at h ⊢
   exact ⟨⟨⟨h.1.1.1, h.1.1.2⟩, by omega⟩, by omega⟩
 
-/-- What the tick's work starts from: the connection after the walk and
-expiry, which keep everything the round decisions read but the asks. -/
-theorem work_base (h : Held F) (c : Conn) (now : Nat) :
-    ∃ d : Conn, ((c.walk fam cfg : HeldM F _) h).1.1.expireAsks cfg now = d ∧
+/-- What the tick's work starts from: the connection after expiry, which
+keeps everything the round decisions read but the asks. -/
+theorem work_base (c : Conn) (now : Nat) :
+    ∃ d : Conn, c.expireAsks cfg now = d ∧
       d.dialer = c.dialer ∧ d.peerFloor = c.peerFloor ∧ d.floor = c.floor ∧ d.rooms = c.rooms ∧
       d.round = c.round ∧ d.rounded = c.rounded ∧ d.active = c.active ∧ d.short = c.short ∧
-      d.asked.size ≤ c.asked.size := by
-  obtain ⟨fr, cl, cut, e⟩ := walkN_frame fam cfg h cfg.walk c []
-  refine ⟨_, rfl, ?_⟩
-  simp only [Conn.walk]
-  rw [e]
-  exact ⟨rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Std.HashSet.size_filter_le_size⟩
+      d.asked.size ≤ c.asked.size :=
+  ⟨_, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, rfl, Std.HashSet.size_filter_le_size⟩
 
 theorem tick_work (ix : Index) (c : Conn) (now : Nat) (h : Held F) (hl : now ≤ c.heard + cfg.live) (x : Op)
     (hx : x ∈ ((c.work fam cfg ix now : HeldM F Step) h).1.send) :
@@ -119,10 +77,11 @@ theorem round_due (ix : Index) (c : Conn) (r : Id) (now pf : Nat) (h : Held F)
     (hd : c.dialer = true) (hp : c.peerFloor = some pf) (hr : r ∈ c.rooms)
     (hl : now ≤ c.heard + cfg.live) (due : (c.due cfg r now || c.retake cfg r) = true) :
     (Msg.rbsr r (c.round + 1)
-      ((window (max c.floor pf)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
+      ((window 0).map (opening Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (max c.floor pf))))).op ∈
       ((c.tick fam cfg ix now : HeldM F Step) h).1.send := by
   apply tick_work fam cfg ix c now h hl
-  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base fam cfg h c now
+  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base cfg c now
   unfold Conn.work
   simp only [HeldM.bind_apply, HeldM.pure_apply]
   rw [ed, if_pos (by rw [e1]; exact hd)]
@@ -166,7 +125,7 @@ theorem responder_asks (ix : Index) (c : Conn) (r : Id) (now pf : Nat) (h : Held
     (hl : now ≤ c.heard + cfg.live) (fresh : c.roundedAt r = none) :
     (Msg.hold r []).op ∈ ((c.tick fam cfg ix now : HeldM F Step) h).1.send := by
   apply tick_work fam cfg ix c now h hl
-  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base fam cfg h c now
+  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base cfg c now
   unfold Conn.work
   simp only [HeldM.bind_apply, HeldM.pure_apply]
   rw [ed, if_neg (by rw [e1, hd]; simp)]
@@ -232,17 +191,13 @@ theorem work_no_rbsr (ix : Index) (c : Conn) (now : Nat) (h : Held F) (r : Id) (
       d.short = c.short → d.active = c.active → d.asked.size ≤ c.asked.size →
       (Msg.rbsr r k cs).op ∉ (if d.dialer then d.start cfg ix now else d.ask cfg now).send) :
     (Msg.rbsr r k cs).op ∉ ((c.work fam cfg ix now : HeldM F Step) h).1.send := by
-  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base fam cfg h c now
+  obtain ⟨d, ed, e1, e2, e3, e4, e5, e6, e7, e8, e9⟩ := work_base cfg c now
   unfold Conn.work
   simp only [HeldM.bind_apply, HeldM.pure_apply]
   rw [ed]
   intro hm
   rcases List.mem_append.1 hm with hm | hm
   · exact hs d e1 e4 e6 e8 e7 e9 hm
-  rcases List.mem_append.1 hm with hm | hm
-  · simp only [holdsOf, List.mem_flatMap] at hm
-    obtain ⟨r', _, hm⟩ := hm
-    exact rbsr_not_chunk cfg r k cs _ _ (fun l => Or.inl ⟨r', rfl⟩) hm
   · exact rbsr_not_chunk cfg r k cs _ _ (fun l => Or.inr rfl) hm
 
 theorem tick_no_rbsr (ix : Index) (c : Conn) (now : Nat) (h : Held F) (r : Id) (k : Nat) (cs : List Claim)
@@ -323,7 +278,8 @@ theorem join_round (ix iy : Index) (a b : Conn) (r : Id) (t1 t2 t3 pfa pfb : Nat
     (Msg.hold r []).op ∈ ((b.tick fam cfg iy t1 : HeldM F Step) hb).1.send ∧
     let a' := ((a.recv fam cfg ix (Msg.hold r []).op.bytes t2 : HeldM F Step) ha).1.conn
     (Msg.rbsr r (a'.round + 1)
-      ((window (max a'.floor pfa)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
+      ((window 0).map (opening Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (max a'.floor pfa))))).op ∈
       ((a'.tick fam cfg ix t3 : HeldM F Step) ha).1.send := by
   refine ⟨responder_asks fam cfg iy b r t1 pfb hb hdb hpb hrb hlb fresh, ?_⟩
   intro a'
@@ -345,60 +301,46 @@ variable {m : Type → Type} [Monad m] [Store F m]
 /-- `Conn.work` as main shipped it until this change (b4d103a,
 engine/sync/Conn.lean:446–454), its connection-wide timer passed in
 (`lastRound`, and `every`, 30 000 by default): only the dialer opens
-rounds, and only when its timer is due; the responder never asks. A
+rounds, and only when its timer is due; the responder never asks (its
+closure walk, since replaced by the window's set S, left out). A
 negative control: it must never run. -/
 def Conn.workShipped (every lastRound : Nat) (ix : Index) (c : Conn) (now : Nat) : m Step := do
-  let (c, offer) ← c.walk fam cfg
   let c := c.expireAsks cfg now
   let s := if c.dialer && lastRound + every ≤ now then c.start cfg ix now else { conn := c }
   let due := c.lastAsk + cfg.retry ≤ now
   return { s with
     conn := { s.conn with lastAsk := if due then now else c.lastAsk }
-    send := s.send ++ (holdsOf cfg offer ++ chunks cfg (c.retryIds cfg now) .want) }
+    send := s.send ++ chunks cfg (c.retryIds cfg now) .want }
 
 end
 
 /-- **Main's rounds break `responder_asks`.** A responder that starts
-showing a room, with no closure walk pending, sends no ask under main's
-work: it waits for the dialer's next timer. -/
+showing a room sends no ask under main's work: it waits for the
+dialer's next timer. -/
 theorem shipped_responder_silent (every lastRound : Nat) (ix : Index) (c : Conn) (r : Id) (now : Nat)
-    (h : Held F) (hd : c.dialer = false) (hf : c.frontier = []) :
-    (Msg.hold r []).op ∉ ((c.workShipped fam cfg every lastRound ix now : HeldM F Step) h).1.send := by
+    (h : Held F) (hd : c.dialer = false) :
+    (Msg.hold r []).op ∉ ((c.workShipped cfg every lastRound ix now : HeldM F Step) h).1.send := by
   unfold Conn.workShipped
-  simp only [HeldM.bind_apply, HeldM.pure_apply, Conn.walk]
-  cases hw : cfg.walk with
-  | zero =>
-    simp only [Conn.walkN, HeldM.pure_apply, Conn.expireAsks, hd, Bool.false_and, Bool.false_eq_true,
-      ite_false, List.nil_append, holdsOf, List.foldl_nil, List.flatMap_nil]
-    intro hm
-    obtain ⟨l, _, e⟩ := List.mem_map.1 hm
-    have := congrArg Op.kind e
-    simp [Msg.op, kHave, kWant] at this
-  | succ n =>
-    simp only [Conn.walkN, hf, HeldM.pure_apply, Conn.expireAsks, hd, Bool.false_and, Bool.false_eq_true,
-      ite_false, List.nil_append, holdsOf, List.foldl_nil, List.flatMap_nil, List.reverse_nil]
-    intro hm
-    obtain ⟨l, _, e⟩ := List.mem_map.1 hm
-    have := congrArg Op.kind e
-    simp [Msg.op, kHave, kWant] at this
+  simp only [HeldM.pure_apply, Conn.expireAsks, hd, Bool.false_and, Bool.false_eq_true,
+    ite_false, List.nil_append]
+  intro hm
+  obtain ⟨l, _, e⟩ := List.mem_map.1 hm
+  have := congrArg Op.kind e
+  simp [Msg.op, kHave, kWant] at this
 
 /-- **Main's rounds break `round_due`.** A dialer whose session starts
 showing a room opens no round in it under main's work until its
 connection-wide timer comes round: up to `every` later. -/
 theorem shipped_dialer_waits (every lastRound : Nat) (ix : Index) (c : Conn) (r : Id) (now k : Nat)
     (cs : List Claim) (h : Held F) (early : now < lastRound + every) :
-    (Msg.rbsr r k cs).op ∉ ((c.workShipped fam cfg every lastRound ix now : HeldM F Step) h).1.send := by
-  obtain ⟨d, ed, _⟩ := work_base fam cfg h c now
+    (Msg.rbsr r k cs).op ∉ ((c.workShipped cfg every lastRound ix now : HeldM F Step) h).1.send := by
+  obtain ⟨d, ed, _⟩ := work_base cfg c now
   unfold Conn.workShipped
   simp only [HeldM.bind_apply, HeldM.pure_apply]
   rw [ed, if_neg (by simp; omega)]
   intro hm
   rcases List.mem_append.1 hm with hm | hm
   · cases hm
-  rcases List.mem_append.1 hm with hm | hm
-  · simp only [holdsOf, List.mem_flatMap] at hm
-    obtain ⟨r', _, hm⟩ := hm
-    exact rbsr_not_chunk cfg r k cs _ _ (fun l => Or.inl ⟨r', rfl⟩) hm
   · exact rbsr_not_chunk cfg r k cs _ _ (fun l => Or.inr rfl) hm
 
 /-- Both controls' premises hold where the laws' do: a responder showing
@@ -409,17 +351,18 @@ theorem shipped_controls_apply (ix : Index) (r : Id) (h : Held F) :
     let b : Conn := { dialer := false, rooms := [r], floor := 0, peerFloor := some 0 }
     let a : Conn := { dialer := true, rooms := [r], floor := 0, peerFloor := some 0 }
     ((Msg.hold r []).op ∈ ((b.tick fam cfg ix 0 : HeldM F Step) h).1.send ∧
-      (Msg.hold r []).op ∉ ((b.workShipped fam cfg 30000 0 ix 0 : HeldM F Step) h).1.send) ∧
+      (Msg.hold r []).op ∉ ((b.workShipped cfg 30000 0 ix 0 : HeldM F Step) h).1.send) ∧
     ((Msg.rbsr r (a.round + 1)
-      ((window (max a.floor 0)).map (opening Prod.fst Prod.snd sha256 cfg.params (ix.items r)))).op ∈
+      ((window 0).map (opening Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (max a.floor 0))))).op ∈
         ((a.tick fam cfg ix 0 : HeldM F Step) h).1.send ∧
-      ∀ k cs, (Msg.rbsr r k cs).op ∉ ((a.workShipped fam cfg 30000 0 ix 0 : HeldM F Step) h).1.send) := by
+      ∀ k cs, (Msg.rbsr r k cs).op ∉ ((a.workShipped cfg 30000 0 ix 0 : HeldM F Step) h).1.send) := by
   intro b a
   refine ⟨⟨responder_asks fam cfg ix b r 0 0 h rfl rfl (by simp [b]) (by simp [b]) rfl,
-      shipped_responder_silent fam cfg 30000 0 ix b r 0 h rfl rfl⟩,
+      shipped_responder_silent cfg 30000 0 ix b r 0 h rfl⟩,
     round_due fam cfg ix a r 0 0 h rfl rfl (by simp [a]) (by simp [a])
       (by simp [Conn.due, Conn.roundedAt, a]),
-    fun k cs => shipped_dialer_waits fam cfg 30000 0 ix a r 0 k cs h (by decide)⟩
+    fun k cs => shipped_dialer_waits cfg 30000 0 ix a r 0 k cs h (by decide)⟩
 
 end
 

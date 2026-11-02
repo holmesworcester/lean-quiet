@@ -123,13 +123,7 @@ wired NavLaws.backs_nav
 wired Engine.Sync.top_perm
 wired Engine.Sync.lbl_perm
 spec Engine.Sync.lows The items below a key: what a split's left half holds.
-spec Engine.Sync.within The items of a range: what `answer` and `opening` read, which the running `Index.answer`/`Index.opening` equal on the room's treap (`Index.answer_eq`, `Index.opening_eq`).
-spec Engine.Sync.fp A range's fingerprint, its count and label: the room treap's size and label of the range (`rangeT_canon`, `label_canon`).
-spec Engine.Sync.lbl The Merkle label of a set's canonical treap: what the running treap's nodes carry (`label_canon`).
 spec Engine.Sync.pres The byte strings a label hashes, for stating collision freedom.
-spec Engine.Sync.cutsOf Where `answer` cuts a range: what the running answer reads by rank (`cutsT_canon`).
-spec Engine.Sync.pick Every s-th item of a list: `cutsOf`'s, as ranks (`pick_steps`).
-spec Engine.Sync.Range.has Whether a key is in a range: the filter `within` names.
 spec Engine.Sync.ins A sorted list with an item, once: the room's items after an insert (`RoomTree.items_add`).
 spec Engine.Sync.highs The items at or above a key: what a split's right half holds.
 spec Engine.Sync.tally The claims a round answers within n answers on any path, counted over `answer`, the running `Index.answer`'s (`Index.answer_eq`).
@@ -258,8 +252,6 @@ bridge Engine.ingestAll Engine.run_ingestEach
 # (Held.ofOps) does: no bridge needed for them.
 bridge Engine.View.eval Engine.View.run_model
 bridge Engine.Sync.heldIn Engine.Sync.holdsIn_apply
-bridge Engine.Sync.answer Engine.Sync.Index.answer_eq
-bridge Engine.Sync.opening Engine.Sync.Index.opening_eq
 bridge Engine.Sync.answerT Engine.Sync.val_answerTM
 bridge Engine.Sync.openingT Engine.Sync.val_openingTM
 bridge Engine.Sync.rangeT Engine.Sync.val_rangeTM
@@ -372,6 +364,9 @@ control Engine.World.dialMutant A node whose dial hook stores an op with a write
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
+control Community.Approve.checkAnyUser `Approve.check` without its device-link clause: another user's approval of a device link's request passes it, where the running check refuses (`anyUser_approves_link`).
+control Community.Request.checkNewUser `Request.check` naming a new user for every request: a device link's request would name its own user, not the issuer's (`newUser_links`).
+control Community.introduceShipped `introduce` as it shipped before device links: a linked device admitted before its user's profile synced writes a profile with an empty name (`shipped_introduce_unnamed`).
 control Ttf.Memo.shifted A glyph table one key off: no table of its function has its pages (`shifted_not_exact`).
 control Live.Gated.quiet A frame gated on notices: stale for ever (`gated_stale`); its example world (`w5`) shows the ungated frame fresh.
 control Live.Gated.w5 = Live.Gated.quiet

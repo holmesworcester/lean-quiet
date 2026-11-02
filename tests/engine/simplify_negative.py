@@ -35,8 +35,8 @@ cases = [
     ("silent-room", "engine/sync/Conn.lean", "then { conn := c, send := [(Msg.rbsr r k []).op] } else", "then { conn := c } else", "engine.sync.TimeLaws", None),
     ("room-gate", "engine/sync/Conn.lean", "let ready := c.rooms.filter fun r => c.due cfg r now", "let ready := c.rooms.filter fun r => c.active.isEmpty && c.due cfg r now", "simplify", "a stalled room does not gate it"),
     ("no-show-round", "engine/sync/Conn.lean", "  | none => true\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | none => false\n  | some t => Decidable.decide (t + cfg.safety ≤ now)", "simplify", "showing a room starts a round"),
-    ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => true", "simplify", "with no event, no round starts before the safety period"),
-    ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some _ => false", "simplify", "the safety round reopens each room"),
+    ("cadence", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some t => Decidable.decide (t + cfg.safety ≤ now) || true", "simplify", "with no event, no round starts before the safety period"),
+    ("no-safety", "engine/sync/Conn.lean", "  | some t => Decidable.decide (t + cfg.safety ≤ now)", "  | some t => Decidable.decide (t + cfg.safety ≤ now) && false", "simplify", "the safety round reopens each room"),
     ("responder-silent", "engine/sync/Conn.lean", "  let s := if c.dialer then c.start cfg ix now else c.ask cfg now", "  let s := if c.dialer then c.start cfg ix now else { conn := c }", "simplify", "the responder asks for a round"),
     ("ask-ignored", "engine/sync/Conn.lean", "      if ids.isEmpty then return { conn := c.onAsk r }", "      if ids.isEmpty then return { conn := c }", "simplify", "a responder's ask opens a round"),
     # main's rounds as shipped (b4d103a): the dialer rounds on its own timer only, the responder never asks.
@@ -50,9 +50,12 @@ cases = [
     ("purge-forward", "engine/wire/Node.lean", "purged := purged ++ (← Node.endSession x cid).purged", "discard <| Node.endSession x cid", "simplify", "silent peer drops and notifies purge"),
     ("purge-notify", "engine/wire/Tcp.lean", "unless e.purged.isEmpty do notify e.purged", "unless e.purged.isEmpty do pure ()", "simplify", "TCP apply notifies purges"),
     ("stream-secret", "engine/sync/Conn.lean", "if c.shows fam o then\n          offer :=", "if true then\n          offer :=", "engine.sync.SecrecyLaws", None),
-    ("closure-secret", "engine/sync/Conn.lean", "if c.shows fam o then\n          let offer :=", "if true then\n          let offer :=", "engine.sync.SecrecyLaws", None),
+    # a windowed round's set S (the window and its closure) reaching past its room's items: Index.over_sub
+    ("closure-secret", "engine/sync/Conn.lean", "  (ix.items r).filter fun a => seen.contains a.2",
+     "  (ix.items r).filter (fun a => seen.contains a.2) ++ seen.toList.map fun i => (⟨0, 0⟩, i)", "engine.sync.SecrecyLaws", None),
     ("stream-absent", "engine/sync/Conn.lean", "| none => pure ()\n  return { conn := c, send := holdsOf", "| none => offer := (c.rooms.headD .empty, i) :: offer\n  return { conn := c, send := holdsOf", "engine.sync.SecrecyLaws", None),
-    ("closure-absent", "engine/sync/Conn.lean", "| none => c.walkN offer budget", "| none => c.walkN ((c.rooms.headD .empty, x) :: offer) budget", "engine.sync.SecrecyLaws", None),
+    # S's closure following requirements outside the room: next_ofOps (so window_set_canonical)
+    ("closure-absent", "engine/sync/Conn.lean", "  | some (_, rs) => rs.filter (ix.inRoom r)", "  | some (_, rs) => rs", "engine.sync.WindowLaws", None),
     ("completion", "engine/sync/Conn.lean", "take := [o]", "take := []", "engine.wire.WorldLaws", None),
 ]
 def control(case, work):

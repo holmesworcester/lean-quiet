@@ -114,29 +114,6 @@ theorem oq_sent (n : Node) (out : Acts) (now : Nat) (hn : NodeOQ n) : NodeOQ (n.
 
 /-! ### Each step of a connection keeps it -/
 
-theorem walkN_q (fam : Family F) (cfg : Config) (h : Held F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    SameQ c ((c.walkN fam cfg offer k : HeldM F _) h).1.1 := by
-  intro k
-  induction k with
-  | zero => intro c offer; exact ⟨rfl, rfl⟩
-  | succ k ih =>
-    intro c offer
-    rw [Conn.walkN]
-    cases hf : c.frontier with
-    | nil => exact ⟨rfl, rfl⟩
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [HeldM.bind_apply, HeldM.getOp_apply]
-        cases h.db.ops x with
-        | none => exact ih _ _
-        | some o =>
-          dsimp only
-          split
-          · exact ih _ _
-          · exact ih _ _
-
 theorem start_q (cfg : Config) (ix : Index) (c : Conn) (now : Nat) : SameQ c (c.start cfg ix now).conn := by
   rcases Conn.start_conn cfg ix c now with e | ⟨k, a, rs, ss, es, e⟩ <;> rw [e] <;> exact ⟨rfl, rfl⟩
 
@@ -149,12 +126,11 @@ theorem tick_q (fam : Family F) (cfg : Config) (ix : Index) (c : Conn) (now : Na
   split
   · exact ⟨rfl, rfl⟩
   · simp only [HeldM.bind_apply, HeldM.pure_apply, Step.pulse_conn]
-    obtain ⟨w1, w2⟩ := walkN_q fam cfg h cfg.walk c []
     split
-    · obtain ⟨s1, s2⟩ := start_q cfg ix (((c.walkN fam cfg [] cfg.walk : HeldM F _) h).1.1.expireAsks cfg now) now
-      exact ⟨s1.trans w1, s2.trans w2⟩
-    · obtain ⟨s1, s2⟩ := ask_q cfg (((c.walkN fam cfg [] cfg.walk : HeldM F _) h).1.1.expireAsks cfg now) now
-      exact ⟨s1.trans w1, s2.trans w2⟩
+    · obtain ⟨s1, s2⟩ := start_q cfg ix (c.expireAsks cfg now) now
+      exact ⟨s1, s2⟩
+    · obtain ⟨s1, s2⟩ := ask_q cfg (c.expireAsks cfg now) now
+      exact ⟨s1, s2⟩
 
 theorem give_q (fam : Family F) (cfg : Config) : ∀ (l : List (Id × Id)) (c : Conn) (h : Held F),
     SameQ c ((c.give fam cfg l : HeldM F Step) h).1.conn

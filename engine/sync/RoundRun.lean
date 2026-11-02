@@ -42,7 +42,8 @@ remains explicit. -/
 theorem conn_answers_claims (cfg : Config) (ix : Index) (c : Conn)
     (r : Id) (k now : Nat) (cs : List Claim)
     (hr : r ∈ c.rooms) (fresh : c.oldRound r k = false) (hne : cs ≠ []) :
-    let outs := cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))
+    let outs := cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params
+      (ix.over cfg.params.depth r (c.beginRound k).roundFloor))
     (c.onRbsr cfg ix r k cs now).send =
       (Msg.rbsr r k (nextClaims outs)).op ::
         (chunks cfg (roundHolds outs) (.hold r) ++
@@ -78,7 +79,8 @@ as it is then. -/
 theorem conn_round_continues (cfg : Config) (ix : Index) (c : Conn)
     (r : Id) (k now : Nat) (cs : List Claim)
     (hr : r ∈ c.rooms) (fresh : c.oldRound r k = false) (hne : cs ≠ [])
-    (more : nextClaims (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))) ≠ []) :
+    (more : nextClaims (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params
+      (ix.over cfg.params.depth r (c.beginRound k).roundFloor))) ≠ []) :
     let d := (c.onRbsr cfg ix r k cs now).conn
     d.oldRound r k = false ∧ d.rooms = c.rooms := by
   have hc : cs.isEmpty = false := List.isEmpty_eq_false_iff.mpr hne
@@ -105,7 +107,8 @@ theorem conn_returns_claims (cfg : Config) (ix : Index) (c : Conn)
     (r : Id) (k now : Nat) (cs : List Claim)
     (hr : r ∈ c.rooms) (fresh : c.oldRound r k = false) (hne : cs ≠ []) :
     returnedClaims (c.onRbsr cfg ix r k cs now).send =
-      nextClaims (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params (ix.items r))) := by
+      nextClaims (cs.flatMap (answer Prod.fst Prod.snd sha256 cfg.params
+        (ix.over cfg.params.depth r (c.beginRound k).roundFloor))) := by
   rw [conn_answers_claims cfg ix c r k now cs hr fresh hne]
   simp [returnedClaims]
 
@@ -123,17 +126,55 @@ structure State where
 def State.result (cfg : Config) (r : Id) (k now : Nat) (s : State) : Step :=
   s.receiving.onRbsr cfg s.index r k s.pending now
 
-/-- The receiver's items of room r, as its live index holds them at
-this step. -/
-def State.items (r : Id) (s : State) : List Item := s.index.items r
+/-- The receiver's set for round k of room r, as its live index holds it
+at this step: the room's items, or for a windowed round its window and
+closure (`Index.over`, at the round's floor). -/
+def State.items (cfg : Config) (r : Id) (k : Nat) (s : State) : List Item :=
+  s.index.over cfg.params.depth r (s.receiving.beginRound k).roundFloor
 
 /-- A step's result is the running handler's, on the step's receiver,
 its live index and its claims. -/
 theorem result_eq (cfg : Config) (r : Id) (k now : Nat) (s : State) :
     s.result cfg r k now = s.receiving.onRbsr cfg s.index r k s.pending now := rfl
 
-/-- A step's items are its live index's. -/
-theorem items_eq (r : Id) (s : State) : s.items r = s.index.items r := rfl
+/-- A connection of a full round: its floor, its peer's and its captured
+round floor are all at most 1, so its set is its room's items. -/
+def Full (c : Conn) : Prop := c.floor ≤ 1 ∧ c.peerFloor.getD 0 ≤ 1 ∧ c.roundFloor ≤ 1
+
+theorem Full.begin {c : Conn} (h : Full c) (k : Nat) : (c.beginRound k).roundFloor ≤ 1 := by
+  unfold Conn.beginRound
+  dsimp only
+  split
+  · have : c.peerFloor.getD c.floor ≤ 1 := by
+      cases hp : c.peerFloor with
+      | none => simpa using h.1
+      | some p => have := h.2.1; simp [hp] at this ⊢; exact this
+    exact Nat.max_le.2 ⟨h.1, this⟩
+  · exact h.2.2
+
+/-- Answering keeps a full round's floors. -/
+theorem Full.onRbsr {c : Conn} (h : Full c) (cfg : Config) (ix : Index) (r : Id) (k : Nat) (cs : List Claim)
+    (now : Nat) : Full (c.onRbsr cfg ix r k cs now).conn := by
+  unfold Conn.onRbsr
+  split
+  · exact h
+  split
+  · exact h
+  dsimp only
+  have hb := h.begin k
+  split
+  · exact ⟨h.1, h.2.1, hb⟩
+  split <;> exact ⟨h.1, h.2.1, hb⟩
+
+/-- **A full round reads its room's items.** -/
+theorem items_full (cfg : Config) (r : Id) (k : Nat) (s : State) (h : Full s.receiving) :
+    s.items cfg r k = s.index.items r := by
+  unfold State.items
+  exact Index.over_full _ _ _ _ (h.begin k)
+
+/-- A step's items are its live index's set at the round's floor. -/
+theorem items_eq (cfg : Config) (r : Id) (k : Nat) (s : State) :
+    s.items cfg r k = s.index.over cfg.params.depth r (s.receiving.beginRound k).roundFloor := rfl
 
 /-- A round run: each step's claims are what the previous step's actual
 handler returned. Everything else is free at every step: the receiving
@@ -157,13 +198,13 @@ def outputs (cfg : Config) (X : List Item) (cs : List Claim) : List Out :=
 
 theorem successor (cfg : Config) (r : Id) (k now : Nat) (s : State)
     (ready : Ready r k s) (hne : s.pending ≠ []) :
-    returnedClaims (s.result cfg r k now).send = nextClaims (outputs cfg (s.items r) s.pending) :=
+    returnedClaims (s.result cfg r k now).send = nextClaims (outputs cfg (s.items cfg r k) s.pending) :=
   conn_returns_claims cfg s.index s.receiving r k now s.pending ready.1 ready.2 hne
 
 theorem next_pending (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (states : Nat → State)
     (run : Run cfg r k times states) (cur : Current r k states) (t : Nat)
     (hne : (states t).pending ≠ []) :
-    (states (t + 1)).pending = nextClaims (outputs cfg ((states t).items r) (states t).pending) :=
+    (states (t + 1)).pending = nextClaims (outputs cfg ((states t).items cfg r k) (states t).pending) :=
   (run t).trans (successor cfg r k (times t) _ (cur t hne) hne)
 
 /-- A claim's rank over U: twice U's items in its range, plus one for a
@@ -244,7 +285,7 @@ still. This concerns claim reconciliation, before bounded want
 admission and data transport. -/
 theorem terminates (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (states : Nat → State)
     (run : Run cfg r k times states) (cur : Current r k states) (U : List Item)
-    (sub : ∀ t, ∀ a ∈ (states t).items r, a ∈ U) (sorted : ∀ t, Sorted Prod.fst ((states t).items r)) :
+    (sub : ∀ t, ∀ a ∈ (states t).items cfg r k, a ∈ U) (sorted : ∀ t, Sorted Prod.fst ((states t).items cfg r k)) :
     ∀ bound t, (∀ cl ∈ (states t).pending, rankIn U cl ≤ bound) →
       ∃ j, t ≤ j ∧ j ≤ t + bound + 1 ∧ (states j).pending = [] := by
   intro bound
@@ -297,8 +338,8 @@ theorem admit_covers (cap : Nat) (asked : Std.HashSet Id) (ids : List Id) (i : I
 
 /-- The capacity premise is a numeric bound on pending asks and this
 batch's raw requests. It neither assumes discovery nor assumes service. -/
-def Capacity (cfg : Config) (r : Id) (s : State) : Prop :=
-  s.receiving.asked.size + (roundWants (outputs cfg (s.items r) s.pending)).length ≤ cfg.maxKnown
+def Capacity (cfg : Config) (r : Id) (k : Nat) (s : State) : Prop :=
+  s.receiving.asked.size + (roundWants (outputs cfg (s.items cfg r k) s.pending)).length ≤ cfg.maxKnown
 
 /-- Seen at a step: offered or wanted on its actual wire, or already
 asked there (its want is outstanding, and the connection retries it). -/
@@ -308,9 +349,9 @@ def SeenAt (cfg : Config) (r : Id) (k now : Nat) (i : Id) (s : State) : Prop :=
 theorem holds_announced (cfg : Config) (r : Id) (k now : Nat) (s : State)
     (ready : Ready r k s) (hne : s.pending ≠ []) (hmax : 0 < cfg.maxIds)
     (cl : Claim) (hcl : cl ∈ s.pending) (ids : List Id) (i : Id)
-    (ho : Out.hold ids ∈ answer Prod.fst Prod.snd sha256 cfg.params (s.items r) cl) (hi : i ∈ ids) :
+    (ho : Out.hold ids ∈ answer Prod.fst Prod.snd sha256 cfg.params (s.items cfg r k) cl) (hi : i ∈ ids) :
     Announced r i (s.result cfg r k now).send := by
-  have mem : i ∈ roundHolds (outputs cfg (s.items r) s.pending) :=
+  have mem : i ∈ roundHolds (outputs cfg (s.items cfg r k) s.pending) :=
     List.mem_flatMap.mpr ⟨.hold ids, List.mem_flatMap.mpr ⟨cl, hcl, ho⟩, hi⟩
   obtain ⟨piece, hp, hip⟩ := chunks_cover cfg _ (.hold r) hmax mem
   refine ⟨piece, hip, Or.inl ?_⟩
@@ -319,11 +360,11 @@ theorem holds_announced (cfg : Config) (r : Id) (k now : Nat) (s : State)
 
 theorem wants_seen (cfg : Config) (r : Id) (k now : Nat) (s : State)
     (ready : Ready r k s) (hne : s.pending ≠ []) (hmax : 0 < cfg.maxIds)
-    (capacity : Capacity cfg r s)
+    (capacity : Capacity cfg r k s)
     (cl : Claim) (hcl : cl ∈ s.pending) (ids : List Id) (i : Id)
-    (ho : Out.want ids ∈ answer Prod.fst Prod.snd sha256 cfg.params (s.items r) cl) (hi : i ∈ ids) :
+    (ho : Out.want ids ∈ answer Prod.fst Prod.snd sha256 cfg.params (s.items cfg r k) cl) (hi : i ∈ ids) :
     SeenAt cfg r k now i s := by
-  have mem : i ∈ roundWants (outputs cfg (s.items r) s.pending) :=
+  have mem : i ∈ roundWants (outputs cfg (s.items cfg r k) s.pending) :=
     List.mem_flatMap.mpr ⟨.want ids, List.mem_flatMap.mpr ⟨cl, hcl, ho⟩, hi⟩
   rcases admit_covers cfg.maxKnown s.receiving.asked _ i capacity mem with old | admitted
   · exact Or.inr old
@@ -376,41 +417,41 @@ collision between them (`lbl_inj`: a matching fingerprint means equal
 sets at that instant). No premise keeps either index still. -/
 theorem discovers (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (states : Nat → State)
     (run : Run cfg r k times states) (cur : Current r k states)
-    (capacity : ∀ t, Capacity cfg r (states t)) (hmax : 0 < cfg.maxIds)
-    (U : List Item) (sub : ∀ t, ∀ a ∈ (states t).items r, a ∈ U)
-    (sorted : ∀ t, Sorted Prod.fst ((states t).items r))
-    (Z : Nat → List Item) (hZ : ∀ t, Z (t + 1) = (states t).items r)
-    (named : ∀ t, Named Prod.fst Prod.snd ((states t).items r ++ Z t))
-    (sound : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items r) (Z t))
+    (capacity : ∀ t, Capacity cfg r k (states t)) (hmax : 0 < cfg.maxIds)
+    (U : List Item) (sub : ∀ t, ∀ a ∈ (states t).items cfg r k, a ∈ U)
+    (sorted : ∀ t, Sorted Prod.fst ((states t).items cfg r k))
+    (Z : Nat → List Item) (hZ : ∀ t, Z (t + 1) = (states t).items cfg r k)
+    (named : ∀ t, Named Prod.fst Prod.snd ((states t).items cfg r k ++ Z t))
+    (sound : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items cfg r k) (Z t))
     (mine : Nat → Bool) (alt : ∀ t, mine (t + 1) = !mine t) (a : Item)
-    (keep : ∀ t, mine t = true → a ∈ (states t).items r) :
+    (keep : ∀ t, mine t = true → a ∈ (states t).items cfg r k) :
     ∀ m t cl q, rankIn U cl = m → cl ∈ (states t).pending →
       Honest Prod.fst Prod.snd sha256 (Z t) q cl → q.has a.1 = true →
       (mine t = true ∧ a ∉ Z t) ∨ (mine t = false ∧ a ∈ Z t) →
       ∃ j, t ≤ j ∧ j ≤ t + m ∧
-        ((mine j = false ∧ a ∈ (states j).items r) ∨ SeenAt cfg r k (times j) a.2 (states j)) := by
+        ((mine j = false ∧ a ∈ (states j).items cfg r k) ∨ SeenAt cfg r k (times j) a.2 (states j)) := by
   intro m
   induction m using Nat.strongRecOn with
   | ind m ih =>
     intro t cl q rankEq member honest hq side
     have hne : (states t).pending ≠ [] := List.ne_nil_of_mem member
-    by_cases got : mine t = false ∧ a ∈ (states t).items r
+    by_cases got : mine t = false ∧ a ∈ (states t).items cfg r k
     · exact ⟨t, Nat.le_refl _, by omega, Or.inl got⟩
-    have inX : a ∈ (states t).items r ∨ a ∈ Z t := by
+    have inX : a ∈ (states t).items cfg r k ∨ a ∈ Z t := by
       rcases side with ⟨hm, _⟩ | ⟨_, hz⟩
       · exact Or.inl (keep t hm)
       · exact Or.inr hz
-    have ha : a ∈ (states t).items r ++ Z t := List.mem_append.2 inX
-    have diff : Tree.Diff Prod.fst Prod.snd ((states t).items r) (Z t) q a.2 := by
+    have ha : a ∈ (states t).items cfg r k ++ Z t := List.mem_append.2 inX
+    have diff : Tree.Diff Prod.fst Prod.snd ((states t).items cfg r k) (Z t) q a.2 := by
       rcases side with ⟨hm, hz⟩ | ⟨hm, hz⟩
       · exact (diff_of _ _ (named t) hq).1 ⟨keep t hm, hz⟩
       · exact (diff_of _ _ (named t) hq).2 ⟨hz, fun h => got ⟨hm, h⟩⟩
     have next (child : Claim) (q' : Range)
-        (hchild : Out.claim child ∈ answer Prod.fst Prod.snd sha256 cfg.params ((states t).items r) cl)
-        (hHonest : Honest Prod.fst Prod.snd sha256 ((states t).items r) q' child)
+        (hchild : Out.claim child ∈ answer Prod.fst Prod.snd sha256 cfg.params ((states t).items cfg r k) cl)
+        (hHonest : Honest Prod.fst Prod.snd sha256 ((states t).items cfg r k) q' child)
         (hq' : q'.has a.1 = true) :
         ∃ j, t ≤ j ∧ j ≤ t + m ∧
-          ((mine j = false ∧ a ∈ (states j).items r) ∨ SeenAt cfg r k (times j) a.2 (states j)) := by
+          ((mine j = false ∧ a ∈ (states j).items cfg r k) ∨ SeenAt cfg r k (times j) a.2 (states j)) := by
       have hlt := (answer_rank cfg _ U (sorted t) (sub t) cl child hchild).2
       have childMem : child ∈ (states (t + 1)).pending := by
         rw [next_pending cfg r k times states run cur t hne]
@@ -423,7 +464,7 @@ theorem discovers (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (state
       obtain ⟨j, hj, hb, res⟩ := ih (rankIn U child) (by omega) (t + 1) child q' rfl childMem
         (by rw [hZ t]; exact hHonest) hq' side'
       exact ⟨j, by omega, by omega, res⟩
-    rcases Tree.answer_step (P := cfg.params) ((states t).items r) (Z t) q cl (sorted t) (named t)
+    rcases Tree.answer_step (P := cfg.params) ((states t).items cfg r k) (Z t) q cl (sorted t) (named t)
         (sound t) honest a.2 diff with hold | want | ids | fp
     · obtain ⟨ids, ho, hi, _⟩ := hold
       exact ⟨t, Nat.le_refl _, by omega,
@@ -449,6 +490,17 @@ t + 1's receiver reading index `ixs (t + 1)`. -/
 def Exec (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (ixs : Nat → Index)
     (states : Nat → State) : Prop :=
   ∀ t, states (t + 1) = (states t).advance cfg r k (times t) (ixs (t + 1))
+
+/-- In an execution of a round between full ends, every step's ends stay full. -/
+theorem exec_full (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (ixs : Nat → Index)
+    (states : Nat → State) (exec : Exec cfg r k times ixs states)
+    (h0 : Full (states 0).receiving ∧ Full (states 0).waiting) :
+    ∀ t, Full (states t).receiving ∧ Full (states t).waiting
+  | 0 => h0
+  | t + 1 => by
+    obtain ⟨hr, hw⟩ := exec_full cfg r k times ixs states exec h0 t
+    rw [exec t]
+    exact ⟨hw, hr.onRbsr cfg _ r k _ _⟩
 
 theorem exec_runs (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (ixs : Nat → Index)
     (states : Nat → State) (exec : Exec cfg r k times ixs states) : Run cfg r k times states :=
@@ -479,7 +531,7 @@ theorem exec_current (cfg : Config) (r : Id) (k : Nat) (times : Nat → Nat) (ix
       have hprev : (states t).pending ≠ [] := by
         intro h; apply hne; rw [exec t]; exact advance_empty cfg r k _ _ _ h
       obtain ⟨⟨hr, hf⟩, hwr, hwf⟩ := ih hprev
-      have more : nextClaims (outputs cfg ((states t).items r) (states t).pending) ≠ [] := by
+      have more : nextClaims (outputs cfg ((states t).items cfg r k) (states t).pending) ≠ [] := by
         rw [← successor cfg r k (times t) _ ⟨hr, hf⟩ hprev]
         have := hne; rw [exec t] at this; exact this
       obtain ⟨fresh, rooms⟩ := conn_round_continues cfg (states t).index (states t).receiving r k (times t)
@@ -659,8 +711,8 @@ theorem initial_asks (cfg : Config) (r : Id) (ix iy : Index) (now : Nat) :
 /-- Step t's items, when the two ends' indices are fixed at X (even
 steps) and Y (odd). -/
 theorem items_par {states : Nat → State} {r : Id} {X Y : List Item}
-    (hX : ∀ t, (states (2 * t)).items r = X) (hY : ∀ t, (states (2 * t + 1)).items r = Y) (t : Nat) :
-    (states t).items r = if t % 2 = 0 then X else Y := by
+    (hX : ∀ t, (states (2 * t)).items cfg r k = X) (hY : ∀ t, (states (2 * t + 1)).items cfg r k = Y) (t : Nat) :
+    (states t).items cfg r k = if t % 2 = 0 then X else Y := by
   by_cases h : t % 2 = 0
   · rw [if_pos h]; have := hX (t / 2); rwa [show 2 * (t / 2) = t by omega] at this
   · rw [if_neg h]; have := hY (t / 2); rwa [show 2 * (t / 2) + 1 = t by omega] at this
@@ -695,19 +747,19 @@ end, given what both held at the start. -/
 theorem live_round_complete (cfg : Config) (r : Id) (k bound : Nat) (times : Nat → Nat)
     (states : Nat → RoundRun.State)
     (run : RoundRun.Run cfg r k times states) (cur : RoundRun.Current r k states)
-    (capacity : ∀ t, RoundRun.Capacity cfg r (states t)) (hmax : 0 < cfg.maxIds)
-    (U : List Item) (sub : ∀ t, ∀ a ∈ (states t).items r, a ∈ U)
-    (sorted : ∀ t, Sorted Prod.fst ((states t).items r))
-    (Z : Nat → List Item) (hZ : ∀ t, Z (t + 1) = (states t).items r)
-    (named : ∀ t, Named Prod.fst Prod.snd ((states t).items r ++ Z t))
-    (sound : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items r) (Z t))
+    (capacity : ∀ t, RoundRun.Capacity cfg r k (states t)) (hmax : 0 < cfg.maxIds)
+    (U : List Item) (sub : ∀ t, ∀ a ∈ (states t).items cfg r k, a ∈ U)
+    (sorted : ∀ t, Sorted Prod.fst ((states t).items cfg r k))
+    (Z : Nat → List Item) (hZ : ∀ t, Z (t + 1) = (states t).items cfg r k)
+    (named : ∀ t, Named Prod.fst Prod.snd ((states t).items cfg r k ++ Z t))
+    (sound : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items cfg r k) (Z t))
     (ranks : ∀ cl ∈ (states 0).pending, RoundRun.rankIn U cl ≤ bound) :
     (∃ j, j ≤ bound + 1 ∧ (states j).pending = []) ∧
     ∀ (mine : Nat → Bool), (∀ t, mine (t + 1) = !mine t) → ∀ a : Item,
-      (∀ t, mine t = true → a ∈ (states t).items r) → (mine 0 = false → a ∈ Z 0) →
+      (∀ t, mine t = true → a ∈ (states t).items cfg r k) → (mine 0 = false → a ∈ Z 0) →
       ∀ cl ∈ (states 0).pending, ∀ q, Honest Prod.fst Prod.snd sha256 (Z 0) q cl → q.has a.1 = true →
       (mine 0 = true ∧ a ∈ Z 0) ∨
-      ∃ j, j ≤ bound ∧ ((mine j = false ∧ a ∈ (states j).items r) ∨
+      ∃ j, j ≤ bound ∧ ((mine j = false ∧ a ∈ (states j).items cfg r k) ∨
         RoundRun.SeenAt cfg r k (times j) a.2 (states j)) := by
   obtain ⟨j, _, hj, ended⟩ := RoundRun.terminates cfg r k times states run cur U sub sorted bound 0 ranks
   refine ⟨⟨j, by omega, ended⟩, ?_⟩
@@ -732,9 +784,9 @@ are explicit; data delivery and validation are separate phases. -/
 theorem conn_runs_exchange (cfg : Config) (r : Id) (k bound : Nat) (times : Nat → Nat)
     (ixs : Nat → Index) (states : Nat → RoundRun.State) (X Y : List Item)
     (exec : RoundRun.Exec cfg r k times ixs states)
-    (capacity : ∀ t, RoundRun.Capacity cfg r (states t)) (hmax : 0 < cfg.maxIds)
+    (capacity : ∀ t, RoundRun.Capacity cfg r k (states t)) (hmax : 0 < cfg.maxIds)
     (ready : RoundRun.Both r k (states 0))
-    (hX : ∀ t, (states (2 * t)).items r = X) (hY : ∀ t, (states (2 * t + 1)).items r = Y)
+    (hX : ∀ t, (states (2 * t)).items cfg r k = X) (hY : ∀ t, (states (2 * t + 1)).items cfg r k = Y)
     (sx : Sorted Prod.fst X) (sy : Sorted Prod.fst Y)
     (named : Named Prod.fst Prod.snd (X ++ Y)) (sound : Sound Prod.fst Prod.snd sha256 X Y)
     (emptyA : (states 0).receiving.asked = ∅) (emptyB : (states 0).waiting.asked = ∅)
@@ -749,25 +801,25 @@ theorem conn_runs_exchange (cfg : Config) (r : Id) (k bound : Nat) (times : Nat 
   have cur := RoundRun.exec_current cfg r k times ixs states exec ready
   have par := RoundRun.items_par hX hY
   let Z : Nat → List Item := fun t => if t % 2 = 0 then Y else X
-  have hZ : ∀ t, Z (t + 1) = (states t).items r := by
+  have hZ : ∀ t, Z (t + 1) = (states t).items cfg r k := by
     intro t; rw [par t]; simp only [Z]
     by_cases h : t % 2 = 0
     · rw [if_neg (by omega), if_pos h]
     · rw [if_pos (by omega), if_neg h]
-  have sub : ∀ t, ∀ a ∈ (states t).items r, a ∈ X ++ Y := by
+  have sub : ∀ t, ∀ a ∈ (states t).items cfg r k, a ∈ X ++ Y := by
     intro t a ha; rw [par t] at ha
     split at ha
     · exact List.mem_append_left _ ha
     · exact List.mem_append_right _ ha
-  have sorted : ∀ t, Sorted Prod.fst ((states t).items r) := by
+  have sorted : ∀ t, Sorted Prod.fst ((states t).items cfg r k) := by
     intro t; rw [par t]; split
     · exact sx
     · exact sy
-  have named' : ∀ t, Named Prod.fst Prod.snd ((states t).items r ++ Z t) := by
+  have named' : ∀ t, Named Prod.fst Prod.snd ((states t).items cfg r k ++ Z t) := by
     intro t; rw [par t]; simp only [Z]; split
     · exact named
     · exact named_symm named
-  have sound' : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items r) (Z t) := by
+  have sound' : ∀ t, Sound Prod.fst Prod.snd sha256 ((states t).items cfg r k) (Z t) := by
     intro t; rw [par t]; simp only [Z]; split
     · exact sound
     · exact sound.symm
@@ -778,7 +830,7 @@ theorem conn_runs_exchange (cfg : Config) (r : Id) (k bound : Nat) (times : Nat 
   have exactDiff := exchange_complete (P := cfg.params) fuel X Y q cl sx sy named sound honest enough i
   -- the witness: a's holder holds a, the other end never does
   have wire : ∀ (mine : Nat → Bool) (a : Item), a.2 = i → (∀ t, mine (t + 1) = !mine t) →
-      (∀ t, (mine t = true → a ∈ (states t).items r) ∧ (mine t = false → a ∉ (states t).items r)) →
+      (∀ t, (mine t = true → a ∈ (states t).items cfg r k) ∧ (mine t = false → a ∉ (states t).items cfg r k)) →
       (mine 0 = false → a ∈ Z 0) → (mine 0 = true → a ∉ Z 0) → q.has a.1 = true →
       ∃ j, j ≤ bound ∧ RoundRun.Announced r i ((states j).result cfg r k (times j)).send := by
     intro mine a hai alt hold start start' hq

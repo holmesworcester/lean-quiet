@@ -539,25 +539,6 @@ theorem filed_given (c : Conn) (ids : List Id) (s : DB F) :
         · rw [ite_eq_right h2, ite_eq_right h2]; rfl
     · rw [ite_eq_right h1, ite_eq_right h1]; rfl
 
-theorem walkN_given (s : DB F) : ∀ (k : Nat) (c : Conn) (offer : List (Id × Id)),
-    ((c.walkN fam cfg offer k : Model F _).run s).1.1.given = c.given := by
-  intro k
-  induction k with
-  | zero => intros; rfl
-  | succ k ih =>
-    intro c offer
-    rw [Conn.walkN]
-    cases c.frontier with
-    | nil => rfl
-    | cons x rest =>
-      dsimp only
-      split
-      · exact ih _ _
-      · rw [Model.run_bind, run_getOp]
-        cases s.ops x with
-        | none => exact ih _ _
-        | some o => dsimp only; split <;> exact ih _ _
-
 theorem tick_given (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
     ((c.tick fam cfg ix now : Model F Step).run s).1.conn.given = c.given := by
   unfold Conn.tick
@@ -565,11 +546,7 @@ theorem tick_given (ix : Index) (c : Conn) (now : Nat) (s : DB F) :
   · rfl
   · simp only [Model.run_bind, Model.run_pure, Step.pulse_conn]
     unfold Conn.work
-    simp only [Model.run_bind, Model.run_pure, Conn.walk]
-    have hw := walkN_given fam cfg s cfg.walk c []
-    generalize ((c.walkN fam cfg [] cfg.walk : Model F _).run s).1 = p at hw
-    obtain ⟨c', offer⟩ := p
-    dsimp only at hw ⊢
+    simp only [Model.run_pure]
     split <;> simp_all [Conn.expireAsks]
 
 /-- **E1, the notice is given (`notice_sent`).** A connection carrying
