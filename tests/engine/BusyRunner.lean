@@ -15,6 +15,13 @@ the post. Run against the runner as it shipped (the store call run as
 is: tests/engine/busy_runner_negative.sh), the runner stops with
 "database is locked" and the post never arrives.
 
+Then a reader holds a read transaction on b's file while b's session
+closes: the close's purge scrubs (VACUUM and a truncating checkpoint),
+which the reader blocks. b's runner keeps running, and the WAL is
+truncated once the reader ends. Run against the checkpoint as it
+shipped (a blocked one threw), the runner stops ("purge: a reader
+blocked the WAL checkpoint").
+
     busy_runner <outdir> [hold-ms]
 -/
 import tests.engine.Lib
@@ -79,6 +86,12 @@ def hooks (rooms : List Id) : Hooks Fact (SqlM Fact) where
     return answered ++ dialed
   sealFor := toySeal
   openFrame := toyOpen
+  -- closing a session purges its arrival record (a local op, so the
+  -- purge deletes something and scrubs: VACUUM and a truncating
+  -- checkpoint)
+  closing := fun cid => do
+    return (← opsOf kRecord).filterMap fun r =>
+      if ((Codec.decode r.body : Option (Id × ByteArray)).map (·.1)) == some cid then some r.id else none
 
 def history (members posts : Nat) : List Op × Id := Id.run do
   let f := Device.named "tcp-founder"
@@ -165,7 +178,40 @@ def main (args : List String) : IO UInt32 := do
       streamed := true
       break
   t.ok "busy: a later post streams to b as before" streamed
+  -- A reader holds a read transaction on b's file while b's session
+  -- closes (a's runner stops): the close's purge deletes the session's
+  -- arrival record, and its truncating checkpoint cannot finish while the
+  -- reader holds its snapshot. b's runner keeps running; once the reader
+  -- ends, a later tick truncates the WAL.
+  let recs ← (opsOf kRecord).run (← Db.openAt pb)
+  t.ok "close: b holds the session's arrival record" (!recs.isEmpty)
+  let reader ← Db.openAt pb
+  reader.exec "BEGIN"
+  discard <| reader.query "SELECT count(*) FROM ops" #[]
   ra.stop
+  let mut purged := false
+  for _ in [0:200] do
+    IO.sleep 50
+    if ((← (opsOf kRecord).run (← Db.openAt pb)).filter fun r => recs.any (·.id == r.id)).isEmpty then
+      purged := true
+      break
+  -- held past the 5 s busy timeout the checkpoint waits on readers for
+  IO.sleep hold.toUInt32
+  t.ok "close: the session's close purges its arrival record" purged
+  t.ok "close: b's runner is still running while a reader blocks the checkpoint" (!(← IO.hasFinished rb.done))
+  reader.exec "COMMIT"
+  let wal := pb ++ "-wal"
+  let mut truncated := false
+  for _ in [0:300] do
+    IO.sleep 50
+    let size ← if ← System.FilePath.pathExists wal then pure (← System.FilePath.metadata wal).byteSize else pure 0
+    -- the runner's own connection keeps the WAL file: only a truncating
+    -- checkpoint empties it while the runner lives
+    if size == 0 && !(← IO.hasFinished rb.done) then
+      truncated := true
+      break
+  t.ok "close: once the reader ends, b's runner truncates its WAL (the scrub done)" truncated
+  t.ok "close: and b's runner is still running" (!(← IO.hasFinished rb.done))
   rb.stop
   let code ← t.finish "busy_runner"
   (← IO.getStdout).flush
