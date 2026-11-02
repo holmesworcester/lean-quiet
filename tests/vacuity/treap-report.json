@@ -1,0 +1,51 @@
+{
+  "Index.answer_eq": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.Index.answer_eq",
+    "witness": "Vacuity.Treap.answerAgrees",
+    "detail": "A room of three items inserted out of key order (two at time 0, one at time 5); a fingerprint claim it disagrees with. Synthetic ids; SHA-256 symbolic."
+  },
+  "Index.opening_eq": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.Index.opening_eq",
+    "witness": "Vacuity.Treap.openingAgrees",
+    "detail": "The same room, opened over every key. Synthetic ids; SHA-256 symbolic."
+  },
+  "answerT_canon": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.answerT_canon",
+    "witness": "Vacuity.Treap.treapAnswers",
+    "detail": "Three sorted items (sortedness decided), a claim of count 1 against 3 with leaf 1 and fan 2, so the answer cuts into pieces."
+  },
+  "answerTM_hashes": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.answerTM_hashes",
+    "witness": "Vacuity.Treap.answerCost",
+    "detail": "The three items' canonical treap and the cutting claim; no premise."
+  },
+  "openingTM_hashes": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.openingTM_hashes",
+    "witness": "Vacuity.Treap.openingCost",
+    "detail": "The three items' canonical treap opened over every key; no premise."
+  },
+  "insert_hashes": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.insert_hashes",
+    "witness": "Vacuity.Treap.insertCost",
+    "detail": "An item inserted into a two-item canonical treap; no premise."
+  },
+  "label_canon": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.Treap",
+    "theorem": "Engine.Sync.label_canon",
+    "witness": "Vacuity.Treap.labels",
+    "detail": "Three items with keys apart; the length premise at its own length."
+  }
+}
