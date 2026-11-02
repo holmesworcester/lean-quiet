@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Security proofs › Confidentiality**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1211) · 🌐 world: the node's code in a World (46) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (290) · 🧪 control: a negative control (31) · ▫️ lemma: not audited (2105)
+✅ wired: about running code (1209) · 🌐 world: the node's code in a World (46) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (286) · 🧪 control: a negative control (31) · ▫️ lemma: not audited (2106)
 
 <ul>
 <li><details><summary><a id="law-Engine.Sync.recv_send"></a>✅ <a href="../../engine/sync/ConnLaws.lean#L191">Engine.Sync.recv_send</a> · 10 below</summary><ul>
@@ -380,7 +380,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L127">Engine.Codec.decNat_encNat</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1344">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
+<li><details><summary><a id="law-Community.approveReq_wrap_admits"></a>✅ <a href="../../app/community/Proofs.lean#L1335">Community.approveReq_wrap_admits</a> · 1 below</summary><ul>
 <li>▫️ <a href="../../app/community/key/wrap/Proofs.lean#L11">Engine.View.always_bind</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Connection.Noise.Symbolic.kk_secret"></a>✅ <a href="../../engine/wire/NoiseSymbolic.lean#L631">Connection.Noise.Symbolic.kk_secret</a> · 29 below</summary><ul>

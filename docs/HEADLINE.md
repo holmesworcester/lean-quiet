@@ -669,7 +669,7 @@ recommended law, and the details of every other law above, are in
 |---|---|---|---:|---:|---:|---:|---:|
 | [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 348 | 327 | 6 | 1 | 1 |
 | [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 334 | 326 | 8 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:51](../app/community/member/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 334 | 326 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:35](../app/community/member/Proofs.lean#L35) | propext, Classical.choice, Quot.sound | 334 | 326 | 8 | 0 | 0 |
 | [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 333 | 326 | 7 | 0 | 0 |
 | [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:822](../app/community/Proofs.lean#L822) | propext, Classical.choice, Quot.sound | 379 | 357 | 10 | 0 | 1 |
 | [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3190](../app/Proofs.lean#L3190) | propext, Classical.choice, Quot.sound | 662 | 628 | 15 | 5 | 1 |
@@ -682,7 +682,7 @@ recommended law, and the details of every other law above, are in
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:84](../engine/renderer/Cover.lean#L84) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 730 | 724 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:812](../app/community/Screen.lean#L812) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
-| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1328](../app/community/Proofs.lean#L1328) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
+| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1319](../app/community/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
 
 **Together** these laws name 53 spec-only definitions, and 9 names of the assumptions they take.
@@ -855,7 +855,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
 | [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 205 | 195 | 3 | 1 | 0 |
 | [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 530 | 511 | 2 | 5 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1490](../app/community/Proofs.lean#L1490) | propext, Classical.choice, Quot.sound | 380 | 366 | 5 | 0 | 1 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1481](../app/community/Proofs.lean#L1481) | propext, Classical.choice, Quot.sound | 380 | 366 | 5 | 0 | 1 |
 | [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:441](../app/community/Screen.lean#L441) | propext, Classical.choice, Quot.sound | 381 | 359 | 10 | 0 | 1 |
 | [`deviceCut_removal`](HEADLINE-SURFACES.md#peoplelawsdevicecut_removal) | [app/community/Screen.lean:606](../app/community/Screen.lean#L606) | propext, Classical.choice, Quot.sound | 105 | 88 | 2 | 0 | 1 |
 | [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 376 | 357 | 9 | 0 | 0 |
