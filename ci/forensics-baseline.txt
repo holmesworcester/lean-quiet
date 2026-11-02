@@ -3,3 +3,7 @@ emptyPredicate	Engine.World.noAdv	False
 unusedHypothesis	Community.new_device_trusted	_ha
 unusedHypothesis	Community.new_device_trusted	_hr
 unusedHypothesis	Community.removed_approver_admits	_removed
+unusedHypothesis	Engine.World.Plain.want_delivers	hs0
+unusedHypothesis	Engine.World.recv_ok	L
+unusedHypothesis	Engine.World.serve_moves	hcfg
+unusedHypothesis	Engine.World.tick_ok	L

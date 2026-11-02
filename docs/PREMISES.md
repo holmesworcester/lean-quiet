@@ -2123,7 +2123,7 @@ Rests on: `Engine.CollisionFree`, `Engine.Model.run`
 | hr | `Engine.Reach (Connection.node C K) L s` | [discharged] |
 | (stated over) | `Engine.Model.run` | [base] |
 
-## 🟡 ...and at every peer, after every event.
+## 🟡 ...and at each peer of a two-peer production run, after any sequence of its events.
 
 Rests on: `(a World's network)`, `Engine.Model.run`
 
@@ -3451,7 +3451,7 @@ Rests on: `(a World's network)`, `Engine.Model.run`
 | (stated over) | `Engine.Model.run` | [base] |
 | (over a World) | `the network is a model of TCP's: per-session FIFO, loss as a close` | [env] |
 
-## 🟡 Every world of n nodes stays good.
+## 🟡 Every plain world of n nodes stays good.
 
 Rests on: `(a World's network)`, `Engine.CollisionFree`, `Engine.Model.run`
 
