@@ -98,12 +98,21 @@ def run (source target : St) (targetSim : Sim) (evict := false) : IO (St × Bool
             return some busyBitmap
         await "finite busy raster started" entered.get
       let text := s!"own write during sync {attempt}"
-      let oldIds := target.out.toList.map (·.op.id)
+      -- the outbox is the reader's: a send is a reader act (stage 3b)
+      let oldIds := (← target.sh.out.get).toList.map (·.op.id)
       let counters ← receiver.counters
       let framesBefore ← targetSim.frames.get
       let start ← IO.monoMsNow
       target := (← sendNow.run { target with text }).2
-      let some pending := target.out.toList.find? (fun p => !oldIds.contains p.op.id) |
+      -- admitted when the reader has run the act: the post is pending in
+      -- its outbox (the frames counted from Send include this wait)
+      let mut posted : Option Pending := none
+      for _ in [0:400] do
+        if let some p := (← target.sh.out.get).toList.find? (fun p => !oldIds.contains p.op.id) then
+          posted := some p
+          break
+        target := (← (steps 1).run target).2
+      let some pending := posted |
         t.ok s!"Send {attempt} admitted a real signed post" false
         release.set true
         continue
