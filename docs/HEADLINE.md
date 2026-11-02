@@ -731,7 +731,7 @@ recommended law, and the details of every other law above, are in
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
 | [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:198](../app/community/channel/message/Proofs.lean#L198) | propext, Classical.choice, Quot.sound | 361 | 353 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:53](../engine/renderer/Cover.lean#L53) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1320](../app/Proofs.lean#L1320) | propext, Classical.choice, Quot.sound | 756 | 750 | 2 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1320](../app/Proofs.lean#L1320) | propext, Classical.choice, Quot.sound | 761 | 755 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:768](../app/community/Screen.lean#L768) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
 | [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1344](../app/community/Proofs.lean#L1344) | propext, Classical.choice, Quot.sound | 195 | 193 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
@@ -933,7 +933,7 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`view_stable`](HEADLINE-SURFACES.md#engineview_stable) | [engine/core/View.lean:164](../engine/core/View.lean#L164) | propext, Classical.choice, Quot.sound | 74 | 56 | 6 | 0 | 1 |
 | [`eval_stable`](HEADLINE-SURFACES.md#engineeval_stable) | [engine/core/View.lean:141](../engine/core/View.lean#L141) | propext, Classical.choice, Quot.sound | 71 | 55 | 5 | 0 | 0 |
 | [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1043](../app/Commands.lean#L1043) | propext, Classical.choice, Quot.sound | 74 | 71 | 3 | 0 | 0 |
-| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:378](../app/Screen.lean#L378) | propext | 3 | 1 | 0 | 2 | 0 |
+| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:379](../app/Screen.lean#L379) | propext | 3 | 1 | 0 | 2 | 0 |
 | [`next_visible`](HEADLINE-SURFACES.md#demandnext_visible) | [engine/renderer/Demand.lean:156](../engine/renderer/Demand.lean#L156) | propext, Quot.sound | 1 | 1 | 0 | 0 | 0 |
 | [`selected_within`](HEADLINE-SURFACES.md#demandselected_within) | [engine/renderer/DemandRank.lean:138](../engine/renderer/DemandRank.lean#L138) | propext, Classical.choice, Quot.sound | 4 | 3 | 1 | 0 | 0 |
 | [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 52 | 5 | 0 | 0 |
