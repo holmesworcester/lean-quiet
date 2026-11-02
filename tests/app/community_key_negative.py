@@ -61,10 +61,10 @@ cases = [
          "  let ks ← key.byCommunity.read [c] (limit := some 1)\n"),
     ], "currentKey_community", "app/community/Proofs.lean", "app.community.Proofs"),
     ("approval-wraps-any-held-key", [
-        (CMDS, "  let k? ← currentKey c\n  match rq.rows.head?, me.rows.head? with",
+        (CMDS, "  let k? ← currentKey c\n  let ok := approve c req myAdm d up",
          "  let ks ← key.byCommunity.read [c] (limit := some 1)\n"
          "  let k? := ks.rows.head?.bind fun (_, f) => match f with | .key _ _ k => Bytes.of? k | _ => none\n"
-         "  match rq.rows.head?, me.rows.head? with"),
+         "  let ok := approve c req myAdm d up"),
     ], "approveReq_wrap_admits", "app/community/Proofs.lean", "app.community.Proofs"),
 ]
 
