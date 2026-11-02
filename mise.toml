@@ -752,6 +752,10 @@ run = "ci/nightly.sh"
 description = "The gate, then every other part: mutants, TCP, X, qr, mdns, net, zoom, site, workspace (nightly, and before a release)"
 run = "ci/local.sh --full"
 
+[tasks."test:snapshot"]
+description = "The negative controls' snapshot (tests/snapshot.sh), on a small fake tree: listing app carries every engine part, overlapping parts merge, and an app import the snapshot lacks is refused by name (its negative control)"
+run = "tests/snapshot_test.sh"
+
 [tasks."ci:driver-test"]
 description = "Exercise actual CI dispatch, both Android photo gates and failure propagation without device provisioning"
 run = "python3 ci/local-test.py"
