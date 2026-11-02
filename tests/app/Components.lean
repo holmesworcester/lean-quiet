@@ -203,20 +203,28 @@ def children (dir : String) (ck : Checks) : IO Unit := do
       ((reader.deps.getD heart #[]) == #[.list (Community.react.byMessageEmoji.query
         [s.me.c, msg, "❤️".toUTF8] (desc := false))])
     let q := Q.list (Community.message.all.query [s.me.c] (limit := some 1))
-    let before ← q.run s.rd (← get).out
+    let before ← q.run s.rd (← (← get).sh.out.get)
     s.wr.setPaused true
     let some key ← intentView (Community.currentKey s.me.c)
       | throw (IO.userError "fixture key missing")
     let old := Community.sealedPost s.me.c s.me.adm s.me.dev key (← App.newSized 24)
       "An old backfill outside the window".toUTF8 0 now
     ck.ok "signed old backfill is accepted while the writer is paused" (← write old)
-    let pending ← q.run s.rd (← get).out
+    -- the write is a reader act: its row is pending in the reader's outbox
+    -- once the act is done (the writer stays paused)
+    for _ in [0:400] do
+      if (← get).conts.isEmpty then break
+      steps 1
+      IO.sleep 1
+    ck.ok "the backfill's act is done and its row pending in the reader's outbox"
+      ((← get).conts.isEmpty && (← (← get).sh.out.get).any (·.op.id == old.id))
+    let pending ← q.run s.rd (← (← get).sh.out.get)
     ck.ok "an out-of-window pending row cannot change a bounded answer's pending flags"
       (pending == before)
     s.wr.setPaused false
     waitIdle sm
     ck.ok "committing the out-of-window backfill leaves the bounded answer unchanged"
-      ((← q.run s.rd (← get).out) == before)
+      ((← q.run s.rd (← (← get).sh.out.get)) == before)
     openPage .home
     steps 5
     let plan ← (← get).sh.plan.get
