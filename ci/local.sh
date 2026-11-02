@@ -30,11 +30,12 @@
 #                   (tests/app/headless.sh)
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
-#    scale          a round's work at 1k, 10k and 100k items against the
-#                   proven bounds, with negative controls (tests/scale)
 #    make:assets    make install's assets step and its controls, and the
 #                   pinned assets tarball against this tree (stale: pack
 #                   and publish it again, docs/BUILD.md)
+#    scale          a round's work and the capped write turn at 1k, 10k
+#                   and 100k items against the proven bounds, with
+#                   negative controls (tests/scale)
 # 3. --full: every other part, 4 at once (the box is shared), longest first (by each part's
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
@@ -124,7 +125,6 @@ gate() {
     engine:suites) SKIP_TCP=1 tests/engine/run.sh --suites ;;
     engine:tcp) tests/engine/run.sh --tcp ;;
     headless) mise run test:headless ;;
-    scale) mise run test:scale ;;
     engine:*) local cmd
       cmd=$(awk -F'\t' -v n="${1#engine:}" '$1 == n { print $2 }' tests/engine/controls.txt)
       [ -n "$cmd" ] || { echo "no engine control ${1#engine:}" >&2; return 2; }
@@ -164,6 +164,7 @@ gate() {
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
     vacuity) mise run test:vacuity ;;
+    scale) mise run test:scale ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;
