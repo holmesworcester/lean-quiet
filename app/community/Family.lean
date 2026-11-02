@@ -1494,6 +1494,15 @@ theorem check_local {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     | rfl
     | (obtain ⟨f', -, rfl⟩ := Option.map_eq_some_iff.1 h; simp [Fact.isLocal] at hl)
 
+/-- A local body makes only local facts (the converse of `check_local`):
+a device's own op makes its own state. -/
+theorem local_of_body {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hb : b.isLocal = true) : f.isLocal = true := by
+  unfold check at h
+  split at h <;> (try (simp at h; done)) <;> first
+    | (simp [Body.isLocal] at hb; done)
+    | (obtain ⟨f', -, rfl⟩ := Option.map_eq_some_iff.1 h; rfl)
+
 /-- **A device's own state is its own.** In a node fed by its own writes
 and by peers' jobs through `intake`, every op behind a Valid secret,
 acceptance or pending join is one of its own writes. -/

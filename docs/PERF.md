@@ -310,15 +310,15 @@ abstract, and the one thing assumed of it is the engine's `view_stable`
 | between two takes | no change lost: every value held is moved or shown | `seen_put`, `seen_take`, `seen_keep` | ✅ |
 | any interleaving | every value held is dirty, touched by a commit not taken, or the store's; and seen | `inv_commit`, `inv_pass`, `inv_frame` | ✅ |
 | no missed update | a pass refilling every marked want, then a frame: every want shows the store's value | `settle` | ✅ |
-| settling time | passes of `refill` each: ⌈marked / refill⌉ of them, then a frame | `marked_pass`, `settle_passes` | ✅ |
+| settling time | the running pass queues the marked wants (Demand) and takes a visible one within its place in the queue plus one; once they are read, every wanted value is the store's | `selected_within`, `settle_fresh` | ✅ of the running pass's queue and board; the whole-worker latency is not yet a law |
 | the mutant | a frame gated on notices shows 0 for ever where the store holds 1; this frame shows 1 | `gated_stale`, `ungated_fresh` | ✅ |
-| a user's action (holmes-1e's (a) and (c)) | run before any refill; its value (pending op or refusal, `Val.done`) and every want it touched shown one frame after the one pass that judged it, however long the backlog; none left queued. The latency given up: one bounded pass and one frame, where it showed in the composing frame | `acts_shown`, `passActs_acts` | ✅ |
-| the composer (holmes-1e's (b)) | the frame's alone: no reader step changes it or depends on it; typing changes nothing else | `passActs_comp`, `passActs_indep`, `type_only` | ✅ |
+| a user's action (holmes-1e's (a) and (c)) | run before any refill; its value (pending op or refusal, `Val.done`) and every want it touched shown one frame after the one pass that judged it, however long the backlog; none left queued. The latency given up: one bounded pass and one frame, where it showed in the composing frame. As the running pass queues them: the act's wants first (`reconcileFirst`), every take returns one while any is queued, so all are read this pass when the cap allows (as it shipped, a backlog could hold them: `shipped_late`, docs/CAUGHT.md) | `take_first`, `take_sorted`, `reconcileFirst_sorted`, `fresh_record` | ✅ of the running pass's queue |
+| the composer (holmes-1e's (b)) | the frame's alone: no reader step changes it or depends on it; typing changes nothing else | (by construction: the pass runs in the reader's own state, which holds no composer) | — no law needed |
 | a commit's stability | asked of each commit as made (`StableAt`), as window-subs' `notice_iff` gives it | `inv_commit` | ✅ |
-| the reader's pass as it runs (`RWorld`: Live's stale reads, each want's reads, mark then pick, as Reader.pass does with `Live.mark` and `Live.pick`) | every step keeps the invariant; a pass reading every marked want, then a frame, shows the store's values | `RWorld.inv_pass`, `RWorld.inv_commit`, `RWorld.inv_evict`, `RWorld.settle` | ✅ of the decisions Reader.pass calls (the diff that makes it call them is with the lead); its reads are the moment's by holmes-1e's LiveLaws |
+| the reader's pass as it runs (`RWorld`: Live's stale reads, each want's reads, mark then pick, as Reader.pass does with `Live.mark` and `Live.pick`) | every step keeps the invariant; a pass reading every marked want, then a frame, shows the store's values | `record_indexed`, `marked_complete`, `fresh_record`, `fresh_notice`, `fresh_keep`, `settle_fresh` | ✅ of the running pass (it calls Live.Index.record and Index.notice); its reads are the moment's by holmes-1e's LiveLaws. The RWorld model's laws (`RWorld.inv_commit`, `RWorld.settle`) remain only as the mutants' setting |
 | the mutant: staleness checked while reading (holmes-1e's first pass) | two wants sharing a read: the first read refreshes it, the second shows 0 for ever where the store holds 1; marking first shows 1 | `eager_stale`, `marked_fresh` | ✅ |
 | the frame's reads | none: no store read, no list, no SQL, decrypt or decode but through `Pics.spawn` | `frame_reads` (Doors over App.step) | ❌ the frame reads SQLite today (readView, slicesOf); fix: the reader above |
-| the frame's work | a + b · rows on screen + the moved values' sizes | `frame_work` | ❌ `bottoms` and the mount and paint loops walk every loaded row; fix: a prefix-sum tree over heights and a binary search for the window |
+| the frame's work | a + b · rows on screen + the moved values' sizes | `bottoms_eq`, `rowAt_iff` | 🟡 the whole frame's bound (frame_work) is not yet a law; `bottoms`, `rowAt` and the mount and paint loops walk the window's rows only (at most `half` = 100 each side of the anchor, about 201), not every loaded row; not yet a law tying the frame's rows to the window read |
 | an unchanged frame | nothing moved, no event, no scroll, no paint finished: no work, the same rows | `frame_idle` | ❌ every frame re-runs the views through the cache; fix: the moved set |
 
 ## The hot paths, in N
@@ -333,7 +333,7 @@ with the meter above.
 | judge one op (validate, file, wake) | ≤ 4 + 2R reads, 3 + R + K + W writes, 7 + 3R + 2K + W seeks: R requirements, K keys, W woken | `step_costs`, `decide_costs`, `waitOn_costs` | ✅ for R, K and W given; R is capped only by the frame (about 32 000 ids) and W by the fan-in, below |
 | a list read | ≤ limit + cap rows and 3 + limit seeks, on any store whose answers fit; the model's do, and SQLite's are the model's (querydiff) | `list_costs`, `model_fits` | ✅ for lists with a limit and a count cap |
 | a view | one list door per list it reads | `view_lists` | ✅ |
-| the frame's values | settle in ⌈marked / refill⌉ reader passes and one frame | `settle_passes` | ✅ of the board the reader and frame are to call; 1e is wiring it |
+| the frame's values | settle once the reader has read its marked wants, then one frame | `settle_fresh`, `selected_within` | ✅ of the running reader's board and queue |
 | a sync round | ≤ 2k + 3 messages on any path, ≤ 1 + fan·(2k + 2)·Δ claims, for k with each side's items ≤ leaf·fanᵏ | `ends_log`, `claims_log`, `exchange_log` | ✅ of `exchange`, whose answers are the running `Index.answer`'s |
 | an opening, an answer | from the room's canonical Merkle treap: an opening ≤ 2·height hashes, an answer ≤ 2·(fan + 1)·height, whatever the room holds; each equal to `opening`'s and `answer`'s over the room's items. Height 22, 31, 39 at 1k, 10k, 100k items (tests/scale; 1005 at 100k under the old priority); at 100k an opening 27 hashes and a cut answer 694 (0.1 ms), where the list answer took 493 ms and 2n + 1 hashes | `openingTM_hashes`, `answerTM_hashes`, `Index.opening_eq`, `Index.answer_eq`, `answerT_canon`, `height_canon` | ✅; the height is measured, not proven: O(log n) in expectation for hash ids, a member can grind ids |
 | an op into the room index (boot too) | an insert: ≤ height + 1 hashes, unless the key is there (`RoomTree.add`); boot O(n · height): 341 ms at 100k, where the sorted list took 363 ms at 10k, quadratic | `insert_hashes`, `insert_canon`, `RoomTree.items_add` | ✅ |
@@ -346,13 +346,8 @@ with the meter above.
 | step | grows with | theorem | status |
 |---|---|---|---|
 | the frame reads SQLite: a slow read is a slow frame | the lists the frame still reads itself (pages, the header, the journal); the conversation's rows and a picture's chunks are the reader's (app/Screen.lean) | `frame_reads` | ❌ fix: the rest of the frame's reads through the reader |
-| `bottoms`, the mount and paint loops, `findIdx?` | loaded rows: every row from the newest to the window, each frame | `frame_work` | ❌ fix: the rows' heights tree (below), which App is yet to call |
-| the rows' heights tree (engine/renderer/Heights.lean): the row at an offset, where a row starts, a height set, a row pushed | log₂ rows: at most the tree's depth d, 2^(d-1) < rows; 13 steps at 5,000 rows, where the walk takes 4,981 | `find_spec`, `start_eq`, `set_toList`, `push_ok`, `rows_cost` | ✅ of the structure |
-| the window by binary search | the rows offsets [lo, hi] overlap are those from `find lo` to `find hi`; rows below end at or under lo, rows above start over hi | `start_mono`, `below_window`, `above_window` | ✅ |
-| both ends (new messages below, older pages above an origin) | the row at an offset, on either side, in one find | `Both.rowAt_spec` | ✅ |
-| a window's rows, rebuilt (a late message lands mid-window; a removed one keeps its slot at height 0) | one node per leaf and pair: at most 4 · rows + 1 steps, O(window), the tree what it must be | `rebuild_ok`, `rebuild_cost` | ✅ |
+| `bottoms`, `rowAt`, the mount and paint loops, `findIdx?` | the window's rows, not every loaded row: the messages outside the window are estimated at `est` each (app/Screen.lean) | `bottoms_eq`, `rowAt_iff` | 🟡 each row's bottom is the heights below it and `rowAt` finds exactly the row whose span holds an offset, both over the running code, walking the window once; the window's size is its reads' limits (below), not yet a law of the frame's rows |
 | the window | at most above + below rows: its two reads, each within its limit (`Fits`) | `window_rows`, `list_costs` | ✅ |
-| the anchor | when the estimate below the window changes by Δ, moving the offset by Δ leaves every window row where it was on screen | `anchor_stable` | ✅ |
 | the conversation's re-read | the window: at most 200 rows about an anchor, read by `after`/`before` (the reader's `Want.window`), the rest counted | `window_rows`, `list_costs` | ✅ |
 | exact counts without a cap | an unbounded one-key list uses its maintained counter; a one-sided range walks its smaller side; two-sided ranges and conjunctions can still walk the range | `readPlan_cost`, `splitWalk_exact`, `splitWalk_cost` | ✅ exact SQL results; the smaller-side work bound requires enough doubling fuel |
 | the people header | newest 1,024 admissions, at most 999 users shown; incomplete scans/capped display carry “+”; at most `1 + m·(1+D)` list doors given at most D admissions per device | `presentW_lists`, `presentCount_complete` | ✅ running Reader uses the bounded view; D is a premise, not an enforced admission cap |
@@ -447,8 +442,9 @@ the node or a socket thread into the pool:
   The runner handles one event per turn and checks the clock every
   turn, so the clock is never starved by events, and events are handled
   in order.
-- **Picture freshness.** A picture's decode is spawned once
-  (`Pics.image_twice`); with at most `inflight` decodes on the pool,
+- **Picture freshness.** A picture's decode is started once per ticket:
+  the pool's second request reuses the first's job (`Work.request_again`,
+  over the running `Pool.request`); with at most `inflight` decodes on the pool,
   nearest the viewport first, a picture waits at most
   ⌈inflight / P⌉ + 1 decodes of at most one `slice` each. Today the
   number in flight is not capped (❌, a3's row).
@@ -575,3 +571,59 @@ law cover that running conversion. Small rounded corners are checked against
 independent 16×16 area sampling of an ideal circle. Browser/Lean antialiasing
 and font weight still differ; this is a measured parity budget, not a claim
 of identical pixels or full Unicode shaping.
+
+## The hull want: what the frame should watch (a plan, not built)
+
+The frame today watches the conversation's whole window (at most `half`
+rows each side of the anchor), wider than the rows near the viewport;
+the README's "Notices are exact" row says so. The plan below was a Lean
+model with laws (engine/renderer/Screen.lean: screen_subs, hull_near,
+past_hull_le, screen_index, keep_scrolled_off); its laws were about the
+model, not the running frame, and went on 2026-11-01 (no proofs over
+models; git keeps them). Build it, with laws over the running frame,
+before claiming exact windows.
+
+What the screen subscribes to: exactly what it shows (law 2).
+
+A list on screen is its rows, newest first, stacked up from the list's
+bottom (each row's bottom edge and height), the viewport (offset b from
+the bottom, height vh) and a margin kept mounted around it. A row is
+near when it meets [b − margin, b + vh + margin]. The frame wants
+(`Frame.wants`):
+- the page's own reads (`chrome`: header, composer, counts);
+- the list's windows (`listWins`): per key, the positions from the
+  oldest near row to the newest, open above when the newest row of all
+  is near (a new message lands on screen);
+- each near row's own windows (`deps`: its fact, its author, its
+  reactions, its pictures).
+
+`screen_subs`:
+- **coverage**: every near row's position is in every list window, and
+  its own windows are wanted;
+- **minimality**: every wanted window is the page's, a list window, or a
+  near row's; a list window's range is the near rows' hull, so no loaded
+  row it covers is far (`hull_near`): a row filed inside it lands among
+  near rows.
+
+The subscriptions built from the wants (`Subs.ofList`) hold exactly them
+(`Subs.has_ofList`).
+
+**What runs today** (App, Reader): the conversation is a window of rows
+about an anchor, at most `half` at or older than it and `half` newer
+(`Reader.Want.window`), watched by its rows' windows, which hold exactly
+its rows (`WindowRead.window_rows`); the counts beside it, which size
+the scroll extent, are a want of their own (`Reader.Want.count`), read
+after the rows, and are among the page's reads (`chrome`). So (i) and
+coverage hold as stated, and minimality holds weakened to
+`past_hull_le`: with the anchor near, at most `half` loaded rows lie
+past each end of the near rows' hull.
+
+**The plan for the hull** (after the reader's want model settles): the
+window becomes a buffer that is read but not watched, and a hull want
+reads the near rows' range, watching exactly `listWins`; laws
+`buffer_unwatched` (no window of the buffer is registered) and
+`near_fresh` (a row comes near only through the hull want, read before
+it is shown). The mutant `keep_scrolled_off` (the app's keep
+before this: list reads kept for good, rows' reads kept every 30 frames
+within 4 screens) wants a far row's windows and a list window covering
+a far row.

@@ -50,20 +50,10 @@ def twins := run twinScene
 def namesake := if hq : twins.queue = [] then
   some (PLift.up (ViewLaws.namesake_iff (runInv twinScene) hq c requestB.id #[])) else none
 
-def RowMarked (d : Row.RowData) : Prop :=
-  ∃ c' u dev kid sealed n tm clump,
-    ViewLaws.factIn twins Vacuity.IdentityMessages.post1.id = some (.message c' u dev kid sealed n tm clump) ∧
-    (d.namesake = true ↔ ∃ u', u' ≠ u ∧
-      (∃ y n tm, V ed25519 twins.ops y (.profile c u' n tm)) ∧
-      nameLook (ViewLaws.nameIn twins c u') = nameLook (ViewLaws.nameIn twins c u))
-
-def marked : Option (Σ d : Row.RowData, PLift (RowMarked d)) :=
-  if hq : twins.queue = [] then
-    match hr : (Message.read (m := ViewLaws.Model) c c Vacuity.IdentityMessages.post1.id).run twins with
-    | none => none
-    | some (d, deps) => some ⟨d, ⟨ViewLaws.row_marked (runInv twinScene) hq
-        (c := c) (me := c) (msg := Vacuity.IdentityMessages.post1.id) (d := d) (deps := deps) hr⟩⟩
-  else none
+/-- The author component for Bob (post1's author, by message_own), on
+the community where Alice took Bob's label: row_marked's certificate. -/
+def marked := if hq : twins.queue = [] then
+  some (PLift.up (ViewLaws.row_marked (runInv twinScene) hq c requestB.id)) else none
 
 -- These bytes are all held by a node's own input job (including receipts).
 def capPost := sealedPost c admission.id bob Vacuity.IdentityMessages.content
@@ -172,8 +162,11 @@ def main : IO UInt32 := do
     (eval (ingestS nextOp db) (message.byKey.query [c, Vacuity.IdentityMessages.kid]) ==
       eval db (message.byKey.query [c, Vacuity.IdentityMessages.kid]))
   t.ok "nonempty same-label community satisfies namesake theorem premises" namesake.isSome
-  t.ok "actual Bob message row is marked after Alice takes Bob's label"
-    (marked.any fun v => v.1.namesake)
+  t.ok "row_marked premises hold on the signed same-label community" marked.isSome
+  t.ok "actual Bob message row's author is named Bob and marked after Alice takes Bob's label"
+    (((Message.readOwn (m := ViewLaws.Model) Vacuity.IdentityMessages.post1.id).run twins).any fun (d, _) =>
+      d.author == requestB.id &&
+      ((Profile.author (m := ViewLaws.Model) c d.author).run twins).1 == ("Bob", true))
   t.ok "before the duplicate profile arrives, Bob has no namesake"
     (!(((Profile.namesake (m := ViewLaws.Model) c requestB.id "Bob" #[]).run db).1))
   t.ok "existing saturated post has exactly one receipt, so writes none" receiptOnce.isSome
