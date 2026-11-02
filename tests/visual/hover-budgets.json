@@ -96,12 +96,13 @@
     "precision": 0.975
   },
   "hover-footer-light": {
-    "mae": 0.013996,
-    "changed_fraction": 0.0663264,
-    "layout_mae": 0.0058603,
+    "mae": 0.0164568,
+    "changed_fraction": 0.06867618,
+    "layout_mae": 0.007619214,
     "delta_mae": 0.004197,
     "recall": 0.9663325,
-    "precision": 0.975
+    "precision": 0.975,
+    "_why": "mae, changed_fraction, layout_mae raised: subpixel vs grayscale AA on the white initial; costs more on the green root hue after the wire break"
   },
   "hover-header-dark": {
     "mae": 0.0010997,
@@ -288,12 +289,13 @@
     "precision": 0.9707895
   },
   "hover-team-125": {
-    "mae": 0.0444642,
-    "changed_fraction": 0.1562061,
-    "layout_mae": 0.0115468,
+    "mae": 0.04655401,
+    "changed_fraction": 0.1651653,
+    "layout_mae": 0.0130114,
     "delta_mae": 0.0040609,
     "recall": 0.8801776,
-    "precision": 0.9404682
+    "precision": 0.9404682,
+    "_why": "mae, changed_fraction, layout_mae raised: subpixel vs grayscale AA on the white initial; costs more on the green root hue after the wire break"
   },
   "hover-team-dark": {
     "mae": 0.0275397,
@@ -304,12 +306,13 @@
     "precision": 0.9643175
   },
   "hover-team-light": {
-    "mae": 0.0168459,
+    "mae": 0.0175479,
     "changed_fraction": 0.1181612,
     "layout_mae": 0.0078462,
     "delta_mae": 0.0027231,
     "recall": 0.9115679,
-    "precision": 0.9591301
+    "precision": 0.9591301,
+    "_why": "mae raised: subpixel vs grayscale AA on the white initial; costs more on the green root hue after the wire break"
   },
   "hover-theme-dark": {
     "mae": 0.0046548,
