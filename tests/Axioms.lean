@@ -1572,6 +1572,9 @@ end cost
 #print axioms Engine.Sync.Outbox.push_preserves_reserved
 #print axioms Engine.Sync.Outbox.urgent_then_retry
 #print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.Outbox.drain_lingers
+#print axioms Engine.Sync.Outbox.drain_quiet_closes
+#print axioms Engine.Sync.Outbox.stopped_never_lingers
 #print axioms Engine.Sync.serveOwed_hot_count
 
 #print axioms Engine.Sync.Ingress.distance_lt

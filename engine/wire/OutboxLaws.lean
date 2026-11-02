@@ -79,4 +79,19 @@ theorem retry_next_batch (burst : Nat) (o : Outbox) (t : RetryTicket) (b : ByteA
   rw [urgent_then_retry, queued]
   simp [RetrySlot.take]
 
+/-- **A drain lingers exactly when it delivers final frames**, and never
+once stopped. -/
+theorem drain_lingers (linger : Bool) (o : Outbox) :
+    (o.drain linger).lingers = (!o.stopped && linger) := rfl
+
+/-- **A drain with nothing of its own to deliver closes at once**: its
+writer does not wait for the peer's end, so a silence expiry releases the
+socket's quota as soon as its native write is done. -/
+theorem drain_quiet_closes (o : Outbox) : (o.drain false).lingers = false := by
+  simp [drain_lingers]
+
+/-- A stopped socket's writer never lingers, drained or not. -/
+theorem stopped_never_lingers (o : Outbox) (h : o.stopped = true) : o.lingers = false := by
+  simp [lingers, h]
+
 end Engine.Sync.Outbox
