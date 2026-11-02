@@ -494,13 +494,18 @@ n nodes running the node's code).
 
 | Law, in plain words | Lean name | What is missing |
 |---|---|---|
-| Loading older messages never moves what is on screen. | `Heights.anchor_stable` | The app does not use the rows' heights tree yet (docs/PERF.md, `frame_work` ❌); `Heights.screenY` does not run. A top candidate once it does. |
-| The heights tree finds a row in log₂ rows (13 steps at 5,000 rows, where the walk takes 4,981). | `Heights.T.find_spec`, `Heights.rows_cost` | Same: nothing running calls the tree yet. |
-| The frame's values settle in a bounded number of reader passes. | `Live.World.settle_passes` | Stated over the board's World; the running reader and frame are being wired to it. |
-| A row is drawn with "⚠ Duplicate" exactly when its name has a twin. | `ViewLaws.row_marked` | The message read it names (`Kinds.Message.read`) does not run. |
-| Over any run, no write offered to the node is lost, doubled or overtaken. | `NodeOffer.offer_runs` | Its subject is a specification of runs (`NodeOffer.run`), not running code. |
 | A list read costs at most limit + cap rows and 3 + limit seeks, however many rows the store holds. | `Engine.list_costs` | Stated over any store whose answers fit (`Fits`); the wiring check finds no running code in its statement. Nothing yet ties the running reader's window (200 rows) to it in one law. |
-| Your own writes are served first, within two turns. | `Prioritized.write_within`, `Priority.write_within` | Stated over a model of the scheduler (`Run.selected`); the running loop uses `Inbox.Priority.next`. |
+
+The rest of this group are about running code since the no-models rule
+(AGENTS.md): `ViewLaws.row_marked` (its message read is the running
+one), `NodeOffer.offer_runs`, and the schedulers' `Prioritized.write_within`
+and `Priority.write_within` (each `Run.selected` is a specification of
+the running loop's turn). The rows' heights tree (`Heights.anchor_stable`,
+`Heights.T.find_spec`, `Heights.rows_cost`) and the board's World passes
+(`Live.World.settle_passes`) were deleted with the models they were
+over: nothing running called them (docs/PERF.md keeps the tree's plan).
+The user decides whether the four now about running code join the
+recommended laws.
 
 ## README headline claims that need care
 
