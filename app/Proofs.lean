@@ -1197,31 +1197,34 @@ theorem old_callback (s : St) (action : M α) :
   rw [Lifecycle.old_quiet]
   rfl
 
-/-- The serialized op restores the page and anchor that the app saves.
-This states the round trip at the call sites, not just for an arbitrary
-codec; the native SQLite read/commit is tested separately. -/
+/-- The serialized op restores the page and anchor that the app saves:
+the page the ephemeral log's newest nav op names (`St.logNav`), which is
+the page shown (`withNav_cache`). This states the round trip at the call
+sites, not just for an arbitrary codec; the native SQLite read/commit is
+tested separately. -/
 theorem restore_page_anchor (s : St) :
     (Lifecycle.restore (Codec.encode (checkpoint s))).map (fun cp =>
       (PageId.ofCode cp.2.1, cp.2.2.2.1, cp.2.2.2.2.1)) =
-    some (s.page, ((checkpointAnchor s).getD (.empty, 0)).1, ((checkpointAnchor s).getD (.empty, 0)).2) := by
+    some (PageId.ofCode s.logNav.1, ((checkpointAnchor s).getD (.empty, 0)).1,
+      ((checkpointAnchor s).getD (.empty, 0)).2) := by
   rw [Lifecycle.restore_checkpoint]
-  by_cases h : s.me.acc.isEmpty <;> simp [checkpoint, stashDraft, h, page_round]
+  by_cases h : s.me.acc.isEmpty <;> simp [checkpoint, stashDraft, h, St.logNav]
 
 /-- The actual restore function returns the saved page and anchor. Real
 anchors are op ids, which are nonempty; no saved anchor is also allowed. -/
 theorem apply_page_anchor (s target : St)
     (valid : ∀ x off, checkpointAnchor s = some (x, off) → x.isEmpty = false) :
-    (applyCheckpoint target (checkpoint s)).page = s.page ∧
+    (applyCheckpoint target (checkpoint s)).page = PageId.ofCode s.logNav.1 ∧
     (applyCheckpoint target (checkpoint s)).mark = checkpointAnchor s := by
   cases ha : checkpointAnchor s with
   | none =>
     by_cases h : s.me.acc.isEmpty <;>
-      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, page_round] <;> rfl
+      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, St.logNav] <;> rfl
   | some a =>
     rcases a with ⟨x, off⟩
     have hx := valid x off ha
     by_cases h : s.me.acc.isEmpty <;>
-      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, hx, page_round]
+      simp [applyCheckpoint, St.withNav, Nav.go_page, checkpoint, stashDraft, useDraft, h, ha, hx, St.logNav]
 
 /-- Both placement and page hit inversion hold at every fitting size,
 without a portrait, DPI or keyboard-height restriction. -/
@@ -1277,14 +1280,18 @@ theorem nav_back (s : St) : (backSt s).nav = Nav.back s.nav := rfl
 theorem nav_switch (a : Engine.Id) (s : St) : (switchSt a s).nav = Nav.reset PageId.home := rfl
 
 /-- Back after opening any page, the switcher included: the state before,
-but for what back clears and the backdrop opening the switcher composes
-(drawn only on the switcher). Both navigation calls revoke the old editor
-epoch. -/
+but for what back clears, the backdrop opening the switcher composes
+(drawn only on the switcher), and the ephemeral log, which holds the nav
+op back wrote, two generations on, naming the page and stack before
+(`withNav_cache`). Both navigation calls revoke the old editor epoch. -/
 theorem back_open_all (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) :
     backSt (openSt p s) =
       { s with
         editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
-        switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none } := by
+        switcherBackdrop := (openSt p s).switcherBackdrop, ownSends := {}, presenting := none,
+        eph := Data.placeIn (Data.placeIn s.eph (s.navGen + 1) p.code ((Nav.go p s.nav).stack.map PageId.code))
+          (s.navGen + 1 + 1) s.page.code (s.backStack.map PageId.code),
+        navGen := s.navGen + 1 + 1 } := by
   have h := Nav.back_go p s.nav hp hs
   unfold backSt
   rw [nav_open, h]
@@ -1307,9 +1314,16 @@ theorem open_keeps_backdrop (p : PageId) (s : St) (hw : p ≠ .switcher) :
   simp only [openSt, hne]
   rfl
 
-/-- **Back goes back.** -/
+/-- **Back goes back**: every field as before, but the ephemeral log's
+newest nav op, which names the page and stack before (`withNav_cache`). -/
 theorem back_open (p : PageId) (s : St) (hp : p ≠ s.page) (hs : p ∉ s.backStack) (hw : p ≠ .switcher) :
-    backSt (openSt p s) = { s with editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false, ownSends := {}, presenting := none } := by
+    backSt (openSt p s) =
+      { s with
+        editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
+        ownSends := {}, presenting := none,
+        eph := Data.placeIn (Data.placeIn s.eph (s.navGen + 1) p.code ((Nav.go p s.nav).stack.map PageId.code))
+          (s.navGen + 1 + 1) s.page.code (s.backStack.map PageId.code),
+        navGen := s.navGen + 1 + 1 } := by
   rw [back_open_all p s hp hs, open_keeps_backdrop p s hw]
 
 /-- **Back at a root keeps the page**, while revoking the old editor epoch. -/
@@ -1317,7 +1331,9 @@ theorem back_root (s : St) (h : s.backStack = []) :
     backSt s = { s with
       editorEpoch := s.editorEpoch + 1, field := "", refusal := none, pageKey := none, pageScrollStarted := false,
       ownSends := if s.page == .chat then s.ownSends else {},
-      presenting := if s.page == .chat then s.presenting else none } := by
+      presenting := if s.page == .chat then s.presenting else none,
+      eph := Data.placeIn s.eph (s.navGen + 1) s.page.code (s.backStack.map PageId.code),
+      navGen := s.navGen + 1 } := by
   have hb := Nav.back_root s.nav h
   unfold backSt
   rw [hb]
@@ -2984,7 +3000,10 @@ theorem store_receives (x : Sync F M) (hr : NodeTape.ReadOnly x)
     (sameStore : ∀ p, s.held.db.ops o.id = some p → p = o) :
     (n.store x ops true s).2.held.db.ops o.id = some o := by
   have hp : (n.put x ops true s).2.held.db.ops o.id = some o := by
-    simpa only [Node.put, intake, ite_true] using write_receives x n s ops hi ho sameInput sameStore
+    obtain ⟨r, hr⟩ := Option.isSome_iff_exists.1 hs
+    have ho' : o ∈ ops.filter x.fam.durable := List.mem_filter.2 ⟨ho, durable_of_room x.fam hr⟩
+    simpa only [Node.put, intake, ite_true] using
+      write_receives x n s _ hi ho' (fun p hp => sameInput p (List.mem_filter.1 hp).1) sameStore
   unfold Node.store
   apply committed_bind x.fam _ _ s hp hs
   intro r

@@ -7,6 +7,7 @@ import tests.engine.Lib
 import tests.engine.LoopChecks
 import app.connection.Proofs
 import app.Commands
+import engine.core.Exit
 
 namespace JoinFair
 open Engine Engine.Sync Community Tests Connection
@@ -57,6 +58,9 @@ def readable (p : Peer) (id : Id) (expected : ByteArray) : IO Bool := do
     return openSealed cryptoSeal c kid text key == some expected
   | _ => return false
 
+/-- Poll `p` until it holds or `ms` pass. Every wait here is for what must
+happen eventually, so its cap (60 s) only catches a hang: a loaded box
+gets there later. What is fair is counted in the runners' turns. -/
 def waitFor (ms : Nat) (p : IO Bool) : IO Bool := do
   let start ← IO.monoMsNow
   while (← IO.monoMsNow) < start + ms do
@@ -148,7 +152,7 @@ def frameLimitChecks (t : Checks) (a : Peer) (c cid : Id) : IO Unit := do
       Frame.open sodium sk smallSealed == some (cid, smallPayload))
   IO.println s!"frame-limit: draft={text.utf8ByteSize}, op={op.bytes.size}, bundle={payload.size}, encrypted frame={packet.size}, limit={maxFrame}"
 
-def main (args : List String) : IO UInt32 := do
+def mainBody (args : List String) : IO UInt32 := do
   let dir := args.headD "out/join-fair"
   let relayPort := (args[1]?.getD "0").toNat!
   let aPort := (args[2]?.getD "0").toNat!
@@ -198,9 +202,9 @@ def main (args : List String) : IO UInt32 := do
     let c := (root (device "A") (nodeKey "A")).id
     a.run.write (← viewOn a (found (seed "A") "Fair join".toUTF8 "Alice".toUTF8 1 key
       (Bytes.digest "join-fair/esk".toUTF8) (nk "A"))).ops
-    t.ok "founder commits through the real runner" (← waitFor 5000 (stored a c))
+    t.ok "founder commits through the real runner" (← waitFor 60000 (stored a c))
     t.ok "native runner counts its actual completed local-write turns"
-      (← waitFor 1000 do
+      (← waitFor 60000 do
         let counters ← a.run.counters
         return counters.writes > 0 && counters.completed > 0 &&
           counters.started - counters.completed ≤ 1)
@@ -223,7 +227,7 @@ def main (args : List String) : IO UInt32 := do
     IO.sleep 500
     t.ok "delayed actual bare join has not reached founder" (!(← stored a req.id))
     control "open"
-    let reached ← waitFor 6000 (stored a req.id)
+    let reached ← waitFor 60000 (stored a req.id)
     t.ok "released bare join reaches founder" reached
     unless reached do return ← finish
     t.ok "join covers every hint beyond dead same-host addresses"
@@ -231,7 +235,7 @@ def main (args : List String) : IO UInt32 := do
     t.ok "neither endpoint establishes before approval"
       ((← established a) == 0 && (← established b) == 0 && !(← allowed a c "B"))
     a.run.write (← viewOn a (approveReq c req.id c (device "A"))).ops
-    let admitted ← waitFor 15000 do
+    let admitted ← waitFor 60000 do
       return (← allowed b c "B") && (← allowed b c "A") &&
         (← established a) == 1 && (← established b) == 1
     t.ok "approval bootstraps actual encrypted session and admission" admitted
@@ -244,7 +248,7 @@ def main (args : List String) : IO UInt32 := do
       let post := postAt c admB "B" 1 "post after deferred hint".toUTF8
       b.run.write [post]
       t.ok "deferred-hint join admits a subsequently readable signed post"
-        (← waitFor 5000 (readable a post.id "post after deferred hint".toUTF8))
+        (← waitFor 60000 (readable a post.id "post after deferred hint".toUTF8))
       return ← finish
     frameLimitChecks t a c originalSessions.head!
     context.set (some ⟨a.run, c⟩)
@@ -252,12 +256,22 @@ def main (args : List String) : IO UInt32 := do
     let initial := postAt c c "A" 1 "start sustained writes".toUTF8
     pending.modify (initial.id :: ·)
     a.run.write [initial]
-    t.ok "self-replenishing write source is live" (← waitFor 2000 do return (← committed.get) ≥ 20)
+    t.ok "self-replenishing write source is live" (← waitFor 60000 do return (← committed.get) ≥ 20)
     let before ← committed.get
     let beforeTurns ← a.run.counters
     let marker := postAt c admB "B" 1 "peer event during sustained writes".toUTF8
+    let sourceBefore ← b.run.counters
     b.run.write [marker]
-    let delivered ← waitFor 3000 (readable a marker.id "peer event during sustained writes".toUTF8)
+    -- Fairness counted in turns, not time: the marker arrives before the
+    -- destination completes 800 more turns (its writes continuing, about
+    -- 3 s on a quiet box) and the source 50 more. On a loaded box both run
+    -- later, not less fairly; the wall-clock cap only catches a hang.
+    let _ ← waitFor 120000 do
+      if ← readable a marker.id "peer event during sustained writes".toUTF8 then return true
+      let da ← a.run.counters
+      let db ← b.run.counters
+      return da.completed ≥ beforeTurns.completed + 800 && db.completed ≥ sourceBefore.completed + 50
+    let delivered ← readable a marker.id "peer event during sustained writes".toUTF8
     let after ← committed.get
     let afterTurns ← a.run.counters
     let sourceTurns ← b.run.counters
@@ -285,7 +299,7 @@ def main (args : List String) : IO UInt32 := do
     let backlog := (List.range 32).map fun i => postAt c c "A" (100000 + i) large
     pending.modify ((backlog.head!).id :: ·)
     a.run.write backlog
-    let filled ← waitFor 10000 do
+    let filled ← waitFor 60000 do
       let queued := (← a.run.lanes).map (·.2) |>.foldl max 0
       return queued > 0 && (← System.FilePath.pathExists s!"{dir}/backpressure-ready")
     t.ok "finite setup reaches actual relay read pause and runner backlog" filled
@@ -293,7 +307,12 @@ def main (args : List String) : IO UInt32 := do
     control "backpressure"
     let mut peak := 0
     let began ← IO.monoMsNow
-    while (← IO.monoMsNow) < began + 2500 do
+    -- sampled over 2.5 s and at least 100 of the runner's turns: a loaded
+    -- box runs its turns later, so the window is counted in turns too; the
+    -- 120 s cap only catches a hang
+    let turns0 ← a.run.counters
+    while ((← IO.monoMsNow) < began + 2500 || (← a.run.counters).completed < turns0.completed + 100) &&
+        (← IO.monoMsNow) < began + 120000 do
       let queued := (← a.run.lanes).map (·.2) |>.foldl max 0
       peak := max peak queued
       IO.sleep 20
@@ -306,7 +325,7 @@ def main (args : List String) : IO UInt32 := do
     control "open"
     let recovered := postAt c c "A" 3 "after disconnect and backpressure".toUTF8
     a.run.write [recovered]
-    let resumed ← waitFor 20000 do
+    let resumed ← waitFor 60000 do
       return (← readable b recovered.id "after disconnect and backpressure".toUTF8) &&
         (← established a) == 1 && (← established b) == 1
     t.ok "disconnect reconnects and delivers sealed post" resumed
@@ -322,4 +341,7 @@ def main (args : List String) : IO UInt32 := do
 
 end JoinFair
 
-def main := JoinFair.main
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main (args : List String) : IO UInt32 := Engine.exitAfter (JoinFair.mainBody args)

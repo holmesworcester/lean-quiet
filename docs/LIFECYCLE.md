@@ -226,7 +226,7 @@ outside it, and suspension reads the native field before hiding it so the
 last edit in the same poll is not lost.
 
 Runner.stop explicitly closes its listener after joining the acceptor. The
-Lean 4.34 runtime has no close API for UV sockets, so engine/native/listener.h
+Lean 4.35 runtime has no close API for UV sockets, so engine/native/listener.h
 invokes the external object's UV-close destructor once and replaces it with
 a no-op destructor. Retained Runner references do not retain the listening
 port; repeated stop cannot close a reused descriptor. This ABI-specific

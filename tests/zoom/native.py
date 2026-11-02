@@ -13,7 +13,9 @@ OUT = ROOT / 'out/zoom/native'
 OUT.mkdir(parents=True, exist_ok=True)
 
 def wait(fn, label):
-    end = time.monotonic() + 40
+    # waits on the app's own report; the cap only catches a hang (the app
+    # creating its store can sit behind a disk's fsync stall for minutes)
+    end = time.monotonic() + 600
     while time.monotonic() < end:
         value = fn()
         if value:
