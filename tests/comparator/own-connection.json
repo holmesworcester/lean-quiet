@@ -1,0 +1,14 @@
+{
+  "challenge_module": "tests.comparator.own.ConnectionChallenge",
+  "solution_module": "tests.comparator.own.ConnectionSolution",
+  "theorem_names": [
+    "Connection.sealed_auth",
+    "Switch.select_tapped_dedupe"
+  ],
+  "definition_names": [],
+  "permitted_axioms": [
+    "propext",
+    "Quot.sound",
+    "Classical.choice"
+  ]
+}

@@ -2996,13 +2996,6 @@ theorem hooks_readOnly [Fresh (HeldM F)] (hfr : Reads (Fresh.fresh : HeldM F Byt
   obtain ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, h11⟩ := hooks_reads hfr fam K listen
   exact ⟨h1, h2, h3, h4, h5, h6, h7, h8, h9, h10, hc, h11, hs⟩
 
-/-- What may go out on session cid at store h, as of community c: if
-this node is live in c and the trust rule refuses cid's peer, only a sync
-wire op, an op of another community, or an op in the requirement
-closure of a removal owed to the peer (`NoticeOnly`). -/
-def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
-  LiveIn h.db c → Refused h.db cid c → NoticeOnly fam h.db cid c o
-
 /-- **Each fresh step's send may go** (`sent_mayGo`): every op a
 connection step sends, run where the node runs it, on the connection as
 the store gives its rooms, is one `MayGo` allows at that store. -/

@@ -188,6 +188,13 @@ def NoticeOnly (fam : Family F) (s : DB F) (cid c : B) (o : Op) : Prop :=
   isWire o.kind = true ∨ fam.room o ≠ some c ∨
     ∃ x, Owed s cid c x ∧ ∃ y, s.ops y = some o ∧ ReachIn fam s.ops c x y
 
+/-- What may go out on session cid at store h, as of community c: if
+this node is live in c and the trust rule refuses cid's peer, only a sync
+wire op, an op of another community, or an op in the requirement
+closure of a removal owed to the peer (`NoticeOnly`). -/
+def MayGo (fam : Family F) (h : Held F) (cid c : B) (o : Op) : Prop :=
+  LiveIn h.db c → Refused h.db cid c → NoticeOnly fam h.db cid c o
+
 theorem run_rows (r : Rel Fact) (args : List B) (s : DB F) :
     ((rows r args : Model F _).run s) =
       ((Engine.eval s (r.query args)).rights.map fun ((_, x), f) => (x, f), s) := rfl

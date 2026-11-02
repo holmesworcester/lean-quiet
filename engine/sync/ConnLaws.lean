@@ -29,12 +29,6 @@ theorem chunks_wire (ids : List Id) (mk : List Id → Msg) : ∀ o ∈ chunks cf
   obtain ⟨_, _, rfl⟩ := ho
   exact msg_wire _
 
-/-- What a connection may send: a sync wire op, or an op the peer may see. -/
-def Sendable (c : Conn) (o : Op) : Prop := isWire o.kind = true ∨ c.shows fam o = true
-
-/-- What a connection may hand the writer: a data op the peer may see. -/
-def Takeable (c : Conn) (o : Op) : Prop := isWire o.kind = false ∧ c.shows fam o = true
-
 theorem shows_heard (c : Conn) (now : Nat) (o : Op) : ({ c with heard := now } : Conn).shows fam o = c.shows fam o := rfl
 
 theorem start_send (ix : Index) (c : Conn) (now : Nat) :

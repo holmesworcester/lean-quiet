@@ -121,13 +121,26 @@ judge "DEMO_E2E_OUT=$out/demo-e2e python3 tests/make/demo_e2e.py" > "$out/demo.l
   die "make demo: $(grep -m1 '^FAIL' "$out/demo.log" || tail -n 1 "$out/demo.log") (demo.log, demo-e2e/)"
 echo "demo_e2e_seconds=$(($(date +%s) - t0))" >> "$res"
 sed 's/^/demo_/' "$out/demo-e2e/result.txt" >> "$res"
-# make verify (VERIFY=1; clean_room.sh then runs the container privileged,
-# since lake check and lake comparator sandbox with bubblewrap)
+# make verify (VERIFY=1; clean_room.sh lifts the three Docker defaults
+# bubblewrap needs, since lake check and lake comparator sandbox with it).
+# lake check needs git on the judge's PATH (/usr/bin/git, from setup) and
+# /run/user (made above). VERIFY_EXPECT: a control run without one of the
+# three, where make verify must fail with bubblewrap's error for it.
 if [ "${VERIFY:-0}" = 1 ]; then
   step verify
+  su - judge -c 'command -v git' > /dev/null || die "git is not on the judge's PATH (lake check needs it)"
+  [ -d /run/user ] || die "no /run/user (lake check's sandbox mounts over it)"
   t0=$(date +%s)
-  judge 'make verify' > "$out/verify.log" 2>&1 || die "make verify failed (verify.log)"
+  judge 'make verify' > "$out/verify.log" 2>&1
+  code=$?
   echo "verify_seconds=$(($(date +%s) - t0))" >> "$res"
-  grep -q 'verified: lake check and lake comparator pass' "$out/verify.log" || die "make verify did not say both checks passed (verify.log)"
+  if [ -n "${VERIFY_EXPECT:-}" ]; then
+    [ "$code" != 0 ] || die "control: make verify passed without one of bubblewrap's options (verify.log)"
+    grep -qF "$VERIFY_EXPECT" "$out/verify.log" || die "control: make verify failed, but not with \"$VERIFY_EXPECT\" (verify.log)"
+    echo "verify_control=failed with: $VERIFY_EXPECT" >> "$res"
+  else
+    [ "$code" = 0 ] || die "make verify failed (verify.log)"
+    grep -q 'verified: lake check and lake comparator pass' "$out/verify.log" || die "make verify did not say both checks passed (verify.log)"
+  fi
 fi
 step pass
