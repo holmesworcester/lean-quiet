@@ -80,26 +80,43 @@ def maxPlaintext : Nat := 64 * (2 ^ 32 - 2) + 1
 as an unsigned 64-bit integer. -/
 def maxAD : Nat := 2 ^ 64
 
+/-- X25519 agrees, and a public key is 32 bytes and not the zero point.
+Contract: `Trust.X25519` (engine/core/Trust.lean). -/
 @[extern "le_x25519"] opaque x25519 (sk pk : @& ByteArray) : ByteArray
+/-- Contract: `Trust.X25519` (engine/core/Trust.lean). -/
 @[extern "le_x25519_base"] opaque x25519Base (sk : @& ByteArray) : ByteArray
+/-- ChaCha20-Poly1305 (Noise's counter nonce) opens what it seals, 16 bytes
+longer. Contract: `Trust.ChaCha` (engine/core/Trust.lean). -/
 @[extern "le_chachapoly_seal"] opaque chachaSeal (k : @& ByteArray) (n : UInt64) (ad p : @& ByteArray) :
   ByteArray
+/-- Contract: `Trust.ChaCha` (engine/core/Trust.lean). -/
 @[extern "le_chachapoly_open"] opaque chachaOpen (k : @& ByteArray) (n : UInt64) (ad c : @& ByteArray) :
   Option ByteArray
-/-- A device's X25519 secret, from its Ed25519 secret key (seed ++ pk). -/
+/-- A device's X25519 secret, from its Ed25519 secret key (seed ++ pk).
+Contract: none. The laws hold for every value it returns. -/
 @[extern "le_ed_sk_to_x"] opaque staticOf (edSk : @& ByteArray) : ByteArray
-/-- A device's X25519 key, from its Ed25519 key; empty if not a point. -/
+/-- A device's X25519 key, from its Ed25519 key; empty if not a point.
+Contract: none. The laws hold for every value it returns. -/
 @[extern "le_ed_pk_to_x"] opaque staticPubOf (edPk : @& ByteArray) : ByteArray
-/-- XChaCha20-Poly1305: key, 24-byte nonce, associated data, plaintext. -/
+/-- XChaCha20-Poly1305: key, 24-byte nonce, associated data, plaintext.
+Contract: `Trust.XChaCha` (engine/core/Trust.lean). -/
 @[extern "le_xchacha_seal"] opaque xchachaSeal (k n ad p : @& ByteArray) : ByteArray
+/-- Contract: `Trust.XChaCha` (engine/core/Trust.lean). -/
 @[extern "le_xchacha_open"] opaque xchachaOpen (k n ad c : @& ByteArray) : Option ByteArray
-/-- Random bytes from the OS. -/
+/-- Random bytes from the OS.
+Contract: none. It returns as many bytes as asked, or fails; the laws
+hold for whatever bytes come back, and sizes are checked where they are
+read. That they are unpredictable is a security assumption, not a Lean
+statement. -/
 @[extern "le_random"] opaque randomBytes (n : UInt32) : IO ByteArray
-/-- Ed25519: a 64-byte key pair (public, then secret) from a 32-byte seed. -/
+/-- Ed25519: a 64-byte key pair (public, then secret) from a 32-byte seed.
+Contract: `Trust.Ed25519Signs` (engine/core/Trust.lean). -/
 @[extern "le_ed25519_keypair"] opaque edKeypair (seed : @& ByteArray) : ByteArray
-/-- Ed25519: the signature of a message under a secret key. -/
+/-- Ed25519: the signature of a message under a secret key.
+Contract: `Trust.Ed25519Signs` (engine/core/Trust.lean). -/
 @[extern "le_ed25519_sign"] opaque edSign (sk msg : @& ByteArray) : ByteArray
-/-- Ed25519: whether a signature verifies under a public key. -/
+/-- Ed25519: whether a signature verifies under a public key.
+Contract: `Trust.Ed25519Signs` (engine/core/Trust.lean). -/
 @[extern "le_ed25519_verify"] opaque edVerify (pk msg sig : @& ByteArray) : Bool
 
 end Engine.Crypto

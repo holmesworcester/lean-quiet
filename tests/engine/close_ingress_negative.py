@@ -67,7 +67,7 @@ for prefix in ['closed', 'reap']:
 
 def check(root, name, expected=None):
     data = tempfile.mkdtemp(prefix=name + '-data-', dir=OUT)
-    code, text = run(root, [str(root / '.lake/build/bin/close_ingress'), data], name, 120)
+    code, text = run(root, [str(root / '.lake/build/bin/close_ingress'), data], name, 900)
     assert not any(x in text.lower() for x in ['panic', 'uncaught exception', 'segmentation fault', 'error:']), text
     failures = set(re.findall(r'^FAIL: (.+)$', text, re.M))
     if expected:

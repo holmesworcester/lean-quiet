@@ -43,14 +43,19 @@ source retirement/reuse. The native wrapper's correspondence to those states
 is tested, not a complete OS/SQLite refinement theorem.
 
 `mise run test:expiry-grace` builds the laws, witnesses and native executable,
-checks standard Lean axioms, and runs 29 assertions. The native cases require
+checks standard Lean axioms, and runs 30 assertions. The native cases require
 both session-silence and socket-idle progress under continuing local writes;
 real unauthorized Noise requests must expire after the finite budget; an
 actual founder removal must erase keys despite active grace and drain its
 signed notice to an admitted receiver. A notification barrier lets the actual
 reader refill its mailbox for the junk test; no fake ingress events, session
-tables or connection hooks are substituted. The restored suite must pass after
-two compiling controls: no grace, and pending junk resetting the budget.
+tables or connection hooks are substituted. While the removed peer is still
+writing, the retiring side must reset none of its writes: a retirement ends
+with a FIN and reads until the peer's own end (`linger`), because a reset
+fails the peer's writer, which stops its reader before the notice is read.
+The restored suite must pass after three compiling controls: no grace, pending
+junk resetting the budget, and the shipped retirement close (both directions
+shut at once).
 
 These tests use fixed five-second silence settings and a 5.1-second finite
 pause. These are diagnostic settings, not latency guarantees. The original

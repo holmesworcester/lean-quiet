@@ -57,7 +57,7 @@ fault('raster-check', 'engine/renderer/Ttf/Raster.lean', 'checked (← rasterRaw
 fault('nonvacuity', 'engine/renderer/Ttf/Raster.lean', 'if b.Valid then some b else none', 'none', proof=True)
 fault('curve-precision', 'engine/renderer/Ttf/Raster.lean', '(bend * 64)', '(bend * 4)', reference=True)
 fault('composite-matrix', 'engine/renderer/Ttf/Read.lean', 'x := xx * p.x + yx * p.y, y := xyM * p.x + yy * p.y', 'x := xx * p.x + xyM * p.y, y := yx * p.x + yy * p.y', reference=True)
-fault('glyph-cache', 'engine/renderer/Ttf/Memo.lean', '@[implemented_by bitmapImpl]', '-- Memoization removed for the negative control.')
+fault('glyph-cache', 'engine/renderer/Ttf/Memo.lean', '@[csimp] theorem bitmap_eq_fast', 'theorem bitmap_eq_fast')
 fault('density', 'engine/renderer/Font.lean', 'max 16 (min 64 ((source * density + 210) / 420))', 'source')
 fault('font-truncation', 'engine/renderer/Ttf/Read.lean', '  let f ← readHeader b', '  if b.size == 0 then return default\n  let f ← readHeader b')
 fault('composite-cycle', 'engine/renderer/Ttf/Read.lean', '    if fuel == 0 || ancestors.contains glyph then failure else do', '    if ancestors.contains glyph then return #[]\n    if fuel == 0 then failure else do')

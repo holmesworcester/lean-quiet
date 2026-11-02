@@ -1,4 +1,5 @@
 import engine.renderer.Row
+import app.community.Family
 
 section
 
@@ -316,3 +317,25 @@ def hit (l : Layout) (x y : Nat) : Hit := Id.run do
 end Composer
 
 end
+
+namespace Community
+open Engine Codec
+
+namespace Draft
+
+/-- The newest draft's id and fact, from its list's first rows. -/
+def pick : List (Pos × Community.Fact) → Option (Id × Fact)
+  | ((_, x), .ofDraft f) :: _ => some (x, f)
+  | _ => none
+
+/-- Entry `acc`'s draft list, read newest first, one row. -/
+def query (acc : Id) : ListQ := draft.byAcc.query [acc] (limit := some 1)
+
+/-- **Entry `acc`'s draft**: the newest draft op for it, with its id. -/
+def current (acc : Id) : View Community.Fact (Option (Id × Fact)) := do
+  let a ← View.read (query acc)
+  return pick a.rows
+
+end Draft
+
+end Community

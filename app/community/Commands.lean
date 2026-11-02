@@ -408,6 +408,20 @@ def ed25519 : Crypto := ⟨fun pk m s => edVerify pk m s, fun seed => (edKeypair
 
 def Device.named (name : String) : Device := Device.ofSeed (sha256 name.toUTF8)
 
+/-- **A device made from a 32-byte seed verifies its own signatures**,
+under the crypto trust file's Ed25519 clause: the premise the signing
+laws take (`hsig`, `Scene.Good.ofSigning`), for every device the app
+makes from a seed. -/
+theorem ofSeed_signs (t : Trust.Ed25519Signs) (seed : Key32) (m : ByteArray) :
+    ed25519.verify (Device.ofSeed seed.1).pk m (edSign (Device.ofSeed seed.1).sk m) = true :=
+  t seed m
+
+/-- **A named device verifies its own signatures**: its seed is a SHA-256
+digest, 32 bytes (`Trust.Sha256Size`). -/
+theorem named_signs (hs : Trust.Sha256Size) (t : Trust.Ed25519Signs) (name : String) (m : ByteArray) :
+    ed25519.verify (Device.named name).pk m (edSign (Device.named name).sk m) = true :=
+  ofSeed_signs t ⟨sha256 name.toUTF8, hs _⟩ m
+
 /-- An attachment's info and the file's key and nonce, opened with the
 content key. -/
 def openInfo (c kid sealed k : ByteArray) : Option (FileMeta × ByteArray × ByteArray) :=
