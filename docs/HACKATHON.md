@@ -290,6 +290,25 @@ branch.
   its README's lead line reads: 1159 of 1288 laws about running code, 35
   in a World, 94 not yet, 59 proof steps and 25 negative controls.
 
+## Changed after the submission
+
+The submitted version is the tag `vibecheck-submission`. After it, one
+wire break fixed two audit findings, as the user decided. Wraps are
+signed, and a community has one content key: its root names the key's
+id, and every admission carries it. A removal records the approval chain
+heads it saw, and trust counts only approvals inside every removal's cut
+(the causal cut). Four headline statements in
+[tests/comparator/Challenge.lean](../tests/comparator/Challenge.lean)
+changed with it:
+- `no_impersonation`: the admission it names has the key id field
+  (existential, so no weaker).
+- `admission_needs_approval`: it names the richer approval fact
+  (`g : Approve.Fact`), equivalent to the old form.
+- `removal_authorized`: the removal takes its cut (implicit); the
+  conclusion is the same.
+- `connect_iff`: the stricter trust rule, `Trusted ∧ Live` instead of
+  `Admitted ∧ Live`.
+
 [89914bea]: https://github.com/holmesworcester/lean-quiet/commit/89914bea346ddf93d9a065a2e8bef0c79ed47797
 [74dea236]: https://github.com/holmesworcester/lean-quiet/commit/74dea2361edfe17ea860812302b6617f271e6fd5
 [b8387523]: https://github.com/holmesworcester/lean-quiet/commit/b83875239ee0574e43acdb09b2be40b888c26394
