@@ -565,6 +565,10 @@ lean_exe vacuity_renderer_runtime where
 lean_exe vacuity_identity_messages where
   root := `tests.vacuity.IdentityMessagesMain
 
+-- Notifications' runtime premise certificates (tests/vacuity/notify-report.json).
+lean_exe vacuity_notify_runtime where
+  root := `tests.vacuity.NotifyRuntimeMain
+
 lean_exe vacuity_identity_connection where
   root := `tests.vacuity.IdentityConnectionMain
 

@@ -74,6 +74,13 @@ def complete (p : Plan K) (t : Ticket K) (value : V) : Option V :=
 def reconcile (wanted queued : List K) : List K :=
   queued.filter wanted.contains ++ wanted.filter (fun k => !queued.contains k)
 
+/-- The reader's queue after a pass's marks: `reconcile`, then the wants a
+user's act touched (`first`) ahead of the rest, each group in its order,
+so the user's own write is taken before any backlog (DemandRank.take_first). -/
+def reconcileFirst (first : K → Bool) (wanted queued : List K) : List K :=
+  let q := reconcile wanted queued
+  q.filter first ++ q.filter (fun k => !first k)
+
 /-- Visible work first, FIFO within a class. Background can be paused. -/
 def next (visible : K → Bool) (background : Bool) (queued : List K) : Option K :=
   match queued.find? visible with

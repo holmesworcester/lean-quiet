@@ -116,6 +116,15 @@ def take (burst : Nat) (q : Reserved Ticket) : List ByteArray × Bool × Reserve
   (q.ordinary.urgent ++ retryFrame.toList ++ bulk, retryFrame.isSome,
     { ordinary := { urgent := [], serve := rest }, retry })
 
+/-- **With no retry reserved, the running take is the lanes' take**: every
+urgent frame, then one burst of serve frames (`Lanes.take`, whose laws
+are then about this take: urgent_ahead, ahead_bytes, lanes_bounded). -/
+theorem take_vacant (burst : Nat) (q : Lanes) :
+    Lanes.take burst q =
+      ((Reserved.take burst ({ ordinary := q, retry := .vacant } : Reserved Ticket)).1,
+       (Reserved.take burst ({ ordinary := q, retry := .vacant } : Reserved Ticket)).2.2.ordinary) := by
+  simp [Lanes.take, Reserved.take, RetrySlot.take]
+
 theorem push_preserves_retry (bytes frames : Nat) (q : Reserved Ticket)
     (ps : List (Lane × ByteArray)) : (q.push bytes frames ps).2.retry = q.retry := by
   unfold push

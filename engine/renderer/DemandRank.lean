@@ -147,4 +147,70 @@ theorem selected_within (r : SelectionRun K) (i : Nat) (target : K)
   · rw [retained j lower upper] at retired
     cases retired
 
+/-! ## A user's act first (Reader.pass's queue)
+
+The pass queues its marked wants with `reconcileFirst`: the wants the
+user's acts touched ahead of the rest. While one is queued, every take
+returns one (`take_first`) and the queue stays touched-first
+(`take_sorted`), so the user's own writes are read before any backlog: all
+of them this pass when the cap allows. As it shipped, the queue was
+`reconcile` alone (`reconcileShipped`, the negative control): work queued
+in earlier passes kept its place ahead of the user's act, so a backlog of
+visible wants could hold the act's read for passes (`shipped_late`). -/
+
+/-- Every entry `first` picks precedes every other. -/
+def FirstSorted (first : K → Bool) (q : List K) : Prop :=
+  ∃ a b, q = a ++ b ∧ (∀ x ∈ a, first x = true) ∧ (∀ x ∈ b, first x = false)
+
+theorem reconcileFirst_sorted (first : K → Bool) (wanted queued : List K) :
+    FirstSorted first (reconcileFirst first wanted queued) :=
+  ⟨_, _, rfl, fun x hx => (List.mem_filter.1 hx).2, fun x hx => by simpa using (List.mem_filter.1 hx).2⟩
+
+theorem mem_reconcileFirst (first : K → Bool) (wanted queued : List K) (x : K) :
+    x ∈ reconcileFirst first wanted queued ↔ x ∈ reconcile wanted queued := by
+  simp only [reconcileFirst, List.mem_append, List.mem_filter]
+  cases first x <;> simp
+
+/-- **A touched want is taken first**: while one is queued, the pass's take
+(touched or visible, visible first) returns a touched want. -/
+theorem take_first (first vis : K → Bool) (bg : Bool) (q : List K) (hs : FirstSorted first q)
+    (hx : ∃ x ∈ q, first x = true) :
+    ∃ x, (take (fun k => first k || vis k) bg q).1 = some x ∧ first x = true := by
+  obtain ⟨a, b, rfl, ha, hb⟩ := hs
+  obtain ⟨x, hxq, hfx⟩ := hx
+  cases a with
+  | nil =>
+    simp only [List.nil_append] at hxq
+    rw [hb x hxq] at hfx; cases hfx
+  | cons y t =>
+    refine ⟨y, ?_, ha y (List.mem_cons_self ..)⟩
+    simp [take, takeBy, next, ha y (List.mem_cons_self ..)]
+
+/-- And the queue it leaves is still touched-first. -/
+theorem take_sorted (first vis : K → Bool) (bg : Bool) (q : List K) (hs : FirstSorted first q) :
+    FirstSorted first (take (fun k => first k || vis k) bg q).2 := by
+  obtain ⟨a, b, rfl, ha, hb⟩ := hs
+  simp only [take, takeBy]
+  split
+  · next v _ =>
+    refine ⟨a.filter (fun x => x != v), b.filter (fun x => x != v), by simp [List.filter_append], ?_, ?_⟩
+    · intro x hx; exact ha x (List.mem_filter.1 hx).1
+    · intro x hx; exact hb x (List.mem_filter.1 hx).1
+  · exact ⟨a, b, rfl, ha, hb⟩
+
+/-- The reader's queue as it shipped: `reconcile` alone. -/
+def reconcileShipped (wanted queued : List K) : List K := reconcile wanted queued
+
+/-- **As shipped, a backlog want is read before the user's own**: want 1,
+visible and queued in an earlier pass, is taken before want 2, which the
+user's act touched. -/
+theorem shipped_late :
+    (take (fun k : Nat => k == 2 || true) true (reconcileShipped [2, 1] [1])).1 = some 1 := by
+  decide
+
+/-- With the act first, the same queue takes the user's want first. -/
+theorem first_on_time :
+    (take (fun k : Nat => k == 2 || true) true (reconcileFirst (· == 2) [2, 1] [1])).1 = some 2 := by
+  decide
+
 end Demand

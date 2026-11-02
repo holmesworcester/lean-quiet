@@ -189,8 +189,8 @@ theorem named_by_admin {x c u : Id} {nm : ByteArray} {n : Nat} (h : V C ops x (.
   cases hrest with
   | cons hz _ => exact isAdmin_sound hz ha
 
-/-- **A shared op's validator reads only shared facts.** -/
-theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+/-- A shared op's validator reads no fact of a device's own state. -/
+private theorem reads_shared_facts {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
     (h : check C o b fs = some f) (hb : b.isLocal = false) : ∀ g ∈ fs, g.isLocal = false := by
   unfold check at h
   split at h <;> (try (simp at h; done)) <;> (try (simp [Body.isLocal] at hb; done))
@@ -238,6 +238,21 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · exact isAdmin_shared hc.2.2.2.1
       · exact counterOk_shared hc.2.2.2.2.2.1 g hg
     · cases hf'
+
+/-- **A shared op's validator reads only what shared ops made.** Every
+fact a shared op's check reads is made, by any check that makes it, of a
+body the running `scopeOf` shares (`Body.isLocal` false): never of a
+device's own secrets, keys, endpoints, acceptances, joins, receipts or
+drafts. -/
+theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f : Fact}
+    (h : check C o b fs = some f) (hb : b.isLocal = false) :
+    ∀ g ∈ fs, ∀ {o' : Op} {b' : Body} {fs' : List Fact}, check C o' b' fs' = some g → b'.isLocal = false := by
+  intro g hg o' b' fs' hc
+  cases hl : b'.isLocal
+  · rfl
+  · have := local_of_body hc hl
+    rw [reads_shared_facts h hb g hg] at this
+    cases this
 
 /-- **A sealed body opens with its key.** -/
 theorem openSealed_seal {S : Seal} (G : S.Good) {c kid text : ByteArray} (k : Key32) (n : Nonce24)

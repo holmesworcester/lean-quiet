@@ -4,104 +4,90 @@
     "theorem": "RowLaws.picBox_aspect",
     "witness": "Vacuity.ChatPresentation.pictureAspect",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "time_shown": {
     "status": "kernel-witness",
     "theorem": "RowLaws.time_shown",
     "witness": "Vacuity.ChatPresentation.timestamp",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "name_placed": {
     "status": "kernel-witness",
     "theorem": "RowLaws.name_placed",
     "witness": "Vacuity.ChatPresentation.authorName",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "twin_shown": {
     "status": "kernel-witness",
     "theorem": "RowLaws.twin_shown",
     "witness": "Vacuity.ChatPresentation.duplicateLabel",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "twin_before_time": {
     "status": "kernel-witness",
     "theorem": "RowLaws.twin_before_time",
     "witness": "Vacuity.ChatPresentation.duplicateBeforeTime",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "name_starts": {
     "status": "runtime-witness",
     "theorem": "RowLaws.name_starts",
     "witness": "Vacuity.ChatPresentation.authorStarts",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "hit_twin": {
     "status": "runtime-witness",
     "theorem": "RowLaws.hit_twin",
     "witness": "Vacuity.ChatPresentation.tappedLabel",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "flush_shows": {
     "status": "kernel-witness",
     "theorem": "RowLaws.flush_shows",
     "witness": "Vacuity.ChatPresentation.flushed",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
-  },
-  "tally_nodup": {
-    "status": "kernel-witness",
-    "theorem": "RowLaws.tally_nodup",
-    "witness": "Vacuity.ChatPresentation.noDuplicateReactors",
-    "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
-  },
-  "tally_mem": {
-    "status": "kernel-witness",
-    "theorem": "RowLaws.tally_mem",
-    "witness": "Vacuity.ChatPresentation.exactReactors",
-    "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "lit_zero": {
     "status": "kernel-witness",
     "theorem": "ArrivalLaws.lit_zero",
     "witness": "Vacuity.ChatPresentation.zeroRing",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "lit_mono": {
     "status": "kernel-witness",
     "theorem": "ArrivalLaws.lit_mono",
     "witness": "Vacuity.ChatPresentation.growing",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "lit_full": {
     "status": "kernel-witness",
     "theorem": "ArrivalLaws.lit_full",
     "witness": "Vacuity.ChatPresentation.fullRing",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "lit_clockwise": {
     "status": "kernel-witness",
     "theorem": "ArrivalLaws.lit_clockwise",
     "witness": "Vacuity.ChatPresentation.clockwise",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   },
   "ring_counts": {
     "status": "runtime-witness",
     "theorem": "ArrivalLaws.ring_counts",
     "witness": "Vacuity.ChatPresentation.exactRing",
     "module": "tests.vacuity.ChatPresentation",
-    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks, duplicate-name badge, and repeated Alice/Bob reactions. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, distinct reactor counts, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
+    "detail": "Synthetic Alice message at 12:45, 4032\u00d73024 photo with two of four chunks and duplicate-name badge. Concrete layout/arc premises and exact 280\u00d7210 aspect, 50% caption, hidden-complete controls. Pure layout statements use a layout-only font; native nonempty-name, hit-target and ring certificates load real font assets."
   }
 }

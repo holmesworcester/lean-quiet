@@ -41,13 +41,6 @@
     "witness": "Vacuity.Ingress.distanceBound",
     "detail": "Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem."
   },
-  "distance_zero": {
-    "status": "kernel-witness",
-    "module": "tests.vacuity.Ingress",
-    "theorem": "Engine.Sync.Ingress.distance_zero",
-    "witness": "Vacuity.Ingress.distanceIdentity",
-    "detail": "Concrete positions in a three-slot registry check the finite distance and wrap progress used by the consumer. The unequal-position premise for advancement is kernel-decided. This is a supporting rank law, not a native completion theorem."
-  },
   "advance_distance": {
     "status": "kernel-witness",
     "module": "tests.vacuity.Ingress",

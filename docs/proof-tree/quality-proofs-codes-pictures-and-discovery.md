@@ -4,7 +4,7 @@
 
 [The proof tree](../PROOF-TREE.md): the laws the README's rows cite under **Quality proofs › Codes, pictures and discovery**. Each opens to the laws its proof uses; a law drawn whole elsewhere links there (↪), and a subtree 5 levels down continues under [Deeper](#deeper).
 
-✅ wired: about running code (1273) · 🌐 world: the node's code in a World (70) · 🪜 step: a step of a wired law (0) · 📐 model: over a model (305) · 🧪 control: a negative control (32) · ▫️ lemma: not audited (2292)
+✅ wired: about running code (1345) · 🌐 world: the node's code in a World (68) · 🪜 step: a step of a wired law (63) · 📐 model: over a model (75) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2126)
 
 <ul>
 <li><details><summary><a id="law-Qr.parse_segsBits"></a>✅ <a href="../../engine/renderer/qr/SegLaws.lean#L159">Qr.parse_segsBits</a> · 21 below</summary><ul>
@@ -87,7 +87,7 @@
 <li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L239">Community.webLink_not_ws</a></li>
 <li>▫️ <a href="../../app/community/member/invite/Proofs.lean#L235">Community.web_not_ws</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Community.parse_uri"></a>📐 <a href="../../app/community/member/invite/Proofs.lean#L334">Community.parse_uri</a> · 59 below</summary><ul>
+<li><details><summary><a id="law-Community.parse_uri"></a>✅ <a href="../../app/community/member/invite/Proofs.lean#L334">Community.parse_uri</a> · 59 below</summary><ul>
 <li>▫️ <a href="#law-Community.parse_code">Community.parse_code</a> ↪ · 48 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.unprefix_schemeLink">Community.unprefix_schemeLink</a> ↪ · 5 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Community.unprefix_scheme">Community.unprefix_scheme</a> ↪ · 2 below</li>
@@ -167,21 +167,18 @@
 <li>📐 <a href="#law-Mdns.decode_encode">Mdns.decode_encode</a> ↪ · 21 below</li>
 <li>📐 <a href="security-proofs-hostile-input.md#law-Mdns.decode_valid">Mdns.decode_valid</a> ↪ · 17 below</li>
 </ul></details></li>
-<li><a id="law-Pic.render_wellFormed"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L219">Pic.render_wellFormed</a></li>
-<li><a id="law-Pic.render_opaque"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L225">Pic.render_opaque</a></li>
-<li><a id="law-Pic.scale_wellFormed"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L236">Pic.scale_wellFormed</a></li>
-<li><a id="law-Pic.fit_round"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L89">Pic.fit_round</a></li>
-<li><details><summary><a id="law-Pic.layout_inside"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L170">Pic.layout_inside</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Pic.place_props"></a>▫️ <a href="../../engine/renderer/pic/Laws.lean#L125">Pic.place_props</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Pic.fit_le"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L50">Pic.fit_le</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/renderer/pic/Laws.lean#L42">Pic.scaled_le</a></li>
+<li><a id="law-Pic.fit_small"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L28">Pic.fit_small</a></li>
+<li><details><summary><a id="law-Pic.fit_long"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L62">Pic.fit_long</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Pic.scaled_long"></a>▫️ <a href="../../engine/renderer/pic/Laws.lean#L56">Pic.scaled_long</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/pic/Laws.lean#L33">Pic.scaled_le</a></li>
 </ul></details></li>
+<li>▫️ <a href="../../engine/renderer/pic/Laws.lean#L33">Pic.scaled_le</a></li>
 </ul></details></li>
-<li>▫️ <a href="../../engine/renderer/pic/Laws.lean#L152">Pic.le_last</a></li>
+<li><details><summary><a id="law-Pic.fit_le"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L41">Pic.fit_le</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/pic/Laws.lean#L33">Pic.scaled_le</a></li>
 </ul></details></li>
-<li><details><summary><a id="law-Pic.layout_apart"></a>📐 <a href="../../engine/renderer/pic/Laws.lean#L147">Pic.layout_apart</a> · 3 below</summary><ul>
-<li>▫️ <a href="#law-Pic.place_props">Pic.place_props</a> ↪ · 2 below</li>
-</ul></details></li>
+<li><a id="law-Pic.fit_pos"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L50">Pic.fit_pos</a></li>
+<li><a id="law-Pic.fit_round"></a>✅ <a href="../../engine/renderer/pic/Laws.lean#L80">Pic.fit_round</a></li>
 </ul>
 
 ## Deeper

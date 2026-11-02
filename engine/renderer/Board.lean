@@ -152,4 +152,34 @@ def pickActs {W : Type} [BEq W] [Hashable W] (wants : List W) (touched marked : 
     List W :=
   pick (actsFirst wants touched) marked ((wants.filter (touched.contains ·)).length + cap)
 
+/-! ## The reader's index (engine/renderer/RestLaws.lean: record_indexed) -/
+
+/-- The reverse index after w's reads move from `old` to `new`. -/
+def reindex {W Q : Type} [BEq W] [BEq Q] [Hashable Q] (rev : Std.HashMap Q (Array W)) (w : W)
+    (old new : Array Q) : Std.HashMap Q (Array W) :=
+  let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
+  new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
+
+/-- The reader's index: each want's recorded reads, the dirty wants, and
+the reverse index (each read, the wants that recorded it). -/
+structure Index (W Q : Type) [BEq W] [Hashable W] [BEq Q] [Hashable Q] where
+  deps : Std.HashMap W (Array Q)
+  dirty : Std.HashSet W
+  rev : Std.HashMap Q (Array W)
+
+/-- **A want read** (what Reader.pass does with each value it reads): its
+reads are recorded, it is clean, and the reverse index moves from its
+old reads to its new. -/
+def Index.record {W Q : Type} [BEq W] [Hashable W] [BEq Q] [Hashable Q] (i : Index W Q) (w : W)
+    (log : Array Q) : Index W Q :=
+  { deps := i.deps.insert w log, dirty := i.dirty.erase w,
+    rev := reindex i.rev w (i.deps.getD w #[]) log }
+
+/-- **A pass's notice** (what Reader.pass does with the reads its notices
+hit): the dirty it still wants, and every wanted want the index names for
+a hit read, marked dirty. -/
+def Index.notice {W Q : Type} [BEq W] [Hashable W] [BEq Q] [Hashable Q] (i : Index W Q)
+    (wanted : Std.HashSet W) (hit : List Q) : Index W Q :=
+  { i with dirty := (markHit (fun q => (i.rev.getD q #[]).toList) i.dirty hit).filter wanted.contains }
+
 end Live
