@@ -70,23 +70,23 @@ assumptions.
 
 | # | The law, in plain words | Lean name | Class | Review | Example | Control |
 |---|---|---|---|---|---|---|
-| 1 | Nobody can post as another user. | [`no_impersonation`](../app/community/Proofs.lean#L120) | wired | 6 + `Unforgeable` | conditional | forged post rejected |
+| 1 | Nobody can post as another user. | [`no_impersonation`](../app/community/Proofs.lean#L121) | wired | 6 + `Unforgeable` | conditional | forged post rejected |
 | 2 | Nobody joins without a member's approval. | [`admission_needs_approval`](../app/community/member/invite/Proofs.lean#L44) | wired | 8 | runtime | 4 bad joins rejected |
 | 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L51) | wired | 8 | runtime | unauthorized removal rejected |
 | 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L10) | wired | 7 | runtime | none |
-| 5 | The node connects only to live members. | [`connect_iff`](../app/community/Proofs.lean#L822) | wired | 10 + store model | runtime | refused after removal |
-| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3091) | wired | 13 + store model | runtime | message withheld |
+| 5 | The node connects only to live members. | [`connect_iff`](../app/community/Proofs.lean#L823) | wired | 10 + store model | runtime | refused after removal |
+| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3012) | wired | 13 + store model | runtime | message withheld |
 | 7 | A session sends only what its peer may see. | [`recv_send`](../engine/sync/ConnLaws.lean#L185) | wired | 3 + store model | kernel | none yet |
-| 8 | The node checks a frame before it reads it. | [`sealed_auth`](../app/connection/Proofs.lean#L134) | wired | 2 + store model | runtime | 3 damaged frames rejected |
-| 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L513) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
+| 8 | The node checks a frame before it reads it. | [`sealed_auth`](../app/connection/Proofs.lean#L160) | wired | 2 + store model | runtime | 3 damaged frames rejected |
+| 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L510) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
 | 10 | The dialer knows who answered. | [`kk_authentic`](../engine/wire/NoiseSymbolic.lean#L801) | wired, symbolic | 8 + `sym` | kernel | mutant `read1Slip` |
 | 11 | Devices that hold the same ops agree. | [`same_ops_same_verdicts`](../engine/core/Termination.lean#L122) | wired, bridged | 2 + `Distinct` | runtime | reversed order, replay |
 | 12 | Every phone shows a channel's messages in the same order. | [`display_agrees`](../app/community/channel/message/Proofs.lean#L198) | wired | 8 | runtime | reversed arrival order |
 | 13 | Scrolling never shows a blank. | [`Cover.covered`](../engine/renderer/Cover.lean#L53) | wired | 0 | kernel | blanks exist outside it |
-| 14 | Back goes back. | [`back_open`](../app/Proofs.lean#L1319) | wired | 1 | runtime | shipped bug, a mutant |
+| 14 | Back goes back. | [`back_open`](../app/Proofs.lean#L1320) | wired | 1 | runtime | shipped bug, a mutant |
 | 15 | Tapping a community opens that community, even when two share a name. | [`select_tapped_dedupe`](../app/community/Screen.lean#L812) | wired | 0 | kernel | pinned iPhone bug |
-| 16 | Letting someone in costs at most three ops, however big the community. | [`approveReq_ops`](../app/community/Proofs.lean#L1328) | wired | 2 | no premises | mutant `approveWrapAll` |
-| 17 | Storing an arriving op costs a fixed number of store operations, however big the community. | [`ingest_costs`](../engine/core/IngestCost.lean#L42) | wired, metered | 6 | no premises | none yet |
+| 16 | Letting someone in costs at most three ops, however big the community. | [`approveReq_ops`](../app/community/Proofs.lean#L1329) | wired | 2 | no premises | mutant `approveWrapAll` |
+| 17 | Storing an arriving op costs a fixed number of store operations, however big the community. | [`ingest_costs`](../engine/core/IngestCost.lean#L49) | wired, metered | 6 | no premises | none yet |
 | 18 | The app says "You've been removed" only when the store holds a removal of you. | [`deviceCut_removal`](../app/community/Screen.lean#L606) | wired | 2 + store model | runtime | mutant from a real bug |
 
 "Review" counts the spec-only definitions, then names the assumptions;
@@ -115,7 +115,7 @@ also signed the op that put d into its user.
 - **Rests on** `Unforgeable`: Ed25519's unforgeability, stated over the
   signatures that one store holds. It is a computational assumption that
   Lean cannot prove. `unscoped_signs_all`
-  ([app/community/Proofs.lean:93](../app/community/Proofs.lean#L93))
+  ([app/community/Proofs.lean:94](../app/community/Proofs.lean#L94))
   shows why it is scoped to one store: the unscoped form says nothing.
 - **Example:** conditional. `Vacuity.Identity.noImpersonation`
   ([tests/vacuity/Identity.lean:74](../tests/vacuity/Identity.lean#L74))
@@ -235,9 +235,9 @@ with the cryptography as symbols (Dolev-Yao).
 - **Rests on** the symbolic model (`sym`): perfect primitives, no
   computational proof.
 - **Example:** kernel. `Vacuity.Session.secretsHeld`
-  ([tests/vacuity/Session.lean:35](../tests/vacuity/Session.lean#L35)).
+  ([tests/vacuity/Session.lean:42](../tests/vacuity/Session.lean#L42)).
 - **Control:** `kk_secret_init_tight`
-  ([engine/wire/NoiseSymbolic.lean:534](../engine/wire/NoiseSymbolic.lean#L534)):
+  ([engine/wire/NoiseSymbolic.lean:531](../engine/wire/NoiseSymbolic.lean#L531)):
   an attacker that knows the initiator's static and ephemeral keys does
   get the keys. So the hypothesis is needed, and the attacker model is
   strong enough to break a weak handshake.
@@ -250,7 +250,7 @@ key must be secret, and the dialer's static or ephemeral key.
 
 - **Rests on** the symbolic model (`sym`).
 - **Example:** kernel. `Vacuity.Session.initiatorAuthenticates`
-  ([tests/vacuity/Session.lean:116](../tests/vacuity/Session.lean#L116)).
+  ([tests/vacuity/Session.lean:125](../tests/vacuity/Session.lean#L125)).
 - **Control:** `read1Slip`, a one-letter slip in the responder's code,
   lets the attacker forge a request (`read1Slip_forged`,
   [engine/wire/NoiseSymbolic.lean:976](../engine/wire/NoiseSymbolic.lean#L976),
@@ -323,7 +323,7 @@ what it presents) and an editor counter.
   ([tests/vacuity/RendererRuntime.lean:17](../tests/vacuity/RendererRuntime.lean#L17))
   starts a real headless app.
 - **Control:** `shipped_back_open_fails`
-  ([app/Proofs.lean:1419](../app/Proofs.lean#L1419)). This law caught a
+  ([app/Proofs.lean:1420](../app/Proofs.lean#L1420)). This law caught a
   shipped bug: commit 566e566 lost the switcher's backdrop after gear →
   back. The shipped code is kept as a mutant, and the kernel proves that
   it breaks the law ([what the proofs caught](CAUGHT.md)).
@@ -359,7 +359,7 @@ member only.
 - **Example:** no premises to meet.
 - **Control:** `approveWrapAll`, an approval that wraps the key to every
   member, is a mutant in tests/wiring.txt. `wrapAll_over`
-  ([app/community/Proofs.lean:1430](../app/community/Proofs.lean#L1430))
+  ([app/community/Proofs.lean:1431](../app/community/Proofs.lean#L1431))
   proves that it writes four ops in a community of three, so it breaks
   the law.
 
@@ -713,34 +713,34 @@ recommended law, and the details of every other law above, are in
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 348 | 327 | 6 | 1 | 1 |
-| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 334 | 326 | 8 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:51](../app/community/member/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 334 | 326 | 8 | 0 | 0 |
-| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:10](../app/community/member/remove/Proofs.lean#L10) | propext, Classical.choice, Quot.sound | 333 | 326 | 7 | 0 | 0 |
-| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:822](../app/community/Proofs.lean#L822) | propext, Classical.choice, Quot.sound | 379 | 357 | 10 | 0 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3091](../app/Proofs.lean#L3091) | propext, Classical.choice, Quot.sound | 633 | 601 | 13 | 5 | 1 |
-| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:185](../engine/sync/ConnLaws.lean#L185) | propext, Classical.choice, Quot.sound | 142 | 132 | 3 | 5 | 0 |
-| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:134](../app/connection/Proofs.lean#L134) | propext, Classical.choice, Quot.sound | 338 | 318 | 2 | 5 | 0 |
-| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:513](../engine/wire/NoiseSymbolic.lean#L513) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
+| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:121](../app/community/Proofs.lean#L121) | propext, Classical.choice, Quot.sound | 367 | 345 | 6 | 1 | 1 |
+| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 352 | 344 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:51](../app/community/member/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 352 | 344 | 8 | 0 | 0 |
+| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:10](../app/community/member/remove/Proofs.lean#L10) | propext, Classical.choice, Quot.sound | 351 | 344 | 7 | 0 | 0 |
+| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:823](../app/community/Proofs.lean#L823) | propext, Classical.choice, Quot.sound | 399 | 377 | 10 | 0 | 1 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3012](../app/Proofs.lean#L3012) | propext, Classical.choice, Quot.sound | 672 | 636 | 16 | 6 | 1 |
+| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:185](../engine/sync/ConnLaws.lean#L185) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
+| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 371 | 349 | 4 | 5 | 0 |
+| [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:510](../engine/wire/NoiseSymbolic.lean#L510) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
 | [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:801](../engine/wire/NoiseSymbolic.lean#L801) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
-| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:198](../app/community/channel/message/Proofs.lean#L198) | propext, Classical.choice, Quot.sound | 343 | 335 | 8 | 0 | 0 |
+| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:198](../app/community/channel/message/Proofs.lean#L198) | propext, Classical.choice, Quot.sound | 361 | 353 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:53](../engine/renderer/Cover.lean#L53) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 730 | 724 | 2 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1320](../app/Proofs.lean#L1320) | propext, Classical.choice, Quot.sound | 755 | 749 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:812](../app/community/Screen.lean#L812) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
-| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1328](../app/community/Proofs.lean#L1328) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
-| [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:42](../engine/core/IngestCost.lean#L42) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
-| [`deviceCut_removal`](#peoplelawsdevicecut_removal) | [app/community/Screen.lean:606](../app/community/Screen.lean#L606) | propext, Classical.choice, Quot.sound | 105 | 88 | 2 | 0 | 1 |
+| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1329](../app/community/Proofs.lean#L1329) | propext, Classical.choice, Quot.sound | 195 | 193 | 2 | 0 | 0 |
+| [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
+| [`deviceCut_removal`](#peoplelawsdevicecut_removal) | [app/community/Screen.lean:606](../app/community/Screen.lean#L606) | propext, Classical.choice, Quot.sound | 109 | 92 | 2 | 0 | 1 |
 
-**Together** these laws name 51 spec-only definitions, and 9 names of the assumptions they take.
+**Together** these laws name 54 spec-only definitions, and 10 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.Admitted`, `Community.IsAdmin`, `Community.Keyed`, `Community.Listed`, `Community.Live`, `Community.Posted`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.MayGo`, `Connection.Noise.Symbolic.Answers`, `Connection.Noise.Symbolic.Clean`, `Connection.Noise.Symbolic.Derivable`, `Connection.Noise.Symbolic.Exposed`, `Connection.Noise.Symbolic.Part`, `Connection.Noise.Symbolic.Reveals`, `Connection.Noise.Symbolic.Sends`, `Connection.Noise.Symbolic.secrets`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Reach`, `Engine.Spec`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sendable`, `Engine.View.Always`, `Engine.Within`, `Ttf.Bitmap.Valid`
-- types: `Connection.Noise.Symbolic.T`
+- predicates: `Community.Admitted`, `Community.IsAdmin`, `Community.Keyed`, `Community.Listed`, `Community.Live`, `Community.Posted`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.MayGo`, `Connection.Noise.Symbolic.Answers`, `Connection.Noise.Symbolic.Clean`, `Connection.Noise.Symbolic.Derivable`, `Connection.Noise.Symbolic.Exposed`, `Connection.Noise.Symbolic.Part`, `Connection.Noise.Symbolic.Reveals`, `Connection.Noise.Symbolic.Sends`, `Connection.Noise.Symbolic.secrets`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Reach`, `Engine.Spec`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sendable`, `Engine.Sync.Sorted`, `Engine.View.Always`, `Engine.Within`, `Ttf.Bitmap.Valid`
+- types: `Connection.Noise.Symbolic.T`, `Engine.Sync.ReadsOnly`
 - definitions: `Community.Fact.admin`, `Community.Fact.admission`, `Community.Fact.approval`, `Community.Fact.message`, `Community.Fact.received`, `Community.Fact.removal`, `Community.Fact.request`, `Engine.specAt`
 - instances: `Connection.Noise.Symbolic.instDecidableEqT`, `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`
-- assumed: `Community.Unforgeable`, `Connection.Noise.Symbolic.sym`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`
+- assumed: `Community.Unforgeable`, `Connection.Noise.Symbolic.sym`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`
 
 </details>
 
@@ -786,17 +786,17 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 #### Connection.removal_reaches_session
 
-Named in the statement: `Community.Fact`, `Community.instSortKeyFact`, `Connection.B`, `Connection.F`, `Connection.Fact`, `Connection.Keys`, `Connection.MayGo`, `Connection.hooks`, `Connection.instSortKeyFact`, `Engine.Fresh`, `Engine.Id`, `Engine.Op`, `Engine.Sync.Catalog`, `Engine.Sync.Effects`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.Hooks`, `Engine.Sync.Moves`, `Engine.Sync.Node`, `Engine.Sync.Reads`, `Engine.Sync.RetryStore`, `Engine.Sync.Sweep`, `Engine.Sync.Sync`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instSortKeySum`.
+Named in the statement: `Community.Fact`, `Community.instSortKeyFact`, `Connection.B`, `Connection.F`, `Connection.Fact`, `Connection.Keys`, `Connection.MayGo`, `Connection.hooks`, `Connection.instSortKeyFact`, `Engine.Fresh`, `Engine.Id`, `Engine.Op`, `Engine.Sync.Catalog`, `Engine.Sync.Effects`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.HeldM.run`, `Engine.Sync.Hooks`, `Engine.Sync.Moves`, `Engine.Sync.Node`, `Engine.Sync.Reads`, `Engine.Sync.RetryStore`, `Engine.Sync.Sweep`, `Engine.Sync.Sync`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instSortKeySum`.
 
-Spec-only, to review: predicates: `Connection.LiveIn`, `Connection.MayGo`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`.
+Spec-only, to review: predicates: `Connection.LiveIn`, `Connection.MayGo`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.Reads`, `Engine.Sync.Sorted`; types: `Engine.Sync.ReadsOnly`.
 
-Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
+Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 #### Engine.Sync.recv_send
 
 Named in the statement: `Engine.DB`, `Engine.Family`, `Engine.Model`, `Engine.Model.run`, `Engine.Op`, `Engine.Sync.Config`, `Engine.Sync.Conn`, `Engine.Sync.Conn.recv`, `Engine.Sync.Index`, `Engine.Sync.Sendable`, `Engine.Sync.Step`, `Engine.instMonadModel`, `Engine.modelStore`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Sendable`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sendable`, `Engine.Sync.Sorted`.
 
 Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.instMonadModel`, `Engine.modelStore`. Bridged: none.
 
@@ -804,7 +804,7 @@ Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine
 
 Named in the statement: `Community.Fact`, `Community.instSortKeyFact`, `Connection.B`, `Connection.F`, `Connection.Fact`, `Connection.Frame.ad`, `Connection.Frame.cid`, `Connection.Keys`, `Connection.instSortKeyFact`, `Connection.openFrame`, `Connection.sessionKeys`, `Engine.Id`, `Engine.Sync.Effects`, `Engine.Sync.Held`, `Engine.Sync.HeldM`, `Engine.Sync.Node`, `Engine.Sync.Node.onFrame`, `Engine.Sync.RetryTicket`, `Engine.Sync.Sync`, `Engine.Sync.instListsHeldMOfSortKey`, `Engine.Sync.instMonadHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.Sync.instTurnHeldM`, `Engine.Sync.sealedTag`, `Engine.Sync.tagged`, `Engine.instSortKeySum`.
 
-Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`.
+Spec-only, to review: predicates: `Engine.Codec.At`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sorted`.
 
 Assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`. Bridged: none.
 
@@ -895,24 +895,24 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`id_decode`](HEADLINE-SURFACES.md#engineopid_decode) | [engine/core/Core.lean:94](../engine/core/Core.lean#L94) | propext, Classical.choice, Quot.sound | 35 | 34 | 1 | 0 | 0 |
 | [`writes_only_after_two`](HEADLINE-SURFACES.md#removewrites_only_after_two) | [app/community/member/remove/View.lean:61](../app/community/member/remove/View.lean#L61) | propext, Quot.sound | 4 | 4 | 0 | 0 | 0 |
 | [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 69 | 67 | 2 | 0 | 0 |
-| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 346 | 327 | 6 | 0 | 1 |
-| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:919](../app/community/Proofs.lean#L919) | propext, Classical.choice, Quot.sound | 378 | 357 | 9 | 0 | 1 |
-| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1337](../app/community/Family.lean#L1337) | propext, Classical.choice, Quot.sound | 331 | 326 | 5 | 0 | 0 |
-| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 303 | 280 | 7 | 5 | 1 |
-| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:963](../engine/wire/EgressLaws.lean#L963) | propext, Classical.choice, Quot.sound | 291 | 272 | 10 | 5 | 0 |
+| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 365 | 345 | 6 | 0 | 1 |
+| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:920](../app/community/Proofs.lean#L920) | propext, Classical.choice, Quot.sound | 398 | 377 | 9 | 0 | 1 |
+| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1410](../app/community/Family.lean#L1410) | propext, Classical.choice, Quot.sound | 349 | 344 | 5 | 0 | 0 |
+| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:211](../app/Proofs.lean#L211) | propext, Classical.choice, Quot.sound | 331 | 306 | 9 | 5 | 1 |
+| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:963](../engine/wire/EgressLaws.lean#L963) | propext, Classical.choice, Quot.sound | 322 | 299 | 13 | 6 | 0 |
 | [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:64](../engine/sync/SecrecyLaws.lean#L64) | propext, Classical.choice, Quot.sound | 89 | 81 | 1 | 5 | 0 |
-| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:152](../engine/sync/ConnLaws.lean#L152) | propext, Classical.choice, Quot.sound | 142 | 132 | 3 | 5 | 0 |
-| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 251 | 240 | 2 | 5 | 0 |
+| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:152](../engine/sync/ConnLaws.lean#L152) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
+| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 280 | 267 | 4 | 5 | 0 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
 | [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 64 | 2 | 1 | 0 |
 | [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 42 | 1 | 5 | 0 |
 | [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:578](../engine/core/Purge.lean#L578) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
 | [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
-| [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 205 | 195 | 3 | 1 | 0 |
-| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 530 | 511 | 2 | 5 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1490](../app/community/Proofs.lean#L1490) | propext, Classical.choice, Quot.sound | 380 | 366 | 5 | 0 | 1 |
-| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:441](../app/community/Screen.lean#L441) | propext, Classical.choice, Quot.sound | 381 | 359 | 10 | 0 | 1 |
-| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 376 | 357 | 9 | 0 | 0 |
+| [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 216 | 206 | 3 | 1 | 0 |
+| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:611](../app/Proofs.lean#L611) | propext, Classical.choice, Quot.sound | 550 | 531 | 2 | 5 | 0 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1491](../app/community/Proofs.lean#L1491) | propext, Classical.choice, Quot.sound | 400 | 386 | 5 | 0 | 1 |
+| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:441](../app/community/Screen.lean#L441) | propext, Classical.choice, Quot.sound | 401 | 379 | 10 | 0 | 1 |
+| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 396 | 377 | 9 | 0 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |
 | [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:93](../engine/renderer/Cover.lean#L93) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`newest_visible`](HEADLINE-SURFACES.md#geometrynewest_visible) | [engine/renderer/Geometry.lean:105](../engine/renderer/Geometry.lean#L105) | propext, Classical.choice, Quot.sound | 5 | 3 | 2 | 0 | 0 |
@@ -927,23 +927,23 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`read_notice_iff`](HEADLINE-SURFACES.md#engineread_notice_iff) | [engine/core/WindowRead.lean:417](../engine/core/WindowRead.lean#L417) | propext, Classical.choice, Quot.sound | 119 | 71 | 10 | 1 | 0 |
 | [`view_stable`](HEADLINE-SURFACES.md#engineview_stable) | [engine/core/View.lean:164](../engine/core/View.lean#L164) | propext, Classical.choice, Quot.sound | 74 | 56 | 6 | 0 | 1 |
 | [`eval_stable`](HEADLINE-SURFACES.md#engineeval_stable) | [engine/core/View.lean:141](../engine/core/View.lean#L141) | propext, Classical.choice, Quot.sound | 71 | 55 | 5 | 0 | 0 |
-| [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1037](../app/Commands.lean#L1037) | propext, Classical.choice, Quot.sound | 72 | 69 | 3 | 0 | 0 |
-| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:394](../app/Screen.lean#L394) | propext | 3 | 1 | 0 | 2 | 0 |
+| [`read_one_moment`](HEADLINE-SURFACES.md#livelawsread_one_moment) | [app/Commands.lean:1037](../app/Commands.lean#L1037) | propext, Classical.choice, Quot.sound | 74 | 71 | 3 | 0 | 0 |
+| [`offer_split`](HEADLINE-SURFACES.md#nodeofferoffer_split) | [app/Screen.lean:398](../app/Screen.lean#L398) | propext | 3 | 1 | 0 | 2 | 0 |
 | [`next_visible`](HEADLINE-SURFACES.md#demandnext_visible) | [engine/renderer/Demand.lean:149](../engine/renderer/Demand.lean#L149) | propext, Quot.sound | 1 | 1 | 0 | 0 | 0 |
 | [`selected_within`](HEADLINE-SURFACES.md#demandselected_within) | [engine/renderer/DemandRank.lean:138](../engine/renderer/DemandRank.lean#L138) | propext, Classical.choice, Quot.sound | 4 | 3 | 1 | 0 | 0 |
 | [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 52 | 5 | 0 | 0 |
-| [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:119](../engine/core/IngestCost.lean#L119) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
+| [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:126](../engine/core/IngestCost.lean#L126) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
 | [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 76 | 67 | 1 | 5 | 0 |
 
-**Together** these laws name 65 spec-only definitions, and 11 names of the assumptions they take.
+**Together** these laws name 68 spec-only definitions, and 12 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.Admitted`, `Community.InOrder`, `Community.Live`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Later`, `Engine.OneOpPerId`, `Engine.Reach`, `Engine.ReqsLe`, `Engine.Sat`, `Engine.Spec`, `Engine.Subs.Has`, `Engine.Subs.WF`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Takeable`, `Engine.WaitersLe`, `Engine.Within`, `Geometry.Geom.Fits`, `LiveLaws.Agrees`, `SheetGeom.Grid.Ok`, `SheetGeom.Grid.inBox`, `Ttf.Bitmap.Valid`
-- types: `Demand.SelectionRun`, `Engine.Change`, `ViewLaws.Model`
+- predicates: `Community.Admitted`, `Community.InOrder`, `Community.Live`, `Community.Removed`, `Community.V`, `Connection.LiveIn`, `Connection.NoticeOnly`, `Connection.Owed`, `Connection.Refused`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Extends`, `Engine.Field`, `Engine.Inv`, `Engine.Later`, `Engine.OneOpPerId`, `Engine.Reach`, `Engine.ReqsLe`, `Engine.Sat`, `Engine.Spec`, `Engine.Subs.Has`, `Engine.Subs.WF`, `Engine.Sync.Entry`, `Engine.Sync.FramesBy`, `Engine.Sync.FramesOk`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Move`, `Engine.Sync.Moves`, `Engine.Sync.ReachIn`, `Engine.Sync.ReadOnly`, `Engine.Sync.Reads`, `Engine.Sync.Sent`, `Engine.Sync.Sorted`, `Engine.Sync.Takeable`, `Engine.WaitersLe`, `Engine.Within`, `Geometry.Geom.Fits`, `LiveLaws.Agrees`, `SheetGeom.Grid.Ok`, `SheetGeom.Grid.inBox`, `Ttf.Bitmap.Valid`
+- types: `Demand.SelectionRun`, `Engine.Change`, `Engine.Sync.ReadsOnly`, `ViewLaws.Model`
 - definitions: `Community.Fact.admission`, `Community.Fact.chunk`, `Community.Fact.message`, `Community.Fact.profile`, `Community.Fact.removal`, `Connection.Fact.opened`, `Engine.Change.ingests`, `Engine.View.keys`, `Engine.specAt`, `Engine.window`, `Geometry.Seam.home`, `Geometry.Seam.tapRow`, `Merkle.slices`, `Surface.Frame.row`, `Text.ns`, `Translate.position`, `Translate.seen`, `Translate.source`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
-- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
+- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instReadsOnlyHeldM`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
 
 </details>
 
@@ -951,24 +951,24 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 316 | 274 | 33 | 5 | 0 |
+| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 345 | 301 | 35 | 5 | 0 |
 | [`anchor_stable`](HEADLINE-SURFACES.md#heightsanchor_stable) | [engine/renderer/Heights.lean:502](../engine/renderer/Heights.lean#L502) | propext, Quot.sound | 10 | 4 | 6 | 0 | 0 |
 | [`find_spec`](HEADLINE-SURFACES.md#heightstfind_spec) | [engine/renderer/Heights.lean:175](../engine/renderer/Heights.lean#L175) | propext, Classical.choice, Quot.sound | 12 | 4 | 8 | 0 | 0 |
 | [`rows_cost`](HEADLINE-SURFACES.md#heightsrows_cost) | [engine/renderer/Heights.lean:631](../engine/renderer/Heights.lean#L631) | propext, Classical.choice, Quot.sound | 25 | 2 | 13 | 0 | 7 |
 | [`settle_passes`](HEADLINE-SURFACES.md#liveworldsettle_passes) | [engine/renderer/BoardLaws.lean:481](../engine/renderer/BoardLaws.lean#L481) | propext, Classical.choice, Quot.sound | 13 | 6 | 7 | 0 | 0 |
-| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 406 | 381 | 15 | 0 | 0 |
-| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:431](../app/Screen.lean#L431) | propext | 5 | 1 | 2 | 2 | 0 |
+| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 426 | 402 | 14 | 0 | 0 |
+| [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:435](../app/Screen.lean#L435) | propext | 5 | 1 | 2 | 2 | 0 |
 | [`list_costs`](HEADLINE-SURFACES.md#enginelist_costs) | [engine/core/ListCost.lean:34](../engine/core/ListCost.lean#L34) | propext, Classical.choice, Quot.sound | 21 | 8 | 9 | 0 | 4 |
 | [`Prioritized.write_within`](HEADLINE-SURFACES.md#enginesyncingressprioritizedwrite_within) | [engine/wire/IngressPriorityLaws.lean:220](../engine/wire/IngressPriorityLaws.lean#L220) | propext, Quot.sound | 19 | 11 | 8 | 0 | 0 |
 | [`Priority.write_within`](HEADLINE-SURFACES.md#enginesyncinboxprioritywrite_within) | [engine/wire/PriorityLaws.lean:167](../engine/wire/PriorityLaws.lean#L167) | propext, Quot.sound | 14 | 11 | 3 | 0 | 0 |
 
-**Together** these laws name 92 spec-only definitions, and 7 names of the assumptions they take.
+**Together** these laws name 93 spec-only definitions, and 7 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
-- predicates: `Community.V`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Field`, `Engine.Fits`, `Engine.Inv`, `Engine.Sat`, `Engine.Spec`, `Engine.Sync.Key.lt`, `Engine.Within`, `Engine.World.Diam`, `Engine.World.Edge`, `Engine.World.Holds`, `Engine.World.Legal`, `Engine.World.Net.Calm`, `Engine.World.Net.Live`, `Engine.World.Net.Up`, `Engine.World.Path`, `Heights.Rows.Ok`, `Heights.T.Perfect`, `Heights.T.WF`, `Live.Board.Seen`, `Live.World.Inv`
+- predicates: `Community.V`, `Engine.Codec.At`, `Engine.Costs`, `Engine.Field`, `Engine.Fits`, `Engine.Inv`, `Engine.Sat`, `Engine.Spec`, `Engine.Sync.Key.lt`, `Engine.Sync.Key.plt`, `Engine.Sync.Sorted`, `Engine.Within`, `Engine.World.Diam`, `Engine.World.Edge`, `Engine.World.Holds`, `Engine.World.Legal`, `Engine.World.Net.Calm`, `Engine.World.Net.Live`, `Engine.World.Net.Up`, `Engine.World.Path`, `Heights.Rows.Ok`, `Heights.T.Perfect`, `Heights.T.WF`, `Live.Board.Seen`, `Live.World.Inv`
 - types: `Engine.Sync.Inbox.Priority.Run`, `Engine.Sync.Ingress.Prioritized.Run`, `Engine.Sync.Ingress.Prioritized.State`, `Engine.Sync.Setup`, `Engine.Sync.Who`, `Engine.World.Act`, `Engine.World.Exec`, `Engine.World.Net`, `Engine.World.Packet`, `Engine.World.Plain`, `Engine.World.Setup`, `Engine.World.World`, `Heights.Rows`, `Heights.T`, `Live.World`, `ViewLaws.Model`
-- definitions: `Community.Fact.message`, `Community.Fact.profile`, `Engine.Sync.Inbox.Priority.Run.selected`, `Engine.Sync.Inbox.Priority.State.append`, `Engine.Sync.Ingress.Prioritized.Run.selected`, `Engine.Sync.Ingress.Prioritized.State.arrivals`, `Engine.Sync.Ingress.Prioritized.popEvent`, `Engine.Sync.Ingress.Prioritized.popWrite`, `Engine.Sync.Ingress.Prioritized.step`, `Engine.Sync.Ingress.State.arrivals`, `Engine.Sync.Node.connect`, `Engine.Sync.Setup.sync`, `Engine.Sync.plainOpen`, `Engine.Sync.plainSeal`, `Engine.World.Exec.world`, `Engine.World.Plain.setup`, `Engine.World.Plain.two`, `Engine.World.Setup.at?`, `Engine.World.World.enter`, `Engine.World.World.step`, `Engine.World.packets`, `Engine.World.plainPeek`, `Engine.World.upd`, `Engine.World.worlds`, `Engine.countCost`, `Engine.listCost`, `Engine.specAt`, `Heights.T.find`, `Heights.T.findM`, `Heights.T.mk`, `Heights.T.setM`, `Heights.T.size`, `Heights.T.start`, `Heights.T.startM`, `Heights.T.sum`, `Heights.T.toList`, `Heights.screenY`, `Kinds.File.read`, `Kinds.Message.read`, `Kinds.React.read`, `Kinds.React.tally`, `Live.Board.apply`, `Live.World.frame`, `Live.World.marked`, `Live.World.pass`, `NodeOffer.run`, `NodeOffer.submitted`, `ViewLaws.factIn`, `ViewLaws.nameIn`
+- definitions: `Community.Fact.message`, `Community.Fact.profile`, `Engine.Sync.Inbox.Priority.Run.selected`, `Engine.Sync.Inbox.Priority.State.append`, `Engine.Sync.Ingress.Prioritized.Run.selected`, `Engine.Sync.Ingress.Prioritized.State.arrivals`, `Engine.Sync.Ingress.Prioritized.popEvent`, `Engine.Sync.Ingress.Prioritized.popWrite`, `Engine.Sync.Ingress.Prioritized.step`, `Engine.Sync.Ingress.State.arrivals`, `Engine.Sync.Node.connect`, `Engine.Sync.Setup.sync`, `Engine.Sync.plainOpen`, `Engine.Sync.plainSeal`, `Engine.World.Exec.world`, `Engine.World.Plain.setup`, `Engine.World.Plain.two`, `Engine.World.Setup.at?`, `Engine.World.World.enter`, `Engine.World.World.step`, `Engine.World.packets`, `Engine.World.plainPeek`, `Engine.World.upd`, `Engine.World.worlds`, `Engine.countCost`, `Engine.listCost`, `Engine.specAt`, `Heights.T.find`, `Heights.T.findM`, `Heights.T.mk`, `Heights.T.setM`, `Heights.T.size`, `Heights.T.start`, `Heights.T.startM`, `Heights.T.sum`, `Heights.T.toList`, `Heights.screenY`, `Kinds.Message.read`, `Kinds.React.read`, `Kinds.React.tally`, `Live.Board.apply`, `Live.World.frame`, `Live.World.marked`, `Live.World.pass`, `NodeOffer.run`, `NodeOffer.submitted`, `ViewLaws.factIn`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instLE`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
 - assumed: `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.modelStore`, `NodeOffer.Chan`, `NodeOffer.offerM`
 

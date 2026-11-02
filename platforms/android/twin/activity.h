@@ -82,6 +82,12 @@ void ba_set_text(const char* utf8);
 void     ba_scan(bool on);
 uint8_t* ba_take_luma(size_t* n, uint32_t wh[4]);
 
+// A notification card packet (Notify.packet's JSON), queued for Java's
+// own thread; and the background-sync service on or off (whether the
+// device has it).
+void ba_notify(const char* utf8);
+bool ba_service(bool on);
+
 #endif
 
 bool ba_dark(void);

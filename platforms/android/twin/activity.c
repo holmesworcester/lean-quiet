@@ -84,6 +84,7 @@ static jmethodID ba_appearance_m;
 static bool ba_system_dark;
 static jmethodID ba_show_ime, ba_copy_text, ba_scan_m, ba_set_text_m;
 static jmethodID ba_bars_m, ba_pick_photo_m;
+static jmethodID ba_notify_m, ba_sync_m;
 static LqPhoto ba_photo = LQ_PHOTO_INIT;
 
 // A caller owns a local Java reference, independent of Activity replacement.
@@ -569,6 +570,43 @@ void ba_copy(const char* utf8) {
   ba_target_done(j);
 }
 
+// A notification card packet (JSON, UTF-8 bytes: JNI's modified UTF-8
+// cannot carry an emoji). Java queues it on its own thread and returns.
+void ba_notify(const char* utf8) {
+  if (!ba_notify_m) return;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return; }
+  JNIEnv* env = j.env;
+  jsize n = (jsize)strlen(utf8);
+  jbyteArray b = (*env)->NewByteArray(env, n);
+  if (b) {
+    (*env)->SetByteArrayRegion(env, b, 0, n, (const jbyte*)utf8);
+    (*env)->CallVoidMethod(env, j.activity, ba_notify_m, b);
+    (*env)->DeleteLocalRef(env, b);
+  }
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+  }
+  ba_target_done(j);
+}
+
+// Sync in the background (SyncService) on or off; whether it is there.
+bool ba_service(bool on) {
+  if (!ba_sync_m) return false;
+  BaJava j = ba_target();
+  if (!j.activity) { ba_target_done(j); return false; }
+  JNIEnv* env = j.env;
+  jboolean r = (*env)->CallBooleanMethod(env, j.activity, ba_sync_m, (jboolean)on);
+  if ((*env)->ExceptionCheck(env)) {
+    (*env)->ExceptionDescribe(env);
+    (*env)->ExceptionClear(env);
+    r = JNI_FALSE;
+  }
+  ba_target_done(j);
+  return r == JNI_TRUE;
+}
+
 void ba_set_text(const char* utf8) {
   pthread_mutex_lock(&ba_mu);bool owned=ba_editor_enabled;pthread_mutex_unlock(&ba_mu);
   if(owned)return; // owned editors use revision-aware asynchronous commands only
@@ -653,9 +691,12 @@ static void ba_java(ANativeActivity* act) {
     ba_pick_photo_m = (*env)->GetMethodID(env, cls, "pickPhoto", "(I)V");
     ba_scan_m     = (*env)->GetMethodID(env, cls, "scan", "(Z)V");
     ba_bars_m     = (*env)->GetMethodID(env, cls, "applyBars", "(IIZZ)V");
+    ba_notify_m   = (*env)->GetMethodID(env, cls, "notifyPacket", "([B)V");
+    ba_sync_m     = (*env)->GetMethodID(env, cls, "setSync", "(Z)Z");
     if ((*env)->ExceptionCheck(env)) {
       (*env)->ExceptionClear(env);
       ba_appearance_m = ba_pick_photo_m = ba_show_ime = ba_copy_text = ba_scan_m = ba_set_text_m = ba_bars_m = NULL;
+      ba_notify_m = ba_sync_m = NULL;
     }
   }
   pthread_mutex_lock(&ba_mu);

@@ -93,8 +93,9 @@ inductive Reveals : T → T → Prop
 and by asking honest parties. `O` is the honest calls it may make: it
 learns what an honest party sends, `m` handed `q`, only if `O q m`.
 `Sends` says what an honest party would send; `O` says which of those
-sends happen. The secrecy laws hold for every `O`, `AllCalls` among
-them; the authentication laws say which call must be in `O`. What
+sends happen. The secrecy laws hold for every `O`, the one with every
+call among them; the authentication laws say which call must be in
+`O`. What
 honest parties read (`Reveals`) is open to the attacker whatever `O`
 is. -/
 inductive Derivable (O : T → T → Prop) (K : T → Prop) : T → Prop
