@@ -221,7 +221,8 @@ theorem check_reads_shared {C : Crypto} {o : Op} {b : Body} {fs : List Fact} {f 
       · rfl
       · rfl
       · rcases hc.2.2.2.2.1 with ⟨_, hh⟩ | hh
-        · simpa using hh
+        · obtain ⟨rfl, -⟩ := by simpa using hh
+          rfl
         · exact isAdmin_shared hh
       · rfl
     · cases hf'
@@ -1350,6 +1351,68 @@ theorem approveReq_wrap_admits (c req myAdm : Id) (d : Device) (esk : ByteArray)
   repeat' split
   all_goals (try simp only [Always, pure_eq])
   all_goals simp
+
+/-- **A device link's join names nobody** (`joinOps_link_unnamed`): the
+new device joins its issuer's user, so its joining op carries no name. -/
+theorem joinOps_link_unnamed (i : Invite) (seed name : ByteArray) (key : Key) (h : i.link = true) :
+    (joinOps i seed name key).ops = [secret seed, i.request (Device.ofSeed seed) key,
+      accept i.community (Device.ofSeed seed).pk,
+      joining i (i.request (Device.ofSeed seed) key).id .empty (Device.ofSeed seed).pk] := by
+  simp [joinOps, h]
+
+/-- **A join with no name writes no profile** (`introduce_named`): what
+`introduce` writes is nothing, or one profile under a name its join
+gave. With `joinOps_link_unnamed`, a linked device never names its
+user. -/
+theorem introduce_named (c : Id) (d : Device) (time : Nat) :
+    Always (fun w : Write => w.ops = [] ∨ ∃ adm nm, nm.isEmpty = false ∧ w.ops = [profile c adm d nm time])
+      (introduce c d time) := by
+  unfold introduce
+  refine always_bind fun adms => ?_
+  dsimp only [Always]
+  split
+  · refine always_bind fun prof => ?_
+    dsimp only [Always]
+    refine always_bind fun joins => ?_
+    dsimp only [Always]
+    split
+    · rename_i nm _
+      by_cases hc : prof.total = 0 ∧ nm.isEmpty = false
+      · simp only [Always, pure_eq, hc, and_self, ↓reduceIte]; exact Or.inr ⟨_, nm, hc.2, rfl⟩
+      · simp [Always, pure_eq, hc]
+    · simp [Always, pure_eq]
+  · simp [Always, pure_eq]
+
+/-- `introduce` as it shipped before device links: a join's name taken
+as it is, an empty one too. A negative control: never run. -/
+def introduceShipped (c : Id) (d : Device) (time : Nat) : View Fact Write := do
+  let adms ← admission.byDevice.read [c, d.pk]
+  match adms.rows.head? with
+  | some ((_, adm), .admission _ u _ _) =>
+    let prof ← profile.byUser.read [c, u] (limit := some 0)
+    let joins ← joining.all.read []
+    let name := joins.rows.findSome? fun (_, f) => match f with
+      | .joining c' _ _ _ nm d' _ => if c' = c ∧ d' = d.pk then some nm else none
+      | _ => none
+    match name with
+    | some nm => return (if prof.total = 0 then ⟨[profile c adm d nm time]⟩ else ⟨[]⟩)
+    | none => return ⟨[]⟩
+  | _ => return ⟨[]⟩
+
+/-- **As shipped, a linked device admitted before its user's profile
+synced would name its user ""** (`shipped_introduce_unnamed`): on a
+store holding its admission and its device link's join (no name) and
+no profile yet, the shipped `introduce` writes a profile with an empty
+name, where `introduce` writes nothing. -/
+theorem shipped_introduce_unnamed (c u adm : Id) (d : Device) (e : Key) (time : Nat) (sk : ByteArray)
+    (q : Pos) (k : Key) (hs : List ByteArray) (r : Id) (n : Nat) :
+    let as : List (Answer Fact) := [⟨[((sk, adm), .admission c u d.pk e)], 1, 1⟩, ⟨[], 0, 0⟩,
+      ⟨[(q, .joining c k hs r .empty d.pk n)], 1, 1⟩]
+    runWith as (introduceShipped c d time) = some ⟨[profile c adm d .empty time]⟩ ∧
+      runWith as (introduce c d time) = some ⟨[]⟩ := by
+  simp only [introduceShipped, introduce, Rel.read, View.read, bind_eq, pure_eq, View.bind, runWith,
+    List.head?_cons, List.findSome?_cons, and_self, ite_true]
+  exact ⟨trivial, rfl⟩
 
 /-- The mutant: an approval that wraps the key to every member. -/
 def approveWrapAll (c req myAdm : Id) (d : Device) (esk : Key32) : View Fact Write := do
