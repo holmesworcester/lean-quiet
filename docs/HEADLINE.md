@@ -672,9 +672,9 @@ recommended law, and the details of every other law above, are in
 | [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 313 | 305 | 8 | 0 | 0 |
 | [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 312 | 305 | 7 | 0 | 0 |
 | [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 358 | 336 | 10 | 0 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3104](../app/Proofs.lean#L3104) | propext, Classical.choice, Quot.sound | 649 | 615 | 15 | 5 | 1 |
-| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:191](../engine/sync/ConnLaws.lean#L191) | propext, Classical.choice, Quot.sound | 148 | 136 | 5 | 5 | 0 |
-| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 352 | 330 | 4 | 5 | 0 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3098](../app/Proofs.lean#L3098) | propext, Classical.choice, Quot.sound | 662 | 622 | 15 | 5 | 1 |
+| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:191](../engine/sync/ConnLaws.lean#L191) | propext, Classical.choice, Quot.sound | 166 | 148 | 5 | 5 | 0 |
+| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 367 | 339 | 4 | 5 | 0 |
 | [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:631](../engine/wire/NoiseSymbolic.lean#L631) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
 | [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:932](../engine/wire/NoiseSymbolic.lean#L932) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
@@ -843,11 +843,11 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 325 | 306 | 6 | 0 | 1 |
 | [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 357 | 336 | 9 | 0 | 1 |
 | [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1321](../app/community/Family.lean#L1321) | propext, Classical.choice, Quot.sound | 310 | 305 | 5 | 0 | 0 |
-| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 314 | 289 | 9 | 5 | 1 |
-| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:964](../engine/wire/EgressLaws.lean#L964) | propext, Classical.choice, Quot.sound | 307 | 286 | 12 | 5 | 0 |
-| [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:62](../engine/sync/SecrecyLaws.lean#L62) | propext, Classical.choice, Quot.sound | 94 | 86 | 1 | 5 | 0 |
-| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 148 | 136 | 5 | 5 | 0 |
-| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 265 | 252 | 4 | 5 | 0 |
+| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 327 | 296 | 9 | 5 | 1 |
+| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:963](../engine/wire/EgressLaws.lean#L963) | propext, Classical.choice, Quot.sound | 320 | 293 | 12 | 5 | 0 |
+| [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:64](../engine/sync/SecrecyLaws.lean#L64) | propext, Classical.choice, Quot.sound | 89 | 81 | 1 | 5 | 0 |
+| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 166 | 148 | 5 | 5 | 0 |
+| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 280 | 261 | 4 | 5 | 0 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
 | [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 64 | 2 | 1 | 0 |
 | [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 42 | 1 | 5 | 0 |
@@ -879,7 +879,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`selected_within`](HEADLINE-SURFACES.md#demandselected_within) | [engine/renderer/DemandRank.lean:138](../engine/renderer/DemandRank.lean#L138) | propext, Classical.choice, Quot.sound | 4 | 3 | 1 | 0 | 0 |
 | [`window_rows`](HEADLINE-SURFACES.md#enginewindow_rows) | [engine/core/WindowRead.lean:360](../engine/core/WindowRead.lean#L360) | propext, Classical.choice, Quot.sound | 63 | 52 | 5 | 0 | 0 |
 | [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:126](../engine/core/IngestCost.lean#L126) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
-| [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 79 | 70 | 1 | 5 | 0 |
+| [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 76 | 67 | 1 | 5 | 0 |
 
 **Together** these laws name 67 spec-only definitions, and 11 names of the assumptions they take.
 
@@ -897,7 +897,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 332 | 288 | 35 | 5 | 0 |
+| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 345 | 295 | 35 | 5 | 0 |
 | [`anchor_stable`](HEADLINE-SURFACES.md#heightsanchor_stable) | [engine/renderer/Heights.lean:502](../engine/renderer/Heights.lean#L502) | propext, Quot.sound | 10 | 4 | 6 | 0 | 0 |
 | [`find_spec`](HEADLINE-SURFACES.md#heightstfind_spec) | [engine/renderer/Heights.lean:175](../engine/renderer/Heights.lean#L175) | propext, Classical.choice, Quot.sound | 12 | 4 | 8 | 0 | 0 |
 | [`rows_cost`](HEADLINE-SURFACES.md#heightsrows_cost) | [engine/renderer/Heights.lean:631](../engine/renderer/Heights.lean#L631) | propext, Classical.choice, Quot.sound | 25 | 2 | 13 | 0 | 7 |
