@@ -18,8 +18,8 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | Isolated (roots that use no law) | 529 (14.3%) |
 | Deepest chain | 23 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 634 |
-| Laws the headlines build on, or are | 2516 (68.0%) |
+| Headlines (laws the README's guarantee rows cite) | 635 |
+| Laws the headlines build on, or are | 2558 (69.1%) |
 
 ## Headlines
 
@@ -31,7 +31,7 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 | [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 66 | 173 |
 | [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 65 | 200 |
 | [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 151 | 448 |
-| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 386 |
+| [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 210 | 411 |
 | [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 13 | 30 |
 | [Also cited](proof-tree/also-cited.md) | 91 | 118 |
 
@@ -87,13 +87,13 @@ Laws no law uses and the README does not cite: 699, 421 of them isolated (they u
 | engine/world | 272 | 17 | 8 |
 
 <details><summary><b>app</b> · 68</summary><ul>
-<li>✅ <a href="../app/Screen.lean#L4066">App.composer_no_selection</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L4061">App.composer_pending_feedback</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4080">App.composer_no_selection</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L4075">App.composer_pending_feedback</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1535">App.screenChanged_insets</a> · isolated</li>
 <li>✅ <a href="../app/Proofs.lean#L1529">App.screenChanged_size</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L2007">Appearance.selected_check</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1665">ClumpList.cells_bounded</a> · isolated</li>
-<li>✅ <a href="../app/Screen.lean#L1671">ClumpList.extent_cells</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L2012">Appearance.selected_check</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1670">ClumpList.cells_bounded</a> · isolated</li>
+<li>✅ <a href="../app/Screen.lean#L1676">ClumpList.extent_cells</a> · isolated</li>
 <li>▫️ <a href="../app/Proofs.lean#L2496">Connection.Execution.GoesM.getStatus'</a> · 3 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3212">Connection.Execution.HistoryM.getOp'</a> · 2 below</li>
 <li>▫️ <a href="../app/Proofs.lean#L3214">Connection.Execution.HistoryM.getStatus'</a> · 2 below</li>

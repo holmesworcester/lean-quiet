@@ -92,7 +92,7 @@
 <li>▫️ <a href="../../engine/core/Codec.lean#L149">Engine.Codec.length_encNat_pos</a></li>
 <li>▫️ <a href="../../engine/core/Codec.lean#L604">Engine.Codec.length_le_encList</a></li>
 </ul></details></li>
-<li><a id="law-App.page_round"></a>✅ <a href="../../app/Screen.lean#L2140">App.page_round</a></li>
+<li><a id="law-App.page_round"></a>✅ <a href="../../app/Screen.lean#L2145">App.page_round</a></li>
 <li><details><summary><a id="law-LifecycleLaws.restore_page_anchor"></a>✅ <a href="../../app/Proofs.lean#L1210">LifecycleLaws.restore_page_anchor</a> · 42 below</summary><ul>
 <li>✅ <a href="#law-Lifecycle.restore_checkpoint">Lifecycle.restore_checkpoint</a> ↪ · 36 below</li>
 <li>▫️ <a href="security-proofs-identity-and-membership.md#law-Engine.Codec.decNatFrom_at">Engine.Codec.decNatFrom_at</a> ↪ · 15 below</li>
@@ -169,6 +169,92 @@
 <li><details><summary><a id="law-NodeOffer.offer_runs"></a>✅ <a href="../../app/Screen.lean#L416">NodeOffer.offer_runs</a> · 1 below</summary><ul>
 <li>✅ <a href="../../app/Screen.lean#L379">NodeOffer.offer_split</a></li>
 </ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.acts_shown"></a>📐 <a href="../../engine/renderer/ActsLaws.lean#L180">Live.RWorld.acts_shown</a> · 45 below</summary><ul>
+<li><details><summary><a id="law-Live.RWorld.inv_passWith"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L360">Live.RWorld.inv_passWith</a> · 23 below</summary><ul>
+<li><details><summary><a id="law-Live.RWorld.pass_other"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L319">Live.RWorld.pass_other</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Live.RWorld.foldl_read"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L267">Live.RWorld.foldl_read</a> · 4 below</summary><ul>
+<li><details><summary><a id="law-Live.Board.put_other"></a>▫️ <a href="../../engine/renderer/BoardLaws.lean#L90">Live.Board.put_other</a> · 2 below</summary><ul>
+<li>▫️ <a href="#law-Live.Board.bump_other">Live.Board.bump_other</a> ↪ · 1 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.Board.put_self"></a>▫️ <a href="../../engine/renderer/BoardLaws.lean#L100">Live.Board.put_self</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L64">Live.Board.bump_vals</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.kept_vals"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L301">Live.RWorld.kept_vals</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L131">Live.Board.keep_vals</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.seen_reads"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L296">Live.RWorld.seen_reads</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Live.Board.seen_put"></a>✅ <a href="../../engine/renderer/BoardLaws.lean#L234">Live.Board.seen_put</a> · 6 below</summary><ul>
+<li>▫️ <a href="#law-Live.Board.put_other">Live.Board.put_other</a> ↪ · 2 below</li>
+<li><details><summary><a id="law-Live.Board.put_moved"></a>▫️ <a href="../../engine/renderer/BoardLaws.lean#L120">Live.Board.put_moved</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L73">Live.Board.bump_moved</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L73">Live.Board.bump_moved</a></li>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L53">Live.Board.put_cases</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.pass_picked"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L314">Live.RWorld.pass_picked</a> · 5 below</summary><ul>
+<li>▫️ <a href="#law-Live.RWorld.foldl_read">Live.RWorld.foldl_read</a> ↪ · 4 below</li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.marked_of"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L330">Live.RWorld.marked_of</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Live.mem_mark"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L100">Live.mem_mark</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L72">Live.mem_markM</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L66">Live.mem_filter'</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.Board.seen_keep"></a>✅ <a href="../../engine/renderer/BoardLaws.lean#L259">Live.Board.seen_keep</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L131">Live.Board.keep_vals</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.stale_of"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L339">Live.RWorld.stale_of</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L305">Live.RWorld.kept_of</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L305">Live.RWorld.kept_of</a></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L325">Live.RWorld.pass_dirty</a></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L120">Live.mem_eraseAll</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.marked_sub_idx"></a>▫️ <a href="../../engine/renderer/RestLaws.lean#L243">Live.RWorld.marked_sub_idx</a> · 7 below</summary><ul>
+<li><details><summary><a id="law-Live.mem_markHit"></a>▫️ <a href="../../engine/renderer/RestLaws.lean#L97">Live.mem_markHit</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Live.mem_markHitM"></a>▫️ <a href="../../engine/renderer/RestLaws.lean#L78">Live.mem_markHitM</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/RestLaws.lean#L62">Live.mem_foldl_insert</a></li>
+</ul></details></li>
+</ul></details></li>
+<li>▫️ <a href="#law-Live.mem_mark">Live.mem_mark</a> ↪ · 1 below</li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L305">Live.RWorld.kept_of</a></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L66">Live.mem_filter'</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.idxok_actsWorld"></a>▫️ <a href="../../engine/renderer/ActsLaws.lean#L170">Live.RWorld.idxok_actsWorld</a> · 6 below</summary><ul>
+<li><details><summary><a id="law-Live.RWorld.actsWorld_fields"></a>▫️ <a href="../../engine/renderer/ActsLaws.lean#L156">Live.RWorld.actsWorld_fields</a> · 2 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L111">Live.RWorld.commitAll_fields</a></li>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L44">Live.mem_actsFirst</a></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.idxok_commitAll"></a>▫️ <a href="../../engine/renderer/ActsLaws.lean#L133">Live.RWorld.idxok_commitAll</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/RestLaws.lean#L356">Live.RWorld.idxok_commit</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L111">Live.RWorld.commitAll_fields</a></li>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L150">Live.RWorld.idxok_wants</a></li>
+</ul></details></li>
+<li>▫️ <a href="#law-Live.RWorld.pass_picked">Live.RWorld.pass_picked</a> ↪ · 5 below</li>
+<li><details><summary><a id="law-Live.RWorld.inv_actsWorld"></a>▫️ <a href="../../engine/renderer/ActsLaws.lean#L166">Live.RWorld.inv_actsWorld</a> · 3 below</summary><ul>
+<li><details><summary><a id="law-Live.RWorld.inv_commitAll"></a>▫️ <a href="../../engine/renderer/ActsLaws.lean#L126">Live.RWorld.inv_commitAll</a> · 1 below</summary><ul>
+<li>📐 <a href="../../engine/renderer/ReaderLaws.lean#L238">Live.RWorld.inv_commit</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L147">Live.RWorld.inv_wants</a></li>
+</ul></details></li>
+<li>▫️ <a href="#law-Live.RWorld.actsWorld_fields">Live.RWorld.actsWorld_fields</a> ↪ · 2 below</li>
+<li>▫️ <a href="#law-Live.mem_markHit">Live.mem_markHit</a> ↪ · 2 below</li>
+<li><details><summary><a id="law-Live.mem_pickActs"></a>✅ <a href="../../engine/renderer/ActsLaws.lean#L54">Live.mem_pickActs</a> · 2 below</summary><ul>
+<li><details><summary><a id="law-Live.pick_eq"></a>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L116">Live.pick_eq</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L103">Live.pickM_eq</a></li>
+</ul></details></li>
+</ul></details></li>
+<li><details><summary><a id="law-Live.RWorld.inv_frame"></a>📐 <a href="../../engine/renderer/ReaderLaws.lean#L257">Live.RWorld.inv_frame</a> · 1 below</summary><ul>
+<li>📐 <a href="../../engine/renderer/BoardLaws.lean#L247">Live.Board.seen_take</a></li>
+</ul></details></li>
+<li>▫️ <a href="../../engine/renderer/ActsLaws.lean#L111">Live.RWorld.commitAll_fields</a></li>
+<li>📐 <a href="../../engine/renderer/ActsLaws.lean#L100">Live.RWorld.passActs_picks</a></li>
+<li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L66">Live.mem_filter'</a></li>
+</ul></details></li>
 <li><details><summary><a id="law-Engine.eval_stable"></a>✅ <a href="../../engine/core/View.lean#L141">Engine.eval_stable</a> · 33 below</summary><ul>
 <li><details><summary><a id="law-Engine.later_inv"></a>▫️ <a href="../../engine/core/View.lean#L122">Engine.later_inv</a> · 28 below</summary><ul>
 <li>✅ <a href="quality-proofs-the-engine.md#law-Engine.inv_step">Engine.inv_step</a> ↪ · 24 below</li>
@@ -208,11 +294,7 @@
 <li>▫️ <a href="../../engine/renderer/RestLaws.lean#L463">Live.push_keeps</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Live.marked_complete"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L525">Live.marked_complete</a> · 4 below</summary><ul>
-<li><details><summary><a id="law-Live.mem_markHit"></a>▫️ <a href="../../engine/renderer/RestLaws.lean#L97">Live.mem_markHit</a> · 2 below</summary><ul>
-<li><details><summary><a id="law-Live.mem_markHitM"></a>▫️ <a href="../../engine/renderer/RestLaws.lean#L78">Live.mem_markHitM</a> · 1 below</summary><ul>
-<li>▫️ <a href="../../engine/renderer/RestLaws.lean#L62">Live.mem_foldl_insert</a></li>
-</ul></details></li>
-</ul></details></li>
+<li>▫️ <a href="#law-Live.mem_markHit">Live.mem_markHit</a> ↪ · 2 below</li>
 <li>▫️ <a href="../../engine/renderer/ReaderLaws.lean#L66">Live.mem_filter'</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-Live.dirty_marked"></a>✅ <a href="../../engine/renderer/RestLaws.lean#L534">Live.dirty_marked</a> · 4 below</summary><ul>
@@ -648,8 +730,8 @@
 <li>▫️ <a href="../../app/Proofs.lean#L1377">NavLaws.all_pages</a></li>
 </ul></details></li>
 <li><a id="law-NavLaws.draft_back"></a>✅ <a href="../../app/Proofs.lean#L1364">NavLaws.draft_back</a></li>
-<li><details><summary><a id="law-App.into_native"></a>✅ <a href="../../app/Screen.lean#L2758">App.into_native</a> · 1 below</summary><ul>
-<li>✅ <a href="../../app/Screen.lean#L2746">App.into_target</a></li>
+<li><details><summary><a id="law-App.into_native"></a>✅ <a href="../../app/Screen.lean#L2766">App.into_native</a> · 1 below</summary><ul>
+<li>✅ <a href="../../app/Screen.lean#L2754">App.into_target</a></li>
 </ul></details></li>
 <li><details><summary><a id="law-PeopleLaws.present_iff"></a>✅ <a href="../../app/community/Screen.lean#L397">PeopleLaws.present_iff</a> · 71 below</summary><ul>
 <li>▫️ <a href="security-proofs-confidentiality.md#law-Community.mem_live_all">Community.mem_live_all</a> ↪ · 68 below</li>
@@ -1138,8 +1220,8 @@
 <li>▫️ <a href="../../app/community/Screen.lean#L748">Switch.find_nodup</a></li>
 </ul></details></li>
 </ul></details></li>
-<li><a id="law-App.drawPage_key"></a>✅ <a href="../../app/Screen.lean#L4584">App.drawPage_key</a></li>
-<li><a id="law-App.pageIn_acc"></a>✅ <a href="../../app/Screen.lean#L4612">App.pageIn_acc</a></li>
+<li><a id="law-App.drawPage_key"></a>✅ <a href="../../app/Screen.lean#L4601">App.drawPage_key</a></li>
+<li><a id="law-App.pageIn_acc"></a>✅ <a href="../../app/Screen.lean#L4629">App.pageIn_acc</a></li>
 <li><details><summary><a id="law-Community.msg_cmp"></a>✅ <a href="../../app/community/channel/message/Proofs.lean#L121">Community.msg_cmp</a> · 17 below</summary><ul>
 <li><details><summary><a id="law-Community.bcmp_msgKey"></a>▫️ <a href="../../app/community/channel/message/Proofs.lean#L110">Community.bcmp_msgKey</a> · 16 below</summary><ul>
 <li><details><summary><a id="law-Community.lexCmp_be64"></a>✅ <a href="../../app/community/Family.lean#L1754">Community.lexCmp_be64</a> · 4 below</summary><ul>
@@ -1482,6 +1564,9 @@
 Subtrees met 5 levels down, drawn whole here once.
 
 <ul>
+<li><details><summary><a id="law-Live.Board.bump_other"></a>▫️ <a href="../../engine/renderer/BoardLaws.lean#L68">Live.Board.bump_other</a> · 1 below</summary><ul>
+<li>▫️ <a href="../../engine/renderer/BoardLaws.lean#L64">Live.Board.bump_vals</a></li>
+</ul></details></li>
 <li><details><summary><a id="law-Engine.dedupSorted_strict"></a>▫️ <a href="../../engine/core/WindowIndex.lean#L151">Engine.dedupSorted_strict</a> · 21 below</summary><ul>
 <li><details><summary><a id="law-Engine.Pos.lt_of_lt_le"></a>▫️ <a href="../../engine/core/WindowIndex.lean#L38">Engine.Pos.lt_of_lt_le</a> · 19 below</summary><ul>
 <li>✅ <a href="#law-Engine.Pos.cmp_lt_trans">Engine.Pos.cmp_lt_trans</a> ↪ · 18 below</li>
