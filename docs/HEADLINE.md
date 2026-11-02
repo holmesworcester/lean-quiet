@@ -667,20 +667,20 @@ recommended law, and the details of every other law above, are in
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 327 | 306 | 6 | 1 | 1 |
-| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 313 | 305 | 8 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 313 | 305 | 8 | 0 | 0 |
-| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 312 | 305 | 7 | 0 | 0 |
-| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 358 | 336 | 10 | 0 | 1 |
-| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3098](../app/Proofs.lean#L3098) | propext, Classical.choice, Quot.sound | 662 | 622 | 15 | 5 | 1 |
-| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:191](../engine/sync/ConnLaws.lean#L191) | propext, Classical.choice, Quot.sound | 166 | 148 | 5 | 5 | 0 |
-| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 367 | 339 | 4 | 5 | 0 |
+| [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:120](../app/community/Proofs.lean#L120) | propext, Classical.choice, Quot.sound | 329 | 308 | 6 | 1 | 1 |
+| [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 315 | 307 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:50](../app/community/member/Proofs.lean#L50) | propext, Classical.choice, Quot.sound | 315 | 307 | 8 | 0 | 0 |
+| [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:28](../app/community/member/remove/Proofs.lean#L28) | propext, Classical.choice, Quot.sound | 314 | 307 | 7 | 0 | 0 |
+| [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:821](../app/community/Proofs.lean#L821) | propext, Classical.choice, Quot.sound | 360 | 338 | 10 | 0 | 1 |
+| [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3101](../app/Proofs.lean#L3101) | propext, Classical.choice, Quot.sound | 666 | 634 | 15 | 5 | 1 |
+| [`recv_send`](#enginesyncrecv_send) | [engine/sync/ConnLaws.lean:191](../engine/sync/ConnLaws.lean#L191) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
+| [`sealed_auth`](#connectionsealed_auth) | [app/connection/Proofs.lean:160](../app/connection/Proofs.lean#L160) | propext, Classical.choice, Quot.sound | 371 | 351 | 4 | 5 | 0 |
 | [`kk_secret`](#connectionnoisesymbolickk_secret) | [engine/wire/NoiseSymbolic.lean:631](../engine/wire/NoiseSymbolic.lean#L631) | propext, Quot.sound | 29 | 18 | 7 | 1 | 0 |
 | [`kk_authentic`](#connectionnoisesymbolickk_authentic) | [engine/wire/NoiseSymbolic.lean:932](../engine/wire/NoiseSymbolic.lean#L932) | propext, Quot.sound | 30 | 18 | 8 | 1 | 0 |
 | [`same_ops_same_verdicts`](#enginesame_ops_same_verdicts) | [engine/core/Termination.lean:122](../engine/core/Termination.lean#L122) | propext, Classical.choice, Quot.sound | 68 | 63 | 2 | 1 | 0 |
-| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:202](../app/community/channel/message/Proofs.lean#L202) | propext, Classical.choice, Quot.sound | 322 | 314 | 8 | 0 | 0 |
+| [`display_agrees`](#communitydisplay_agrees) | [app/community/channel/message/Proofs.lean:202](../app/community/channel/message/Proofs.lean#L202) | propext, Classical.choice, Quot.sound | 324 | 316 | 8 | 0 | 0 |
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:84](../engine/renderer/Cover.lean#L84) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
-| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 709 | 703 | 2 | 0 | 0 |
+| [`back_open`](#navlawsback_open) | [app/Proofs.lean:1319](../app/Proofs.lean#L1319) | propext, Classical.choice, Quot.sound | 715 | 711 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:810](../app/community/Screen.lean#L810) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
 | [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:1327](../app/community/Proofs.lean#L1327) | propext, Classical.choice, Quot.sound | 187 | 185 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
@@ -840,25 +840,25 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`id_decode`](HEADLINE-SURFACES.md#engineopid_decode) | [engine/core/Core.lean:94](../engine/core/Core.lean#L94) | propext, Classical.choice, Quot.sound | 35 | 34 | 1 | 0 | 0 |
 | [`writes_only_after_two`](HEADLINE-SURFACES.md#removewrites_only_after_two) | [app/community/member/remove/View.lean:61](../app/community/member/remove/View.lean#L61) | propext, Quot.sound | 4 | 4 | 0 | 0 | 0 |
 | [`wrap_keeps`](HEADLINE-SURFACES.md#textwrap_keeps) | [engine/renderer/WrapLaws.lean:134](../engine/renderer/WrapLaws.lean#L134) | propext, Classical.choice, Quot.sound | 69 | 67 | 2 | 0 | 0 |
-| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 325 | 306 | 6 | 0 | 1 |
-| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 357 | 336 | 9 | 0 | 1 |
-| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1321](../app/community/Family.lean#L1321) | propext, Classical.choice, Quot.sound | 310 | 305 | 5 | 0 | 0 |
-| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 327 | 296 | 9 | 5 | 1 |
-| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:963](../engine/wire/EgressLaws.lean#L963) | propext, Classical.choice, Quot.sound | 320 | 293 | 12 | 5 | 0 |
+| [`message_authorized`](HEADLINE-SURFACES.md#communitymessage_authorized) | [app/community/channel/message/Proofs.lean:73](../app/community/channel/message/Proofs.lean#L73) | propext, Classical.choice, Quot.sound | 327 | 308 | 6 | 0 | 1 |
+| [`removal_cuts_off`](HEADLINE-SURFACES.md#communityremoval_cuts_off) | [app/community/Proofs.lean:918](../app/community/Proofs.lean#L918) | propext, Classical.choice, Quot.sound | 359 | 338 | 9 | 0 | 1 |
+| [`valid_stays`](HEADLINE-SURFACES.md#communityvalid_stays) | [app/community/Family.lean:1340](../app/community/Family.lean#L1340) | propext, Classical.choice, Quot.sound | 312 | 307 | 5 | 0 | 0 |
+| [`removed_gets_only_notice`](HEADLINE-SURFACES.md#connectionremoved_gets_only_notice) | [app/Proofs.lean:210](../app/Proofs.lean#L210) | propext, Classical.choice, Quot.sound | 327 | 302 | 9 | 5 | 1 |
+| [`entry_fresh`](HEADLINE-SURFACES.md#enginesyncentry_fresh) | [engine/wire/EgressLaws.lean:978](../engine/wire/EgressLaws.lean#L978) | propext, Classical.choice, Quot.sound | 324 | 305 | 12 | 5 | 0 |
 | [`offer_shared`](HEADLINE-SURFACES.md#enginesyncoffer_shared) | [engine/sync/SecrecyLaws.lean:64](../engine/sync/SecrecyLaws.lean#L64) | propext, Classical.choice, Quot.sound | 89 | 81 | 1 | 5 | 0 |
-| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 166 | 148 | 5 | 5 | 0 |
-| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 280 | 261 | 4 | 5 | 0 |
+| [`recv_take`](HEADLINE-SURFACES.md#enginesyncrecv_take) | [engine/sync/ConnLaws.lean:158](../engine/sync/ConnLaws.lean#L158) | propext, Classical.choice, Quot.sound | 166 | 154 | 5 | 5 | 0 |
+| [`sealed_unopened`](HEADLINE-SURFACES.md#enginesyncsealed_unopened) | [engine/wire/NodeLaws.lean:70](../engine/wire/NodeLaws.lean#L70) | propext, Classical.choice, Quot.sound | 284 | 273 | 4 | 5 | 0 |
 | [`encode_decode`](HEADLINE-SURFACES.md#enginecodecencode_decode) | [engine/core/Codec.lean:775](../engine/core/Codec.lean#L775) | propext | 4 | 3 | 1 | 0 | 0 |
-| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:167](../engine/core/Budget.lean#L167) | propext, Classical.choice, Quot.sound | 71 | 64 | 2 | 1 | 0 |
+| [`drain_bounded`](HEADLINE-SURFACES.md#enginedrain_bounded) | [engine/core/Budget.lean:171](../engine/core/Budget.lean#L171) | propext, Classical.choice, Quot.sound | 71 | 63 | 2 | 2 | 0 |
 | [`ingest_twice`](HEADLINE-SURFACES.md#engineingest_twice) | [engine/core/IdemLaws.lean:50](../engine/core/IdemLaws.lean#L50) | propext, Classical.choice, Quot.sound | 51 | 42 | 1 | 5 | 0 |
-| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:578](../engine/core/Purge.lean#L578) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
+| [`purge_shared`](HEADLINE-SURFACES.md#enginepurge_shared) | [engine/core/Purge.lean:580](../engine/core/Purge.lean#L580) | propext, Classical.choice, Quot.sound | 47 | 44 | 1 | 0 | 0 |
 | [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
 | [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 184 | 174 | 3 | 1 | 0 |
-| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 509 | 490 | 2 | 5 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1427](../app/community/Proofs.lean#L1427) | propext, Classical.choice, Quot.sound | 359 | 345 | 5 | 0 | 1 |
-| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:439](../app/community/Screen.lean#L439) | propext, Classical.choice, Quot.sound | 360 | 338 | 10 | 0 | 1 |
+| [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:610](../app/Proofs.lean#L610) | propext, Classical.choice, Quot.sound | 511 | 492 | 2 | 5 | 0 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:1427](../app/community/Proofs.lean#L1427) | propext, Classical.choice, Quot.sound | 361 | 347 | 5 | 0 | 1 |
+| [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:439](../app/community/Screen.lean#L439) | propext, Classical.choice, Quot.sound | 362 | 340 | 10 | 0 | 1 |
 | [`deviceCut_removal`](HEADLINE-SURFACES.md#peoplelawsdevicecut_removal) | [app/community/Screen.lean:604](../app/community/Screen.lean#L604) | propext, Classical.choice, Quot.sound | 105 | 88 | 2 | 0 | 1 |
-| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 355 | 336 | 9 | 0 | 0 |
+| [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:286](../app/community/Screen.lean#L286) | propext, Classical.choice, Quot.sound | 357 | 338 | 9 | 0 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |
 | [`line_painted`](HEADLINE-SURFACES.md#coverline_painted) | [engine/renderer/Cover.lean:124](../engine/renderer/Cover.lean#L124) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`newest_visible`](HEADLINE-SURFACES.md#geometrynewest_visible) | [engine/renderer/Geometry.lean:105](../engine/renderer/Geometry.lean#L105) | propext, Classical.choice, Quot.sound | 5 | 3 | 2 | 0 | 0 |
@@ -881,7 +881,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 | [`step_costs`](HEADLINE-SURFACES.md#enginestep_costs) | [engine/core/IngestCost.lean:126](../engine/core/IngestCost.lean#L126) | propext, Classical.choice, Quot.sound | 61 | 44 | 9 | 0 | 8 |
 | [`owed_within`](HEADLINE-SURFACES.md#enginesyncowed_within) | [engine/sync/ServeLaws.lean:459](../engine/sync/ServeLaws.lean#L459) | propext, Classical.choice, Quot.sound | 76 | 67 | 1 | 5 | 0 |
 
-**Together** these laws name 67 spec-only definitions, and 11 names of the assumptions they take.
+**Together** these laws name 67 spec-only definitions, and 12 names of the assumptions they take.
 
 <details><summary>The spec-only definitions, together</summary>
 
@@ -889,7 +889,7 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 - types: `Demand.SelectionRun`, `Engine.Change`, `ViewLaws.Model`
 - definitions: `Community.Fact.admission`, `Community.Fact.chunk`, `Community.Fact.message`, `Community.Fact.profile`, `Community.Fact.removal`, `Connection.Fact.opened`, `Engine.Change.ingests`, `Engine.View.keys`, `Engine.specAt`, `Engine.window`, `Geometry.Seam.home`, `Geometry.Seam.tapRow`, `Merkle.slices`, `Surface.Frame.row`, `Text.ns`, `Translate.position`, `Translate.seen`, `Translate.source`, `ViewLaws.nameIn`
 - instances: `Engine.Meter.instAdd`, `Engine.Meter.instOfNatOfNatNat`, `ViewLaws.instReadsModel`
-- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
+- assumed: `Community.ChunkSound`, `Engine.DB.deleteOp`, `Engine.DB.undecide`, `Engine.Distinct`, `Engine.Model.pop`, `Engine.Sync.instStoreHeldM`, `Engine.budget`, `Engine.instMonadModel`, `Engine.modelStore`, `Engine.runJ`, `NodeOffer.Chan`, `NodeOffer.offerM`
 
 </details>
 
@@ -897,12 +897,12 @@ Assumed: none. Bridged: `Engine.CostT` (the cost meter), `Engine.CostT.bind` (by
 
 | Law | Where | Axioms | Surface | Of the app | Spec-only | Assumed | Bridged |
 |---|---|---|---:|---:|---:|---:|---:|
-| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 345 | 295 | 35 | 5 | 0 |
+| [`converge`](HEADLINE-SURFACES.md#engineworldplainconverge) | [engine/world/Plain.lean:203](../engine/world/Plain.lean#L203) | propext, Classical.choice, Quot.sound | 349 | 307 | 35 | 5 | 0 |
 | [`anchor_stable`](HEADLINE-SURFACES.md#heightsanchor_stable) | [engine/renderer/Heights.lean:502](../engine/renderer/Heights.lean#L502) | propext, Quot.sound | 10 | 4 | 6 | 0 | 0 |
 | [`find_spec`](HEADLINE-SURFACES.md#heightstfind_spec) | [engine/renderer/Heights.lean:175](../engine/renderer/Heights.lean#L175) | propext, Classical.choice, Quot.sound | 12 | 4 | 8 | 0 | 0 |
 | [`rows_cost`](HEADLINE-SURFACES.md#heightsrows_cost) | [engine/renderer/Heights.lean:631](../engine/renderer/Heights.lean#L631) | propext, Classical.choice, Quot.sound | 25 | 2 | 13 | 0 | 7 |
 | [`settle_passes`](HEADLINE-SURFACES.md#liveworldsettle_passes) | [engine/renderer/BoardLaws.lean:481](../engine/renderer/BoardLaws.lean#L481) | propext, Classical.choice, Quot.sound | 13 | 6 | 7 | 0 | 0 |
-| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 385 | 360 | 15 | 0 | 0 |
+| [`row_marked`](HEADLINE-SURFACES.md#viewlawsrow_marked) | [app/community/Screen.lean:312](../app/community/Screen.lean#L312) | propext, Classical.choice, Quot.sound | 387 | 362 | 15 | 0 | 0 |
 | [`offer_runs`](HEADLINE-SURFACES.md#nodeofferoffer_runs) | [app/Screen.lean:427](../app/Screen.lean#L427) | propext | 5 | 1 | 2 | 2 | 0 |
 | [`list_costs`](HEADLINE-SURFACES.md#enginelist_costs) | [engine/core/ListCost.lean:34](../engine/core/ListCost.lean#L34) | propext, Classical.choice, Quot.sound | 21 | 8 | 9 | 0 | 4 |
 | [`Prioritized.write_within`](HEADLINE-SURFACES.md#enginesyncingressprioritizedwrite_within) | [engine/wire/IngressPriorityLaws.lean:220](../engine/wire/IngressPriorityLaws.lean#L220) | propext, Quot.sound | 19 | 11 | 8 | 0 | 0 |
