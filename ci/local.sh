@@ -17,7 +17,10 @@
 #    layout  the op tree's layout, and its negative controls (ci/layout.py)
 #    readme  the README's theorem links and the laws not yet about running
 #            code, against tests/Wiring.lean (ci/proof-links.py); the proof
-#            tree, from that run's graph (docs/PROOF-TREE.md, ci/proof-tree.py)
+#            tree, from that run's graph (docs/PROOF-TREE.md, ci/proof-tree.py);
+#            and the premise tables (ci/premises.py): no ✅ row resting on a
+#            [trusted] or [model] premise, no untagged premise, every
+#            assumption tagged with both its sides (or in the baseline)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 #    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
 #            against them, the Comparator files, and `lake comparator` on
@@ -31,6 +34,9 @@
 #                   and compared with pinned libquiet screens
 #    headless       the app's programs on the headless twin
 #                   (tests/app/headless.sh)
+#    forensics      the proofslop forensics tool's deterministic pass:
+#                   standard axioms only, no kernel escape hatch, no
+#                   statement smell outside ci/forensics-baseline.txt
 #    engine:suites  the engine's suites (SQLite, codec, wire, sync, purge,
 #                   Merkle, notices, costs, kill -9), without TCP
 #    make:assets    make install's assets step and its controls, and the
@@ -82,7 +88,7 @@ done
 [ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 4 || echo 6)
 
 proofs=(driver build check layout readme reorg headline)
-fast=(engine:suites visual headless vacuity make:assets scale)
+fast=(engine:suites visual headless vacuity make:assets scale forensics)
 # The app's parts (tests/app/parts.txt): a part with cases in slices, at
 # most CASE_LANES (6), app:<part>/<k>; slice k is every case whose line
 # number is k modulo the number of slices (slice).
@@ -164,13 +170,14 @@ gate() {
     make:clean-room) mise run make:clean-room ;;
     make:verify) mise run make:verify-test ;;
     make:demo) mise run make:demo-e2e && mise run make:demo-negative ;;
-    readme) mise run readme:links ;;
+    readme) mise run readme:links && mise run premises:check ;;
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
     headline:own) mise run test:headline-own ;;
     vacuity) mise run test:vacuity ;;
     scale) mise run test:scale ;;
+    forensics) mise run forensics:check ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;

@@ -6,25 +6,18 @@
     "module": "tests.vacuity.Sweep",
     "detail": "The same eligible nonempty message encounters zero output room. The unsent premise is kernel checked, the theorem preserves its rank and an independent exact check proves the cursor does not advance. A revoked-authorization control suppresses output."
   },
-  "run_observed": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.Sweep.run_observed",
-    "witness": "Vacuity.Sweep.readOnlyRun",
-    "module": "tests.vacuity.Sweep",
-    "detail": "A populated Held store and real Catalog.held reader discharge both read-only premises. The actual Sweep.run equals the proved cursor transition; exactInput and exactOutput independently check it returns the stored nonempty message and leaves the store unchanged. Synthetic generic family, not native SQLite or signed-community security."
-  },
-  "held_run_observed": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.Sweep.held_run_observed",
-    "witness": "Vacuity.Sweep.heldRun",
-    "module": "tests.vacuity.Sweep",
-    "detail": "The concrete one-row Held catalog has an independently checked existing row and returns the actual nonempty synthetic message. The named theorem identifies the running Sweep.run call with its pure input observation. Native SQL refinement and socket admission remain separate."
-  },
   "Sweep.step_progress": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.Sweep.step_progress",
     "witness": "Vacuity.Sweep.progress",
     "module": "tests.vacuity.Sweep",
     "detail": "A retained nonempty synthetic Alice message at catalog position1 is authorized and fits the reserved frame. All premises are kernel discharged; the exact output is independently checked. A later ceiling of500 does not extend the captured ceiling1. This is cursor progress, not proof that the native writer supplies reservation."
+  },
+  "retried_fair": {
+    "status": "kernel-witness",
+    "theorem": "Engine.Sync.Sweep.retried_fair",
+    "witness": "Vacuity.Sweep.retriedFair",
+    "module": "tests.vacuity.Sweep",
+    "detail": "A concrete history of the production cursor over a one-row catalog holding the synthetic message, a full frame every tick: every premise is discharged in the kernel, and kernel examples check that the first step offers the message, the next finishes the pass and the one after offers it again. Synthetic payload; the catalog's contents are a premise, not read from SQLite."
   }
 }

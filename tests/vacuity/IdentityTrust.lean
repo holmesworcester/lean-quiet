@@ -179,16 +179,15 @@ def admissionC := admit c requestC.id approvalC.id
 def rejoined := after ++ [requestC,approvalC,admissionC]
 
 def newDeviceTrusted := do
-  let ⟨ha⟩ ← certifyDB rejoined admission bobFact
-  let ⟨hr⟩ ← certifyDB rejoined removeB (.removal c requestB.id c)
+  -- Bob's device is admitted under the key and removed, in the same store.
+  let ⟨_⟩ ← certifyDB rejoined admission bobFact
+  let ⟨_⟩ ← certifyDB rejoined removeB (.removal c requestB.id c)
   let ⟨hc⟩ ← certifyDB rejoined admissionC (.admission c requestC.id carol.pk (keyOf bob))
   if hq : (run rejoined).queue = [] then
     if hl : (deviceLive c carol.pk).eval (run rejoined) = true then
-      return PLift.up (new_device_trusted (runInv rejoined) hq
-        (show Admitted ed25519 (run rejoined).ops c requestB.id bob.pk (keyOf bob) from ⟨admission.id,ha⟩)
-        (show Removed ed25519 (run rejoined).ops c requestB.id from ⟨removeB.id,c,hr⟩)
-        (show Admitted ed25519 (run rejoined).ops c requestC.id carol.pk (keyOf bob) from ⟨admissionC.id,hc⟩)
-        ((deviceLive_iff (runInv rejoined) hq c carol.pk).1 hl))
+      return PLift.up ((connect_iff (runInv rejoined) hq c (keyOf bob)).2 ⟨requestC.id, carol.pk,
+        (show Admitted ed25519 (run rejoined).ops c requestC.id carol.pk (keyOf bob) from ⟨admissionC.id,hc⟩),
+        (deviceLive_iff (runInv rejoined) hq c carol.pk).1 hl⟩)
     else none
   else none
 
@@ -247,7 +246,7 @@ def main : IO UInt32 := do
   t.ok "endpoint_signed: Bob signed node binding" endpointSigned.isSome
   t.ok "endpoint_derives: real 32-byte seed and X25519 public key" endpointDerives.isSome
   t.ok "profile_authorized: Bob's signed name" profileAuthorized.isSome
-  t.ok "new_device_trusted: Carol joins using Bob's node key" newDeviceTrusted.isSome
+  t.ok "connect_iff: Carol joins using removed Bob's node key" newDeviceTrusted.isSome
   t.ok "Bob stays cut after Carol joins" (!(deviceLive c bob.pk).eval (run rejoined))
   t.ok "new device differs from removed one" (carol.pk != bob.pk && requestC.id != requestB.id)
   t.ok "mine_not_removed: accepted Bob before removal" mineNotRemoved.isSome
