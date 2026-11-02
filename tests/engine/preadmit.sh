@@ -10,7 +10,7 @@ export ELAN_HOME=${ELAN_HOME:-/mnt/storage/elan}
 export PATH="$ELAN_HOME/bin:$PATH"
 export TMPDIR=${TMPDIR:-/mnt/storage/holmes-tmp}
 mkdir -p out/preadmit
-systemd-run --user --scope -q -p MemoryMax=32G -p MemorySwapMax=0 \
+systemd-run --user --scope -q -p CPUWeight=1000 -p MemoryMax=16G -p MemorySwapMax=0 \
   lake build app.Proofs engine.sync.TakeLaws vacuity_identity_preadmit >out/preadmit/build.log 2>&1
 .lake/build/bin/vacuity_identity_preadmit | tee out/preadmit/witness.log
 grep -q 'passed, 0 failed' out/preadmit/witness.log
