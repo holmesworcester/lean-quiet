@@ -1,9 +1,11 @@
 import engine.sync.SweepRun
 import tests.vacuity.Network
 
-/- Synthetic nonempty payload and a populated held store. These checks exercise
-the production cursor and its actual store interpreter, not native SQLite,
-membership signatures, socket admission or whole-app convergence. -/
+/- Synthetic nonempty payload. These checks exercise the production cursor's
+transition. The running sweep step over the SQLite catalog is that
+transition (`sql_run_step`): its evidence runs on a real SQLite file in
+tests/vacuity/StoreTrust.lean. Not membership signatures, socket admission
+or whole-app convergence. -/
 namespace Vacuity.Sweep
 open Engine Engine.Sync
 open Vacuity.Network (msg fam)
@@ -11,9 +13,6 @@ attribute [local instance] byteArray_lawfulBEq
 
 def cursor : Engine.Sync.Sweep := ⟨0, 1, true⟩
 def visible (_ : Op) : Bool := true
-def held : Held Unit :=
-  { log := [msg], db := { DB.empty with ops := fun id => if id == msg.id then some msg else none } }
-
 theorem fits : Sweep.cost msg ≤ maxFrame := by decide +kernel
 
 theorem progress :
@@ -27,30 +26,24 @@ theorem stalled :
   Sweep.step_nonincrease (by decide) (by intro h; cases h)
     (by intro _ _; rfl) rfl fits (by decide +kernel)
 
-theorem readOnlyRun :
-    (cursor.run (Catalog.held fam) visible maxFrame).run held =
-      (cursor.step (Sweep.observedCeiling (Catalog.held fam) cursor held)
-        (Sweep.observedInput (Catalog.held fam) cursor held) visible maxFrame, held) :=
-  Sweep.run_observed _ _ _ _ _ rfl (fun _ => rfl)
+/-- A history: the cursor stepped on, with the message at position 1 of a
+one-row catalog, a full frame each tick. -/
+def history : Nat → Engine.Sync.Sweep
+  | 0 => {}
+  | n + 1 => (Sweep.step (history n) 1 (some msg) visible maxFrame).1
 
-theorem heldRun :
-    (cursor.run (Catalog.held fam) visible maxFrame).run held =
-      (cursor.step (Sweep.observedCeiling (Catalog.held fam) cursor held)
-        (Sweep.observedInput (Catalog.held fam) cursor held) visible maxFrame, held) :=
-  Sweep.held_run_observed fam cursor visible maxFrame held
+/-- The message is offered on every pass, from any start. -/
+theorem retriedFair : ∀ start, ∃ n, start ≤ n ∧
+    (Sweep.step (history n) 1 (some msg) visible maxFrame).2 = some msg :=
+  Sweep.retried_fair history (fun _ => 1) (fun _ => maxFrame) (fun _ => some msg) (fun _ => visible)
+    msg 1 (by decide) fits (fun _ => rfl) (fun _ _ => Nat.le_refl _) (fun _ _ _ => rfl)
+    (fun _ => rfl) (fun start => ⟨start, Nat.le_refl _, Nat.le_refl _⟩)
 
-theorem existingRow : ((Catalog.held fam).read 1).run held = (some msg.id, held) := rfl
-
-theorem exactInput : Sweep.observedInput (Catalog.held fam) cursor held = some msg := by
-  simp [Sweep.observedInput, cursor, Sweep.begin,
-    Catalog.held, Catalog.shared, fam, oneRoom, Family.room, held, HeldM.run]
-
-theorem exactOutput :
-    (cursor.run (Catalog.held fam) visible maxFrame).run held =
-      ((⟨1, 1, true⟩, some msg), held) := by
-  rw [heldRun, exactInput]
-  simp [Sweep.step, Sweep.next, Sweep.offer, Sweep.begin, Sweep.advance,
-    cursor, visible, fits, Nat.not_lt.mpr fits]
+-- The history has content: the first step offers the message, the next
+-- finishes the pass, and the one after offers it again.
+example : (Sweep.step (history 0) 1 (some msg) visible maxFrame).2 = some msg := by decide +kernel
+example : (Sweep.step (history 1) 1 (some msg) visible maxFrame).2 = none := by decide +kernel
+example : (Sweep.step (history 2) 1 (some msg) visible maxFrame).2 = some msg := by decide +kernel
 
 -- More recent insertions do not extend the captured high-water mark, and a
 -- full socket does not silently skip the row. Revocation suppresses output.

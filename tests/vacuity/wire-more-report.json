@@ -48,13 +48,6 @@
     "module": "tests.vacuity.WireMore",
     "detail": "Opened connection carries concrete nonempty room at time100; theorem deliberately establishes initial empty-store invariant/cache/snaps. Nonempty cache/filing covered separately by SyncCache. Synthetic generic family/held-store fixture; not collected real-user traffic."
   },
-  "secrecy_runs": {
-    "status": "kernel-witness",
-    "theorem": "Engine.Sync.secrecy_runs",
-    "witness": "Vacuity.WireMore.secrecyRun",
-    "module": "tests.vacuity.WireMore",
-    "detail": "Instantiates actual stored-leaf advertisement witness in concrete Alice/Bob room; nonempty advertised ids, not an empty send implication. Synthetic generic family/held-store fixture; not collected real-user traffic."
-  },
   "ahead_bytes": {
     "status": "kernel-witness",
     "theorem": "Engine.Sync.ahead_bytes",

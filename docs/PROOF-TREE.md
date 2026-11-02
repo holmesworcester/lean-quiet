@@ -4,7 +4,7 @@
 
 How the laws compose: each law opens to the laws its proof uses. The headlines are the laws the [README](../README.md#what-is-proven)'s guarantee rows cite, each a tree in the file of its table group. A law is drawn whole once, and links there (↪) elsewhere; *n below* counts the distinct laws a law builds on.
 
-✅ wired: about running code (1377) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (59) · 📐 model: over a model (73) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2174)
+✅ wired: about running code (1377) · 🌐 world: the node's code in a World (69) · 🪜 step: a step of a wired law (57) · 📐 model: over a model (69) · 🧪 control: a negative control (33) · ▫️ lemma: not audited (2175)
 
 ## Scoreboard
 
@@ -12,37 +12,37 @@ Composing the proofs into one tree lowers the roots and isolated laws, and raise
 
 | | |
 |---|---|
-| Laws | 3785 |
-| Edges (a proof uses a law) | 10249 |
-| Roots (no law uses them) | 1120 (29.6%) |
-| Isolated (roots that use no law) | 538 (14.2%) |
+| Laws | 3780 |
+| Edges (a proof uses a law) | 10267 |
+| Roots (no law uses them) | 1113 (29.4%) |
+| Isolated (roots that use no law) | 534 (14.1%) |
 | Deepest chain | 26 |
 | Median chain | 1 |
-| Headlines (laws the README's guarantee rows cite) | 655 |
-| Laws the headlines build on, or are | 2572 (68.0%) |
+| Headlines (laws the README's guarantee rows cite) | 657 |
+| Laws the headlines build on, or are | 2583 (68.3%) |
 
 ## Headlines
 
 | Group | Headlines | Laws drawn there |
 |---|---|---|
 | [Security proofs › Identity and membership](proof-tree/security-proofs-identity-and-membership.md) | 24 | 62 |
-| [Security proofs › Confidentiality](proof-tree/security-proofs-confidentiality.md) | 69 | 238 |
-| [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 73 | 286 |
-| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 63 | 157 |
-| [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 67 | 200 |
-| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 147 | 440 |
+| [Security proofs › Confidentiality](proof-tree/security-proofs-confidentiality.md) | 71 | 250 |
+| [Security proofs › Connections](proof-tree/security-proofs-connections.md) | 72 | 277 |
+| [Security proofs › Hostile input](proof-tree/security-proofs-hostile-input.md) | 66 | 172 |
+| [Quality proofs › The engine](proof-tree/quality-proofs-the-engine.md) | 65 | 195 |
+| [Quality proofs › Sync](proof-tree/quality-proofs-sync.md) | 151 | 448 |
 | [Quality proofs › The screen](proof-tree/quality-proofs-the-screen.md) | 209 | 387 |
-| [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 16 | 45 |
-| [Also cited](proof-tree/also-cited.md) | 90 | 119 |
+| [Quality proofs › Codes, pictures and discovery](proof-tree/quality-proofs-codes-pictures-and-discovery.md) | 13 | 30 |
+| [Also cited](proof-tree/also-cited.md) | 91 | 118 |
 
 ## Uncited roots
 
-Laws no law uses and the README does not cite: 714, 430 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
+Laws no law uses and the README does not cite: 706, 426 of them isolated (they use no law either). Each is a claim of its own or a dead end; composing them into the headlines' trees, or deleting them, shrinks this list.
 
 | Folder | Laws | Uncited roots | Isolated |
 |---|---|---|---|
 | app | 361 | 68 | 39 |
-| app/community | 301 | 48 | 13 |
+| app/community | 300 | 48 | 13 |
 | app/community/caughtUp | 3 | 3 | 1 |
 | app/community/channel/message | 28 | 12 | 9 |
 | app/community/channel/message/attachment | 61 | 29 | 16 |
@@ -81,7 +81,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 | engine/renderer | 402 | 132 | 89 |
 | engine/renderer/Ttf | 16 | 7 | 6 |
 | engine/renderer/qr | 58 | 5 | 4 |
-| engine/sync | 589 | 66 | 29 |
+| engine/sync | 586 | 58 | 25 |
 | engine/wire | 525 | 86 | 72 |
 | engine/wire/mdns | 43 | 5 | 4 |
 | engine/world | 272 | 17 | 8 |
@@ -167,25 +167,25 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../app/community/Op.lean#L248">Community.Root.byDevice_args</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L258">Community.Root.byKey_args</a> · isolated</li>
 <li>▫️ <a href="../app/community/Op.lean#L254">Community.Root.byUser_args</a> · isolated</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L3136">Community.always_bindM</a> · 1 below</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L3133">Community.always_list</a> · isolated</li>
-<li>✅ <a href="../app/community/Proofs.lean#L2995">Community.anchor_read</a> · 82 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3222">Community.approveReq_authored</a> · 42 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L2504">Community.approveReq_ops</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L2970">Community.count_partition</a> · 13 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3156">Community.found_authored</a> · 3 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3209">Community.introduce_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3173">Community.inviteTo_authored</a> · 2 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3186">Community.join_authored</a> · 4 below</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L3125">Community.always_bindM</a> · 1 below</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L3122">Community.always_list</a> · isolated</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2984">Community.anchor_read</a> · 82 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3211">Community.approveReq_authored</a> · 42 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2493">Community.approveReq_ops</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2959">Community.count_partition</a> · 13 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3145">Community.found_authored</a> · 3 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3198">Community.introduce_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3162">Community.inviteTo_authored</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3175">Community.join_authored</a> · 4 below</li>
 <li>▫️ <a href="../app/community/Proofs.lean#L978">Community.mem_cons_row</a> · isolated</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L3103">Community.mkOp_reqs</a> · isolated</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L3092">Community.mkOp_reqs</a> · isolated</li>
 <li>✅ <a href="../app/community/Commands.lean#L584">Community.named_signs</a> · 1 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3246">Community.react_reqs_le</a> · isolated</li>
-<li>▫️ <a href="../app/community/Proofs.lean#L2741">Community.readable_listed</a> · 83 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L2208">Community.removals_at</a> · 63 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3219">Community.removeMember_authored</a> · 4 below</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3265">Community.send_authored</a> · 47 below</li>
-<li>🧪 <a href="../app/community/Proofs.lean#L2632">Community.shipped_introduce_unnamed</a> · isolated</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3235">Community.react_reqs_le</a> · isolated</li>
+<li>▫️ <a href="../app/community/Proofs.lean#L2730">Community.readable_listed</a> · 83 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L2197">Community.removals_at</a> · 63 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3208">Community.removeMember_authored</a> · 4 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3254">Community.send_authored</a> · 47 below</li>
+<li>🧪 <a href="../app/community/Proofs.lean#L2621">Community.shipped_introduce_unnamed</a> · isolated</li>
 <li>▫️ <a href="../app/community/Family.lean#L1023">Community.signedBy_ofApprove</a> · 24 below</li>
 <li>▫️ <a href="../app/community/Family.lean#L1021">Community.signedBy_ofAttach</a> · 31 below</li>
 <li>▫️ <a href="../app/community/Family.lean#L1016">Community.signedBy_ofGrant</a> · 24 below</li>
@@ -200,8 +200,8 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../app/community/Family.lean#L1013">Community.signedBy_ofRoot</a> · 24 below</li>
 <li>▫️ <a href="../app/community/Family.lean#L1019">Community.signedBy_ofWrap</a> · 24 below</li>
 <li>✅ <a href="../app/community/Proofs.lean#L940">Community.signed_eq</a> · isolated</li>
-<li>✅ <a href="../app/community/Proofs.lean#L3240">Community.stopWaiting_authored</a> · isolated</li>
-<li>🧪 <a href="../app/community/Proofs.lean#L2658">Community.wrapAll_over</a> · 2 below</li>
+<li>✅ <a href="../app/community/Proofs.lean#L3229">Community.stopWaiting_authored</a> · isolated</li>
+<li>🧪 <a href="../app/community/Proofs.lean#L2647">Community.wrapAll_over</a> · 2 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L363">Kinds.Accepted.read_known</a> · 1 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L484">PeopleLaws.presentCount_complete</a> · 3 below</li>
 <li>✅ <a href="../app/community/Screen.lean#L462">PeopleLaws.presentW_prefix</a> · 7 below</li>
@@ -746,7 +746,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../engine/renderer/qr/Bits.lean#L97">Qr.readBits_short</a> · isolated</li>
 </ul></details>
 
-<details><summary><b>engine/sync</b> · 66</summary><ul>
+<details><summary><b>engine/sync</b> · 58</summary><ul>
 <li>▫️ <a href="../engine/sync/Conn.lean#L625">Engine.Sync.Conn.ask_take</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/Conn.lean#L683">Engine.Sync.Conn.onAsk_dialer</a> · 1 below</li>
 <li>▫️ <a href="../engine/sync/Conn.lean#L679">Engine.Sync.Conn.onAsk_given</a> · 1 below</li>
@@ -768,10 +768,7 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>📐 <a href="../engine/sync/RoundRun.lean#L674">Engine.Sync.RoundRun.sound_of_check</a> · 3 below</li>
 <li>▫️ <a href="../engine/sync/SimLaws.lean#L59">Engine.Sync.Sim.getStatus'</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/SimLaws.lean#L63">Engine.Sync.Sim.list'</a> · isolated</li>
-<li>📐 <a href="../engine/sync/SweepLaws.lean#L216">Engine.Sync.Sweep.fair_loss_delivered</a> · isolated</li>
-<li>📐 <a href="../engine/sync/SweepRun.lean#L51">Engine.Sync.Sweep.held_run_observed</a> · 1 below</li>
 <li>✅ <a href="../engine/sync/SweepLaws.lean#L99">Engine.Sync.Sweep.retried</a> · 3 below</li>
-<li>✅ <a href="../engine/sync/SweepLaws.lean#L167">Engine.Sync.Sweep.retried_fair</a> · 4 below</li>
 <li>▫️ <a href="../engine/sync/RetryLaws.lean#L19">Engine.Sync.asked_full</a> · isolated</li>
 <li>✅ <a href="../engine/sync/RoundRun.lean#L66">Engine.Sync.beginRound_not_newer</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/WindowLaws.lean#L58">Engine.Sync.byId_foldl_other</a> · 2 below</li>
@@ -789,7 +786,6 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>✅ <a href="../engine/sync/TimeLaws.lean#L114">Engine.Sync.keepalive_runs</a> · 2 below</li>
 <li>✅ <a href="../engine/sync/RetryLaws.lean#L14">Engine.Sync.known_forgets</a> · isolated</li>
 <li>✅ <a href="../engine/sync/Fp.lean#L407">Engine.Sync.lbl_perm</a> · 37 below</li>
-<li>✅ <a href="../engine/sync/Witnesses.lean#L26">Engine.Sync.live_runs</a> · 53 below</li>
 <li>✅ <a href="../engine/sync/RoundRun.lean#L72">Engine.Sync.noteEpoch_bounded</a> · isolated</li>
 <li>▫️ <a href="../engine/sync/ServeLaws.lean#L342">Engine.Sync.onWant_drop</a> · isolated</li>
 <li>✅ <a href="../engine/sync/OfferLaws.lean#L460">Engine.Sync.open_keeps</a> · isolated</li>
@@ -800,7 +796,6 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>▫️ <a href="../engine/sync/RetryLaws.lean#L168">Engine.Sync.retried_holds</a> · 41 below</li>
 <li>▫️ <a href="../engine/sync/RetryLaws.lean#L206">Engine.Sync.retry_bounded</a> · 48 below</li>
 <li>✅ <a href="../engine/sync/EventLaws.lean#L99">Engine.Sync.roundedAt_note</a> · isolated</li>
-<li>📐 <a href="../engine/sync/Witnesses.lean#L11">Engine.Sync.secrecy_runs</a> · 18 below</li>
 <li>▫️ <a href="../engine/sync/SimLaws.lean#L202">Engine.Sync.serveOwed_held</a> · 7 below</li>
 <li>✅ <a href="../engine/sync/ServeLaws.lean#L397">Engine.Sync.serveOwed_hot_count</a> · 6 below</li>
 <li>✅ <a href="../engine/sync/ConnLaws.lean#L116">Engine.Sync.serveOwed_send</a> · 7 below</li>
@@ -810,9 +805,6 @@ Laws no law uses and the README does not cite: 714, 430 of them isolated (they u
 <li>✅ <a href="../engine/sync/BoundsLaws.lean#L202">Engine.Sync.tickGive_reachable</a> · isolated</li>
 <li>✅ <a href="../engine/sync/WindowLaws.lean#L294">Engine.Sync.window_covers</a> · 2 below</li>
 <li>✅ <a href="../engine/sync/ClosureStore.lean#L210">Engine.Sync.write_log_subset</a> · 7 below</li>
-<li>▫️ <a href="../engine/sync/SweepRun.lean#L7">Engine.Sync.Sweep.bind_run</a> · isolated</li>
-<li>▫️ <a href="../engine/sync/SweepRun.lean#L11">Engine.Sync.Sweep.get_run</a> · isolated</li>
-<li>▫️ <a href="../engine/sync/SweepRun.lean#L9">Engine.Sync.Sweep.pure_run</a> · isolated</li>
 </ul></details>
 
 <details><summary><b>engine/wire</b> · 86</summary><ul>

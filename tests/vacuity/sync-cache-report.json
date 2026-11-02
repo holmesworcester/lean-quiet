@@ -152,5 +152,12 @@
     "theorem": "Engine.Sync.no_round_before_safety",
     "witness": "Vacuity.SyncCache.quietUntilSafety",
     "detail": "A dialer whose room's round opened at 50 ms, ticked at 100 ms with the 10-minute safety period: every premise proved, and no round message of the room is in the tick's send. Synthetic generic-family/held-store fixture; notice is a stored shared op, not a Community removal authorization proof."
+  },
+  "responder_opens_none": {
+    "status": "kernel-witness",
+    "module": "tests.vacuity.SyncCache",
+    "theorem": "Engine.Sync.responder_opens_none",
+    "witness": "Vacuity.SyncCache.responderOpensNone",
+    "detail": "The responder connection of responderAsks, with the room shown and no round in it, ticked at 100 ms on the nonempty held store: its premise (not the dialer) holds by rfl, and its tick sends no round opening, though the same tick does send the room's ask (responderAsks), so the tick is not empty."
   }
 }

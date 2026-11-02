@@ -91,21 +91,11 @@ Engine.Sync.empty_log_agrees
 Engine.Sync.shared_log_purge
 Engine.Sync.shared_log_turn
 
-# engine.sync.SweepLaws
-Engine.Sync.Sweep.fair_loss_delivered
-
-# engine.sync.SweepRun
-Engine.Sync.Sweep.held_run_observed
-Engine.Sync.Sweep.run_observed
-
 # engine.sync.TreeLaws
 Engine.Sync.Tree.exchange_ids_stable
 Engine.Sync.Tree.exchange_log
 Engine.Sync.Tree.exchange_stable
 Engine.Sync.Tree.fold_congr
-
-# engine.sync.Witnesses
-Engine.Sync.secrecy_runs
 
 # engine.wire.mdns.Laws
 Mdns.decode_encode

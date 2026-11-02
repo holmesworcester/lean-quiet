@@ -72,7 +72,7 @@ assumptions.
 |---|---|---|---|---|---|---|
 | 1 | Nobody can post as another user. | [`no_impersonation`](../app/community/Proofs.lean#L121) | wired | 6 + `Unforgeable` | conditional | forged post rejected |
 | 2 | Nobody joins without a member's approval. | [`admission_needs_approval`](../app/community/member/invite/Proofs.lean#L44) | wired | 7 | runtime | 4 bad joins rejected |
-| 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L77) | wired | 8 | runtime | unauthorized removal rejected |
+| 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L62) | wired | 8 | runtime | unauthorized removal rejected |
 | 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L9) | wired | 7 | runtime | none |
 | 5 | The node connects only to live members, let in by approvals no removal has cut off. | [`connect_iff`](../app/community/Proofs.lean#L1712) | wired | 15 + store model | runtime | refused after removal |
 | 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3014) | wired | 16 + store model | runtime | message withheld |
@@ -85,7 +85,7 @@ assumptions.
 | 13 | Scrolling never shows a blank. | [`Cover.covered`](../engine/renderer/Cover.lean#L53) | wired | 0 | kernel | blanks exist outside it |
 | 14 | Back goes back. | [`back_open`](../app/Proofs.lean#L1321) | wired | 1 | runtime | shipped bug, a mutant |
 | 15 | Tapping a community opens that community, even when two share a name. | [`select_tapped_dedupe`](../app/community/Screen.lean#L768) | wired | 0 | kernel | pinned iPhone bug |
-| 16 | Letting someone in costs at most three ops, however big the community. | [`approveReq_ops`](../app/community/Proofs.lean#L2504) | wired | 2 | no premises | mutant `approveWrapAll` |
+| 16 | Letting someone in costs at most three ops, however big the community. | [`approveReq_ops`](../app/community/Proofs.lean#L2493) | wired | 2 | no premises | mutant `approveWrapAll` |
 | 17 | Storing an arriving op costs a fixed number of store operations, however big the community. | [`ingest_costs`](../engine/core/IngestCost.lean#L49) | wired, metered | 6 | no premises | none yet |
 | 18 | The app says "You've been removed" only when the store holds a removal of you. | [`deviceCut_removal`](../app/community/Screen.lean#L562) | wired | 2 + store model | runtime | mutant from a real bug |
 
@@ -522,7 +522,7 @@ has gone stale. This stream did not edit the README.
 2. **"a removal cuts off every device of the removed user, for good"**:
    true of the devices. But the removed *user* is not out for good: its
    invitations and approvals stay Valid, so it can approve a new device
-   on its own node, which the trust rule lets in (`new_device_trusted`).
+   on its own node, which the trust rule lets in (`connect_iff`).
    The README says this under "Not yet proven". A judge may read "for
    good" as "the person is out for good". Suggest: "cuts off every
    device of the removed user; a removed member can come back only
@@ -721,7 +721,7 @@ recommended law, and the details of every other law above, are in
 |---|---|---|---:|---:|---:|---:|---:|
 | [`no_impersonation`](#communityno_impersonation) | [app/community/Proofs.lean:121](../app/community/Proofs.lean#L121) | propext, Classical.choice, Quot.sound | 376 | 355 | 6 | 1 | 1 |
 | [`admission_needs_approval`](#communityadmission_needs_approval) | [app/community/member/invite/Proofs.lean:44](../app/community/member/invite/Proofs.lean#L44) | propext, Classical.choice, Quot.sound | 361 | 354 | 7 | 0 | 0 |
-| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:77](../app/community/member/Proofs.lean#L77) | propext, Classical.choice, Quot.sound | 362 | 354 | 8 | 0 | 0 |
+| [`removal_authorized`](#communityremoval_authorized) | [app/community/member/Proofs.lean:62](../app/community/member/Proofs.lean#L62) | propext, Classical.choice, Quot.sound | 362 | 354 | 8 | 0 | 0 |
 | [`removed_stays`](#communityremoved_stays) | [app/community/member/remove/Proofs.lean:9](../app/community/member/remove/Proofs.lean#L9) | propext, Classical.choice, Quot.sound | 361 | 354 | 7 | 0 | 0 |
 | [`connect_iff`](#communityconnect_iff) | [app/community/Proofs.lean:1712](../app/community/Proofs.lean#L1712) | propext, Classical.choice, Quot.sound | 425 | 398 | 15 | 0 | 1 |
 | [`removal_reaches_session`](#connectionremoval_reaches_session) | [app/Proofs.lean:3014](../app/Proofs.lean#L3014) | propext, Classical.choice, Quot.sound | 688 | 652 | 16 | 6 | 1 |
@@ -734,7 +734,7 @@ recommended law, and the details of every other law above, are in
 | [`Cover.covered`](#covercovered) | [engine/renderer/Cover.lean:53](../engine/renderer/Cover.lean#L53) | propext, Quot.sound | 3 | 3 | 0 | 0 | 0 |
 | [`back_open`](#navlawsback_open) | [app/Proofs.lean:1321](../app/Proofs.lean#L1321) | propext, Classical.choice, Quot.sound | 771 | 765 | 2 | 0 | 0 |
 | [`select_tapped_dedupe`](#switchselect_tapped_dedupe) | [app/community/Screen.lean:768](../app/community/Screen.lean#L768) | propext, Quot.sound | 9 | 9 | 0 | 0 | 0 |
-| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:2504](../app/community/Proofs.lean#L2504) | propext, Classical.choice, Quot.sound | 242 | 240 | 2 | 0 | 0 |
+| [`approveReq_ops`](#communityapprovereq_ops) | [app/community/Proofs.lean:2493](../app/community/Proofs.lean#L2493) | propext, Classical.choice, Quot.sound | 242 | 240 | 2 | 0 | 0 |
 | [`ingest_costs`](#engineingest_costs) | [engine/core/IngestCost.lean:49](../engine/core/IngestCost.lean#L49) | propext, Classical.choice, Quot.sound | 46 | 32 | 6 | 0 | 8 |
 | [`deviceCut_removal`](#peoplelawsdevicecut_removal) | [app/community/Screen.lean:562](../app/community/Screen.lean#L562) | propext, Classical.choice, Quot.sound | 110 | 93 | 2 | 0 | 1 |
 
@@ -916,7 +916,7 @@ Assumed: none. Bridged: `Engine.View.eval` (by `Engine.View.run_model`).
 | [`status_iff_spec`](HEADLINE-SURFACES.md#enginestatus_iff_spec) | [engine/core/Proofs.lean:484](../engine/core/Proofs.lean#L484) | propext, Classical.choice, Quot.sound | 42 | 38 | 4 | 0 | 0 |
 | [`chunk_is_slice`](HEADLINE-SURFACES.md#communitychunk_is_slice) | [app/community/channel/message/attachment/chunk/Proofs.lean:51](../app/community/channel/message/attachment/chunk/Proofs.lean#L51) | propext, Classical.choice, Quot.sound | 223 | 213 | 3 | 1 | 0 |
 | [`bare_takes_only_join`](HEADLINE-SURFACES.md#connectionbare_takes_only_join) | [app/Proofs.lean:611](../app/Proofs.lean#L611) | propext, Classical.choice, Quot.sound | 571 | 552 | 2 | 5 | 0 |
-| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:2712](../app/community/Proofs.lean#L2712) | propext, Classical.choice, Quot.sound | 411 | 397 | 5 | 0 | 1 |
+| [`order_total`](HEADLINE-SURFACES.md#communityorder_total) | [app/community/Proofs.lean:2701](../app/community/Proofs.lean#L2701) | propext, Classical.choice, Quot.sound | 411 | 397 | 5 | 0 | 1 |
 | [`present_iff`](HEADLINE-SURFACES.md#peoplelawspresent_iff) | [app/community/Screen.lean:397](../app/community/Screen.lean#L397) | propext, Classical.choice, Quot.sound | 412 | 390 | 10 | 0 | 1 |
 | [`namesake_iff`](HEADLINE-SURFACES.md#viewlawsnamesake_iff) | [app/community/Screen.lean:234](../app/community/Screen.lean#L234) | propext, Classical.choice, Quot.sound | 407 | 388 | 9 | 0 | 0 |
 | [`Translate.covered`](HEADLINE-SURFACES.md#translatecovered) | [engine/renderer/TranslateLaws.lean:83](../engine/renderer/TranslateLaws.lean#L83) | propext, Quot.sound | 9 | 6 | 3 | 0 | 0 |

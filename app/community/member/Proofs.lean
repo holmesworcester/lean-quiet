@@ -57,21 +57,6 @@ theorem cutOf_mem {C : Crypto} {ops : Id → Option Op} {c : Id} :
 open Engine Codec
 variable {C : Crypto} {ops : Id → Option Op}
 
-/-- **A removed member's approval stays Valid.** An approval by a user of
-c stays Valid whatever removals follow, and so does the admission it
-gives: the admit reads the approval's fact, and nothing about its
-approver's removal appears in the premises (#1088 semantics: validity
-reads cited facts only). Whether that admission lets anyone onto the
-network is the trust rule's: an approval outside its approver's
-removals' cuts counts for nothing (`Counts`, `outside_cut_admits_none`). -/
-theorem removed_approver_admits {y x c r : Id} {o : Op} {d0 e0 k0 : Key} {u : Id} {d e : Key}
-    {l : Bool} {g : Approve.Fact} (hy : ops y = some o) (hb : (decode o.body : Option Body) = some .admit)
-    (hkd : o.kind = Body.tag .admit) (hreq : o.reqs = [c, r, x]) (hc : V C ops c (.admission c c d0 e0 k0))
-    (hr : V C ops r (.request c u d e l)) (hx : V C ops x (.ofApproval g)) (hgc : g.c = c) (hgr : g.req = r)
-    (_removed : Removed C ops c g.u) :
-    V C ops y (.admission c u d e k0) :=
-  admit_admits hy hb hkd hreq hc hr hx hgc hgr
-
 /-- **Only admins remove others.** A Valid removal of user t by user u
 is a self-removal, or u is an admin. -/
 theorem removal_authorized {x c t u : Id} {k : List (Key × Id × Nat)} (h : V C ops x (.removal c t u k)) :

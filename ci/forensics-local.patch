@@ -1,0 +1,44 @@
+diff --git a/app/judges/run.ts b/app/judges/run.ts
+index 0881637..d3bb337 100644
+--- a/app/judges/run.ts
++++ b/app/judges/run.ts
+@@ -57,7 +57,7 @@ function readableDirs(root: string): Record<string, string> {
+     for (const p of readdirSync(pkgs).sort()) dirs[`${p} (the version this project pins${revs[p] ? `, ${revs[p].slice(0, 12)}` : ""})`] = join(pkgs, p);
+   }
+   const tc = readToolchain(root);
+-  const core = join(homedir(), ".elan", "toolchains", tc.replace(/\//g, "--").replace(/:/g, "---"), "src", "lean");
++  const core = join(process.env.ELAN_HOME ?? join(homedir(), ".elan"), "toolchains", tc.replace(/\//g, "--").replace(/:/g, "---"), "src", "lean");
+   if (existsSync(core)) dirs[`Lean core (${tc})`] = core;
+   return dirs;
+ }
+@@ -188,13 +188,14 @@ if (import.meta.main) {
+       effort: { type: "string", default: DEFAULTS.effort },
+       jobs: { type: "string", default: "2" },
+       "max-budget": { type: "string", default: String(DEFAULTS.maxBudgetUsd) },
++      retries: { type: "string", default: String(DEFAULTS.retries) },
+       rejudge: { type: "boolean", default: false },
+       "no-check": { type: "boolean", default: false },
+       from: { type: "string" },
+     },
+   });
+   const root = resolve(positionals[0] ?? ".");
+-  const opts: JudgeOptions = { ...DEFAULTS, model: values.model!, effort: values.effort!, maxBudgetUsd: Number(values["max-budget"]), check: !values["no-check"] };
++  const opts: JudgeOptions = { ...DEFAULTS, model: values.model!, effort: values.effort!, maxBudgetUsd: Number(values["max-budget"]), retries: Number(values.retries), check: !values["no-check"] };
+   const inds = values.indicator === "all" ? INDICATORS : values.indicator!.split(",").map((id) => indicator(id) ?? (() => { throw new Error(`unknown indicator ${id}; one of ${INDICATORS.map((i) => i.id).join(", ")}`); })());
+ 
+   const m: Model = values.from
+diff --git a/app/pipeline.ts b/app/pipeline.ts
+index e2607c2..e6b9e3c 100644
+--- a/app/pipeline.ts
++++ b/app/pipeline.ts
+@@ -337,8 +337,9 @@ export async function runPipeline(cfg: ProjectConfig, status: Status): Promise<M
+   status("lint", `linting ${files.length} files`);
+   const leanArgs = lintOptions.flatMap((o) => ["-D", o]);
+   const perFile = await time("lint", () =>
+-    pool(files, Math.max(2, Math.floor(cpus().length / 2)), async (f) => {
++    pool(files, Number(process.env.FORENSICS_LINT_JOBS) || Math.max(2, Math.floor(cpus().length / 2)), async (f) => {
+       const r = await run(["lean", "--json", ...leanArgs, f.path], root, lakeEnv);
++      if (r.code !== 0) console.error(`[lint] lean exited ${r.code} on ${f.path}: ${r.stderr.slice(-300)}`);
+       const diags: Diagnostic[] = [];
+       for (const line of r.stdout.split("\n")) {
+         if (!line.startsWith("{")) continue;

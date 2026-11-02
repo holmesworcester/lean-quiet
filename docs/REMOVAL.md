@@ -250,7 +250,7 @@ users").
 `trusts c me peer` keeps its shape, with `me` this node's key while it
 is in c (`meV_node`). So a node whose key names a removed device is let
 in again once a live device has a trusted admission under the same key
-(`new_device_trusted`). That is how a removed member's node rejoins: it
+(`connect_iff`: a removed device under the key does not block it). That is how a removed member's node rejoins: it
 writes a new device, a current member approves it, and nothing else
 changes. Its own approvals past its removal's cut do not count
 (`no_self_readmission`).
@@ -395,7 +395,7 @@ Built and proven, on lq main's layout:
   key with device liveness, and the trust rule, rooms and dial on node
   keys. Laws: `opened_endpoint`, `established_endpoint`,
   `established_agrees` (restated), `endpoint_signed`, `endpoint_derives`,
-  `meV_node`, `connect_iff` and its kin (restated), `new_device_trusted`,
+  `meV_node`, `connect_iff` and its kin (restated),
   `rooms_trusted`, `rooms_cut` (restated over peer keys).
 - **One device, two users**: `Live`, `Cut`, `deviceLive_iff`,
   `cut_stays`, `cut_consented`, `removals_at`; the people list follows it
@@ -513,7 +513,7 @@ validators and the intents. All are theorems in the axiom audit.
 | Does a removal in c disturb the session's other communities? | `rooms_complete` |
 | Whose keys does the handshake run on? | `opened_endpoint`, `established_endpoint`, `endpoint_derives` |
 | How is a node key tied to a device? | `endpoint_signed` |
-| Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `new_device_trusted`, `meV_node`, `members_iff`, `recipients_iff` |
+| Whom does the trust rule let in, dial, and seal to? | `connect_iff`, `refuse_nonmember`, `connect_admitted`, `meV_node`, `members_iff`, `recipients_iff` |
 | Can a removed member readmit itself? | `no_self_readmission`, `outside_cut_admits_none` |
 | Does a removal cast out whom its target admitted? | `inside_cut_stays`, `removeMember_keeps` (no cascade) |
 | Is trust the same on every node? | `trust_agree`, `trust_order_free` |
