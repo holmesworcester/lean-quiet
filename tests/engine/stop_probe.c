@@ -44,7 +44,3 @@ __attribute__((noinline)) void lq_stop_probe_release(void) {
     atomic_load(&requesting), atomic_load(&completed));
   fflush(stdout);
 }
-/* Only the compiling negative control calls this unguarded SDK read. */
-lean_obj_res lq_stop_probe_bad_get(b_lean_obj_arg mutex) {
-  return lean_io_result_mk_ok(lean_st_ref_get(lean_ctor_get(mutex, 0)));
-}
