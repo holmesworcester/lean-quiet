@@ -351,6 +351,7 @@ world Engine.World.Exec.world = Engine.World.World.step
 world Engine.World.Plain.setup = Engine.World.World.step
 world Engine.World.Setup.at? = Engine.World.World.step
 world Engine.World.Plain.start = Engine.World.World.step
+world Engine.World.World.actAt = Engine.World.World.step
 spec Engine.World.asksOf The ids a payload can make a session ask (a have's ids, a round message's claim ids): what the asks-room premise counts (finding 7, for a whole frame).
 spec Engine.World.wantsOf The ids a payload can queue (a want's ids): what the queue-room premise counts.
 world Connection.Execution.fairRun Actual Node.onTick/onFrame/onWrite/onClose and production Connection.hooks, native crypto, explicit Held store and entropy tape. Infinite FIFO service is proved; a native-certified successful prefix has a fair continuation. Wanted: store/transport refinement and whole-bootstrap convergence for every suitably fair app execution; finite TCP regressions do not prove these.
@@ -367,6 +368,7 @@ control Merkle.rootAndProofsSlowM Every proof rebuilding its siblings, as before
 control Engine.Codec.digitsSlowM A number's digits a byte at a time, as before the halves: over the digits' budget (`slow_digits_over_budget`).
 control Engine.Codec.decBytesListM A byte string the list codec's way: over the bytes' budget (`slow_bytes_over_budget`).
 control Engine.Codec.readAllM = Engine.Codec.decBytesListM
+control Engine.World.dialMutant A node whose dial hook stores an op with a write turn of its own, never indexing it: no `Pieces` for the index's cover (`dial_mutant_unindexed`).
 control Pics.imageV `image` with the old `decoded`, as it shipped: over the frame's budget (`imageV_over_budget`).
 control PeopleLaws.removedShipped An entry's removed mark as 59fa463 shipped it, from two reads that need not agree: removed with no removal read (`shipped_removed_without_removal`).
 control Community.approveWrapAll An approval that wraps the key to every member: wraps to a non-member (`wrapAll_over`).
@@ -585,6 +587,8 @@ extern lq_frame effect Publishes Lean's pixel rows and placement for the OS to s
 extern lq_motion effect Hands the shell the list samples Lean accepted.
 extern lq_ime effect Opens or closes the keyboard.
 extern lq_set_text effect Sets the native text field's text.
+extern lq_notify effect Posts or cancels one conversation's notification card (Notify.packet's JSON), queued for the shell's own thread; Lean decides what alerts (Notify.step's laws).
+extern lq_service effect Turns Sync in the background (Android's foreground service) on or off; whether the platform has it is an input.
 extern lq_editor effect Gives the native editor Lean's text and mode; returns its text and positions.
 extern lq_editor_action effect Settles a native editor action; returns its text and positions.
 extern lq_copy effect Puts text on the clipboard.

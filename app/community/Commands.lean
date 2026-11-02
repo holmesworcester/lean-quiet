@@ -13,6 +13,8 @@ import app.community.member.join.joining.Commands
 import app.community.member.join.joining.abandon.Commands
 import app.community.member.remove.Commands
 import app.community.name.Commands
+import app.community.notice.Commands
+import app.community.caughtUp.Commands
 import app.community.profile.Commands
 
 namespace Community
@@ -257,6 +259,139 @@ def unwrap (c : Id) : View Fact Write := do
         out := out ++ [contentKey c k.1]
     | none => pure ()
   pure ⟨out⟩
+
+/-! ## Notifications: a user's private state, in notice ops -/
+
+/-- A user's notification state as this device opens it. -/
+structure NoticeState where
+  read : List Id := []
+  settings : Notice.Settings := {}
+  /-- The revision the settings were set at. -/
+  settingsRev : Nat := 0
+  /-- The newest notice's revision. -/
+  revision : Nat := 0
+  deriving Inhabited
+
+/-- How many of the newest notices sealed to this device are read. -/
+def noticeWindow : Nat := 64
+
+/-- A box of a 32-byte key: the ephemeral public key, the key, its tag. -/
+def noticeBoxSize : Nat := 80
+
+/-- A notice's payload sealed to the device whose X25519 key is `rpk`:
+a one-time 32-byte key `nk` wrapped to it (`box`, bound to the community
+and the user), then the payload under `nk` (`sealBody`, its associated
+data the community and the user). One key, one message: the nonce is
+zero. -/
+def sealNotice (esk nk : Key32) (rpk c u payload : ByteArray) : ByteArray :=
+  box cryptoSeal esk rpk (Notice.binding c u) nk ++ sealBody cryptoSeal nk zeros24 c u payload
+
+/-- Notice payload bx of user u of c, opened with this node's secret. -/
+def openNotice (sk : Key32) (c u bx : ByteArray) : Option Notice.Payload := do
+  let nk ← unbox cryptoSeal sk (Notice.binding c u) (bx.extract 0 noticeBoxSize)
+  let bytes ← openBody cryptoSeal nk zeros24 c u (bx.extract noticeBoxSize bx.size)
+  Codec.decode bytes
+
+/-- User u's state from notice rows (newest first): every read they
+name; the settings of the highest settings revision. Rows by another
+user, or that do not open, count for nothing. -/
+def noticeOf (sk : Key32) (c u : Id) (rows : List (Pos × Fact)) : NoticeState := Id.run do
+  let mut out : NoticeState := {}
+  for (_, f) in rows do
+    let .notice _ author _ bx rev := f | continue
+    if author != u then continue
+    let some (reads, cl, ch, srev) := openNotice sk c u bx | continue
+    out := { out with read := out.read ++ reads, revision := max out.revision rev }
+    if srev > out.settingsRev then
+      let settings : Notice.Settings := { community := Notice.Level.ofCode cl, conversation := Notice.Level.ofCode ch }
+      out := { out with settingsRev := srev, settings }
+  return out
+
+/-- User u's notification state in c: the newest `noticeWindow` notices
+sealed to this node. A bounded read, however many notices there are. -/
+def noticeState (c u : Id) : View Fact NoticeState := do
+  let some (pk, sk) ← nodeKey | pure {}
+  let a ← notice.byRecipient.read [c, pk] (limit := some noticeWindow)
+  pure (noticeOf sk c u a.rows)
+
+/-- The devices a notice is sealed to: the node keys of the admissions
+among `rows` (the user's own: `admission.byUser [c, u]`), each once;
+for reads (`all` false), not this node's own key. -/
+def noticeRecipients (pk : Key) (all : Bool) : List (Pos × Fact) → List Key
+  | [] => []
+  | (_, .admission _ _ _ enc) :: rest =>
+    let r := noticeRecipients pk all rest
+    if Engine.has r enc || (!all && decide (enc = pk)) then r else enc :: r
+  | _ :: rest => noticeRecipients pk all rest
+
+/-- What records user u's new reads, or settings, in c: one notice per
+device admitted into u (`noticeRecipients_own`), sealed to that device's
+key: reads only to the other devices (this one keeps its own), settings
+to every device, this one included. Notices are local today
+(`notice_local`): with device linking they travel only between the
+user's own devices. Each box's ephemeral secret is derived from `fresh`
+and its recipient. Every notice carries the settings, at their revision. -/
+def noticeWrite (c adm u : Id) (d : Device) (fresh : ByteArray) (reads : List Id)
+    (settings : Option Notice.Settings := none) : View Fact Write := do
+  let some (pk, _) ← nodeKey | pure ⟨[]⟩
+  let old ← noticeState c u
+  let (s, srev) := match settings with
+    | some s => (s, old.settingsRev + 1)
+    | none => (old.settings, old.settingsRev)
+  let payload : Notice.Payload := (reads, Notice.Level.code s.community, Notice.Level.code s.conversation, srev)
+  let ads ← admission.byUser.read [c, u] (limit := none)
+  pure ⟨(noticeRecipients pk settings.isSome ads.rows).filterMap fun enc => do
+    -- the ephemeral secret and the one-time key, from `fresh` and the
+    -- recipient (32-byte hashes)
+    let esk ← Bytes.of? (cryptoSeal.hash ("quiet/notify/esk".toUTF8 ++ fresh ++ enc))
+    let nk ← Bytes.of? (cryptoSeal.hash ("quiet/notify/key".toUTF8 ++ fresh ++ enc))
+    pure (notice c adm d enc (sealNotice esk nk enc c u (Codec.encode payload)) (old.revision + 1))⟩
+
+/-! ## Message links: a message's destination (libquiet's `quiet://open/…`) -/
+
+/-- Where a link opens: a community, a conversation in it, and a message
+there; a thread reply names its root first. Ids, never names. -/
+structure Target where
+  community : Id
+  conversation : Id
+  message : Id
+  root : List Id := []
+  deriving BEq, Inhabited
+
+/-- Sizes: 32-byte ids; at most one root. -/
+def Target.Valid (t : Target) : Prop :=
+  t.community.size = 32 ∧ t.conversation.size = 32 ∧ t.message.size = 32 ∧
+    t.root.length ≤ 1 ∧ ∀ r ∈ t.root, r.size = 32
+
+instance (t : Target) : Decidable t.Valid := by unfold Target.Valid; infer_instance
+
+/-- The app's scheme for a message, beside the invites' `leanquiet://join/`
+and device links' `leanquiet://link/`. -/
+def openScheme : List Char := "leanquiet://open/".toList
+
+/-- The kind a message link's fields lead with, after the member link's
+1 and the device link's 2 (`kindOf`): no link of one kind reads as
+another. -/
+def messageKind : Nat := 3
+
+/-- The fields' bytes, behind their kind, in base62. -/
+def Target.code (t : Target) : List Char :=
+  Base62.encode (encode (messageKind, t.community, t.conversation, t.message, t.root)).data.toList
+
+def Target.uri (t : Target) : String := String.ofList (openScheme ++ t.code)
+
+/-- A message link from text: only this scheme, then the fields. -/
+def Target.parse (s : String) : Option Target :=
+  let cs := s.toList
+  if !openScheme.isPrefixOf cs then none else
+  match Base62.decode (cs.drop openScheme.length) with
+  | none => none
+  | some bs =>
+    match (Codec.decode ⟨bs.toArray⟩ : Option (Nat × Id × Id × Id × List Id)) with
+    | some (v, c, ch, m, r) =>
+      let t : Target := ⟨c, ch, m, r⟩
+      if v = messageKind ∧ t.Valid then some t else none
+    | none => none
 
 /-- Remove user t from c (libquiet's remover flow), as this device's
 user u: the removal cites the root, this device's admission, what makes
