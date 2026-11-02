@@ -287,8 +287,12 @@ def main (args : List String) : IO UInt32 := do
     -- at a time, each committed before the next (an act can still refuse)
     let before ← heldTotal
     for k in [0:120] do
-      discard <| sendText s!"history {k}"
-      discard <| settle
+      -- a refused act leaves nothing written: send again until it is held
+      let held ← heldTotal
+      for _ in [0:20] do
+        discard <| sendText s!"history {k}"
+        discard <| settle
+        if (← heldTotal) > held then break
     let sent := (← heldTotal) - before
     check s!"A sends 120 more posts ({sent})" (sent == 120)
     discard <| settle
