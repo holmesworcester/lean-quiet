@@ -47,6 +47,14 @@ structure Layers where
 def purple : Color := 0x7647C7
 def hoverColor : Color := 0x916AD2
 
+/-- Requests to join the current community, as the phones' home counts
+them: none while this device itself still waits to join. -/
+def waitingToJoin (s : App.St) : Nat := if s.me.waiting then 0 else s.asking.size
+
+/-- With requests, the sidebar opens with a Waiting to join row (as the
+phones' home does), and its lists move down by its height. -/
+def sidebarShift (s : App.St) : Nat := if waitingToJoin s > 0 then s.dim.px 44 else 0
+
 def label (f : Font.Font) (b : Bitmap) (s : String) (x y w : Nat)
     (color : Color := Row.nameInk) : Bitmap :=
   b.line f (Text.oneLineFine f w s) x y color (exactInk := true)
@@ -91,14 +99,16 @@ def candidates (g : Layout) (h : Nat) (ui : Ui) (s : App.St) : List (Control Act
         let visibleH := min (box.y + box.h - ui.offset) (h - (px 60)) - y
         out := out ++ [add .context (g.context.x + box.x) ((px 60) + y) box.w visibleH (.drawerAct action)]
   if g.nav.w > 0 then
+    let o := sidebarShift s
     out := out ++ [add .nav 0 0 (px 220) (px 56) .switcher]
-    out := out ++ [add .nav (px 180) (px 76) (px 32) (px 26) (.drawerAct (.stub "Create channel")),
-      add .nav 0 (px 102) (px 220) (px 26) (.page .chat),
-      add .nav (px 180) (px 160) (px 32) (px 26) (.drawerAct (.stub "Direct message")),
+    if o > 0 then out := out ++ [add .nav 0 (px 60) (px 220) (px 36) (.page .requests)]
+    out := out ++ [add .nav (px 180) (o + px 76) (px 32) (px 26) (.drawerAct (.stub "Create channel")),
+      add .nav 0 (o + px 102) (px 220) (px 26) (.page .chat),
+      add .nav (px 180) (o + px 160) (px 32) (px 26) (.drawerAct (.stub "Direct message")),
       add .nav 0 (h - (px 48)) (px 220) (px 48) .settings]
     for i in [0:s.members.size] do
-      if (px 186) + (i + 1) * (px 30) > h - (px 48) then break
-      out := out ++ [add .nav 0 ((px 186) + i * (px 30)) (px 220) (px 30) (.drawerAct (.person i))]
+      if o + (px 186) + (i + 1) * (px 30) > h - (px 48) then break
+      out := out ++ [add .nav 0 (o + (px 186) + i * (px 30)) (px 220) (px 30) (.drawerAct (.person i))]
   return out
 
 def scene (g : Layout) (h : Nat) (ui : Ui) (s : App.St) : List (Control Action) :=
@@ -338,17 +348,25 @@ def paint (g : Layout) (h : Nat) (ui : Ui) (s : App.St) (ls : Layers) (rowPaint 
     b := b.line titleFont title (px 52) (px 21) 0xffffff (exactInk := true)
     b := b.icon f "caret" ((px 60) + Paint.Line.width titleFont title) (px 20) (px 16) (mixC nav 0xffffff 205)
     let muted := mixC nav 0xffffff 179
-    b := label f.medium b "Channels" (px 16) (px 83) (px 160) muted
-    b := b.icon f "add" (px 188) (px 81) (px 16) (mixC nav 0xffffff (if hot (px 180) (px 76) (px 32) (px 26) then 256 else 154))
-    if s.page == .chat then b := b.fill 0 (px 102) (px 220) (px 128) (mixC nav 0xffffff 51)
-    if s.page != .chat && hot 0 (px 102) (px 220) (px 26) then b := b.fill 0 (px 102) (px 220) (px 128) (mixC nav 0xffffff 13)
+    let o := sidebarShift s
+    if o > 0 then
+      -- Waiting to join, and its count: the requests page, as on the phones
+      if s.page == .requests then b := b.fill 0 (px 60) (px 220) (px 96) (mixC nav 0xffffff 51)
+      else if hot 0 (px 60) (px 220) (px 36) then b := b.fill 0 (px 60) (px 220) (px 96) (mixC nav 0xffffff 13)
+      b := b.icon f "icon-people" (px 16) (px 70) (px 16) 0xffffff
+      b := label f.medium b "Waiting to join" (px 40) (px 71) (px 132) 0xffffff
+      b := Pages.badge f s.dim b (waitingToJoin s) (px 204) (px 66)
+    b := label f.medium b "Channels" (px 16) (o + px 83) (px 160) muted
+    b := b.icon f "add" (px 188) (o + px 81) (px 16) (mixC nav 0xffffff (if hot (px 180) (o + px 76) (px 32) (px 26) then 256 else 154))
+    if s.page == .chat then b := b.fill 0 (o + px 102) (px 220) (o + px 128) (mixC nav 0xffffff 51)
+    if s.page != .chat && hot 0 (o + px 102) (px 220) (px 26) then b := b.fill 0 (o + px 102) (px 220) (o + px 128) (mixC nav 0xffffff 13)
     let selected := if s.page == .chat then mixC nav 0xffffff 51 else nav
-    b := b.icon f "hash" (px 16) (px 109) (px 12) (mixC selected 0xffffff 128)
-    b := label f b "general" (px 32) (px 109) (px 168) (mixC selected 0xffffff 179)
-    b := label f.medium b "Direct messages" (px 16) (px 167) (px 160) muted
-    b := b.icon f "add" (px 188) (px 165) (px 16) (mixC nav 0xffffff (if hot (px 180) (px 160) (px 32) (px 26) then 256 else 154))
+    b := b.icon f "hash" (px 16) (o + px 109) (px 12) (mixC selected 0xffffff 128)
+    b := label f b "general" (px 32) (o + px 109) (px 168) (mixC selected 0xffffff 179)
+    b := label f.medium b "Direct messages" (px 16) (o + px 167) (px 160) muted
+    b := b.icon f "add" (px 188) (o + px 165) (px 16) (mixC nav 0xffffff (if hot (px 180) (o + px 160) (px 32) (px 26) then 256 else 154))
     for i in [0:s.members.size] do
-      let y := (px 186) + i * (px 30)
+      let y := o + (px 186) + i * (px 30)
       if y + (px 30) > h - (px 48) then break
       if hot 0 y (px 220) (px 30) then b := b.fill 0 y (px 220) (y + px 30) (mixC nav 0xffffff 13)
       let (name, mine) := s.members[i]!

@@ -2,7 +2,8 @@
 # Inside a fresh Debian or Ubuntu container (tests/make/clean_room.sh runs
 # this as root): what a judge does, as a user with sudo.
 #   1. Install only what a judge already has (git, make, sudo) and the
-#      test's own tools (Xvfb, xwd, ImageMagick), then forget apt's lists.
+#      test's own tools (Xvfb, xwd, ImageMagick, xdotool, Python's PIL),
+#      then forget apt's lists.
 #   2. git clone the repository (a bundle of the commit under test).
 #   3. make check must fail and name the missing packages, installing none.
 #   4. make install, timed (cold: no Lean, Rust, crates or packages), then
@@ -11,6 +12,10 @@
 #      TrueColor); a screenshot of the empty screen must fail the content
 #      check (the control), and one of each window must pass it while the
 #      app is still running.
+#   6. make demo, driven as a judge drives it (tests/make/demo_e2e.py, from
+#      the clone): two windows, the join by X input, a message each way
+#      checked by state and screen, then make demo ARGS=--auto. Its
+#      screenshots stay in /out/demo-e2e.
 # Writes /out: logs, shots and result.txt (key=value). Needs ASSETS_URL
 # (empty: the URL the pin names) and HOST_UID/HOST_GID for /out's owner.
 set -uo pipefail
@@ -31,7 +36,8 @@ judge() { su - judge -c "cd ~/lean-quiet && $1"; }
 
 step setup
 export DEBIAN_FRONTEND=noninteractive
-{ apt-get update -q && apt-get install -y -q --no-install-recommends git make sudo xvfb x11-apps imagemagick procps; } \
+{ apt-get update -q && apt-get install -y -q --no-install-recommends git make sudo xvfb x11-apps imagemagick procps \
+  xdotool python3-pil; } \
   > "$out/setup.log" 2>&1 || die "the test's own packages did not install (setup.log)"
 rm -rf /var/lib/apt/lists/*
 useradd -m -s /bin/bash judge
@@ -108,6 +114,13 @@ open_app() {
 open_app run
 step online
 open_app online
+step demo
+mkdir -p "$out/demo-e2e" && chown judge "$out/demo-e2e"
+t0=$(date +%s)
+judge "DEMO_E2E_OUT=$out/demo-e2e python3 tests/make/demo_e2e.py" > "$out/demo.log" 2>&1 ||
+  die "make demo: $(grep -m1 '^FAIL' "$out/demo.log" || tail -n 1 "$out/demo.log") (demo.log, demo-e2e/)"
+echo "demo_e2e_seconds=$(($(date +%s) - t0))" >> "$res"
+sed 's/^/demo_/' "$out/demo-e2e/result.txt" >> "$res"
 # make verify (VERIFY=1; clean_room.sh then runs the container privileged,
 # since lake check and lake comparator sandbox with bubblewrap)
 if [ "${VERIFY:-0}" = 1 ]; then
