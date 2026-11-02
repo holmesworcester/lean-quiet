@@ -75,7 +75,7 @@ assumptions.
 | 3 | Only admins remove other members. | [`removal_authorized`](../app/community/member/Proofs.lean#L51) | wired | 8 | runtime | unauthorized removal rejected |
 | 4 | A removal cannot be undone. | [`removed_stays`](../app/community/member/remove/Proofs.lean#L10) | wired | 7 | runtime | none |
 | 5 | The node connects only to live members. | [`connect_iff`](../app/community/Proofs.lean#L823) | wired | 10 + store model | runtime | refused after removal |
-| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3012) | wired | 13 + store model | runtime | message withheld |
+| 6 | After a removal, the removed member gets only the notice. | [`removal_reaches_session`](../app/Proofs.lean#L3012) | wired | 16 + store model | runtime | message withheld |
 | 7 | A session sends only what its peer may see. | [`recv_send`](../engine/sync/ConnLaws.lean#L185) | wired | 3 + store model | kernel | none yet |
 | 8 | The node checks a frame before it reads it. | [`sealed_auth`](../app/connection/Proofs.lean#L160) | wired | 2 + store model | runtime | 3 damaged frames rejected |
 | 9 | Session keys stay secret. | [`kk_secret`](../engine/wire/NoiseSymbolic.lean#L510) | wired, symbolic | 7 + `sym` | kernel | tight: a leak breaks it |
@@ -560,10 +560,10 @@ reviewer reads, and for most laws it is under ten definitions. These
 are the exceptions. Each suggestion is a **proposal only**; no law was
 changed.
 
-- **`removal_reaches_session`** (613; 13 spec-only predicates, 24
-  assumed, 5 bridged). It has five hypotheses about the node's hooks,
-  and its conclusion goes through `FramesBy` and `MayGo` to
-  `NoticeOnly`, `Owed`, `Refused` and `ReachIn`.
+- **`removal_reaches_session`** (672; 15 spec-only predicates and one
+  type, `ReadsOnly`; 6 assumed, 1 bridged). It has five hypotheses
+  about the node's hooks, and its conclusion goes through `FramesBy`
+  and `MayGo` to `NoticeOnly`, `Owed`, `Refused` and `ReachIn`.
   - Bundle the three read-only hypotheses (`hfr`, `hc`, `hs`) into one
     named predicate, as `entry_fresh` bundles its own into
     `ReadOnly x`.
