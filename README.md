@@ -584,7 +584,7 @@ for list queries, and Purge.lean for purges. It rests on five promises:
 ✅ proven over running code · 🟡 partly · ⬜ wanted · *(model)* proven
 over a separate model. 🥊🥊🥊 is what a user is promised; 🥊🥊 is what
 that rests on; 🥊 is supporting. Theorem statements still require their listed
-hypotheses. All 1560 rest on Lean's standard axioms only, and about three quarters of its theorems (1195 of 1532, not counting 28 negative controls) are about the code that runs; another 45 run the
+hypotheses. All 1577 rest on Lean's standard axioms only, and about three quarters of its theorems (1199 of 1548, not counting 29 negative controls) are about the code that runs; another 57 run the
 phone's node code over a modelled network and plain transport (the
 World); the rest are over models so far
 ([not yet about running code](#not-yet-about-running-code-todo)).
@@ -728,13 +728,13 @@ with `tests/wiring.txt` for what the code cannot say, and
 `ci/proof-links.py` writes these tables and the lead's count.
 
 <!-- wiring:begin -->
-**1195 of 1532 laws are about running code;** another 45 run its node code in a World, and 292 are not yet. Stated only: none. 28 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
+**1199 of 1548 laws are about running code;** another 57 run its node code in a World, and 292 are not yet. Stated only: none. 29 laws are negative controls: each proves a mutant breaks its law (they are not counted here, nor in the lead).
 
 | Area | Laws | About running code | In a World | Not yet |
 |---|---|---|---|---|
 | Engine | 220 | 172 |  | 48 |
 | Sync | 330 | 284 |  | 46 |
-| The n-node World | 27 | 4 | 23 |  |
+| The n-node World | 43 | 8 | 35 |  |
 | mDNS | 3 | 0 |  | 3 |
 | Node and wire | 208 | 143 | 16 | 49 |
 | Connections | 32 | 28 |  | 4 |
@@ -859,7 +859,7 @@ with `tests/wiring.txt` for what the code cannot say, and
 | [`Suite.Good`] | 8 | X25519 agrees, HKDF yields valid keys, hash output is valid associated data, supported AEAD inputs roundtrip, and public-key framing splits correctly (correctness only). The running suite has it given `Trust.NativeCrypto` (`suite_good`). |
 | [`Seal.Good`] | 6 | AEAD roundtrip within the crate's limits, key agreement, 32-byte public keys and hashes; key and nonce sizes are in the types (correctness only). The running suite has it given `Trust.NativeCrypto` (`cryptoSeal_good`). |
 | [`Symbolic.sym`] | 17 | The symbolic model of the cryptography, over which the running handshake runs. |
-| [`Model.run`] | 466 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
+| [`Model.run`] | 478 | The store model: SQLite's reads, writes and write turns answer as the model's tables, its purge's reads and deletes too, and the purge's VACUUM and checkpoint (`scrubSql`) change no row. Stated in Lean as `Trust.SqliteStore` (engine/core/StoreTrust.lean), which the laws over the running write turn and purge take (`receive_as_model`, `purge_as_model`); tested by tests/engine/Differential.lean, QueryDiff.lean, Purge.lean and tests/vacuity/StoreTrust.lean. |
 | [`Sync.popW`] | 4 | The run loop's two channels, as queues: `tryRecv` on a `Std.CloseableChannel` takes its oldest value (Lean's library). |
 | [`Engine.runJ`] | 4 | The store's journal (triggers on the index, `Db.filings`) records what this model's journal records, batch by batch (tested by tests/engine/WindowCheck.lean). |
 | [`BeforeNext`] | 4 | Established by empty_before_next and preserved by reconcile_before_next; runtime plans start empty and change through Plan.reconcile. |
@@ -1456,12 +1456,11 @@ opportunities and full native delivery remain open.
 <!-- proof-links: written by ci/proof-links.py; do not edit -->
 [`want_reaches`]: engine/world/Send.lean#L31-L57
 [`same_ops_same_verdicts`]: engine/core/Termination.lean#L118-L126
-[`stream_delivers`]: engine/wire/WorldLaws.lean#L814-L847
+[`stream_delivers`]: engine/wire/WorldLaws.lean#L857-L890
 [`converge`]: engine/world/Plain.lean#L198-L208
 [`offline`]: engine/world/Plain.lean#L211-L219
-[`grows`]: engine/world/Plain.lean#L189-L194
 [`good_always`]: engine/world/PlainGood.lean#L128-L131
-[`want_reaches`]: engine/world/Send.lean#L31-L57
+[`grows`]: engine/world/Plain.lean#L189-L194
 [`drain`]: engine/world/Drain.lean#L842-L858
 [`Unforgeable`]: app/community/Family.lean#L1298-L1313
 [`unscoped_signs_all`]: app/community/Proofs.lean#L90-L95
@@ -1739,14 +1738,14 @@ opportunities and full native delivery remain open.
 [`Execution.fairRun_fair`]: app/Proofs.lean#L1841-L1841
 [`conn_answers_ids`]: engine/wire/WorldLaws.lean#L1569-L1588
 [`closure_delivered`]: engine/sync/ClosureDelivery.lean#L216-L243
-[`stream_offered`]: engine/wire/WorldLaws.lean#L1471-L1483
-[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L852-L869
-[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1490-L1496
-[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L899-L904
-[`write_offers`]: engine/wire/WorldLaws.lean#L525-L533
-[`write_offers_all`]: engine/wire/WorldLaws.lean#L1380-L1392
-[`hold_wants`]: engine/wire/WorldLaws.lean#L544-L551
-[`op_taken`]: engine/wire/WorldLaws.lean#L690-L697
+[`stream_offered`]: engine/wire/WorldLaws.lean#L1514-L1526
+[`stream_delivers_steps`]: engine/wire/WorldLaws.lean#L895-L912
+[`stream_offered_runs`]: engine/wire/WorldLaws.lean#L1533-L1539
+[`stream_delivers_runs`]: engine/wire/WorldLaws.lean#L942-L947
+[`write_offers`]: engine/wire/WorldLaws.lean#L568-L576
+[`write_offers_all`]: engine/wire/WorldLaws.lean#L1423-L1435
+[`hold_wants`]: engine/wire/WorldLaws.lean#L587-L594
+[`op_taken`]: engine/wire/WorldLaws.lean#L733-L740
 [`onWant_all`]: engine/sync/ServeLaws.lean#L309-L313
 [`onWant_order`]: engine/sync/ServeLaws.lean#L328-L331
 [`serveOwed_head`]: engine/sync/ServeLaws.lean#L404-L409
@@ -1770,17 +1769,17 @@ opportunities and full native delivery remain open.
 [`serveOwed_hot`]: engine/sync/ServeLaws.lean#L386-L391
 [`hot_ids`]: engine/wire/LaneLaws.lean#L498-L501
 [`lane_control`]: engine/wire/LaneLaws.lean#L487-L490
-[`fresh_served`]: engine/wire/WorldLaws.lean#L637-L644
-[`write_hot`]: engine/wire/WorldLaws.lean#L1457-L1462
-[`onWrite_receives`]: app/Proofs.lean#L3206-L3215
+[`fresh_served`]: engine/wire/WorldLaws.lean#L680-L687
+[`write_hot`]: engine/wire/WorldLaws.lean#L1500-L1505
+[`onWrite_receives`]: app/Proofs.lean#L3035-L3044
 [`want_to_op`]: engine/world/Chain.lean#L273-L297
 [`op_hop`]: engine/world/Chain.lean#L111-L124
 [`write_hop`]: engine/world/Chain.lean#L181-L193
 [`step_waits`]: engine/world/Drain.lean#L706-L719
-[`managed_nil`]: engine/world/Inv.lean#L148-L151
-[`owes_queued_start`]: engine/world/InvIx.lean#L727-L729
-[`ix_covers_start`]: engine/world/InvIx.lean#L720-L722
-[`owed_bounded_start`]: engine/world/InvOwed.lean#L178-L181
+[`managed_nil`]: engine/world/Inv.lean#L167-L170
+[`owes_queued_start`]: engine/world/PlainGood.lean#L148-L151
+[`ix_covers_start`]: engine/world/PlainGood.lean#L154-L157
+[`owed_bounded_start`]: engine/world/PlainGood.lean#L160-L163
 [`deliver_wants`]: engine/world/Link.lean#L94-L107
 [`deliver_queues`]: engine/world/Link.lean#L116-L130
 [`deliver_takes`]: engine/world/Link.lean#L81-L90
@@ -2251,8 +2250,8 @@ Work follows the theorem columns in **Security proofs**, then **Quality proofs**
 in their README order. Repeated declarations appear once; assumptions and other
 supporting references follow. This is the order for the remaining work too.
 
-**Coverage: 534 kernel witnesses, 175 runtime witnesses,
-31 conditional checks, 0 recorded runtime counterexamples; 30 of 770 linked declarations still pending.**
+**Coverage: 553 kernel witnesses, 177 runtime witnesses,
+31 conditional checks, 0 recorded runtime counterexamples; 26 of 787 linked declarations still pending.**
 A pending or conditional entry is not counted as a passed vacuity check.
 Zero recorded runtime counterexamples does not establish that every remaining
 hypothesis is applicable; formulation gaps are described in conditional entries.
