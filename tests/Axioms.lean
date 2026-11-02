@@ -23,6 +23,7 @@ import engine.renderer.SlideLaws
 import engine.renderer.InputLaws
 import engine.renderer.TranslateLaws
 import engine.sync.TreeLaws
+import engine.sync.ClaimsLaws
 import engine.sync.NewestLaws
 import engine.sync.WindowLaws
 import engine.sync.StateLaws
@@ -37,6 +38,7 @@ import engine.sync.BoundsLaws
 import engine.sync.ServeLaws
 import engine.sync.ClosureDelivery
 import engine.sync.RoundRun
+import engine.sync.RoundDepth
 import engine.sync.EventLaws
 import engine.sync.SimLaws
 import engine.wire.CloseLaws
@@ -49,6 +51,7 @@ import engine.sync.SweepRun
 import engine.sync.SharedLog
 import engine.world.Link
 import engine.world.InvIx
+import engine.world.Send
 import engine.wire.Slots
 import engine.wire.DialQueue
 import engine.core.Engine
@@ -82,13 +85,11 @@ import engine.wire.mdns.Mdns
 import engine.core.WindowRead
 import engine.core.WindowCost
 import engine.core.WindowMutants
-import engine.renderer.Screen
 import engine.core.CodecCost
 import engine.core.MerkleCost
 import engine.core.IngestCost
 import engine.core.ListCost
 import engine.renderer.BoardLaws
-import engine.renderer.Heights
 import engine.renderer.ReaderLaws
 import engine.core.CostErase
 import engine.renderer.ActsLaws
@@ -433,6 +434,34 @@ open Engine Community
 #print axioms Engine.World.Plain.deliver_queues
 #print axioms Engine.World.Plain.owes_queued_start
 #print axioms Engine.World.Plain.ix_covers_start
+#print axioms Engine.World.Plain.want_reaches
+#print axioms Engine.World.Plain.drain
+#print axioms Engine.World.Plain.want_to_op
+#print axioms Engine.World.Plain.op_hop
+#print axioms Engine.World.Plain.write_hop
+#print axioms Engine.World.Plain.step_waits
+#print axioms Engine.World.Plain.owed_bounded_start
+#print axioms Engine.World.Plain.good_always
+#print axioms Engine.World.Plain.good_keeps
+#print axioms Engine.World.Plain.moves_always
+#print axioms Engine.World.Plain.verdicts_spec
+#print axioms Engine.World.Plain.agree
+#print axioms Engine.World.Keeps.always
+#print axioms Engine.World.Guar.always
+#print axioms Engine.World.sent_keeps
+#print axioms Engine.World.dial_mutant_unindexed
+#print axioms Engine.World.onTick_keeps
+#print axioms Engine.World.onFrame_keeps
+#print axioms Engine.World.onWrite_keeps
+#print axioms Engine.World.onClose_keeps
+#print axioms Engine.World.Plain.managed_pieces
+#print axioms Engine.World.Plain.oq_pieces
+#print axioms Engine.World.Plain.ix_pieces
+#print axioms Engine.World.Plain.bounded_pieces
+#print axioms Engine.World.onTick_moves
+#print axioms Engine.World.onSealed_waits
+#print axioms Engine.World.serve_moves
+#print axioms Engine.World.recv_appends
 #print axioms Engine.Sync.write_offers_all
 #print axioms Engine.Sync.filed_offers
 #print axioms Engine.Sync.fanout_offers
@@ -615,8 +644,6 @@ section app
 #print axioms Text.wrap_fits
 #print axioms Text.place_starts
 #print axioms RowLaws.picBox_aspect
-#print axioms RowLaws.tally_nodup
-#print axioms RowLaws.tally_mem
 #print axioms RowLaws.time_shown
 #print axioms RowLaws.name_placed
 #print axioms RowLaws.flush_shows
@@ -633,23 +660,30 @@ section app
 #print axioms RowLaws.twin_shown
 #print axioms RowLaws.twin_before_time
 #print axioms RowLaws.hit_twin
-#print axioms ViewLaws.message_read
 #print axioms PeopleLaws.present_iff
 #print axioms PeopleLaws.present_nodup
-#print axioms Reader.Want.withView_ofFrame
-#print axioms Reader.Want.withViewLast_moves
 #print axioms Live.acts_force
 #print axioms Live.rest_ignores_acts
 #print axioms Live.mem_pickActs
-#print axioms Live.RWorld.passActs_picks
-#print axioms Live.RWorld.passActs_nil
-#print axioms Live.RWorld.inv_passActs
-#print axioms Live.RWorld.idxok_passActs
+#print axioms Live.record_indexed
+#print axioms Live.marked_complete
+#print axioms Live.dirty_marked
+#print axioms Live.record_dirty
+#print axioms Live.fresh_record
+#print axioms Live.fresh_notice
+#print axioms Live.fresh_keep
+#print axioms Live.settle_fresh
+#print axioms Engine.Subs.has_ofList
+#print axioms Engine.Subs.ofList_wf
 #print axioms Live.RWorld.acts_shown
-#print axioms Live.AWorld.passActs_comp
-#print axioms Live.AWorld.passActs_indep
-#print axioms Live.AWorld.passActs_acts
-#print axioms Live.AWorld.type_only
+#print axioms Live.RWorld.inv_commit
+#print axioms Live.RWorld.inv_frame
+#print axioms Live.RWorld.passActs_picks
+#print axioms Live.RWorld.settle
+#print axioms Live.World.inv_commit
+#print axioms Live.World.inv_frame
+#print axioms Live.World.inv_pass
+#print axioms Live.World.settle
 #print axioms Live.Eager.acts_fresh
 #print axioms Live.Eager.late_stale
 #print axioms Remove.writes_only_after_two
@@ -716,13 +750,6 @@ section qr
 #print axioms Pic.fit_pos
 #print axioms Pic.fit_long
 #print axioms Pic.fit_round
-#print axioms Pic.layout_sizes
-#print axioms Pic.layout_inside
-#print axioms Pic.layout_apart
-#print axioms Pic.add_stored
-#print axioms Pic.scale_wellFormed
-#print axioms Pic.render_wellFormed
-#print axioms Pic.render_opaque
 #print axioms Pic.decode_sized
 end qr
 
@@ -812,12 +839,10 @@ open Engine
 #print axioms Engine.find_build
 #print axioms Engine.Subs.find_iff
 #print axioms Engine.Subs.mem_notifyM
-#print axioms Engine.Subs.has_ofList
 #print axioms Engine.Subs.has_add
 #print axioms Engine.Subs.has_keep
 #print axioms Engine.Subs.add_wf
 #print axioms Engine.Subs.keep_wf
-#print axioms Engine.Subs.ofList_wf
 #print axioms Engine.mem_net
 #print axioms Engine.read_rows_iff
 #print axioms Engine.read_notice_iff
@@ -829,11 +854,6 @@ open Engine
 #print axioms Engine.Mutants.key_notice_imprecise
 #print axioms Engine.Mutants.exact_silent
 #print axioms Engine.Mutants.unnetted_imprecise
-#print axioms Screen.screen_subs
-#print axioms Screen.hull_near
-#print axioms Screen.past_hull_le
-#print axioms Screen.screen_index
-#print axioms Screen.keep_scrolled_off
 end windows
 
 #print axioms Engine.Sync.conn_state_bounded
@@ -864,11 +884,6 @@ section cost
 #print axioms Engine.Codec.slow_digits_over_budget
 #print axioms Engine.Codec.readAllM_eq
 #print axioms Engine.Codec.slow_bytes_over_budget
-#print axioms Pics.decoded_started
-#print axioms Pics.image_steady
-#print axioms Pics.image_settles
-#print axioms Pics.image_twice
-#print axioms Pics.steady_later
 #print axioms Pics.imageV_over_budget
 #print axioms Engine.within_bind
 #print axioms Engine.within_bindP
@@ -881,6 +896,35 @@ section cost
 #print axioms Engine.waitOn_costs
 #print axioms Engine.decide_costs
 #print axioms Engine.step_costs
+#print axioms Engine.cr_erase
+#print axioms Engine.within_at
+#print axioms Engine.decide_reads
+#print axioms Engine.step_reads_le
+#print axioms Engine.intake_reqs
+#print axioms Engine.intakeConn_reqs
+#print axioms Engine.intake_sub
+#print axioms Engine.mem_intake_shared
+#print axioms Engine.intake_mine
+#print axioms Engine.stored_capped
+#print axioms Engine.step_capped
+#print axioms Engine.fed_reqs
+#print axioms Engine.step_reads_fed
+#print axioms Connection.wire_not_conn
+#print axioms Connection.intakeConn_wire
+#print axioms Community.post_reqs_le
+#print axioms Community.attach_reqs
+#print axioms Community.nodeKeyOr_authored
+#print axioms Community.found_authored
+#print axioms Community.joinOps_authored
+#print axioms Community.inviteTo_authored
+#print axioms Community.join_authored
+#print axioms Community.introduce_authored
+#print axioms Community.removeMember_authored
+#print axioms Community.approveReq_authored
+#print axioms Community.stopWaiting_authored
+#print axioms Community.react_reqs_le
+#print axioms Community.receiptFor_authored
+#print axioms Community.send_authored
 #print axioms Engine.list_costs
 #print axioms Engine.model_fits
 #print axioms Engine.View.view_lists
@@ -891,49 +935,11 @@ section cost
 #print axioms Live.Board.seen_put
 #print axioms Live.Board.seen_take
 #print axioms Live.Board.seen_keep
-#print axioms Live.World.inv_commit
-#print axioms Live.RWorld.inv_commit
-#print axioms Live.RWorld.inv_pass
-#print axioms Live.RWorld.inv_frame
-#print axioms Live.RWorld.inv_evict
-#print axioms Live.RWorld.settle
 #print axioms Live.Eager.w1_inv
 #print axioms Live.Eager.eager_stale
 #print axioms Live.Eager.marked_fresh
-#print axioms Live.World.inv_pass
-#print axioms Live.World.inv_frame
-#print axioms Live.World.settle
-#print axioms Live.World.marked_pass
-#print axioms Live.World.settle_passes
 #print axioms Live.Gated.gated_stale
 #print axioms Live.Gated.ungated_fresh
-#print axioms Live.World.fold_commits
-#print axioms Live.World.acts_shown
-#print axioms Live.World.passActs_acts
-#print axioms Live.World.passActs_comp
-#print axioms Live.World.passActs_indep
-#print axioms Live.World.type_only
-#print axioms Heights.T.start_eq
-#print axioms Heights.T.find_spec
-#print axioms Heights.T.set_toList
-#print axioms Heights.Rows.push_ok
-#print axioms Heights.T.findM_cost
-#print axioms Heights.T.startM_cost
-#print axioms Heights.T.setM_cost
-#print axioms Heights.rows_cost
-#print axioms Heights.T.start_mono
-#print axioms Heights.T.start_size
-#print axioms Heights.T.below_window
-#print axioms Heights.T.above_window
-#print axioms Heights.Both.rowAt_spec
-#print axioms Heights.le_pow_clog
-#print axioms Heights.clog_least
-#print axioms Heights.T.build_ok
-#print axioms Heights.T.buildM_cost
-#print axioms Heights.rebuild_ok
-#print axioms Heights.rebuild_cost
-#print axioms Heights.window_rows
-#print axioms Heights.anchor_stable
 #print axioms Engine.View.always_eval
 #print axioms Engine.View.always_run
 #print axioms Community.approveReq_ops
@@ -1046,7 +1052,6 @@ end cost
 -- Lifecycle: leases, unmount, restore and resize.
 #print axioms Lifecycle.unmounted_quiet
 #print axioms Lifecycle.old_quiet
-#print axioms Lifecycle.subscriptions_exact
 #print axioms Lifecycle.resize_anchor
 #print axioms Lifecycle.follow_away
 #print axioms Lifecycle.restore_checkpoint
@@ -1057,7 +1062,8 @@ end cost
 #print axioms LifecycleLaws.old_callback
 #print axioms LifecycleLaws.restore_page_anchor
 #print axioms LifecycleLaws.viewport_geometry
-#print axioms LifecycleLaws.viewport_possible
+#print axioms PlaceLaws.bottoms_eq
+#print axioms PlaceLaws.rowAt_iff
 #print axioms LifecycleLaws.apply_page_anchor
 #print axioms Lifecycle.live_exact
 
@@ -1299,6 +1305,38 @@ end cost
 #print axioms Engine.Sync.Tree.answer_step
 #print axioms Engine.Sync.Tree.exchange_ids_stable
 #print axioms Engine.Sync.Tree.exchange_log
+#print axioms Engine.Sync.Key.plt_tie
+#print axioms Engine.Sync.label_canon
+#print axioms Engine.Sync.height_canon
+#print axioms Engine.Sync.split_canon
+#print axioms Engine.Sync.insert_canon
+#print axioms Engine.Sync.split_hashes
+#print axioms Engine.Sync.insert_hashes
+#print axioms Engine.Sync.toList_canon
+#print axioms Engine.Sync.size_canon
+#print axioms Engine.Sync.hasKey_canon
+#print axioms Engine.Sync.canon_perm
+#print axioms Engine.Sync.rangeT_canon
+#print axioms Engine.Sync.cutsT_canon
+#print axioms Engine.Sync.answerT_canon
+#print axioms Engine.Sync.openingT_canon
+#print axioms Engine.Sync.val_answerTM
+#print axioms Engine.Sync.val_rangeTM
+#print axioms Engine.Sync.val_insertM
+#print axioms Engine.Sync.val_splitM
+#print axioms Engine.Sync.val_openingTM
+#print axioms Engine.Sync.rangeTM_hashes
+#print axioms Engine.Sync.answerTM_hashes
+#print axioms Engine.Sync.openingTM_hashes
+#print axioms Engine.Sync.cutsT_pieces
+#print axioms Engine.Sync.split_height
+#print axioms Engine.Sync.ends_log
+#print axioms Engine.Sync.piece_size
+#print axioms Engine.Sync.pieces_count
+#print axioms Engine.Sync.claims_log
+#print axioms Engine.Sync.tally_le
+#print axioms Engine.Sync.RoomTree.items_add
+#print axioms Engine.Sync.ins_sorted
 #print axioms Engine.Sync.Tree.exchange_stable
 #print axioms Engine.Sync.Tree.fold_congr
 #print axioms Engine.Sync.Tree.pick_keys_gt
@@ -1335,6 +1373,13 @@ end cost
 
 #print axioms Raster.key_eq
 #print axioms Demand.remount_rejects
+#print axioms Work.request_again
+#print axioms Demand.reconcileFirst_sorted
+#print axioms Demand.mem_reconcileFirst
+#print axioms Demand.take_first
+#print axioms Demand.take_sorted
+#print axioms Demand.shipped_late
+#print axioms Demand.first_on_time
 
 #print axioms Data.projectSet_mem
 #print axioms Data.projectSet_nodup
@@ -1425,6 +1470,7 @@ end cost
 #print axioms Engine.Sync.conn_returns_claims
 #print axioms Engine.Sync.RoundRun.result_eq
 #print axioms Engine.Sync.RoundRun.items_eq
+#print axioms Engine.Sync.RoundRun.advance_eq
 #print axioms Engine.Sync.RoundRun.successor
 #print axioms Engine.Sync.RoundRun.next_pending
 #print axioms Engine.Sync.RoundRun.piece_misses
@@ -1454,6 +1500,9 @@ end cost
 #print axioms Engine.Sync.RoundRun.items_par
 #print axioms Engine.Sync.conn_runs_exchange
 #print axioms Engine.Sync.live_round_complete
+#print axioms Engine.Sync.RoundRun.answer_level
+#print axioms Engine.Sync.RoundRun.quiet_terminates
+#print axioms Engine.Sync.RoundRun.quiet_round_log
 #print axioms Engine.Sync.pulse_mem
 #print axioms Engine.Sync.due_iff
 #print axioms Engine.Sync.retake_fewer
@@ -1520,6 +1569,14 @@ end cost
 #print axioms Connection.Execution.world_trace_moves
 #print axioms Connection.Execution.empty_trace_store
 #print axioms Connection.Execution.Run.shared_retained
+#print axioms Connection.Execution.trace_good
+#print axioms Connection.Execution.connect_iff_trace
+#print axioms Connection.Execution.removal_cuts_off_trace
+#print axioms Connection.Execution.refuse_nonmember_trace
+#print axioms Connection.Execution.admitted_trace
+#print axioms Connection.Execution.removed_trace
+#print axioms Connection.Execution.Run.state_trace
+#print axioms Connection.Execution.Run.good
 #print axioms Engine.Sync.Sweep.offer_sent
 #print axioms Engine.Sync.Sweep.next_sent
 #print axioms Engine.Sync.Sweep.step_progress
@@ -1552,6 +1609,7 @@ end cost
 -- Exact admitted socket queues and native writer batches, including retries.
 #print axioms Engine.Sync.Reserved.push_bounded
 #print axioms Engine.Sync.Reserved.offer_bounded
+#print axioms Engine.Sync.Reserved.take_vacant
 #print axioms Engine.Sync.Reserved.take_bounded
 #print axioms Engine.Sync.Reserved.normal_flood_does_not_starve_retry
 #print axioms Engine.Sync.Outbox.push_bounded
@@ -1560,10 +1618,12 @@ end cost
 #print axioms Engine.Sync.Outbox.push_preserves_reserved
 #print axioms Engine.Sync.Outbox.urgent_then_retry
 #print axioms Engine.Sync.Outbox.retry_next_batch
+#print axioms Engine.Sync.Outbox.drain_lingers
+#print axioms Engine.Sync.Outbox.drain_quiet_closes
+#print axioms Engine.Sync.Outbox.stopped_never_lingers
 #print axioms Engine.Sync.serveOwed_hot_count
 
 #print axioms Engine.Sync.Ingress.distance_lt
-#print axioms Engine.Sync.Ingress.distance_zero
 #print axioms Engine.Sync.Ingress.advance_distance
 #print axioms Engine.Sync.Ingress.scan_ready
 #print axioms Engine.Sync.Ingress.scan_selected
@@ -1694,3 +1754,27 @@ end cost
 #print axioms Connection.Execution.world_trace_unique
 #print axioms Connection.Execution.empty_trace_unique
 #print axioms Connection.Execution.Run.unique
+
+-- Notifications and Sync in the background (docs/NOTIFICATIONS.md)
+#print axioms Community.notice_signed
+#print axioms Community.notice_local
+#print axioms Community.caughtUp_local
+#print axioms Community.target_roundtrip
+#print axioms Notify.own_silent
+#print axioms Notify.notifies_iff
+#print axioms Notify.can_alert
+#print axioms Notify.once
+#print axioms Notify.step_quiet
+#print axioms Notify.step_removed
+#print axioms Notify.step_read
+#print axioms Notify.step_keeps
+#print axioms Notify.step_post
+#print axioms Notify.marks_le
+#print axioms App.syncs_kept
+#print axioms App.syncs_off
+#print axioms App.keepSync_keeps
+#print axioms App.keepSync_set
+#print axioms App.unmount_keeps_node
+#print axioms App.target_opens
+#print axioms App.targetOf_member
+#print axioms Community.noticeRecipients_own

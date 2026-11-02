@@ -19,7 +19,11 @@
 # CLEAN_ROOM_CPUS (8) CPUs and CLEAN_ROOM_MEMORY (24g) of memory, without
 # swap; images run one after another unless CLEAN_ROOM_PARALLEL=1.
 # VERIFY=1 also runs `make verify` (lake check, lake comparator) in the
-# container, which then runs privileged: both sandbox with bubblewrap.
+# container. Both sandbox with bubblewrap, which needs three of Docker's
+# defaults lifted (see verify_opts below), not --privileged.
+# VERIFY_DROP=seccomp|apparmor|systempaths is the control: that one is left
+# out, and make verify must fail with bubblewrap's error for it.
+# CLEAN_ROOM_CPU_SHARES gives the containers a Docker CPU weight (2: lowest).
 # Only committed files are tested. Artifacts (logs, screenshots, result.txt,
 # demo-e2e/) stay in out/make/clean-room/<image>/. Removes its containers.
 set -euo pipefail
@@ -67,17 +71,40 @@ else
 fi
 git bundle create "$w/repo.bundle" HEAD 2> "$w/bundle.log"
 
+# What bubblewrap needs for make verify, as bwrap reports each one missing
+# (vc-docker's runs: a non-root user, the clean room's other defaults kept):
+#   seccomp=unconfined     Docker's default seccomp profile blocks unshare
+#                          (CLONE_NEWUSER): "No permissions to create new namespace"
+#   apparmor=unconfined    docker-default AppArmor denies mount:
+#                          "Failed to make / slave: Permission denied"
+#   systempaths=unconfined Docker masks parts of /proc, so bwrap cannot mount
+#                          a fresh one: "Can't mount proc on /newroot/proc"
+verify_opts=() expect=
+if [ "${VERIFY:-0}" = 1 ]; then
+  for o in seccomp apparmor systempaths; do
+    [ "$o" = "${VERIFY_DROP:-}" ] || verify_opts+=(--security-opt "$o=unconfined")
+  done
+  case ${VERIFY_DROP:-} in
+    '') ;;
+    seccomp) expect='No permissions to create new namespace' ;;
+    apparmor) expect='Failed to make / slave' ;;
+    systempaths) expect="Can't mount proc" ;;
+    *) echo "clean-room: VERIFY_DROP is seccomp, apparmor or systempaths" >&2; exit 2 ;;
+  esac
+fi
+
 one() {
   local image=$1 slot=$2 dir name code=0
-  dir=$logs/${image//[:\/]/-}
-  name=lq-make-clean-room-${image//[:\/]/-}-$$
+  dir=$logs/${image//[:\/]/-}${VERIFY_DROP:+-without-$VERIFY_DROP}
+  name=lq-make-clean-room-${image//[:\/]/-}${VERIFY_DROP:+-without-$VERIFY_DROP}-$$
   rm -rf "$dir"; mkdir -p "$dir"
   echo "$name" >> "$names"
   echo "clean-room: $image (container $name, $cpus CPUs, $mem)"
   docker run --rm --name "$name" --cpuset-cpus "$(((base + slot) * cpus))-$(((base + slot) * cpus + cpus - 1))" \
     --memory "$mem" --memory-swap "$mem" \
+    ${CLEAN_ROOM_CPU_SHARES:+--cpu-shares "$CLEAN_ROOM_CPU_SHARES"} \
     -e ASSETS_URL="$url" -e HOST_UID="$(id -u)" -e HOST_GID="$(id -g)" -e VERIFY="${VERIFY:-0}" \
-    ${VERIFY:+$([ "$VERIFY" = 1 ] && echo --privileged)} \
+    -e VERIFY_EXPECT="$expect" "${verify_opts[@]}" \
     -v "$w/repo.bundle:/srv/repo.bundle:ro" -v "$top/tests/make/clean_room_inner.sh:/srv/inner.sh:ro" \
     "${mounts[@]}" -v "$dir:/out" \
     "$image" bash /srv/inner.sh > "$dir/container.log" 2>&1 || code=$?

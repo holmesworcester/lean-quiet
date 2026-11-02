@@ -200,112 +200,105 @@
     "theorem": "Remove.writes_only_after_two",
     "witness": "Vacuity.RendererFlow.secondYes",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "cancel_writes_nothing": {
     "status": "kernel-witness",
     "theorem": "Remove.cancel_writes_nothing",
     "witness": "Vacuity.RendererFlow.cancellation",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "open_fresh": {
     "status": "kernel-witness",
     "theorem": "Remove.open_fresh",
     "witness": "Vacuity.RendererFlow.freshAttempt",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "no_replace": {
     "status": "kernel-witness",
     "theorem": "Remove.no_replace",
     "witness": "Vacuity.RendererFlow.noReplace",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offered_only": {
     "status": "kernel-witness",
     "theorem": "Remove.offered_only",
     "witness": "Vacuity.RendererFlow.offered",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "back_go": {
     "status": "kernel-witness",
     "theorem": "Nav.back_go",
     "witness": "Vacuity.RendererFlow.back",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "go_inv": {
     "status": "kernel-witness",
     "theorem": "Nav.go_inv",
     "witness": "Vacuity.RendererFlow.noDuplicates",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offer_split": {
     "status": "kernel-witness",
     "theorem": "NodeOffer.offer_split",
     "witness": "Vacuity.RendererFlow.offerSplit",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "offer_runs": {
     "status": "kernel-witness",
     "theorem": "NodeOffer.offer_runs",
     "witness": "Vacuity.RendererFlow.offers",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "unmounted_quiet": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.unmounted_quiet",
     "witness": "Vacuity.RendererFlow.unmounted",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "old_quiet": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.old_quiet",
     "witness": "Vacuity.RendererFlow.oldCallback",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "mounted_runs": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.mounted_runs",
     "witness": "Vacuity.RendererFlow.mountedWork",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
-  },
-  "subscriptions_exact": {
-    "status": "kernel-witness",
-    "theorem": "Lifecycle.subscriptions_exact",
-    "witness": "Vacuity.RendererFlow.subscriptions",
-    "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "live_exact": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.live_exact",
     "witness": "Vacuity.RendererFlow.liveExact",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "resize_anchor": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.resize_anchor",
     "witness": "Vacuity.RendererFlow.resize",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "restore_checkpoint": {
     "status": "kernel-witness",
     "theorem": "Lifecycle.restore_checkpoint",
     "witness": "Vacuity.RendererFlow.restore",
     "module": "tests.vacuity.RendererFlow",
-    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7 owns two concrete queries; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
+    "detail": "Synthetic Alice/Bob ids, second confirmation/refusal/cancellation, a nonempty page stack, and a channel that fills then accepts a retry. Mount generation 7, and two wants holding two concrete reads; denied actions leave a StateM counter unchanged. A nonempty cached answer and checkpoint draft/anchor are supplied. OS handles, SQLite durability and actual app call sites are not exercised."
   },
   "visual_perm": {
     "status": "kernel-witness",
@@ -377,90 +370,6 @@
     "module": "tests.vacuity.RendererText",
     "detail": "Synthetic Latin/Hebrew/Arabic chat text, actual nonempty numeric runs ($12:30% and Arabic-Indic digits), combining marks and bidi controls. Character-width premises are proved for a 20px fallback-font fixture. Reversed runs are rejected; font-file fidelity and native shaping are outside this fixture."
   },
-  "start_eq": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.start_eq",
-    "witness": "Vacuity.RendererHeights.rowStart",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "find_spec": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.find_spec",
-    "witness": "Vacuity.RendererHeights.findRow",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "set_toList": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.set_toList",
-    "witness": "Vacuity.RendererHeights.update",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "start_mono": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.start_mono",
-    "witness": "Vacuity.RendererHeights.monotone",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "start_size": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.start_size",
-    "witness": "Vacuity.RendererHeights.endOfContent",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "below_window": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.below_window",
-    "witness": "Vacuity.RendererHeights.below",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "above_window": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.above_window",
-    "witness": "Vacuity.RendererHeights.above",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "findM_cost": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.findM_cost",
-    "witness": "Vacuity.RendererHeights.findCost",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "startM_cost": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.startM_cost",
-    "witness": "Vacuity.RendererHeights.startCost",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "setM_cost": {
-    "status": "kernel-witness",
-    "theorem": "Heights.T.setM_cost",
-    "witness": "Vacuity.RendererHeights.updateCost",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "push_ok": {
-    "status": "kernel-witness",
-    "theorem": "Heights.Rows.push_ok",
-    "witness": "Vacuity.RendererHeights.pushed",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
-  "rows_cost": {
-    "status": "kernel-witness",
-    "theorem": "Heights.rows_cost",
-    "witness": "Vacuity.RendererHeights.rowCosts",
-    "module": "tests.vacuity.RendererHeights",
-    "detail": "Synthetic four-message height tree [48,72,96,40], real rebuilt/pushed tree, interior offset 130 and updated height 100. Well-formedness and every bounds premise are proved, with exact start/find/update outputs and invalid bounds checked. This remains the README-marked height-tree model until the app uses it."
-  },
   "Pic.decode_sized": {
     "status": "kernel-witness",
     "theorem": "Pic.decode_sized",
@@ -472,55 +381,6 @@
     "status": "kernel-witness",
     "theorem": "Image.decode_sized",
     "witness": "Vacuity.RendererImages.imageSized",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "layout_sizes": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_sizes",
-    "witness": "Vacuity.RendererImages.layoutSizes",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "Pic.layout_apart": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_apart",
-    "witness": "Vacuity.RendererImages.separated",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "layout_apart": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_apart",
-    "witness": "Vacuity.RendererImages.separated",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "Pic.layout_inside": {
-    "status": "kernel-witness",
-    "theorem": "Pic.layout_inside",
-    "witness": "Vacuity.RendererImages.inside",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "render_wellFormed": {
-    "status": "kernel-witness",
-    "theorem": "Pic.render_wellFormed",
-    "witness": "Vacuity.RendererImages.renderSized",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "render_opaque": {
-    "status": "kernel-witness",
-    "theorem": "Pic.render_opaque",
-    "witness": "Vacuity.RendererImages.opacity",
-    "module": "tests.vacuity.RendererImages",
-    "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
-  },
-  "scale_wellFormed": {
-    "status": "kernel-witness",
-    "theorem": "Pic.scale_wellFormed",
-    "witness": "Vacuity.RendererImages.scaled",
     "module": "tests.vacuity.RendererImages",
     "detail": "Synthetic valid two-pixel QOI blob (opaque red and half-transparent green), nonempty three-picture tray and small glyph coverage bitmap. Decode success, sizes, tray-fit and byte-read premises are constructed; malformed bytes and glyph buffers are rejected. TTF raster/Float execution and native image-picker behavior are not certified."
   },
@@ -608,192 +468,10 @@
     "module": "tests.vacuity.RendererLive",
     "detail": "Synthetic two-query cache with a nonempty hello answer and explicit shared snapshot. Agreement is established from empty through actual store operations; cached read, pruning and revoked-subscription conclusions use the production laws. SQLite snapshot isolation and changed-journal completeness are not established here."
   },
-  "screen_subs": {
-    "status": "kernel-witness",
-    "theorem": "Screen.screen_subs",
-    "witness": "Vacuity.RendererModels.screenSubscriptions",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "hull_near": {
-    "status": "kernel-witness",
-    "theorem": "Screen.hull_near",
-    "witness": "Vacuity.RendererModels.nearHull",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "past_hull_le": {
-    "status": "kernel-witness",
-    "theorem": "Screen.past_hull_le",
-    "witness": "Vacuity.RendererModels.hullBound",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "screen_index": {
-    "status": "kernel-witness",
-    "theorem": "Screen.screen_index",
-    "witness": "Vacuity.RendererModels.frameIndex",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "keep_scrolled_off": {
-    "status": "kernel-witness",
-    "theorem": "Screen.keep_scrolled_off",
-    "witness": "Vacuity.RendererModels.scrolledOff",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.inv_commit": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_commit",
-    "witness": "Vacuity.RendererModels.worldCommit",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.inv_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_pass",
-    "witness": "Vacuity.RendererModels.worldPass",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.inv_frame": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.inv_frame",
-    "witness": "Vacuity.RendererModels.worldFrame",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "World.settle": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.settle",
-    "witness": "Vacuity.RendererModels.worldSettles",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
   "seen_take": {
     "status": "kernel-witness",
     "theorem": "Live.Board.seen_take",
     "witness": "Vacuity.RendererModels.boardSeen",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "marked_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.World.marked_pass",
-    "witness": "Vacuity.RendererModels.stillMarked",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_commit": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_commit",
-    "witness": "Vacuity.RendererModels.readerCommit",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_pass": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_pass",
-    "witness": "Vacuity.RendererModels.readerPass",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.inv_frame": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_frame",
-    "witness": "Vacuity.RendererModels.readerFrame",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "inv_evict": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_evict",
-    "witness": "Vacuity.RendererModels.readerEvict",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.settle": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.settle",
-    "witness": "Vacuity.RendererModels.readerSettles",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "RWorld.acts_shown": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.acts_shown",
-    "witness": "Vacuity.RendererModels.actsShown",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "inv_passActs": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.inv_passActs",
-    "witness": "Vacuity.RendererModels.actionsInvariant",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "idxok_passActs": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.idxok_passActs",
-    "witness": "Vacuity.RendererModels.actionIndex",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "passActs_picks": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.passActs_picks",
-    "witness": "Vacuity.RendererModels.actionPicks",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "passActs_nil": {
-    "status": "kernel-witness",
-    "theorem": "Live.RWorld.passActs_nil",
-    "witness": "Vacuity.RendererModels.noActions",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_comp": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_comp",
-    "witness": "Vacuity.RendererModels.composerKept",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_indep": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_indep",
-    "witness": "Vacuity.RendererModels.composerIndependent",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.passActs_acts": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.passActs_acts",
-    "witness": "Vacuity.RendererModels.actionsTaken",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "AWorld.type_only": {
-    "status": "kernel-witness",
-    "theorem": "Live.AWorld.type_only",
-    "witness": "Vacuity.RendererModels.typing",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "withView_ofFrame": {
-    "status": "kernel-witness",
-    "theorem": "Reader.Want.withView_ofFrame",
-    "witness": "Vacuity.RendererModels.viewSteady",
-    "module": "tests.vacuity.RendererModels",
-    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
-  },
-  "withViewLast_moves": {
-    "status": "kernel-witness",
-    "theorem": "Reader.Want.withViewLast_moves",
-    "witness": "Vacuity.RendererModels.viewMutant",
     "module": "tests.vacuity.RendererModels",
     "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
   },
@@ -873,34 +551,6 @@
     "witness": "Vacuity.RendererSets.numberRun",
     "module": "tests.vacuity.RendererSets",
     "detail": "Synthetic duplicate author rows and acceptance entries (same name/community, repeated acceptance), current/other/pending switcher entries, four thumbnail-chip geometry and a nonempty numeric run. All index/width/membership premises are constructed; exact duplicate counts and switcher ordering are checked. No signed community or real-user dataset is claimed."
-  },
-  "decoded_started": {
-    "status": "kernel-witness",
-    "theorem": "Pics.decoded_started",
-    "witness": "Vacuity.RendererPics.started",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_steady": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_steady",
-    "witness": "Vacuity.RendererPics.noWork",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_settles": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_settles",
-    "witness": "Vacuity.RendererPics.settles",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
-  },
-  "image_twice": {
-    "status": "kernel-witness",
-    "theorem": "Pics.image_twice",
-    "witness": "Vacuity.RendererPics.twice",
-    "module": "tests.vacuity.RendererPics",
-    "detail": "Synthetic complete two-chunk picture with a nonempty preview, an existing task, and a fresh decode/retry world. Actual historical Pics model laws are applied, including fully supplied steady premises. The source labels this as a historical cost model; it does not prove the shipping Work.Pool attachment pipeline."
   },
   "NavLaws.back_open": {
     "status": "runtime-witness",
@@ -1007,13 +657,6 @@
     "module": "tests.vacuity.RendererRuntime",
     "detail": "The deterministic runtime executable reads the actual NotoSans-Regular.ttf asset, finds glyph A, executes native Float rasterization, and constructs the raster-success and nonempty-bitmap premises in successful match/if branches. A zero-size raster is rejected. This is a runtime premise certificate, not kernel reduction of native floating-point operations."
   },
-  "add_stored": {
-    "status": "runtime-witness",
-    "theorem": "Pic.add_stored",
-    "witness": "Vacuity.RendererRuntime.addStored",
-    "module": "tests.vacuity.RendererRuntime",
-    "detail": "The production Pic.add accepts the synthetic two-pixel RGBA fixture; runtime evaluation proves the result grew, then applies add_stored to the actual result. Invalid buffers are rejected separately in the image fixtures. Native execution, including encoder equality checks, is trusted."
-  },
   "agrees_notice": {
     "status": "runtime-witness",
     "theorem": "LiveLaws.agrees_notice",
@@ -1025,13 +668,6 @@
     "status": "kernel-witness",
     "theorem": "LifecycleLaws.viewport_geometry",
     "witness": "Vacuity.RendererRuntime.viewport",
-    "module": "tests.vacuity.RendererRuntime",
-    "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
-  },
-  "viewport_possible": {
-    "status": "kernel-witness",
-    "theorem": "LifecycleLaws.viewport_possible",
-    "witness": "Vacuity.RendererRuntime.viewportExists",
     "module": "tests.vacuity.RendererRuntime",
     "detail": "Concrete 1280px portrait geometry with visible 300px keyboard and nonzero offsets, plus the profile-page checkpoint code. Every fitting premise is kernel-computed; these are production app geometry/codec theorem applications, without native event-acquisition claims."
   },
@@ -1117,7 +753,7 @@
     "theorem": "ViewLaws.row_marked",
     "witness": "Vacuity.RendererSupplement.marked",
     "module": "tests.vacuity.RendererSupplement",
-    "detail": "The same signed duplicate-name community opens an actual sealed Bob message using its local content key. A successful Message.read match supplies the precise row premise; its complete row_marked conclusion is returned in a dependent certificate, and execution checks the actual row carries the Duplicate flag."
+    "detail": "Two actually admitted Ed25519 identities choose the same Bob label. Runtime validates the nonempty signed community and empty queue, then applies row_marked to the running author component for Bob. Execution checks that the actual sealed Bob message's owned row (Message.readOwn) names Bob as its author, and that Bob's author component (Profile.author, the frame's .author want) shows \"Bob\" marked Duplicate."
   },
   "receipt_once": {
     "status": "runtime-witness",
@@ -1153,5 +789,131 @@
     "witness": "Vacuity.RendererSupplement.displayAgreement",
     "module": "tests.vacuity.RendererSupplement",
     "detail": "Real Ed25519 messages include one saturated counter with local receipt5; the next saturated post writes receipt6, a retry writes none, and send_after exercises its saturated two-op branch. The universal 64-bit receipt bound is derived from EVERY actual received.all row through at_row, not assumed only for the named receipt. Fed is constructed from own intake plus real drain steps for local provenance; display agreement independently validates two messages under reversed op order. Native crypto execution is trusted."
+  },
+  "World.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_commit",
+    "witness": "Vacuity.RendererModels.worldCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.inv_frame",
+    "witness": "Vacuity.RendererModels.worldFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "World.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.World.settle",
+    "witness": "Vacuity.RendererModels.worldSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_commit": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_commit",
+    "witness": "Vacuity.RendererModels.readerCommit",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.inv_frame": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.inv_frame",
+    "witness": "Vacuity.RendererModels.readerFrame",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "RWorld.settle": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.settle",
+    "witness": "Vacuity.RendererModels.readerSettles",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "passActs_picks": {
+    "status": "kernel-witness",
+    "theorem": "Live.RWorld.passActs_picks",
+    "witness": "Vacuity.RendererModels.actionPicks",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "Concrete nonempty model worlds: near/far screen rows; loaded board plus a commit/refill; two wants sharing one read, with a real queued user act and a nonempty draft. Invariants and stable/index premises come from model constructors. Deliberately stale frame/want-order controls are included. These are the README-labelled thread/screen models, not a proof of native scheduling or the full runtime reader loop."
+  },
+  "record_indexed": {
+    "status": "kernel-witness",
+    "theorem": "Live.record_indexed",
+    "witness": "Vacuity.RendererModels.idx1Ok",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "marked_complete": {
+    "status": "kernel-witness",
+    "theorem": "Live.marked_complete",
+    "witness": "Vacuity.RendererModels.noticed",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "dirty_marked": {
+    "status": "kernel-witness",
+    "theorem": "Live.dirty_marked",
+    "witness": "Vacuity.RendererModels.stillDirty",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "record_dirty": {
+    "status": "kernel-witness",
+    "theorem": "Live.record_dirty",
+    "witness": "Vacuity.RendererModels.cleaned",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_record": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_record",
+    "witness": "Vacuity.RendererModels.freshRead",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_notice": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_notice",
+    "witness": "Vacuity.RendererModels.freshNoticed",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "fresh_keep": {
+    "status": "kernel-witness",
+    "theorem": "Live.fresh_keep",
+    "witness": "Vacuity.RendererModels.freshKept",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "settle_fresh": {
+    "status": "kernel-witness",
+    "theorem": "Live.settle_fresh",
+    "witness": "Vacuity.RendererModels.settled",
+    "module": "tests.vacuity.RendererModels",
+    "detail": "The running reader's index and board on a concrete want: want 1 reads read 7 (Index.record from the empty index), a notice hitting 7 marks it, its value 11 goes on the board (Board.put), a notice hitting only 8 keeps it fresh, Board.keep keeps it, and with nothing dirty the board holds the store's value. Premises are constructed, not assumed."
+  },
+  "take_first": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_first",
+    "witness": "Vacuity.RendererDemand.actFirst",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
+  },
+  "take_sorted": {
+    "status": "kernel-witness",
+    "theorem": "Demand.take_sorted",
+    "witness": "Vacuity.RendererDemand.actRest",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
+  },
+  "reconcileFirst_sorted": {
+    "status": "kernel-witness",
+    "theorem": "Demand.reconcileFirst_sorted",
+    "witness": "Vacuity.RendererDemand.actSorted",
+    "module": "tests.vacuity.RendererDemand",
+    "detail": "A user's act touched want 202 while want 101, visible, was queued in an earlier pass: reconcileFirst puts 202 first, the pass's take returns it and leaves the queue act-first; the shipped reconcile returns 101 first (checked)."
   }
 }

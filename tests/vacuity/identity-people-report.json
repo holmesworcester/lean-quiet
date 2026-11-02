@@ -75,5 +75,12 @@
     "witness": "Vacuity.IdentityPeople.presentWLists",
     "module": "tests.vacuity.IdentityPeople",
     "detail": "Nonempty signed Alice/Bob fixture. Reach proves the database invariant; queue/positive-member premises are checked; exact 2-person result, 1-person cap, incomplete short scan and removal exclusions checked. Universal per-device cost bound follows from invariant index subset and no duplicates against the finite stored-op count."
+  },
+  "deviceCut_removal": {
+    "status": "runtime-witness",
+    "theorem": "PeopleLaws.deviceCut_removal",
+    "witness": "Vacuity.IdentityPeople.deviceCutRemoval",
+    "module": "tests.vacuity.IdentityPeople",
+    "detail": "Signed Alice/Bob fixture after Alice removes Bob: the running deviceCut marks Bob's device, which constructs the premise, and the theorem then names the admission and the removal it read. The same fixture checks that Bob's device is not marked before his removal, and that Alice's is once Bob removes her. Synthetic signed fixture, real crypto."
   }
 }

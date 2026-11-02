@@ -76,25 +76,6 @@ def read (c msg : Id) (deps : Array Q) (withProgress : Bool := true) : m (Array 
     out := out.push p
   return (out, deps)
 end Kinds.File
-namespace Kinds.Message
-open _root_.Engine _root_.Community _root_.Data
-variable {m : Type → Type} [Monad m] [Reads m]
-
-def read (c me msg : Id) (attachmentProgress : Bool := true) : m (Option (Row.RowData × Array Q)) := do
-  let (f, pending, deps) ← readFact msg #[]
-  let some (.message _ u _ kid sealed _ tm clump) := f | return none
-  let (ks, _, deps) ← readList (key.byId.query [kid] (limit := some 1)) deps
-  -- no key here yet, or a body it does not open: not shown (the list
-  -- leaves such messages out; this is the row's own check)
-  let some text := (match ks.rows.head? with
-    | some (_, .key _ _ k) => (openStored cryptoSeal c kid sealed k).map Profile.bytesStr
-    | _ => none) | return none
-  let (who, deps) ← Profile.read c u deps
-  let (twin, deps) ← Profile.namesake c u who.name deps
-  let (pics, deps) ← File.read c msg deps attachmentProgress
-  let (tallies, deps) ← React.read c msg me deps
-  return some (⟨who.name, none, text, tm, pics.toList, tallies, pending, false, twin, u, clump, false, false, false⟩, deps)
-end Kinds.Message
 namespace ViewLaws
 open _root_.Engine _root_.Community _root_.Data _root_.Kinds
 
@@ -107,59 +88,26 @@ theorem profile_read (db : DB Fact) (c u : Id) (deps : Array Q) :
   · rfl
   · cases f <;> rfl
 
-/-- **A shown message is the store's.** If its row has data, the message
-is a fact of the store; the row's name is its author's name, its time
-the time it claims, and its text its body opened with a key the store
-holds under the message's key id. Not covered: that the message is of
-community `c`. The fact's community `c'` is not tied to `c`, and
-`Message.read` does not check it, so a message of another community
-would show with names read in `c`. Nothing that runs calls
-`Message.read`. -/
-theorem message_read (db : DB Fact) (c me msg : Id) (d : Row.RowData) (deps : Array Q)
-    (h : (Message.read (m := Model) c me msg).run db = some (d, deps)) :
-    ∃ c' u dev kid sealed n tm clump, factIn db msg = some (.message c' u dev kid sealed n tm clump) ∧
-      d.name = nameIn db c u ∧ d.time = tm ∧
-      (∃ deps', d.namesake = ((Profile.namesake (m := Model) c u d.name deps').run db).1) ∧
-      ∃ x y k, keyIn db kid = some (.key x y k) ∧
-        (openStored cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
-  simp only [Message.read, readFact, readList, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure,
-    Reads.read] at h
-  generalize hf : Option.map (fun x => x.snd) (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
-  rcases fo with _ | f
-  · exact absurd h (pure_none_ne _ _)
-  cases f <;> (try (rename_i x; cases x))
-  all_goals try (exact absurd h (pure_none_ne _ _))
-  rename_i c' u dev kid sealed n tm clump
-  simp only [ReaderT.bind, ReaderT.pure, id_bind] at h
-  generalize hk : (eval db (key.byId.query [kid] (some 1))).rows.head? = kr at h
-  rcases kr with _ | ⟨p, kf⟩
-  · exact absurd h (pure_none_ne _ _)
-  cases kf <;> (try (rename_i x; cases x))
-  all_goals dsimp only at h
-  all_goals try (exact absurd h (pure_none_ne _ _))
-  rename_i x y k
-  generalize ht : Option.map Profile.bytesStr (openStored cryptoSeal c kid sealed k) = tx at h
-  rcases tx with _ | text
-  · dsimp only at h; exact absurd h (pure_none_ne _ _)
-  simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
-  obtain ⟨rfl, -⟩ := h
-  refine ⟨c', u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf, profile_read db c u _, rfl,
-    ⟨_, rfl⟩, x, y, k, by simp [keyIn, hk], ht⟩
-
-/-- The running message component reads only its own fact and content
-key. Its author is an identity for a child, never a profile subscription. -/
+/-- **A shown message is the store's.** The running message component
+(`Message.readOwn`, the frame's `.row` want) shows a message only if it
+is a fact of the store; the row's author is its author, its time the
+time it claims, and its text its body opened with a key the store holds
+under the message's key id. It reads only its own fact and content key:
+its author is an identity for a child (the `.author` want: row_marked),
+never a profile subscription. Not covered: that the message is of the
+community whose names the row shows (the frame reads names in the
+current community, `s.me.c`; the fact's own `c` is not checked). -/
 theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
     (h : (Message.readOwn (m := Model) msg).run db = some (d, deps)) :
     ∃ c u dev kid sealed n tm clump,
       factIn db msg = some (.message c u dev kid sealed n tm clump) ∧
       d.author = u ∧ d.time = tm ∧
-      deps = #[Q.get msg, .list (key.byId.query [kid] (limit := some 1))] ∧
+      deps = #[.list (factQ msg), .list (key.byId.query [kid] (limit := some 1))] ∧
       ∃ x y k, keyIn db kid = some (.key x y k) ∧
         (openStored cryptoSeal c kid sealed k).map Profile.bytesStr = some d.text := by
   simp only [Message.readOwn, readFact, readList, ReaderT.run, bind, ReaderT.bind,
     pure, ReaderT.pure, Reads.read] at h
-  generalize hf : Option.map (fun x => x.snd)
-    (eval db { key := opKey msg, limit := some 1 }).rows.head? = fo at h
+  generalize hf : Option.map (fun x => x.snd) (eval db (factQ msg)).rows.head? = fo at h
   rcases fo with _ | f
   · exact absurd h (pure_none_ne _ _)
   cases f <;> (try (rename_i x; cases x))
@@ -178,7 +126,7 @@ theorem message_own (db : DB Fact) (msg : Id) (d : Row.RowData) (deps : Array Q)
   · dsimp only at h; exact absurd h (pure_none_ne _ _)
   simp only [ReaderT.bind, ReaderT.pure, id_bind, Option.some.injEq, Prod.mk.injEq] at h
   obtain ⟨rfl, rfl⟩ := h
-  exact ⟨c, u, dev, kid, sealed, n, tm, clump, by simpa [factIn] using hf,
+  exact ⟨c, u, dev, kid, sealed, n, tm, clump, by simpa [factIn, factQ] using hf,
     rfl, rfl, rfl, x, y, k, by simp [keyIn, hk], ht⟩
 end ViewLaws
 namespace Kinds.Profile
@@ -305,19 +253,27 @@ theorem namesake_iff (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) (deps
       (by simp [rels]) h hq hv' (byLook_args.2 ⟨u', n', tm', rfl, by rw [← hl, hn]; rfl⟩)
     exact ⟨_, c, u', n', tm', hm, hne, hl⟩
 
-/-- **A message row is marked Duplicate exactly when its author has a
-namesake.** At rest, a shown message's row carries the mark exactly when
-another user of the community has a Valid profile whose newest name
-looks as its author's does. -/
-theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) {c me msg : Id} {d : Row.RowData}
-    {deps : Array Q} (hr : (Message.read (m := Model) c me msg).run s = some (d, deps)) :
-    ∃ c' u dev kid sealed n tm clump, factIn s msg = some (.message c' u dev kid sealed n tm clump) ∧
-      (d.namesake = true ↔ ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
-        nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
-  obtain ⟨c', u, dev, kid, sealed, n, tm, clump, hf, hn, -, ⟨deps', hd⟩, -⟩ := message_read s c me msg d deps hr
-  refine ⟨c', u, dev, kid, sealed, n, tm, clump, hf, ?_⟩
-  rw [hd, hn]
-  exact namesake_iff h hq c u deps'
+/-- **A message row's author is named as the store holds, and marked
+Duplicate exactly when they have a namesake.** The author component
+(`Profile.author`, which the frame wants for each shown row's author,
+the `author` of message_own) shows u's newest name in c, and at rest
+marks it exactly when another user of c has a Valid profile whose newest
+name looks the same. -/
+theorem row_marked (h : Inv (family C) s) (hq : s.queue = []) (c u : Id) :
+    ((Profile.author (m := Model) c u).run s).1.1 = nameIn s c u ∧
+      (((Profile.author (m := Model) c u).run s).1.2 = true ↔
+        ∃ u', u' ≠ u ∧ (∃ y n tm, V C s.ops y (.profile c u' n tm)) ∧
+          nameLook (nameIn s c u') = nameLook (nameIn s c u)) := by
+  have hn := profile_read s c u #[]
+  simp only [ReaderT.run] at hn
+  simp only [Profile.author, ReaderT.run, bind, ReaderT.bind, pure, ReaderT.pure]
+  generalize Profile.read (m := Model) c u #[] s = r at hn
+  obtain ⟨who, deps⟩ := r
+  simp only at hn ⊢
+  have := namesake_iff (C := C) h hq c u deps
+  simp only [ReaderT.run] at this
+  rw [hn]
+  exact ⟨rfl, this⟩
 end ViewLaws
 namespace Kinds.File
 open _root_.Engine _root_.Community _root_.Data
@@ -1185,3 +1141,509 @@ def switcher {α : Type} [BEq α] [Inert α] (onSwitchTo : Nat → α) (onAddMem
   return ⟨b, taps⟩
 
 end Pages
+
+/-! ## Notifications (libquiet's #844, Android first)
+
+The policy, the per-process tracker and the native cards. Candidates are
+committed, Valid, readable posts (the reader's `Kinds.Notify.read`, read
+again only on an exact window notice); a post is news above this
+device's `caughtUp` mark. Laws are over `Notify.step`, the function the
+app runs each turn. -/
+
+namespace Kinds.Notify
+open _root_.Engine _root_.Community _root_.Data
+variable {m : Type → Type} [Monad m] [Reads m]
+
+/-- How many of a conversation's newest posts a turn considers. -/
+def window : Nat := 16
+
+/-- A candidate post, as a card needs it. -/
+structure Row where
+  id : Id
+  author : Id
+  device : ByteArray
+  name : String
+  text : String
+  time : Nat
+  photo : ByteArray := .empty
+  deriving BEq, Inhabited
+
+/-- What the reader hands the tracker for one community. -/
+structure Snap where
+  /-- The newest committed, Valid posts this device can read, newest first. -/
+  rows : List Row := []
+  mark : Option Nat := none
+  read : List Id := []
+  settings : Notice.Settings := {}
+  deriving BEq, Inhabited
+
+/-- c's newest `window` readable posts, as user u's device sees them,
+with its mark and u's private state. Pending (outbox) rows are not
+candidates: only what the store has judged Valid. -/
+def read (c u : Id) : m (Snap × Array Q) := do
+  let (a, deps) ← readView (Community.readable c (limit := some window)) #[]
+  let mut deps := deps
+  let mut rows : List Row := []
+  for ((_, x), f) in a.rows do
+    let .message _ author device kid sealed _ tm _ := f | continue
+    let (g, pending, d) ← readFact x deps
+    deps := d
+    if pending || g.isNone then continue
+    let (ks, _, d) ← readList (key.byId.query [kid] (limit := some 1)) deps
+    deps := d
+    let some text := (match ks.rows.head? with
+      | some (_, .key _ _ k) => (openStored cryptoSeal c kid sealed k).map Profile.bytesStr
+      | _ => none) | continue
+    let (who, d) ← Profile.read c author deps
+    deps := d
+    let (pics, d) ← File.read c x deps false
+    deps := d
+    let photo := (pics[0]?.map (·.preview)).getD .empty
+    let row : Row := { id := x, author := author, device := device, name := who.name, text := text, time := tm, photo := photo }
+    rows := rows ++ [row]
+  let (mark, d) ← readView (markOf c) deps
+  let (st, d) ← readView (noticeState c u) d
+  return ({ rows, mark, read := st.read, settings := st.settings }, d)
+end Kinds.Notify
+
+namespace Notify
+open _root_.Engine _root_.Community
+
+/-- What a post is, for the policy. The app has no direct messages,
+mentions or threads yet, so the app passes the defaults (all false). -/
+structure Subject where
+  direct : Bool := false
+  oneToOne : Bool := false
+  mentioned : Bool := false
+  reply : Bool := false
+  manualFollow : Option Bool := none
+  rootAuthor : Bool := false
+  replied : Bool := false
+  deriving BEq, Inhabited, Repr
+
+/-- libquiet's policy (notify/policy.rs): the level is the
+conversation's, then the community's, then All; Off silences all. A
+top-level post notifies at All, or when it mentions the user or is a
+direct message. A reply needs more than All: never when unfollowed; else
+a mention, the replies setting (conversation, community; on by default
+in one-to-one DMs), a followed thread, a one-to-one DM, the root's
+author, or having replied. -/
+def policy (s : Notice.Settings) (m : Subject) : Bool :=
+  let level := (s.conversation.or s.community).getD .all
+  if level == .off then false
+  else if m.reply then
+    if m.manualFollow == some false then false
+    else m.mentioned || (s.replies.or s.communityReplies).getD m.oneToOne ||
+      m.manualFollow == some true || m.oneToOne || m.rootAuthor || m.replied
+  else level == .all || m.mentioned || m.direct
+
+/-- The delivery gates around the policy, from the running store. -/
+structure Facts where
+  device : ByteArray := .empty
+  authorDevice : ByteArray := .empty
+  ownUser : Bool := false
+  live : Bool := true
+  news : Bool := true
+  visible : Bool := false
+  read : Bool := false
+  subject : Subject := {}
+  deriving Inhabited
+
+/-- Whether a post alerts: not from this device or this user, this
+device still a member, news (above the mark), not on screen, not read,
+and the policy admits it. -/
+def eligible (s : Notice.Settings) (f : Facts) : Bool :=
+  decide (f.device ≠ f.authorDevice) && !f.ownUser && f.live && f.news &&
+  !f.visible && !f.read && policy s f.subject
+
+/-- The rule, stated propositionally. -/
+def Rule (s : Notice.Settings) (f : Facts) : Prop :=
+  f.device ≠ f.authorDevice ∧ f.ownUser = false ∧ f.live = true ∧ f.news = true ∧
+  f.visible = false ∧ f.read = false ∧ policy s f.subject = true
+
+/-- One message on a conversation's card. -/
+structure Card where
+  id : Id
+  community : Id
+  conversation : Id
+  sender : Id
+  name : String
+  title : String
+  body : String
+  link : String
+  time : Nat
+  photo : ByteArray := .empty
+  deriving BEq, Inhabited
+
+inductive Effect where
+  | post (card : Card)
+  | withdraw (card : Card)
+  deriving BEq, Inhabited
+
+/-- The process's tracker: every post considered (alerted or not), and
+the messages standing on cards, newest first. -/
+structure State where
+  seen : List Id := []
+  active : List Card := []
+  deriving Inhabited
+
+/-- A post considered once: a repeat never alerts again, read or not. -/
+def arrive (s : State) (settings : Notice.Settings) (f : Facts) (c : Card) : State × List Effect :=
+  if Engine.has s.seen c.id then (s, [])
+  else if eligible settings f then
+    ({ seen := c.id :: s.seen, active := c :: s.active }, [.post c])
+  else ({ s with seen := c.id :: s.seen }, [])
+
+/-- Withdraw exactly the messages `gone` names; the rest stand, so a
+read of older messages keeps newer unread ones on the card. -/
+def reconcile (s : State) (gone : Card → Bool) : State × List Effect :=
+  ({ s with active := s.active.filter (fun c => !gone c) },
+    (s.active.filter gone).map Effect.withdraw)
+
+/-- Collapse controls, bidi controls and whitespace to single spaces,
+then keep `cap` visible characters (compose.rs's one_line). -/
+def oneLine (text : String) (cap : Nat) : String := Id.run do
+  let mut out := ""
+  let mut kept := 0
+  let mut space := false
+  for c in text.toList do
+    let n := c.toNat
+    if isBlank c.val || n < 32 || (127 ≤ n && n ≤ 159) || Text.isInvisible c.val ||
+        (0x202a ≤ n && n ≤ 0x202e) then
+      space := !out.isEmpty
+    else
+      if kept == cap then return out ++ "…"
+      if space then out := out ++ " "
+      out := out.push c
+      kept := kept + 1
+      space := false
+  return out
+
+/-- One community, as a turn sees it. -/
+structure Input where
+  c : Id
+  /-- The card's title: `#general (community)`. -/
+  title : String
+  /-- This device's signing key, and its user in c. -/
+  device : ByteArray
+  user : Id
+  /-- This device still a member (admitted, not removed). -/
+  live : Bool
+  snap : Kinds.Notify.Snap
+
+/-- A post's gates, from its community's input and the screen. -/
+def facts (i : Input) (viewing : Option Id) (r : Kinds.Notify.Row) : Facts :=
+  { device := i.device, authorDevice := r.device, ownUser := decide (r.author = i.user), live := i.live,
+    news := (match i.snap.mark with | some m => decide (m ≤ r.time) | none => false),
+    visible := decide (viewing = some i.c), read := Engine.has i.snap.read r.id }
+
+def card (i : Input) (r : Kinds.Notify.Row) : Card :=
+  { id := r.id, community := i.c, conversation := i.c, sender := r.author,
+    name := oneLine (if r.name.isEmpty then "…" else r.name) 32, title := i.title,
+    body := if r.text.isEmpty then (if r.photo.isEmpty then "Sent a message" else "Sent a photo")
+      else oneLine r.text 140,
+    link := (Target.uri ⟨i.c, i.c, r.id, []⟩), time := r.time, photo := r.photo }
+
+/-- One post considered, its effects appended. -/
+def arriveRow (viewing : Option Id) (i : Input) (acc : State × List Effect) (r : Kinds.Notify.Row) :
+    State × List Effect :=
+  let p := arrive acc.1 i.snap.settings (facts i viewing r) (card i r)
+  (p.1, acc.2 ++ p.2)
+
+/-- One community's new posts, oldest first. -/
+def arriveAll (viewing : Option Id) (i : Input) (s : State) : State × List Effect :=
+  i.snap.rows.reverse.foldl (arriveRow viewing i) (s, [])
+
+/-- One community's turn, its effects appended. -/
+def arriveIn (viewing : Option Id) (acc : State × List Effect) (i : Input) : State × List Effect :=
+  let p := arriveAll viewing i acc.1
+  (p.1, acc.2 ++ p.2)
+
+/-- What leaves the cards: the conversation on screen, messages read
+(here, or on the user's other devices), and every community this device
+is no longer a member of or no longer holds. -/
+def gone (present : List Id) (ins : List Input) (viewing : Option Id) (reads : List Id) (c : Card) : Bool :=
+  decide (viewing = some c.community) || Engine.has reads c.id || !Engine.has present c.community ||
+    ins.any (fun i => decide (i.c = c.community) && (!i.live || Engine.has i.snap.read c.id))
+
+/-- **The turn**: every community's new posts considered, then the
+cards reconciled. `present` is this device's communities, `viewing` the
+conversation on screen (none in the background), `reads` the messages
+read here this turn. -/
+def step (s : State) (present : List Id) (viewing : Option Id) (reads : List Id) (ins : List Input) :
+    State × List Effect :=
+  let a := ins.foldl (arriveIn viewing) (s, [])
+  let r := reconcile a.1 (gone present ins viewing reads)
+  (r.1, a.2 ++ r.2)
+
+/-- The marks to write: a community's first (now: the app reads a
+community first when this device starts joining it, so posts written
+before the join are history, and posts after it are news), or its newest
+post considered, capped at now so a post claiming a future time cannot
+silence later ones. -/
+def marks (now : Nat) (ins : List Input) : List (Id × Nat) :=
+  ins.filterMap fun i =>
+    match i.snap.mark with
+    | none => some (i.c, now)
+    | some m =>
+      if !i.live then none else
+      let top := min now (i.snap.rows.foldl (fun t r => max t r.time) 0)
+      if m < top then some (i.c, top) else none
+
+/-! ### Laws, over the functions the app runs -/
+
+theorem own_silent (s : Notice.Settings) (f : Facts) (h : f.device = f.authorDevice) :
+    eligible s f = false := by simp [eligible, h]
+
+theorem notifies_iff (s : Notice.Settings) (f : Facts) : eligible s f = true ↔ Rule s f := by
+  simp [eligible, Rule, Bool.and_eq_true, and_assoc]
+
+/-- An ordinary post from another device really does alert. -/
+theorem can_alert : eligible {} { device := ⟨#[1]⟩, authorDevice := ⟨#[2]⟩ } = true := by decide
+
+theorem once (s : State) (p : Notice.Settings) (f : Facts) (c : Card) :
+    (arrive (arrive s p f c).1 p f c).2 = [] := by
+  unfold arrive
+  split
+  · simp_all
+  · split <;> simp [Engine.has]
+
+theorem arrive_active (s : State) (p : Notice.Settings) (f : Facts) (c d : Card) (h : d ∈ s.active) :
+    d ∈ (arrive s p f c).1.active := by
+  unfold arrive; split
+  · exact h
+  · split
+    · exact List.mem_cons_of_mem _ h
+    · exact h
+
+theorem arrive_post (s : State) (p : Notice.Settings) (f : Facts) (c d : Card)
+    (h : Effect.post d ∈ (arrive s p f c).2) : d = c ∧ eligible p f = true := by
+  unfold arrive at h; split at h
+  · simp at h
+  · split at h
+    · simp at h; exact ⟨h, by assumption⟩
+    · simp at h
+
+theorem arriveAll_active (v : Option Id) (i : Input) (s : State) (d : Card) (h : d ∈ s.active) :
+    d ∈ (arriveAll v i s).1.active := by
+  unfold arriveAll
+  suffices ∀ (rs : List Kinds.Notify.Row) (a : State × List Effect), d ∈ a.1.active →
+      d ∈ (rs.foldl (arriveRow v i) a).1.active from this _ _ h
+  intro rs
+  induction rs with
+  | nil => intro a h; exact h
+  | cons r rs ih => intro a h; exact ih _ (arrive_active _ _ _ _ _ h)
+
+/-- Every post a community's arrivals make is of an eligible post of it. -/
+theorem arriveAll_post (v : Option Id) (i : Input) (s : State) (d : Card)
+    (h : Effect.post d ∈ (arriveAll v i s).2) :
+    ∃ r ∈ i.snap.rows, d = card i r ∧ eligible i.snap.settings (facts i v r) = true := by
+  unfold arriveAll at h
+  have gen : ∀ (rs : List Kinds.Notify.Row) (a : State × List Effect), (∀ r ∈ rs, r ∈ i.snap.rows) →
+      Effect.post d ∈ (rs.foldl (arriveRow v i) a).2 →
+      Effect.post d ∈ a.2 ∨ ∃ r ∈ i.snap.rows, d = card i r ∧ eligible i.snap.settings (facts i v r) = true := by
+    intro rs
+    induction rs with
+    | nil => intro a _ h; exact Or.inl h
+    | cons r rs ih =>
+      intro a hrs h
+      simp only [List.foldl_cons] at h
+      rcases ih _ (fun x hx => hrs x (List.mem_cons_of_mem _ hx)) h with h | h
+      · simp only [arriveRow, List.mem_append] at h
+        rcases h with h | h
+        · exact Or.inl h
+        · obtain ⟨rfl, he⟩ := arrive_post _ _ _ _ _ h
+          exact Or.inr ⟨r, hrs r (List.mem_cons_self ..), rfl, he⟩
+      · exact Or.inr h
+  rcases gen _ (s, []) (fun r hr => List.mem_reverse.1 hr) h with h | h
+  · simp at h
+  · exact h
+
+theorem step_fold_active (v : Option Id) (ins : List Input) (a : State × List Effect) (d : Card)
+    (h : d ∈ a.1.active) : d ∈ (ins.foldl (arriveIn v) a).1.active := by
+  induction ins generalizing a with
+  | nil => exact h
+  | cons i ins ih => exact ih _ (arriveAll_active v i a.1 d h)
+
+theorem step_fold_post (v : Option Id) (ins : List Input) (a : State × List Effect) (d : Card)
+    (h : Effect.post d ∈ (ins.foldl (arriveIn v) a).2) :
+    Effect.post d ∈ a.2 ∨ ∃ i ∈ ins, ∃ r ∈ i.snap.rows, d = card i r ∧ eligible i.snap.settings (facts i v r) = true := by
+  induction ins generalizing a with
+  | nil => exact Or.inl h
+  | cons i ins ih =>
+    rcases ih _ h with h | ⟨j, hj, r, hr, rfl, he⟩
+    · simp only [arriveIn, List.mem_append] at h
+      rcases h with h | h
+      · exact Or.inl h
+      · obtain ⟨r, hr, rfl, he⟩ := arriveAll_post v i a.1 d h
+        exact Or.inr ⟨i, List.mem_cons_self .., r, hr, rfl, he⟩
+    · exact Or.inr ⟨j, List.mem_cons_of_mem _ hj, r, hr, rfl, he⟩
+
+/-- **The conversation on screen is quiet**: a turn posts no card of it,
+and leaves none standing. -/
+theorem step_quiet (s : State) (present : List Id) (c : Id) (reads : List Id) (ins : List Input) :
+    (∀ d, Effect.post d ∈ (step s present (some c) reads ins).2 → d.community ≠ c) ∧
+    (∀ d ∈ (step s present (some c) reads ins).1.active, d.community ≠ c) := by
+  refine ⟨fun d h => ?_, fun d h => ?_⟩
+  · simp only [step, reconcile, List.mem_append, List.mem_map] at h
+    rcases h with h | ⟨_, _, h⟩
+    · rcases step_fold_post _ ins (s, []) d h with h | ⟨i, _, r, _, rfl, he⟩
+      · simp at h
+      · intro hc
+        simp [card] at hc
+        simp [eligible, facts, hc] at he
+    · cases h
+  · simp only [step, reconcile, List.mem_filter] at h
+    intro hc
+    simp [gone, hc] at h
+
+/-- **Removal clears**: a community this device is no longer a member
+of, or no longer holds, has no card standing after a turn. -/
+theorem step_removed (s : State) (present : List Id) (v : Option Id) (reads : List Id) (ins : List Input)
+    (d : Card) (hd : d ∈ (step s present v reads ins).1.active) :
+    d.community ∈ present ∧ ∀ i ∈ ins, i.c = d.community → i.live = true := by
+  simp only [step, reconcile, List.mem_filter] at hd
+  have hg := hd.2
+  simp only [gone, Bool.not_or, Bool.and_eq_true, Bool.not_eq_true'] at hg
+  refine ⟨(Engine.has_iff _ _).1 (by simpa using hg.1.2), fun i hi hc => ?_⟩
+  have := List.any_eq_false.1 hg.2 i hi
+  simp [hc] at this
+  cases h : i.live <;> simp_all
+
+/-- **Reads clear**: a message read (here, or by the user's other
+devices) has no card standing after a turn. -/
+theorem step_read (s : State) (present : List Id) (v : Option Id) (reads : List Id) (ins : List Input)
+    (d : Card) (hd : d ∈ (step s present v reads ins).1.active) : d.id ∉ reads := by
+  simp only [step, reconcile, List.mem_filter] at hd
+  have hg := hd.2
+  simp only [gone, Bool.not_or, Bool.and_eq_true, Bool.not_eq_true'] at hg
+  exact (Engine.has_false _ _).1 hg.1.1.2
+
+/-- **A partial read keeps newer unread messages**: a message standing
+before the turn stands after it unless the turn's `gone` names it. -/
+theorem step_keeps (s : State) (present : List Id) (v : Option Id) (reads : List Id) (ins : List Input)
+    (d : Card) (hd : d ∈ s.active) (hg : gone present ins v reads d = false) :
+    d ∈ (step s present v reads ins).1.active := by
+  simp only [step, reconcile, List.mem_filter]
+  exact ⟨step_fold_active v ins (s, []) d hd, by simp [hg]⟩
+
+/-- **Posts are exactly eligible**: every card a turn posts is of a
+post in a snapshot that the rule admits. -/
+theorem step_post (s : State) (present : List Id) (v : Option Id) (reads : List Id) (ins : List Input)
+    (d : Card) (h : Effect.post d ∈ (step s present v reads ins).2) :
+    ∃ i ∈ ins, ∃ r ∈ i.snap.rows, d = card i r ∧ Rule i.snap.settings (facts i v r) := by
+  simp only [step, reconcile, List.mem_append, List.mem_map] at h
+  rcases h with h | ⟨_, _, h⟩
+  · rcases step_fold_post _ ins (s, []) d h with h | ⟨i, hi, r, hr, rfl, he⟩
+    · simp at h
+    · exact ⟨i, hi, r, hr, rfl, (notifies_iff _ _).1 he⟩
+  · cases h
+
+/-- **A mark never runs ahead of the clock**: a post claiming a future
+time cannot silence later posts. -/
+theorem marks_le (now : Nat) (ins : List Input) (p : Id × Nat) (h : p ∈ marks now ins) : p.2 ≤ now := by
+  simp only [marks, List.mem_filterMap] at h
+  obtain ⟨i, _, hi⟩ := h
+  split at hi
+  · cases hi; exact Nat.le_refl _
+  · split at hi
+    · cases hi
+    · split at hi
+      · cases hi; exact Nat.min_le_left _ _
+      · cases hi
+
+/-! ### The native seam: one card per conversation, as JSON -/
+
+def jsonStr (s : String) : String := Id.run do
+  let mut out := "\""
+  for c in s.toList do
+    if c == '"' then out := out ++ "\\\""
+    else if c == '\\' then out := out ++ "\\\\"
+    else if c.toNat < 32 then
+      let h := "0123456789abcdef".toList
+      out := (out ++ "\\u00").push (h[c.toNat / 16]!) |>.push (h[c.toNat % 16]!)
+    else out := out.push c
+  return out ++ "\""
+
+def jsonObj (fields : List (String × String)) : String :=
+  "{" ++ String.intercalate "," (fields.map fun (k, v) => jsonStr k ++ ":" ++ v) ++ "}"
+
+def hexOf (b : ByteArray) : String :=
+  String.ofList (b.data.toList.flatMap fun x =>
+    let h := "0123456789abcdef".toList
+    [h[x.toNat / 16]!, h[x.toNat % 16]!])
+
+/-- A placeholder avatar's colour (the app's identity palette) and its
+initial. -/
+def colorOf (id : ByteArray) : String :=
+  let c := Palette.avatar ((hexOf id).take 8).toString
+  "#" ++ (hexOf ⟨#[(c >>> 16).toUInt8, (c >>> 8).toUInt8, c.toUInt8]⟩)
+
+def initialOf (name : String) (id : ByteArray) : String :=
+  match name.toList.find? (fun c => !isBlank c.val && !Text.isInvisible c.val && c.toNat ≥ 32) with
+  | some c => String.singleton c.toUpper
+  | none => ((hexOf id).take 2).toString
+
+/-- A card's inline photo: the attachment's preview, at most 128 px a
+side, as base64 RGBA (Java paints it; nothing else is fetched). -/
+def photoOf (bytes : ByteArray) : Nat × Nat × String :=
+  match Image.decode bytes with
+  | none => (0, 0, "")
+  | some src =>
+    let (w, h) := Image.fit src 128 128
+    let bmp := Image.scaled src w h 0x222529
+    let raw := bmp.rows.foldl (· ++ ·) .empty
+    let alphabet := "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/".toList.toArray
+    let out := Id.run do
+      let mut out := ""
+      for i in [0:(raw.size + 2) / 3] do
+        let n := i * 3
+        let a := raw[n]!.toNat
+        let b := (raw[n + 1]?.getD 0).toNat
+        let d := (raw[n + 2]?.getD 0).toNat
+        out := out.push alphabet[a / 4]!
+        out := out.push alphabet[(a % 4) * 16 + b / 16]!
+        out := out.push (if n + 1 < raw.size then alphabet[(b % 16) * 4 + d / 64]! else '=')
+        out := out.push (if n + 2 < raw.size then alphabet[d % 64]! else '=')
+      return out
+    (w, h, out)
+
+def messageJson (c : Card) : String :=
+  jsonObj [("id", jsonStr (hexOf c.id)), ("senderId", jsonStr (hexOf c.sender)),
+    ("sender", jsonStr c.name), ("color", jsonStr (colorOf c.sender)),
+    ("mark", jsonStr (initialOf c.name c.sender)), ("body", jsonStr c.body),
+    ("time", toString (c.time * 60000))]
+
+/-- The conversation's complete card (its standing messages: the count,
+the latest five oldest first, the newest's photo and link), or its
+cancellation when none stand. `alert` is whether a new post is in it. -/
+def packet (active : List Card) (conversation : Id) (alert : Bool) : String :=
+  let cards := active.filter fun a => decide (a.conversation = conversation)
+  match cards.head? with
+  | none => jsonObj [("action", jsonStr "cancel"), ("tag", jsonStr (hexOf conversation))]
+  | some latest =>
+    let (pw, ph, photo) := if latest.photo.isEmpty then (0, 0, "") else photoOf latest.photo
+    jsonObj [("action", jsonStr "post"), ("tag", jsonStr (hexOf conversation)),
+      ("group", jsonStr (hexOf latest.community)), ("title", jsonStr latest.title),
+      ("link", jsonStr latest.link), ("color", jsonStr (colorOf latest.community)),
+      ("mark", jsonStr (initialOf latest.title latest.community)),
+      ("body", jsonStr latest.body), ("alert", if alert then "true" else "false"),
+      ("count", toString cards.length), ("photoW", toString pw), ("photoH", toString ph),
+      ("photo", jsonStr photo),
+      ("messages", "[" ++ String.intercalate "," ((cards.take 5).reverse.map messageJson) ++ "]")]
+
+/-- One packet per conversation a turn's effects touch: a post alerts;
+a withdrawal re-renders what still stands, silently, or cancels. -/
+def packets (active : List Card) (effects : List Effect) : List String := Id.run do
+  let mut done : List Id := []
+  let mut out := []
+  for e in effects do
+    let (c, alert) := match e with | .post c => (c, true) | .withdraw c => (c, false)
+    if Engine.has done c.conversation then continue
+    done := c.conversation :: done
+    let alert := alert || effects.any fun e => match e with
+      | .post d => decide (d.conversation = c.conversation) | _ => false
+    out := out ++ [packet active c.conversation alert]
+  return out
+
+end Notify

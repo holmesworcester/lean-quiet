@@ -15,8 +15,8 @@ Theorems are not walked (they do not run). The negative control,
 `startPreOld`, the preview's start as it shipped (a pure `Task.spawn` in
 a `pure`), must be caught; the run says so.
 
-The board and the rows' heights (engine/renderer/Board.lean,
-Heights.lean) are counted code too: they reach no task and no IO.
+The board (engine/renderer/Board.lean) is counted code too: it reaches
+no task and no IO.
 
 The frame (`App.step`) is to read no store (`frame_reads`, docs/PERF.md),
 and today it does: the run lists each way it reaches SQLite, as a
@@ -29,7 +29,6 @@ import Lean
 import app.community.channel.message.attachment.Screen
 import engine.core.MerkleCost
 import engine.core.CodecCost
-import engine.renderer.Heights
 import engine.renderer.Board
 import app.Screen
 
@@ -46,10 +45,9 @@ code hashes only through `hashM`. (The decode a picture's task runs
 hashes op bytes and opens the file; that is the task's work, off the
 frame.) -/
 def counted : List (Name × List Name) :=
-  [(``Pics.image, []), (``Pics.decoded, []), (``Merkle.rootAndProofsM, [``Engine.sha256]),
+  [(``Pics.decoded, []), (``Merkle.rootAndProofsM, [``Engine.sha256]),
    (``Engine.Codec.decNatFromM, []), (``Engine.Codec.decBytesFromM, []),
-   (``Live.Board.put, []), (``Live.Board.take, []), (``Live.Board.keep, []),
-   (``Heights.T.findM, []), (``Heights.T.startM, []), (``Heights.T.setM, []), (``Heights.Rows.push, [])]
+   (``Live.Board.put, []), (``Live.Board.take, []), (``Live.Board.keep, [])]
 
 /-- SQLite's doors: what the frame is to reach none of. -/
 def sqlDoors : List Name := [``Engine.Db.query, ``Engine.Db.exec]

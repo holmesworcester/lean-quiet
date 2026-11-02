@@ -540,7 +540,7 @@ def Writer.start (path : String) (save : Db → ByteArray → IO Unit) : IO Writ
 /-! ## Queries and answers
 
 Every read is a list (Engine.Query): one fact is the list under its own
-id's key (`Q.get`), so a component's subscriptions are exactly the
+id's key (`factQ`), so a component's subscriptions are exactly the
 windows of the lists it reads (Engine.read_rows_iff: a read's rows
 change exactly when its window's do). The one other read is an op's own
 bytes (a chunk's slice, a pending request's body), immutable, watched on
@@ -553,8 +553,9 @@ inductive Q where
   | op (x : Id)
   deriving BEq, Hashable, Inhabited
 
-/-- One fact: the list under its op's own key, at most one row. -/
-def Q.get (x : Id) : Q := .list { key := opKey x, limit := some 1 }
+/-- One fact: the list under its op's own key, at most one row (what
+`readFact` reads). -/
+def factQ (x : Id) : ListQ := { key := opKey x, limit := some 1 }
 
 /-- What a read answers; `pending` names rows from the outbox. -/
 inductive Ans where
@@ -706,11 +707,16 @@ def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
 def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
   (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
 
+/-- The ops the log is rebuilt from when this window is placed: the log's
+other ops, then the nav op for `page` over `stack`. -/
+def placed (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : List Op :=
+  h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack]
+
 /-- The app's ephemeral log with this window placed at `page` over
 `stack`: the nav op at generation `gen` in place of the log's nav ops,
 the log rebuilt from its live ops (`Held.ofOps`). -/
 def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
-  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+  Engine.Sync.Held.ofOps fam (placed h gen page stack)
 
 /-- Entry `acc`'s draft, from the app's ephemeral log: the newest draft
 op for it (`Draft.current`) and its id; none before any. -/
@@ -780,7 +786,7 @@ def readList (q : ListQ) (deps : Array Q) : m (Answer Fact × List Id × Array Q
 
 /-- One fact (the list under its own id), whether it is pending, and deps. -/
 def readFact (x : Id) (deps : Array Q) : m (Option Fact × Bool × Array Q) := do
-  let (a, pend, deps) ← readList { key := opKey x, limit := some 1 } deps
+  let (a, pend, deps) ← readList (factQ x) deps
   return (a.rows.head?.map (·.2), pend.contains x, deps)
 
 /-- The set operation actually used by list-backed component views. -/
@@ -1026,7 +1032,7 @@ theorem agrees_unmount {l : Live} {ans : Q → Ans} (h : Agrees l ans) (qs : Std
 
 /-- **What the cache watches, it keeps:** after forgetting the instances
 nobody wants, no window of one is watched (so no notice reaches a read
-the frame dropped: Screen.screen_subs on the cache). -/
+the frame dropped). -/
 theorem watched_held {l : Live} (want : Q → Bool) {q : Q} {w : Win} (hw : (l.keep want).subs.Has q w) :
     want q = true := ((Subs.has_keep _ _ _).1 hw).2
 

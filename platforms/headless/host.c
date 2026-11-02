@@ -409,6 +409,22 @@ lean_obj_res lq_poll(void) {
   return lean_io_result_mk_ok(evs);
 }
 
+// Notifications: each card packet, one JSON line, in notifications.jsonl
+// (QUIET_NOTES names another file); the service is "there" so the setting
+// shows, and its state is printed as a reply line.
+lean_obj_res lq_notify(b_lean_obj_arg json) {
+  const char* path = getenv("QUIET_NOTES");
+  FILE* f = fopen(path ? path : "notifications.jsonl", "a");
+  if (f) { fprintf(f, "%s\n", lean_string_cstr(json)); fclose(f); }
+  return lean_io_result_mk_ok(lean_box(0));
+}
+
+lean_obj_res lq_service(uint8_t on) {
+  printf("service %s\n", on ? "on" : "off");
+  fflush(stdout);
+  return lean_io_result_mk_ok(lean_box(1));
+}
+
 lean_obj_res lq_links(void) {
   static bool launched;
   lean_object* links = lean_mk_empty_array();

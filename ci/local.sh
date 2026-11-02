@@ -20,7 +20,9 @@
 #            tree, from that run's graph (docs/PROOF-TREE.md, ci/proof-tree.py)
 #    reorg   the reorg's import rewriter (ci/reorg-imports.py --self-test)
 #    headline  the headline laws' axioms and spec surfaces, docs/HEADLINE.md
-#            against them, and the Comparator files (tests/headline.sh)
+#            against them, the Comparator files, and `lake comparator` on
+#            the root comparator.json and its weakened control
+#            (tests/headline.sh)
 # 2. The gate's tests, at once. Each is deterministic and runs in this
 #    tree in one process at a time: no TCP, no X, no clock it must beat,
 #    no source edited (the tree is checked unchanged after them):
@@ -34,6 +36,9 @@
 #    make:assets    make install's assets step and its controls, and the
 #                   pinned assets tarball against this tree (stale: pack
 #                   and publish it again, docs/BUILD.md)
+#    scale          a round's work and the capped write turn at 1k, 10k
+#                   and 100k items against the proven bounds, with
+#                   negative controls (tests/scale)
 # 3. --full: every other part, 4 at once (the box is shared), longest first (by each part's
 #    time on the last run, out/ci/times.tsv). The negative controls'
 #    mutants (engine:<name>, tests/engine/controls.txt), real TCP
@@ -41,7 +46,9 @@
 #    workspace, `make install && make run` and `make demo` from a fresh
 #    clone in Docker (make:clean-room), make demo under Xvfb with its
 #    negative control (make:demo), make verify on a Lean 4.35 project
-#    (make:verify), and each of the app's checks (app:<part>, tests/app/
+#    (make:verify), the headline laws under their own names
+#    (headline:own: `lake comparator` on tests/comparator/own-*.json),
+#    and each of the app's checks (app:<part>, tests/app/
 #    parts.txt; a part with cases, app:<part>/<case>, one part a case).
 #    An engine mutant works in a snapshot (tests/snapshot.sh); an app part
 #    may edit sources in place, so each runs in its own copy of the built
@@ -75,7 +82,7 @@ done
 [ -n "$jobs" ] || jobs=$([ "$full" = 1 ] && echo 4 || echo 6)
 
 proofs=(driver build check layout readme reorg headline)
-fast=(engine:suites visual headless vacuity make:assets)
+fast=(engine:suites visual headless vacuity make:assets scale)
 # The app's parts (tests/app/parts.txt): a part with cases in slices, at
 # most CASE_LANES (6), app:<part>/<k>; slice k is every case whose line
 # number is k modulo the number of slices (slice).
@@ -94,7 +101,7 @@ app_parts() {
 }
 rest=(make:clean-room $(app_parts) windows-input qr
   $(grep -v '^#' "$top/tests/engine/controls.txt" 2>/dev/null | cut -f1 | grep . | sed 's/^/engine:/')
-  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify)
+  engine:tcp mdns net make:demo zoom owned-input site workspace make:verify headline:own)
 # Longest first, by each part's last recorded time (out/ci/times.tsv, else
 # ci/times.tsv); a part not yet timed counts as 10 minutes.
 longest_first() {
@@ -161,7 +168,9 @@ gate() {
     layout) mise run layout:check && python3 ci/exits.py --self-test && python3 ci/exits.py ;;
     reorg) mise run reorg:test ;;
     headline) mise run test:headline ;;
+    headline:own) mise run test:headline-own ;;
     vacuity) mise run test:vacuity ;;
+    scale) mise run test:scale ;;
     crypto-failure) mise run test:crypto-failure ;;
     fairness) mise run test:fairness ;;
     bootstrap-progress) mise run test:bootstrap-progress ;;

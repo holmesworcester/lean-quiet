@@ -82,15 +82,15 @@ def arc (R got total i j : Nat) : Bool :=
 /-- The ring's lit pixels: on the ring and within the arc. -/
 def lit (R s got total i j : Nat) : Bool := onRing R s i j && arc R got total i j
 
-/-- The ring with its square's top left at (x, y): its lit pixels in c,
-the rest of it the track. -/
+/-- The ring with its square's top left at (x, y): its pixels `lit`
+says are lit in c, the rest of it (`onRing`) the track. -/
 def paintRing (b : Bitmap) (R s got total x y : Nat) (c track : Color) : Bitmap := Id.run do
   let mut b := b
   for j in [0:2 * R] do
     b := b.modify (y + j) fun row => Id.run do
       let mut row := row
       for i in [0:2 * R] do
-        if onRing R s i j then row := setPx row (x + i) (if arc R got total i j then c else track)
+        if onRing R s i j then row := setPx row (x + i) (if lit R s got total i j then c else track)
       return row
   return b
 

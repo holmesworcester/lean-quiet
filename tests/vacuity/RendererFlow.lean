@@ -56,7 +56,7 @@ example : (NodeOffer.run [some 102, none, some 103] [101]).run ([false, true, tr
 
 def queryA : Q := .op alice
 def queryB : Q := .op bob
-def life : Lifecycle.Mount := ⟨7, true, [(alice, [queryA]), (bob, [queryB])]⟩
+def life : Lifecycle.Mount := ⟨7, true⟩
 -- State effect makes the denial meaningful: if invoked, the counter grows.
 def countedAction : StateM Nat Nat := do modify (· + 1); get
 
@@ -72,21 +72,18 @@ theorem mountedWork : Lifecycle.owned (m := _root_.Id)
     ({ generation := 7 } : Lifecycle.Mount) ⟨7⟩ (pure 7) = some 7 :=
   Lifecycle.mounted_runs 7
 
-theorem subscriptions :
-    Data.verdictKey alice ∈ life.subscriptions ↔
-      ∃ node ∈ life.tree, ∃ q ∈ node.2, (q.win default).key = Data.verdictKey alice :=
-  Lifecycle.subscriptions_exact life (Data.verdictKey alice)
-example : life.subscriptions.length = 2 := by decide
-
 def cache : Live := (({} : Live).store queryA (.bytes (some "hello".toUTF8))).store queryB (.bytes none)
-private theorem complete : ∀ q ∈ life.queries, cache.entries[q]?.isSome = true := by
+/-- The reads two mounted wants hold: queryA's and queryB's. -/
+def held (q : Data.Q) : Bool := q == queryA || q == queryB
+private theorem complete : ∀ q, held q = true → cache.entries[q]?.isSome = true := by
   intro q h
-  simp only [life, Lifecycle.Mount.queries, List.flatMap_cons, List.flatMap_nil,
-    List.append_nil, List.cons_append, List.nil_append, List.mem_cons, List.not_mem_nil, or_false] at h
+  simp only [held, Bool.or_eq_true, beq_iff_eq] at h
   rcases h with rfl | rfl <;> simp [cache, Live.store, queryA, queryB, alice, bob]
 
-theorem liveExact : (Lifecycle.prune cache life).entries[queryA]?.isSome = true ↔ queryA ∈ life.queries :=
-  Lifecycle.live_exact cache life complete queryA
+theorem liveExact : (cache.keep held).entries[queryA]?.isSome = true ↔ held queryA = true :=
+  Lifecycle.live_exact cache held complete queryA
+example : (cache.keep fun q => q == queryB).entries[queryA]?.isSome = false := by
+  simp [Live.keep, cache, Live.store, queryA, queryB, alice, bob]
 
 theorem resize : (600 : Int) - Lifecycle.offset 600 180 = 180 :=
   Lifecycle.resize_anchor 600 180 (by decide)

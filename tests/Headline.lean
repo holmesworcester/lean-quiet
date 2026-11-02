@@ -41,7 +41,6 @@ import engine.renderer.Cover
 import engine.renderer.Demand
 import engine.renderer.DemandRank
 import engine.renderer.Geometry
-import engine.renderer.Heights
 import engine.renderer.ImageLaws
 import engine.renderer.SheetGeom
 import engine.renderer.Surface
@@ -78,6 +77,7 @@ import engine.world.Plain
   Switch.select_tapped_dedupe
   Community.approveReq_ops
   Engine.ingest_costs
+  PeopleLaws.deviceCut_removal
 
 /-! ## Also considered: about running code, but left out of the top list -/
 
@@ -102,7 +102,6 @@ import engine.world.Plain
   Connection.bare_takes_only_join
   Community.order_total
   PeopleLaws.present_iff
-  PeopleLaws.deviceCut_removal
   ViewLaws.namesake_iff
   Translate.covered
   Cover.line_painted
@@ -130,19 +129,13 @@ import engine.world.Plain
 
 tests/Wiring.lean counts these apart from the wired laws. `converge`
 runs the node's code in a World (a modelled network, plain frames,
-sessions the harness opens). The rest are models: what they are about
-does not run yet (the rows' heights tree, the board's passes, the
-schedulers' `Run.selected`, the message read), or their subject is a
-specification (`offer_runs`, `list_costs`). -/
+sessions the harness opens). `list_costs` is a model: its subject is a
+specification of the store's answers (`Fits`). The others this group
+once held are about running code since the no-models rule (`row_marked`,
+`offer_runs`, the schedulers' `write_within`), or were deleted with the
+models they were over (the rows' heights tree, the board's World
+passes). -/
 
 #headline
   Engine.World.Plain.converge
-  Heights.anchor_stable
-  Heights.T.find_spec
-  Heights.rows_cost
-  Live.World.settle_passes
-  ViewLaws.row_marked
-  NodeOffer.offer_runs
   Engine.list_costs
-  Engine.Sync.Ingress.Prioritized.write_within
-  Engine.Sync.Inbox.Priority.write_within

@@ -139,23 +139,6 @@ theorem idxok_commitAll : ∀ (acts : List C) {w : RWorld σ C W V Q}, IdxOk w �
 theorem passIdx_wants (cap : Nat) (w : RWorld σ C W V Q) : (w.passIdx hits eval reads hitQs cap).wants = w.wants := by
   unfold passIdx; split <;> rfl
 
-/-- With no act, the pass with acts is the pass at rest's. -/
-theorem passActs_nil (cap : Nat) (w : RWorld σ C W V Q) :
-    w.passActs apply hits eval reads hitQs [] cap = w.passIdx hits eval reads hitQs cap := by
-  have ha : w.actsWorld apply hitQs [] = w := by
-    have : actsFirst w.wants ({} : Std.HashSet W) = w.wants := by
-      simp only [actsFirst, Std.HashSet.contains_empty, Bool.not_false]
-      rw [List.filter_eq_nil_iff.2 (fun _ _ => by simp), List.filter_eq_self.2 (fun _ _ => rfl)]; rfl
-    simp only [actsWorld, commitAll, List.foldl_nil, touched, List.flatMap_nil]
-    show { w with wants := actsFirst w.wants (markHit w.rev {} []) } = w
-    rw [show markHit w.rev ({} : Std.HashSet W) ([] : List Q) = {} from rfl, this]
-  have hn : w.nTouched apply hitQs [] = 0 := by
-    simp only [nTouched, commitAll, List.foldl_nil, touched, List.flatMap_nil]
-    rw [show markHit w.rev ({} : Std.HashSet W) ([] : List Q) = {} from rfl]
-    simp
-  simp only [passActs, ha, hn, Nat.zero_add]
-  rw [← passIdx_wants hits eval reads hitQs cap w]
-
 section
 variable {apply hits eval reads hitQs}
 
@@ -189,23 +172,6 @@ theorem idxok_actsWorld {w : RWorld σ C W V Q} (ok : IdxOk w) (acts : List C) :
   idxok_wants (idxok_commitAll apply acts ok) (fun y hy => by
     rw [(commitAll_fields apply acts w).2.2.1]
     exact ((actsWorld_fields apply hitQs acts w).1 y).1 hy)
-
-/-- **Every step keeps the invariants: a pass with acts.** -/
-theorem inv_passActs (hex : Exact hits hitQs) {w : RWorld σ C W V Q} (h : Inv hits eval reads w) (ok : IdxOk w)
-    {acts : List C} (hs : ActsStable apply hits eval reads w.store acts) (cap : Nat) :
-    Inv hits eval reads (w.passActs apply hits eval reads hitQs acts cap) :=
-  inv_wants (inv_passIdx hits eval reads hitQs hex (inv_actsWorld apply hits eval reads hitQs h hs)
-    (idxok_actsWorld apply hitQs ok acts) _) _
-
-/-- **The index stays complete** after a pass with acts, as after the
-pass at rest (`idxok_passIdx`). -/
-theorem idxok_passActs (hex : Exact hits hitQs) (hne : ∀ s x, reads s x ≠ []) {w : RWorld σ C W V Q}
-    (ok : IdxOk w) (acts : List C) (cap : Nat) :
-    IdxOk (w.passActs apply hits eval reads hitQs acts cap) :=
-  idxok_wants (idxok_passIdx hits eval reads hitQs hex hne (idxok_actsWorld apply hitQs ok acts) _)
-    (fun y hy => by
-      rw [passIdx_wants]
-      exact ((actsWorld_fields apply hitQs acts w).1 y).2 hy)
 
 /-- **No missed update, the user's own first**: every wanted want one of
 whose recorded reads an act's keys name shows the store's value after
@@ -288,22 +254,6 @@ def type (f : Option K → Option K) (a : AWorld σ C W V Q K) : AWorld σ C W V
 /-- A pass takes the queued acts. -/
 def pass (cap : Nat) (a : AWorld σ C W V Q K) : AWorld σ C W V Q K :=
   { a with r := a.r.passActs apply hits eval reads hitQs a.acts cap, acts := [] }
-
-/-- **The pass leaves the composer.** -/
-theorem passActs_comp (cap : Nat) (a : AWorld σ C W V Q K) :
-    (a.pass apply hits eval reads hitQs cap).comp = a.comp := rfl
-
-/-- **And does not depend on it**: a pass from any composer is the same
-pass, the composer aside. -/
-theorem passActs_indep (cap : Nat) (a : AWorld σ C W V Q K) (k : Option K) :
-    ({ a with comp := k } : AWorld σ C W V Q K).pass apply hits eval reads hitQs cap =
-      { a.pass apply hits eval reads hitQs cap with comp := k } := rfl
-
-/-- A pass takes every queued act. -/
-theorem passActs_acts (cap : Nat) (a : AWorld σ C W V Q K) : (a.pass apply hits eval reads hitQs cap).acts = [] := rfl
-
-/-- **Typing changes the composer and nothing else.** -/
-theorem type_only (f : Option K → Option K) (a : AWorld σ C W V Q K) : { a.type f with comp := a.comp } = a := rfl
 
 end AWorld
 

@@ -15,11 +15,11 @@ teeth.
   byte at a time, over L·(log₂ L + 2) from 16 bytes on. Byte strings of
   0 to 64 KiB: their length's bytes read, their bytes copied once; the
   list codec's way reads every byte.
-- A frame's pictures (app/app/Pics.lean), over 240 frames of a world as
-  data with real tasks: a picture costs its spawns and reads in its
-  first frame, then nothing; a file whose chunk ops are missing reads
-  them again every 120 frames and at no other frame. The old `decoded`
-  (`imageV`) spawns a preview decode every frame.
+- The old picture door as it shipped (`imageV`, the start passed as a
+  value, so run every frame), over 240 frames of a world as data with
+  real tasks: it spawns a preview decode every frame, as
+  `imageV_over_budget` proves (docs/CAUGHT.md). The door itself is gone:
+  the app decodes through the Work pool (Work.request_again).
 - Judging (engine/core/IngestCost.lean), on the engine's model store
   with real op ids: ops of 0 to 6 requirements, ingested and judged one
   step at a time, each step within `step_costs`'s budget at its R, K
@@ -27,18 +27,12 @@ teeth.
   woken by its one step (W = 40: the fan-in burst). The negative
   control, a `waitOn` that reads every requirement's status again for
   each (`waitOnSlow`), is over `waitOn_costs` for every op of one or
-  more requirements.
+  more requirements. An op of 200 requirements is refused by intake;
+  taken as before the cap, its step reads 403, over 4 + 2·maxReqs.
 - A list read (engine/core/ListCost.lean), on the model store of 300
   facts under one key: limit 10, count capped at 50, within 60 rows and
   13 seeks; the same list uncapped (the negative control) steps over
   all 300 in range.
-- The rows' heights (engine/renderer/Heights.lean): 5,000 rows pushed
-  one at a time; where each row starts, from the tree, equals the walk
-  over the rows below it, and the row found at each offset holds it.
-  Finding the row 4,981 rows back costs 13 steps (the tree's depth);
-  the walk (`bottomM`, the negative control, as `bottoms` does) costs
-  4,981. A 201-row window with a row landing mid-window is rebuilt in
-  at most 4·201 + 1 steps, its starts the walk's.
 -/
 import tests.engine.Lib
 import engine.core.MerkleCost
@@ -46,7 +40,6 @@ import engine.core.CodecCost
 import app.community.channel.message.attachment.Screen
 import engine.core.IngestCost
 import engine.core.ListCost
-import engine.renderer.Heights
 
 open Engine Engine.Counted Tests
 
@@ -159,32 +152,16 @@ def pics (t : Checks) : IO Unit := do
       (true, false, true), (false, false, false)] do
     let p := pic complete preview
     let name := s!"pics (complete {complete}, preview {preview}, stored {stored})"
-    let mut w := world stored
-    let mut spawns : Array Nat := #[]
-    let mut reads : Array Nat := #[]
     let mut spawnsV : Array Nat := #[]
     let mut wV := world stored
     for f in [0:240] do
-      w := { w with frames := f }
-      let c := costIn (image p 96 64) w
-      spawns := spawns.push c.spawns
-      reads := reads.push c.reads
-      w := after (image p 96 64) w
       wV := { wV with frames := f }
       spawnsV := spawnsV.push (costIn (imageV p 96 64) wV).spawns
       wV := after (imageV p 96 64) wV
-    let first := (if preview then 1 else 0) + (if complete && stored then 1 else 0)
-    t.ok s!"{name}: the first frame spawns each decode once" (spawns[0]! == first)
-    t.ok s!"{name}: no later frame spawns" (spawns.extract 1 240 |>.all (· == 0))
-    let readAt := fun (f : Nat) => if complete && (f == 0 || (!stored && f % 120 == 0)) then 3 else 0
-    t.ok s!"{name}: the store is read only in the first frame, and every 120 frames while chunks are missing"
-      ((List.range 240).all fun f => reads[f]! == readAt f)
-    t.ok s!"{name}: the second frame costs nothing (image_twice)"
-      (costIn (image p 96 64) (after (image p 96 64) (world stored)) == 0)
     if preview then
       t.ok s!"{name}: the old decoded spawns a preview decode every frame"
         (spawnsV.extract 1 240 |>.all (· == 1))
-    IO.println s!"{name}: spawns {spawns.foldl (· + ·) 0} in 240 frames, reads {reads.foldl (· + ·) 0}; old decoded spawns {spawnsV.foldl (· + ·) 0}"
+    IO.println s!"{name}: old decoded spawns {spawnsV.foldl (· + ·) 0} in 240 frames"
 
 end Pics
 
@@ -239,6 +216,10 @@ def judgeCheck (t : Checks) : IO Unit := do
   t.ok s!"judge: the root's step wakes the forty that waited (rows {c.rows}, writes {c.writes})"
     (c.rows == 40 && c ≤ stepBudget 0 1 40)
   t.ok "judge: and is over the budget of a step that wakes fewer" (!(c ≤ stepBudget 0 1 39 : Bool))
+  -- step_reads_le: the store's ops cite at most one requirement, so the
+  -- step reads at most 4 + 2·1 rows, though it wakes forty
+  t.ok s!"judge: the root's step reads {c.reads} rows, within 4 + 2·1 (step_reads_le), waking forty"
+    (c.reads ≤ 4 + 2 * 1 && c.rows == 40)
   -- the negative control
   let mut slowOver := 0
   for n in [1:7] do
@@ -249,6 +230,19 @@ def judgeCheck (t : Checks) : IO Unit := do
     if c.reads > n then slowOver := slowOver + 1
   t.ok "judge: the negative control is over waitOn's budget at every size" (slowOver == 6)
   IO.println s!"judge: a step within O(R + K + W); the root of 40 early ops wakes {c.rows} in one step"
+  -- the intake cap: an op of 200 requirements is refused; taken as it
+  -- was before the cap (the negative control), its step reads 403
+  let wide := Op.make 6 ((List.range 200).map fun i => (Op.make 7 [] ⟨#[i.toUInt8, (i / 256).toUInt8]⟩).id) ⟨#[1]⟩
+  let intakeOld (ops : List Op) : List Op := ops.filter fam.shared
+  t.ok "judge: the cap refuses an op of 200 requirements, from a peer or this node"
+    ((intake fam false [wide]).isEmpty && (intake fam true [wide]).isEmpty && (intakeConn fam [wide]).isEmpty)
+  let ((_, _), dbw) := onModel ((intakeOld [wide]).forM (ingest (F := Unit))) DB.empty
+  let ((_, cw), _) := onModel (step (F := Unit) fam) dbw
+  t.ok s!"judge: taken without the cap, its step reads {cw.reads}, over the capped budget {4 + 2 * maxReqs}"
+    (cw.reads == 403 && !(cw ≤ stepBudget maxReqs 1 0 : Bool))
+  let ((_, _), dbc) := onModel ((intake fam false [wide]).forM (ingest (F := Unit))) DB.empty
+  let ((_, cc), _) := onModel (step (F := Unit) fam) dbc
+  t.ok s!"judge: through the cap, nothing is stored and the step reads {cc.reads}" (cc.reads ≤ 1)
 
 end Judge
 
@@ -277,50 +271,6 @@ def listCheck (t : Checks) : IO Unit := do
 
 end ListRead
 
-section HeightsCheck
-open Heights
-
-def heightsCheck (t : Checks) : IO Unit := do
-  let n := 5000
-  let hs : Array Nat := (Array.range n).map fun i => 40 + (i * 7919) % 260
-  let mut r : Rows := {}
-  for h in hs do r := r.push h
-  t.ok s!"heights: {n} rows, depth {r.d}" (r.n == n && r.d == 13 && r.t.toList.take n == hs.toList)
-  -- where each row starts: the tree against the walk
-  let mut bad := 0
-  let mut acc := 0
-  for i in [0:n] do
-    if r.t.start i != acc then bad := bad + 1
-    acc := acc + hs[i]!
-  t.ok "heights: where every row starts, from the tree, is the walk's" (bad == 0)
-  -- the row at each offset holds it
-  let mut badFind := 0
-  for b in [0:acc:97] do
-    let i := r.t.find b
-    if !(r.t.start i ≤ b && b < r.t.start (i + 1)) then badFind := badFind + 1
-  t.ok "heights: the row found at an offset holds it" (badFind == 0)
-  -- what it costs, 4,981 rows back
-  let back := 4981
-  let b := r.t.start back + 1
-  let cf := Counted.cost (T.findM (m := Counted) r.t b)
-  let cs := Counted.cost (T.startM (m := Counted) r.t back)
-  let cw := Counted.cost (bottomM (m := Counted) hs.toList back)
-  t.ok s!"heights: the row {back} back found in {cf.work} steps, its start in {cs.work}"
-    (Counted.val (T.findM (m := Counted) r.t b) == back && cf.work ≤ r.d && cs.work ≤ r.d)
-  t.ok s!"heights: the walk to it (the negative control) takes {cw.work} steps"
-    (Counted.val (bottomM (m := Counted) hs.toList back) == r.t.start back && cw.work == back)
-  IO.println s!"heights: {n} rows, depth {r.d}: the row {back} back in {cf.work} steps; walking to it {cw.work}"
-  -- a window of 200 rows with a late message landing mid-window: rebuilt
-  let win := (hs.extract 1000 1200).toList
-  let win' := win.take 87 ++ [123] ++ win.drop 87
-  let rb := rebuild win'
-  let cb := Counted.cost (T.buildM (m := Counted) (fun i => win'.toArray.getD i 0) 0 (clog win'.length))
-  t.ok s!"heights: a 201-row window rebuilt with a row mid-window, {cb.work} steps (≤ 4·201 + 1)"
-    (rb.t.toList.take win'.length == win' && rb.n == 201 && cb.work ≤ 4 * 201 + 1)
-  t.ok "heights: the rebuilt window's starts are the walk's"
-    ((List.range 201).all fun i => rb.t.start i == (win'.take i).foldl (· + ·) 0)
-
-end HeightsCheck
 
 def main : IO UInt32 := do
   let t ← Checks.new
@@ -329,5 +279,4 @@ def main : IO UInt32 := do
   pics t
   judgeCheck t
   listCheck t
-  heightsCheck t
   t.finish "costcheck"

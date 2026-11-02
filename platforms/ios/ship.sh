@@ -158,6 +158,12 @@ stage() {
   touch -r "$T/include/lean/config.h" "$st/lean/include/lean/config.h"
   echo '#define LEAN_GITHASH ""' > "$st/lean/include/githash.h"
   touch -r "$T/include/lean/config.h" "$st/lean/include/githash.h"
+  # The runtime's source must be the toolchain's own version (its lean.h
+  # and Init C, staged above, change with it).
+  local want have
+  want=$(sed -n 's/.*LEAN_VERSION_STRING "\([^"]*\)".*/\1/p' "$T/include/lean/version.h")
+  have=$(for p in MAJOR MINOR PATCH; do sed -n "s/^set(LEAN_VERSION_$p \([0-9]*\) .*/\1/p" "$lean_src/src/CMakeLists.txt"; done | paste -sd.)
+  [ "$want" = "$have" ] || { echo "LEAN_SRC is Lean $have, the toolchain is $want" >&2; return 1; }
   cp -p "$root/platforms/leanrt/runtime.txt" "$st/lean/runtime.txt"
   cp -rp "$lean_src/src/runtime" "$lean_src/src/util" "$st/lean/src/"
   cp -rp "$uv_src/include" "$uv_src/src" "$st/uv/"

@@ -7,6 +7,7 @@ import engine.renderer.Label
 import app.Commands
 import Std.Data.HashMap.Lemmas
 import engine.renderer.Image
+import engine.renderer.pic.Fit
 import engine.core.Core
 import app.community.Screen
 import app.community.member.join.accept.View
@@ -136,6 +137,10 @@ inductive Act where
   | removeYes
   | removeCancel
   | copyLabel | labelNext | labelPrev
+  /-- The community's notification level (Notice.Level's code). -/
+  | notifyLevel (code : Nat)
+  /-- Sync in the background, on or off (this device). -/
+  | backgroundSync
   | none
   deriving BEq, Inhabited, Repr
 
@@ -191,8 +196,9 @@ At offset zero the newest message stays pinned. If an anchor is no longer
 readable, the app falls back to the newest message.
 
 `unmounted_quiet` and `old_quiet` prove the running effect gate issues no
-read, paint or write for a revoked lease. `subscriptions_exact` describes
-the query projection used to prune the live cache. `resize_anchor` proves
+read, paint or write for a revoked lease. `live_exact` proves the reader's
+pruning (`Live.keep` by the reads its current wants hold) keeps exactly
+those reads in the live cache. `resize_anchor` proves
 the offset correction. `restore_checkpoint` proves the journal codec's
 round trip; SQLite's atomic commit remains in the tested native seam.
 -/
@@ -209,25 +215,13 @@ structure Lease where
 structure Mount where
   generation : Nat := 0
   mounted : Bool := true
-  /-- Component ids: root = empty bytes; rows use their message ids. -/
-  tree : List (Id × List Q) := []
   deriving Inhabited
 
 def Mount.lease (m : Mount) : Lease := ⟨m.generation⟩
 def Mount.allows (m : Mount) (l : Lease) : Bool :=
   m.mounted && decide (l.generation = m.generation)
-def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false, []⟩
+def Mount.unmount (m : Mount) : Mount := ⟨m.generation + 1, false⟩
 def Mount.mount (m : Mount) : Mount := { m with mounted := true }
-
-def Mount.track (m : Mount) (owner : Id) (q : Q) : Mount :=
-  let old := ((m.tree.find? (·.1 == owner)).map (·.2)).getD []
-  { m with tree := (owner, if old.contains q then old else q :: old) :: m.tree.filter (·.1 != owner) }
-
-def Mount.forget (m : Mount) (owner : Id) : Mount :=
-  { m with tree := m.tree.filter (·.1 != owner) }
-
-def Mount.queries (m : Mount) : List Q := m.tree.flatMap (·.2)
-def Mount.subscriptions (m : Mount) : List ByteArray := m.queries.map fun q => (q.win default).key
 
 /-- All page effects pass this gate, including queued event callbacks. -/
 def owned {m : Type → Type} [Monad m] {α : Type} (s : Mount) (l : Lease) (action : m α) : m (Option α) :=
@@ -241,24 +235,14 @@ theorem old_quiet {m : Type → Type} [Monad m] {α : Type}
     (s : Mount) (action : m α) : owned s.unmount.mount s.lease action = pure none := by
   simp [owned, Mount.allows, Mount.unmount, Mount.mount, Mount.lease]
 
-theorem subscriptions_exact (s : Mount) (k : ByteArray) :
-    k ∈ s.subscriptions ↔ ∃ node ∈ s.tree, ∃ q ∈ node.2, (q.win default).key = k := by
-  simp only [Mount.subscriptions, Mount.queries, List.mem_map, List.mem_flatMap]
-  constructor
-  · rintro ⟨q, ⟨node, hn, hq⟩, hk⟩
-    exact ⟨node, hn, q, hq, hk⟩
-  · rintro ⟨node, hn, q, hq, hk⟩
-    exact ⟨q, ⟨node, hn, hq⟩, hk⟩
-
-/-- The actual live-cache pruning called at the end of an app turn. -/
-def prune (l : Live) (s : Mount) : Live := l.keep fun q => s.queries.contains q
-
-/-- Every mounted query has an answer after a successful read turn.
-Pruning then leaves exactly those queries in the live cache. -/
-theorem live_exact (l : Live) (s : Mount)
-    (complete : ∀ q ∈ s.queries, l.entries[q]?.isSome = true) (q : Q) :
-    (prune l s).entries[q]?.isSome = true ↔ q ∈ s.queries := by
-  simp only [prune, Live.keep, Std.HashMap.getElem?_filter']
+/-- **The live cache keeps exactly the reads the wants hold.** When the
+wants move (an unmount drops its wants), the reader prunes its live cache
+with `Live.keep`, by the reads its current wants hold. An entry it keeps
+is held; and every held read that has an answer stays. -/
+theorem live_exact (l : Live) (want : Q → Bool)
+    (complete : ∀ q, want q = true → l.entries[q]?.isSome = true) (q : Q) :
+    (l.keep want).entries[q]?.isSome = true ↔ want q = true := by
+  simp only [Live.keep, Std.HashMap.getElem?_filter']
   cases h : l.entries[q]? with
   | none =>
     simp only [Option.filter_none, Option.isSome_none, Bool.false_eq_true, false_iff]
@@ -868,6 +852,9 @@ inductive Want where
   | people (c : Id)
   /-- Session-owned reconciliation, not a visible widget subscription. -/
   | maintenance (c : Id)
+  /-- c's notification candidates for this device's user u
+  (Kinds.Notify.read): session-owned, like maintenance. -/
+  | notify (c u : Id)
   deriving DecidableEq, Hashable
 
 /-- Two of this device's communities alike: every field but the device,
@@ -875,44 +862,6 @@ which its seed fixes (`dev_ok`). -/
 instance : BEq Kinds.Accepted.Me := ⟨fun a b =>
   a.acc == b.acc && a.seed == b.seed && a.c == b.c && a.adm == b.adm && a.user == b.user &&
     a.name == b.name && a.joiningOp == b.joiningOp && a.dialing == b.dialing && a.removed == b.removed⟩
-
-/-- The frame's wants: the window, its rows, the pictures, the counts,
-then the frame's lists. -/
-def Want.ofFrame (idsW : Want) (rows pics : Array Want) (countW : Want) (lists : Array Want) : Array Want :=
-  #[idsW] ++ rows ++ pics ++ #[countW] ++ lists
-
-/-- The frame's first wants, before it knows its rows: the window and
-the counts about the anchor, and the rest as last set. When both are
-wanted already, the wants are left as they are, so a steady frame does
-not move the generation (`withView_ofFrame`). -/
-def Want.withView (ws : Array Want) (idsW countW : Want) : Array Want :=
-  if ws.contains idsW && ws.contains countW then ws
-  else #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- **A steady frame keeps its wants**: the first set leaves the wants
-the last frame set as they were, so with the same anchor, rows and
-lists neither set moves the generation and the reader rests. -/
-theorem Want.withView_ofFrame (idsW countW : Want) (rows pics lists : Array Want) :
-    withView (ofFrame idsW rows pics countW lists) idsW countW = ofFrame idsW rows pics countW lists := by
-  simp [withView, ofFrame]
-
-/-- The mutant: the window first and the counts last, every frame. -/
-def Want.withViewLast (ws : Array Want) (idsW countW : Want) : Array Want :=
-  #[idsW] ++ ws.filter (fun w => w != idsW && w != countW) ++ #[countW]
-
-/-- The mutant moves the wants of every frame with a list: the counts
-go last, then back before the lists, so the reader never rests. -/
-theorem Want.withViewLast_moves (idsW countW : Want) (rows pics lists : Array Want) (hl : lists ≠ #[])
-    (hc : countW ∉ lists) :
-    withViewLast (ofFrame idsW rows pics countW lists) idsW countW ≠ ofFrame idsW rows pics countW lists := by
-  intro h
-  have := congrArg (fun a : Array Want => a.back?) h
-  simp [withViewLast, ofFrame, Array.back?_append] at this
-  cases hb : lists.back? with
-  | none => exact hl (by simpa using hb)
-  | some x =>
-    rw [hb] at this
-    exact hc (this ▸ Array.mem_of_back? hb)
 
 /-- What a want reads as. -/
 inductive Val where
@@ -937,6 +886,7 @@ inductive Val where
   | asking (rs : Array Kinds.Request.Data)
   | people (n : Nat) (complete : Bool)
   | writes (ops : List ByteArray)
+  | notify (snap : Kinds.Notify.Snap)
   deriving BEq
 
 structure St where
@@ -1171,15 +1121,17 @@ def eval : Want → RM (Val × Array Q)
     let (profile, deps) ← readView (Community.introduce c me.dev now) deps
     let (keys, deps) ← readView (Community.unwrap c) deps
     return (.writes ((profile.ops ++ keys.ops).map Op.bytes), deps)
+  | .notify c u => do
+    let (snap, deps) ← Kinds.Notify.read c u
+    return (.notify snap, deps)
   | .row _ _ m => do
     match ← Kinds.Message.readOwn m with
     | some (d, deps) => return (.row (some d), deps)
     -- not shown yet: no reads held, so it is read again each pass
     | none => return (.row none, #[])
   | .author c u => do
-    let (who, deps) ← Kinds.Profile.read c u #[]
-    let (twin, deps) ← Kinds.Profile.namesake c u who.name deps
-    return (.author who.name twin, deps)
+    let ((name, twin), deps) ← Kinds.Profile.author c u
+    return (.author name twin, deps)
   | .attachments c msg => do
     let (ids, deps) ← Kinds.File.ids c msg
     return (.ids ids, deps)
@@ -1215,12 +1167,6 @@ not every pass, reads it again. -/
 def evalLogged (w : Want) : RM Val := do
   modify fun s => { s with log := #[] }
   return (← eval w).1
-
-/-- The index after w's reads move from `old` to `new`. -/
-def reindex (rev : Std.HashMap Q (Array Want)) (w : Want) (old new : Array Q) :
-    Std.HashMap Q (Array Want) :=
-  let rev := old.foldl (fun r q => r.modify q (·.filter (· != w))) rev
-  new.foldl (fun r q => r.insert q ((r.getD q #[]).push w)) rev
 
 /-- Position an admitted message exactly as the ordered views do.
 Saturated counters use this device's receipt, including a receipt in this
@@ -1371,7 +1317,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       return false
     -- the wants moved: the new ones are marked, the gone ones forgotten,
     -- and the reads none of them holds stop being watched (RestLaws.wantIdx;
-    -- Screen.screen_subs: what is watched is what the wants read)
+    -- Lifecycle.live_exact and watched_held: what is watched is what the
+    -- wants hold)
     let moved := gen != s.gen
     if moved then
       let want : Std.HashSet Want := wants.foldl (·.insert ·) {}
@@ -1382,7 +1329,8 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       let dirty := fresh.foldl (·.insert ·) (s.dirty.filter want.contains)
       let deps := s.deps.filter fun w _ => want.contains w
       let held := deps.fold (fun acc _ qs => qs.foldl (fun a q => a.insert q) acc) ({} : Std.HashSet Q)
-      let rev := deps.fold (fun acc w qs => reindex acc w #[] qs) {}
+      let rev := deps.fold (fun acc w qs => _root_.Live.reindex acc w #[] qs) {}
+      -- the live cache keeps exactly the held reads (Lifecycle.live_exact)
       modify fun s => { s with gen, wantSet := want, dirty, deps, rev, last := wants,
                                live := s.live.keep held.contains }
     -- the reads this pass's filings and notes reach (Live.hit, exact per
@@ -1401,10 +1349,12 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
     -- inv_passActs, and with no act RestLaws', are about this pass
     let s ← get
     let rev := fun q => (s.rev.getD q #[]).toList
-    let marked := (_root_.Live.markHit rev s.dirty hit).filter s.wantSet.contains
+    let marked := (_root_.Live.Index.notice ⟨s.deps, s.dirty, s.rev⟩ s.wantSet hit).dirty
     let touched := (_root_.Live.markHit rev {} hitActs).filter s.wantSet.contains
     let ready := _root_.Live.pickActs wants.toList touched marked wants.size
-    sh.queue.modify (Demand.reconcile ready)
+    -- the user's acts first: their wants ahead of any backlog
+    -- (Demand.take_first; as shipped, reconcile alone: shipped_late)
+    sh.queue.modify (Demand.reconcileFirst touched.contains ready)
     modify fun s => { s with dirty := marked }
     let start ← IO.monoMsNow
     let mut published := 0
@@ -1417,15 +1367,17 @@ def pass (sh : Shared) (cap : Nat := 64) (afterSnapshot : IO Unit := pure ())
       unless ← sh.current ticket do
         modify fun s => { s with retired := s.retired + 1 }
         continue
-      let old := (← get).deps.getD w #[]
       let enabled := (← get).enabled
       modify fun s => { s with enabled := do return (← enabled) && (← sh.current ticket) }
       let v ← try evalLogged w finally modify fun s => { s with enabled }
       unless (← enabled) && (← sh.current ticket) do
         modify fun s => { s with retired := s.retired + 1 }
         continue
+      -- its reads recorded, clean, the index moved (Live.Index.record:
+      -- record_indexed, marked_complete)
       modify fun s =>
-        { s with deps := s.deps.insert w s.log, dirty := s.dirty.erase w, rev := reindex s.rev w old s.log }
+        let r := _root_.Live.Index.record ⟨s.deps, s.dirty, s.rev⟩ w s.log
+        { s with deps := r.deps, dirty := r.dirty, rev := r.rev }
       -- Publish each finished value promptly; a later, slow want cannot
       -- hold an already-read visible row behind the rest of the batch.
       sh.publish ticket v
@@ -1664,6 +1616,8 @@ structure Item where
   selected : Bool := false
   danger : Bool := false
   disabled : Bool := false
+  /-- A switch, on or off, in place of the chevron. -/
+  toggle : Option Bool := none
 
 /-- Full-width settings row: 14/20 text, 16px inset and a one-pixel rule. -/
 def item (f : Font.Font) (dm : Dim) (b : Bitmap) (y : Nat) (a : Item) : Bitmap × (Pages.Box × Act) × Nat := Id.run do
@@ -1686,8 +1640,17 @@ def item (f : Font.Font) (dm : Dim) (b : Bitmap) (y : Nat) (a : Item) : Bitmap �
   if !a.detail.isEmpty then
     let l := Text.oneLine font (b.w / 2) a.detail
     b := b.line font l (b.w - px 44 - Paint.Line.width font l) (ty + px 4) (gray50 dm)
-  b := b.icon f (if a.selected then "icon-check" else "icon-chevron") (b.w - px 32) (y + (h - px 16) / 2) (px 16)
-    (if a.selected then Palette.color dm.theme .fg else gray50 dm)
+  match a.toggle with
+  | some on =>
+    -- libquiet's switch: a 36 x 20 track, its knob at the end it is set to
+    let tx := b.w - px 52
+    let ty := y + (h - px 20) / 2
+    b := b.round tx ty (tx + px 36) (ty + px 20) (px 10) (if on then Palette.color dm.theme .button else Palette.gray30 dm.theme)
+    let kx := if on then tx + px 18 else tx + px 2
+    b := b.round kx (ty + px 2) (kx + px 16) (ty + px 18) (px 8) 0xffffff
+  | none =>
+    b := b.icon f (if a.selected then "icon-check" else "icon-chevron") (b.w - px 32) (y + (h - px 16) / 2) (px 16)
+      (if a.selected then Palette.color dm.theme .fg else gray50 dm)
   b := b.fill 0 (y + h - px 1) b.w (y + h) (Palette.color dm.theme .selected)
   return (b, (⟨0, y, b.w, h⟩, a.action), h)
 
@@ -1795,22 +1758,32 @@ def leafTitle (title : String) : String :=
   else title
 
 
-def you (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (communities devices : Nat) (setting : Theme.Setting) : Page := Id.run do
+def you (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (communities devices : Nat) (setting : Theme.Setting)
+    (keepSync : Option Bool := none) : Page := Id.run do
   let tally := s!"{communities} {if communities == 1 then "community" else "communities"} · {devices} {if devices == 1 then "device" else "devices"}"
   let pg := hero f dm w (max h (dm.px 1400)) name id tally false
   let (pg, y) := group f dm pg (dm.px 257) "Devices" #[{ text := "Linked devices", action := .linkShare, icon := "icon-devices", detail := toString devices }]
-  let (pg, y) := group f dm pg y "On this device" #[
+  -- libquiet's SettingsDrawer.svelte: Android only, off by default
+  let background : Array Item := match keepSync with
+    | some on => #[{ text := "Sync in the background", action := .backgroundSync, icon := "icon-signal", sub := "Keeps Quiet connected while it is off screen.", toggle := some on }]
+    | none => #[]
+  let (pg, y) := group f dm pg y "On this device" (#[
     { text := "Appearance", action := .appearance, icon := "icon-appearance", detail := match setting with | .system => "System" | .light => "Light" | .dark => "Dark" },
-    { text := "Generate link previews", action := .stub "Link previews", icon := "icon-link", sub := "Fetches a link you share so its card shows the page; the site sees your address." }]
+    { text := "Generate link previews", action := .stub "Link previews", icon := "icon-link", sub := "Fetches a link you share so its card shows the page; the site sees your address." }] ++ background)
   let (pg, y) := group f dm pg y "Connection" #[{ text := "Connecting", action := .stub "Connection", icon := "icon-signal", sub := "disconnected (searching)" }]
   let (pg, y) := group f dm pg y "About" #[{ text := "About Quiet", action := .stub "About Quiet", icon := "icon-info", detail := "Lean" }]
   return { pg with bmp := { pg.bmp with rows := pg.bmp.rows.extract 0 (max h (y + dm.px 64)) } }
 
-def community (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (members : Nat) : Page := Id.run do
+/-- libquiet's notification levels (notifications.ts), by code. -/
+def levels : Array (Nat × String) := #[(1, "All messages"), (2, "Only @ mentions and DMs"), (3, "Off")]
+
+def levelName (code : Nat) : String := ((levels.find? (·.1 == code)).map (·.2)).getD "All messages"
+
+def community (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (members : Nat) (level : Nat := 1) : Page := Id.run do
   let pg := hero f dm w (max h (dm.px 1400)) name id s!"{members} {if members == 1 then "member" else "members"} · 1 channel" true
   let (pg, y) := group f dm pg (dm.px 257) "People" #[{ text := "Members", action := .stub "Members", icon := "icon-people", detail := toString members }]
   let (pg, y) := group f dm pg y "Conversations" #[
-    { text := "Notifications", action := .stub "Notifications", icon := "icon-bell", detail := "All messages" },
+    { text := "Notifications", action := .stub "Notifications", icon := "icon-bell", detail := levelName level },
     { text := "Create channel", action := .stub "Create channel", icon := "hash" },
     { text := "Message retention", action := .stub "Message retention", detail := "Off", sub := "How long messages are kept" }]
   let (pg, y) := group f dm pg y "Connection" #[
@@ -1822,7 +1795,7 @@ def community (f : Font.Font) (dm : Dim) (w h : Nat) (name id : String) (members
     taps := pg.taps.push (⟨dm.px 16, buttonY, w - dm.px 32, dm.px 44⟩, .stub "Leave community") }
   return { pg with bmp := { pg.bmp with rows := pg.bmp.rows.extract 0 (max h (buttonY + dm.px 108)) } }
 
-def channel (f : Font.Font) (dm : Dim) (w h members : Nat) : Page := Id.run do
+def channel (f : Font.Font) (dm : Dim) (w h members : Nat) (level : Nat := 1) : Page := Id.run do
   let mut pg : Page := ⟨Bitmap.blank w (max h (dm.px 800)) (solid (Palette.color dm.theme .panel) w), #[]⟩
   let mut y := 0
   let items : Array Item := #[
@@ -1830,7 +1803,7 @@ def channel (f : Font.Font) (dm : Dim) (w h members : Nat) : Page := Id.run do
     { text := "Members in this channel", action := .stub "Members", detail := toString members },
     { text := "Permissions", action := .stub "Permissions", sub := "Roles and members" },
     { text := "Disappearing messages", action := .stub "Disappearing messages", detail := "Off" },
-    { text := "Notifications", action := .stub "Notifications", sub := "All messages" },
+    { text := "Notifications", action := .stub "Notifications", sub := levelName level },
     { text := "Delete channel", action := .stub "Delete channel", danger := true },
     { text := "Chaos", action := .stub "Chaos", sub := "Generate test people, messages, and pictures" }]
   for a in items do
@@ -1841,13 +1814,27 @@ def channel (f : Font.Font) (dm : Dim) (w h members : Nat) : Page := Id.run do
 
 /-- Proposed settings keep libquiet's real choices and selected defaults.
 They have no dispatch targets until the corresponding ops exist. -/
-def staticPage (f : Font.Font) (dm : Dim) (w h : Nat) (title name id : String) : Page := Id.run do
+def staticPage (f : Font.Font) (dm : Dim) (w h : Nat) (title name id : String) (level : Nat := 1) : Page := Id.run do
   let px := dm.px
   let color := Palette.color dm.theme
   let mut b := Bitmap.blank w (max h (px 1400)) (solid (color .panel) w)
   let mut y := px 16
   let mut taps := #[]
-  if title == "Message retention" || title == "Disappearing messages" then
+  if title == "Notifications" then
+    -- libquiet's NotificationSettingsPage: the community's level
+    let small := f.atSize (px 12)
+    b := b.line small (Text.oneLine small w "Get notifications for") (px 16) (y + px 4) (gray50 dm)
+    y := y + px 28
+    for (code, label) in levels do
+      let (pic, tap, rh) := item f dm b y { text := label, action := .notifyLevel code, selected := code == level }
+      b := if code == level then pic else pic.fill (w - px 36) (y + px 8) (w - px 12) (y + rh - px 8) (color .panel)
+      taps := taps.push tap
+      y := y + rh
+    let (pic, endY) := prose f dm b (px 16) (y + px 16) (w - px 32)
+      "These settings apply to notifications on this device while Quiet is running." 12 16 false true
+    b := pic
+    y := endY + px 16
+  else if title == "Message retention" || title == "Disappearing messages" then
     let retention := title == "Message retention"
     let text := if retention then "When enabled, all messages older than the chosen retention limit will be deleted."
       else "When enabled, all messages by anyone in this channel will auto-delete after the chosen countdown. (Countdowns start on send, so short countdowns may lead to undelivered messages.)"
@@ -1931,8 +1918,8 @@ def staticPage (f : Font.Font) (dm : Dim) (w h : Nat) (title name id : String) :
     y := endY
   return ⟨{ b with rows := b.rows.extract 0 (max h (y + px 64)) }, taps⟩
 
-def stub (f : Font.Font) (dm : Dim) (w h : Nat) (title : String) (name id : String := "") : Page :=
-  staticPage f dm w h title name id
+def stub (f : Font.Font) (dm : Dim) (w h : Nat) (title : String) (name id : String := "") (level : Nat := 1) : Page :=
+  staticPage f dm w h title name id level
 
 theorem selected_check (s : Theme.Setting) : chosen s s = true := by cases s <;> rfl
 
@@ -1980,6 +1967,12 @@ structure Io where
   pickPhoto : UInt32 → IO Bool := fun _ => pure false
   photoResult : IO (Array UInt32 × ByteArray) := pure (#[], .empty)
   editorIo : Editor.Io := {}
+  /-- Post or cancel one conversation's notification card (a JSON
+  packet, Notify.packet). The shell queues it and returns at once. -/
+  notify : String → IO Unit := fun _ => pure ()
+  /-- Background sync (Android's foreground service) on or off; whether
+  this platform has it. -/
+  service : Bool → IO Bool := fun _ => pure false
 
 /-- How far beyond each end of the viewport the list frame is drawn. -/
 def over : Nat := 2048
@@ -2141,6 +2134,10 @@ structure PageIn where
   profile : String × Bool × Bool × Bool := ("", false, false, false)
   removeStage : Nat := 0
   removeWhy : String := ""
+  /-- Sync in the background: none where the platform has no service. -/
+  keepSync : Option Bool := none
+  /-- The community's notification level (Notice.Level's code). -/
+  notifyLevel : Nat := 1
   deriving BEq, Inhabited
 
 /-- What the frame does once the reader has run an act: with its write
@@ -2382,6 +2379,21 @@ removal is not announced again. -/
   seek : Option (Nat × Bool) := none
   saved : Option Lifecycle.Checkpoint := none
   pendingLinks : List String := []
+  /-- A message link waiting until its community, message and key are here. -/
+  pendingTarget : Option Community.Target := none
+  /-- Sync in the background (this device's setting), and whether the
+  platform can (Android's foreground service). -/
+  keepSync : Bool := false
+  canKeep : Bool := false
+  /-- The notifications tracker (Notify.step's state), and the marks
+  handed to the writer (each written once). -/
+  notes : Notify.State := {}
+  marksSent : List (Id × Nat) := []
+  /-- The last turn's inputs: a turn whose inputs are the same does
+  nothing, so a steady frame costs no tracker work. -/
+  notesKey : Option (Option Id × List Id × List (Id × Kinds.Notify.Snap)) := none
+  /-- The current community's notification level, as its notices say. -/
+  notifyLevel : Nat := 1
   queuedWrites : List ByteArray := []
   mountedPage : Option (PageId × Id) := none
   reader : Option Reader.Worker := none
@@ -2400,7 +2412,7 @@ removal is not announced again. -/
   paintStop : Array (Task Unit) := #[]
 
 instance : Inhabited Io := ⟨⟨pure #[1080, 2400, 0, 0, 420], fun _ _ => pure 0, fun _ => pure (), fun _ => pure (), fun _ _ _ _ _ _ _ _ => pure #[],
-  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty), {}⟩⟩
+  pure ("", #[]), fun _ => pure (), fun _ => pure (), pure #[], fun _ => pure (), pure 0, pure (0, 0), fun _ => pure (), pure (#[], .empty), IO.eprintln, fun _ => pure (), pure #[], pure #[], fun _ => pure (), fun _ _ => pure (), fun _ _ _ _ => pure (), fun _ => pure false, pure (#[], .empty), {}, fun _ => pure (), fun _ => pure false⟩⟩
 
 abbrev M := StateT St IO
 
@@ -2430,6 +2442,10 @@ def c (s : St) : Id := s.me.c
 
 /-- The page and the back stack, as Nav has them. -/
 def St.nav (s : St) : Nav.Nav PageId := ⟨s.page, s.backStack⟩
+
+/-- Whether sync runs (the node, its parked writes, the reader): in
+front with a surface, or anywhere with Sync in the background on. -/
+def St.syncs (s : St) : Bool := s.active && s.surface || s.keepSync
 
 /-- The page and the back stack, set to a Nav step's. A change of page: a nav op, one generation past the newest, in place
 of the ephemeral log's nav op (`Data.placeIn`), and the page and stack it
@@ -2701,7 +2717,8 @@ def checkpoint (s : St) : Lifecycle.Checkpoint :=
      Codec.encode (s.links.map fun (a, l) => (a, l.toUTF8)), Codec.encode s.queuedWrites,
      Codec.encode (s.mark.bind fun (x, _) => (s.ids.find? (·.2 == x)).orElse fun _ => s.roots.find? (·.2 == x)),
      Codec.encode (s.labelText.toUTF8, s.labelPage),
-     Codec.encode (s.mark.bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r))])
+     Codec.encode (s.mark.bind fun (x, _) => s.cellRoot[x]?.bind fun r => s.roots.find? (·.2 == r)),
+     Codec.encode s.keepSync])
 
 /-- Called only by the writer thread. The write is idempotent when its
 checkpoint retry meets a transient SQLite lock. -/
@@ -2897,7 +2914,7 @@ def stopReader : M Unit := do
 def resumeReader : M Unit := do
   pollRetired
   let s ← get
-  if !s.threaded || !s.active || !s.surface || s.netStop.isSome || s.reader.isSome then return
+  if !s.threaded || !s.syncs || s.netStop.isSome || s.reader.isSome then return
   if let some r := s.rst then
     let w ← Reader.Worker.start s.sh r
     modify fun s => { s with reader := some w, rst := none }
@@ -3160,7 +3177,7 @@ def syncText : M Unit := do
       s.io.setText t
       modify fun s => { s with native := t }
 
-/-- Message m's row: its view (Kinds.Message.read: the claimed time, in
+/-- Message m's row: its view (Kinds.Message.readOwn: the claimed time, in
 UTC minutes), shown at the local time (the platform's timezone). -/
 def readRow (m : Id) : M (Option (RowData × Array Q)) := do
   let s ← get
@@ -3188,7 +3205,7 @@ def offerAll (ch : Std.CloseableChannel.Sync (List Op)) (q : Array (List Op)) : 
 def flushNode : M Unit := do
   recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome || s.toNode.isEmpty then return
+  if !s.syncs || s.netStop.isSome || s.netReplay.isSome || s.toNode.isEmpty then return
   let some r := s.net | do
     if s.netCfg.isNone && s.netBoot.isNone then
       for ops in s.toNode do s.wr.submit ⟨ops, true⟩
@@ -3411,14 +3428,18 @@ def heightOf (s : St) (x : Id) : Nat := s.heights.getD x est
 
 /-- The window's rows' bottoms (bottom-anchored), newest first, and the
 content's height: the messages newer and older than the window at `est`
-each, below and above it. -/
-def bottoms (s : St) : Array Nat × Nat := Id.run do
-  let mut out := Array.mkEmpty s.ids.size
-  let mut y := bottomPad + s.newer * est
-  for (_, x) in s.ids do
-    out := out.push y
-    y := y + heightOf s x
-  return (out, y + s.older * est + 16)
+each, below and above it. Each row's bottom is the heights below it
+(PlaceLaws.bottoms_eq). -/
+def bottoms (s : St) : Array Nat × Nat :=
+  let (out, y) := s.ids.foldl (fun (acc : Array Nat × Nat) (p : Pos) => (acc.1.push acc.2, acc.2 + heightOf s p.2))
+    (Array.mkEmpty s.ids.size, bottomPad + s.newer * est)
+  (out, y + s.older * est + 16)
+
+/-- The row whose span, stacked up from y (newest first), holds offset
+p, and p's distance below that row's top. -/
+def rowFrom (h : Id → Nat) (p : Nat) : Nat → List Pos → Option (Id × Nat)
+  | _, [] => none
+  | y, (_, x) :: t => if y ≤ p && p < y + h x then some (x, y + h x - 1 - p) else rowFrom h p (y + h x) t
 
 /-! ## Mounting, measuring, painting -/
 
@@ -3803,15 +3824,11 @@ def composer (s : St) : Bitmap :=
 
 /-! ## Events and commands -/
 
-/-- The row at content position p, and p's row within it (top down). -/
-def rowAt (s : St) (p : Nat) : Option (Id × Nat) := Id.run do
-  let (bots, _) := bottoms s
-  for i in [0:s.ids.size] do
-    let bot := bots[i]!
-    let x := s.ids[i]!.2
-    let h := heightOf s x
-    if bot ≤ p && p < bot + h then return some (x, bot + h - 1 - p)
-  return none
+/-- The row at content position p, and p's row within it (top down):
+the row whose span (from its bottom in `bottoms`) holds p
+(PlaceLaws.rowAt_iff). -/
+def rowAt (s : St) (p : Nat) : Option (Id × Nat) :=
+  rowFrom (heightOf s) p (bottomPad + s.newer * est) s.ids.toList
 
 /-! ## Pages and communities -/
 
@@ -4019,7 +4036,7 @@ for earlier local writer work; later App writes park behind that task. -/
 def netStep : M Unit := do
   recoverNode
   let s ← get
-  if !s.active || !s.surface || s.netStop.isSome || s.netReplay.isSome then return
+  if !s.syncs || s.netStop.isSome || s.netReplay.isSome then return
   let some (port, _) := s.netCfg | return
   if s.net.isSome then return
   -- started: taken once it is up (the frame never waits on it)
@@ -4294,11 +4311,11 @@ def drawPage (f : Font) (bg : ByteArray) (cam : Option Bitmap) (k : PageIn) : Pa
     | .profile => let (n, isMe, removed, can) := k.profile; Pages.profile Pages.Act.you Pages.Act.removeStart f dm W h n isMe removed can
     | .removeConfirm => Pages.removeConfirm Pages.Act.removeYes Pages.Act.removeCancel f dm W h k.profile.1 k.removeStage k.removeWhy
     | .duplicate => Pages.duplicate f dm W h
-    | .you => Appearance.you f dm W h k.ownName k.ownId k.comms.size k.devices k.setting
+    | .you => Appearance.you f dm W h k.ownName k.ownId k.comms.size k.devices k.setting k.keepSync
     | .appearance => Appearance.page f dm W h k.setting
-    | .communitySettings => Appearance.community f dm W h me.name k.communityId k.people
-    | .channelSettings => Appearance.channel f dm W h k.people
-    | .stub => Appearance.stub f dm W h k.labelText me.name k.communityId
+    | .communitySettings => Appearance.community f dm W h me.name k.communityId k.people k.notifyLevel
+    | .channelSettings => Appearance.channel f dm W h k.people k.notifyLevel
+    | .stub => Appearance.stub f dm W h k.labelText me.name k.communityId k.notifyLevel
     | .chat => ⟨Bitmap.blank W h bg, #[]⟩
   let (t, cross) := pageTitle k.page
   -- a first launch's Get started has nowhere to go back to
@@ -4318,11 +4335,6 @@ cache relies on to keep a page drawn earlier. -/
 theorem drawPage_key (f : Font) (bg : ByteArray) (cam : Option Bitmap) {k k' : PageIn} (h : k = k') :
     drawPage f bg cam k = drawPage f bg cam k' := by rw [h]
 
-/-- **The current entry is in the key.** Two states on different entries
-(acceptances) have different keys, whatever their names: a switch always
-redraws. -/
-theorem pageIn_acc {k k' : PageIn} (h : k = k') : k.me.acc = k'.me.acc := by rw [h]
-
 /-- The current state's page key. -/
 def pageIn (s : St) : PageIn :=
   { page := s.page, setting := s.theme.setting, W := s.W, h := viewH s, stage := s.Hs - s.insetTop - s.insetBot,
@@ -4341,7 +4353,16 @@ def pageIn (s : St) : PageIn :=
       | none => ("", false, false, false),
     removeStage := match s.removal with
       | .first _ => 1 | .second _ => 2 | .sending _ => 3 | .failed _ _ => 4 | .idle => 0,
-    removeWhy := match s.removal with | .failed _ why => why | _ => "" }
+    removeWhy := match s.removal with | .failed _ why => why | _ => "",
+    keepSync := if s.canKeep then some s.keepSync else none,
+    notifyLevel := s.notifyLevel }
+
+/-- **The current entry is in the key.** Two states with the same page
+key (`pageIn`, what the frame draws a page from) are on the same entry
+(acceptance), whatever else they share: a switch always redraws. -/
+theorem pageIn_acc {s s' : St} (h : pageIn s = pageIn s') : s.me.acc = s'.me.acc := by
+  have := congrArg (fun k : PageIn => k.me.acc) h
+  simpa [pageIn, Kinds.Accepted.Me.key] using this
 
 /-- Write the removal of user u (the engine's intent). -/
 def removeWrite (u : Id) : M Bool := do
@@ -4376,6 +4397,42 @@ def refuseSubmission (refusal : Option UInt32) (submission : Option Editor.Snaps
     else "This editor changed. Please try the action again.")
   return true
 
+/-- The community's notification level, for this user's devices. -/
+def setLevel (code : Nat) : M Unit := do
+  let s ← get
+  if s.me.waiting || s.me.c.isEmpty then return
+  let me := s.me
+  let fresh ← newBytes 32
+  let settings : Notice.Settings := { community := Notice.Level.ofCode code }
+  discard <| act (do
+    let (w, _) ← readView (Community.noticeWrite me.c me.adm me.user me.dev fresh [] (some settings)) #[]
+    pure w)
+  modify fun s => { s with notifyLevel := code, pageKey := none }
+  say s!"Notifications: {Appearance.levelName code}."
+
+/-- Sync in the background, on or off: the setting is saved; the
+service follows it. Toggling touches neither the node nor its parked
+writes (`keepSync_keeps`). -/
+def keepSyncSt (s : St) (on : Bool) : St := { s with keepSync := on && s.canKeep, pageKey := none }
+
+def setKeepSync (on : Bool) : M Unit := do
+  let s ← get
+  if !s.canKeep then return
+  modify (keepSyncSt · on)
+  discard <| s.io.service on
+  saveCheckpoint
+
+/-- Going to the background with sync kept: the page is left (input,
+reader and paints revoked, the checkpoint saved, as `suspend` does) but
+the node keeps running, and the session is mounted again for its own
+wants (notifications, maintenance). -/
+def keepAwake : M Unit := do
+  recoverNode
+  captureInput
+  modify fun s => { s with restoreAnchor := s.mark.isSome }
+  leavePage
+  saveCheckpoint
+
 /-- A page's tap: what it does. -/
 def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (refusal : Option UInt32 := none) : M Unit := do
   let s ← get
@@ -4389,6 +4446,8 @@ def onPageAct (a : Pages.Act) (submission : Option Editor.Snapshot := none) (ref
     modify fun s => { s with labelText := title }
     openPage .stub
   | .theme setting => setTheme setting
+  | .notifyLevel code => setLevel code
+  | .backgroundSync => setKeepSync (!s.keepSync)
   | .copyLabel => s.io.copy (Label.copied s.labelText); say "Label copied."
   | .labelNext =>
     let n := (Label.lines s.font s.dim s.W s.labelText).size
@@ -4559,10 +4618,12 @@ def sendNow (submission : Option Editor.Snapshot := none) (refusal : Option UInt
     if !queued then
       if let some action := submission then discard <| (← get).io.editorIo.action action.ticket 2
 
-/-- A photo prepared for sending: at most 2048 px a side, as QOI, with its
+/-- A photo prepared for sending: at most `Pic.attachEdge` (2048) px a
+side, sized by `Pic.fit` (kept if it fits; else its longer side exactly
+the edge, the other to the nearest pixel: Pic.fit_*), as QOI, with its
 chip (a 64 dp square crop) and how much smaller than its raw pixels it is. -/
 def preparePhoto (dm : Dim) (src : Image.Src) : ByteArray × Nat × Nat × Composer.Chip :=
-  let (w, h) := if src.w ≤ 2048 && src.h ≤ 2048 then (src.w, src.h) else Image.fit src 2048 2048
+  let (w, h) := Pic.fit src.w src.h Pic.attachEdge
   let px := Chaos.cropPx src 0 0 src.w src.h w h
   let bytes := Image.encode w h px
   let raw := w * h * 4
@@ -4809,12 +4870,13 @@ def plainEvent (event : Event) (submission : Option Editor.Snapshot := none) (re
   | .action ticket _ _ _ => do discard <| (← get).io.editorIo.action ticket 5; return true
   | .close => do suspend; return false
   | .background => do
-    suspend
+    if (← get).keepSync then keepAwake else suspend
     modify fun s => { s with active := false }
     return true
   | .foreground => do modify fun s => { s with active := true }; return true
   | .surface present => do
-    if !present then suspend
+    if !present then
+      if (← get).keepSync then keepAwake else suspend
     modify fun s => { s with surface := present }
     return true
   | .resize => do resize (← (← get).io.screen); return true
@@ -5033,6 +5095,13 @@ def command (line : String) : M Bool := do
     let st ← get
     s.io.ctlReply (String.intercalate " | " (st.comms.toList.map fun m => s!"{m.name}{if m.c == st.me.c then "*" else ""}"))
   | "asking" => s.io.ctlReply s!"asking {(← get).asking.size}"
+  | "notify" =>
+    let code := match ws[1]?.getD "all" with | "off" => 3 | "mentions" => 2 | _ => 1
+    setLevel code
+    s.io.ctlReply "ok"
+  | "keep" =>
+    setKeepSync (ws[1]? == some "on")
+    s.io.ctlReply s!"keep {(← get).keepSync}"
   | "pause" => s.wr.setPaused true; s.io.ctlReply "writer paused"
   | "resume" => s.wr.setPaused false; s.io.ctlReply "writer resumed"
   | "bottom" => s.io.scrollTo 0; s.io.ctlReply "ok"
@@ -5348,7 +5417,8 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   let idsW := Reader.Want.clumps s.me.c none s.anchor half half
   let countW := Reader.Want.clumpCount s.me.c none s.anchor
   -- (the wants as last set, unless the anchor moved: a steady frame
-  -- moves no generation, Reader.Want.withView_ofFrame)
+  -- keeps each held want's ticket, so it starts no new read,
+  -- Demand.retained_ticket)
   discard <| query ⟨["community".toUTF8, s.me.c, "messages".toUTF8], true⟩ idsW
   discard <| query ⟨["community".toUTF8, s.me.c, "count".toUTF8], false⟩ countW
   discard <| query ⟨["community".toUTF8, s.me.c, "people".toUTF8], false⟩ (.people s.me.c)
@@ -5519,6 +5589,116 @@ def chatFrame : M (Nat × Array Nat × UInt64 × UInt64 × UInt64) := do
   modify fun s => { s with mark := if s.restoreAnchor then s.mark else captureAnchor s }
   return (b, bots, tIds, tMount, tPaint)
 
+/-! ## Notifications and background sync -/
+
+/-- The conversation on screen, if the app is in front on one. -/
+def viewing (s : St) : Option Id :=
+  if s.active && s.surface && s.page == .chat && !s.me.waiting then some s.me.c else none
+
+/-- **The notifications turn.** Each of this device's communities'
+candidates (the reader's `notify` want: read again only on an exact
+window notice), then `Notify.step`; its cards go to the shell, which
+queues them (the turn never waits on it); new marks go to the writer;
+cards withdrawn because their conversation is on screen are read, and
+their reads go to the user's other devices (`noticeWrite`, on the
+reader's thread). -/
+def notifyStep : M Unit := do
+  let s ← get
+  let mut ins : List Notify.Input := []
+  for m in s.comms do
+    if m.c.isEmpty then continue
+    -- a community being joined is read too: its first mark is written then
+    if let some (.notify snap) ← query ⟨["session".toUTF8, m.acc, "notify".toUTF8], false⟩ (.notify m.c m.user) then
+      let i : Notify.Input := { c := m.c, title := "#general (" ++ m.name ++ ")", device := m.dev.pk, user := m.user, live := !m.waiting && !m.removed, snap := snap }
+      ins := ins ++ [i]
+  let present := (s.comms.toList.filter (!·.waiting)).map (·.c)
+  let v := viewing s
+  let key := some (v, present, ins.map fun i => (i.c, i.snap))
+  if key == s.notesKey then return
+  let (notes, effects) := Notify.step s.notes present v [] ins
+  -- what a turn considered stays considered while it can come back: the
+  -- seen ids are kept to the current windows once every community has
+  -- one (a post leaves its window only for newer ones), so the tracker's
+  -- work is bounded by the windows, not by every post ever seen
+  let all := s.comms.all fun m => m.c.isEmpty || ins.any (·.c == m.c)
+  let kept := notes.seen.filter fun x => ins.any fun i => i.snap.rows.any (·.id == x)
+  let notes := if all then { notes with seen := kept } else notes
+  modify fun s => { s with notes, notesKey := key }
+  for p in Notify.packets notes.active effects do s.io.notify p
+  -- marks: each written once (the snap shows it once it is filed)
+  let now ← nowMin
+  for (c, mark) in Notify.marks now ins do
+    if !(s.marksSent.any fun (c', m') => c' == c && m' ≥ mark) then
+      if ← write (Community.caughtUp c mark) then
+        modify fun s => { s with marksSent := (c, mark) :: s.marksSent.filter (·.1 != c) }
+  -- read here: what the conversation on screen withdrew
+  if let some c := v then
+    let reads := effects.filterMap fun e => match e with
+      | .withdraw d => if d.community == c then some d.id else none
+      | _ => none
+    if !reads.isEmpty then
+      let me := s.me
+      let fresh ← newBytes 32
+      discard <| act (do
+        let (w, _) ← readView (Community.noticeWrite me.c me.adm me.user me.dev fresh reads) #[]
+        pure w)
+  -- the level shown in the settings
+  if let some i := ins.find? (·.c == s.me.c) then
+    let level := Notice.Level.code (i.snap.settings.conversation.or i.snap.settings.community)
+    let level := if level == 0 then 1 else level
+    if level != s.notifyLevel then modify fun s => { s with notifyLevel := level, pageKey := none }
+
+/-- A step in the background with sync kept: no page, no frame; the
+node, its parked writes, the reader's acts, and notifications. -/
+def backgroundStep : M Unit := do
+  reap
+  netStep
+  flushNode
+  if !(← get).life.mounted then modify fun s => { s with life := s.life.mount }
+  resumeReader
+  let _ ← takeDone
+  notifyStep
+  readerPass
+
+/-- A link's acceptance: this device's admitted entry in its community. -/
+def targetOf (comms : Array Kinds.Accepted.Me) (t : Community.Target) : Option Kinds.Accepted.Me :=
+  comms.find? fun m => decide (m.c = t.community) && !m.waiting && !m.removed
+
+/-- The conversation, anchored at the message: its window is read about
+the message's position, and the restore path keeps the message where
+`off` puts its top edge. -/
+def targetSt (s : St) (t : Community.Target) (p : Pos) (off : Nat) : St :=
+  { s.withNav (Nav.go .chat s.nav) with
+    mark := some (t.message, off), restoreAnchor := true, anchor := some p, restorePos := some p,
+    pendingTarget := none }
+
+/-- A message's place in its conversation's list: its counter and time's
+key (`sortOf`), or, past the counter cap, its receipt's on this device. -/
+def messagePos (message : Id) (fact : Fact) : M (Option Pos) := do
+  let .message _ _ _ _ _ n _ _ := fact | return none
+  if n < countCap then return some (sortOf fact, message)
+  let stored ← intentView (Community.received.byMsg.read [message] (limit := some 1))
+  return stored.rows.head?.map fun (pos, _) => (pos.1, message)
+
+/-- Open a pending message link once its community, message and key are
+here (a cold tap may wait for sync). -/
+def openTarget : M Unit := do
+  let s ← get
+  let some t := s.pendingTarget | return
+  if t.conversation != t.community || !t.root.isEmpty then
+    modify fun s => { s with pendingTarget := none }
+    say "This conversation is not available yet."
+    return
+  let some me := targetOf s.comms t | return
+  let (f, pending, _) ← transaction (readFact t.message #[])
+  let some fact := f | return
+  if pending then return
+  let some p ← messagePos t.message fact | return
+  if me.acc != s.cur then switchToAcc me.acc
+  leavePage
+  modify fun s => targetSt s t p ((viewH s) * 2 / 3)
+  mountPage
+
 /-- One frame; the twin's events for the next one, or none when the
 window closes. -/
 def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id) : M (Option (List Event)) := do
@@ -5585,6 +5765,7 @@ def frame (evs : List Event) (lease : Lifecycle.Lease) (inputPage : PageId × Id
   -- join requests for the current community, and admissions they complete
   refreshComms
   applyDone
+  notifyStep
   refreshAsking
   refreshMembers
   refreshHomeCount
@@ -5703,7 +5884,10 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
     reap
     let s ← get
     if !s.active || !s.surface || s.netStop.isSome then
-      IO.sleep 16
+      -- Sync in the background: the node, the reader and notifications
+      -- keep going, nothing is drawn (`background_keeps`)
+      if s.keepSync && s.netStop.isNone then backgroundStep
+      IO.sleep (if s.keepSync then 100 else 16)
       return some []
     let sc ← io.screen
     systemTheme (Theme.ofWord (sc[5]?.getD 0))
@@ -5720,9 +5904,11 @@ def stepCore (evs : List Event) : M (Option (List Event)) := do
     let links := (← get).pendingLinks
     modify fun s => { s with pendingLinks := [] }
     for url in links do
-      match Community.Invite.parse url with
-      | some i => takeInvite i
-      | none => say "That isn't a Quiet invite link."
+      match Community.Invite.parse url, Community.Target.parse url with
+      | some i, _ => takeInvite i
+      | none, some t => modify fun s => { s with pendingTarget := some t }
+      | none, none => say "That isn't a Quiet invite link."
+    openTarget
     let rd := (← get).rd
     rd.exec "BEGIN"
     let r ← try
@@ -5800,8 +5986,12 @@ def start (io : Io) (screen : Array UInt32) (dbPath : String) (net : Option (Nat
            -- a removal already in the store at launch is not announced
            goneSeen := (all.toList.filter (·.removed)).map (·.acc),
            dbPath := dbPath, netCfg := net, sh := sh, raster, rst := some { rd := ← openDb dbPath } }
+  let keepSync := match saved with
+    | some (_, _, _, _, _, bs) => (Codec.decode (bs[14]?.getD .empty) : Option Bool).getD false
+    | none => false
+  let canKeep ← io.service keepSync
   -- the start state is a root, written as this window's first nav op
-  let mut initial := initial.withNav (Nav.reset (if comms.isEmpty then .getStarted else .home))
+  let mut initial := { initial.withNav (Nav.reset (if comms.isEmpty then .getStarted else .home)) with keepSync := keepSync && canKeep, canKeep }
   if let some cp := saved then
     let (version, _, acc, _, _, _) := cp
     if version == 1 then
@@ -5829,7 +6019,8 @@ def Io.platform : Io :=
   ⟨Platform.screen, Platform.scroll, Platform.scrollBy, Platform.scrollTo, Platform.frame, Platform.text,
    Platform.ime, fun t => Platform.copy t, Platform.ctlPoll, fun s => Platform.ctlReply s, Platform.nowUs,
    do return ((← Std.Time.Timestamp.now).toSecondsSinceUnixEpoch.val.toNat / 60, (← Platform.tzMin).toInt),
-   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, Platform.pickPhoto, Platform.photoResult, ⟨Platform.editor, Platform.editorAction⟩⟩
+   Platform.scan, Platform.luma, Platform.log, (fun t => Platform.setText t), Platform.poll, Platform.links, Platform.motion, Platform.appearance, Platform.bars, Platform.pickPhoto, Platform.photoResult, ⟨Platform.editor, Platform.editorAction⟩,
+   (fun t => Platform.notify t), Platform.service⟩
 
 end App
 
