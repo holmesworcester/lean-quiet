@@ -5,6 +5,22 @@
     "witness": "Vacuity.CryptoTrust.nativeConditional",
     "module": "tests.vacuity.CryptoTrust",
     "exercise": true,
-    "detail": "The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused). The crates refuse every other key and nonce size. A named premise, never an axiom."
+    "detail": "The crypto trust file, bridged to both running suites. Each part tested from both sides: the native crates satisfy it on real inputs (5 keys, 3 nonces, 3 associated data, plaintexts 0-70001 bytes; X25519 for every key pair; SHA-256 at 7 lengths; Ed25519 signatures by each seed's key pair over the same plaintexts, and another key, message or signature rejected), toy implementations satisfy each shape in the kernel (toyRoundtrip, toyAgree, toyDigest, toySigns), and broken ones fail it in the kernel (lossyRefused, taglessRefused, ownRefused, zeroPubRefused, idHashRefused, noneVerifyRefused). The crates refuse every other key and nonce size. A named premise, never an axiom."
+  },
+  "Ed25519Signs": {
+    "status": "conditional",
+    "theorem": "Trust.Ed25519Signs",
+    "witness": "Vacuity.CryptoTrust.ed25519Conditional",
+    "module": "tests.vacuity.CryptoTrust",
+    "exercise": true,
+    "detail": "Part of NativeCrypto. The native crate satisfies it: for the key pair of each of 5 seeds, signatures of plaintexts 0-70001 bytes verify, and another key, message or signature is rejected. A toy scheme satisfies the shape in the kernel (toySigns) and one that verifies nothing fails it (noneVerifyRefused). Bridged to ofSeed_signs."
+  },
+  "ofSeed_signs": {
+    "status": "conditional",
+    "theorem": "Community.ofSeed_signs",
+    "witness": "Vacuity.CryptoTrust.ed25519Conditional",
+    "module": "tests.vacuity.CryptoTrust",
+    "exercise": true,
+    "detail": "Applied under the crypto trust file (ed25519Conditional): every device made from a 32-byte seed verifies its own signatures, the hsig premise the signing laws take. The executable checks the same on the native crate."
   }
 }

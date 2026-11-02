@@ -2,6 +2,7 @@
 The callback commits a real lifecycle checkpoint first, then gates only its
 return. GDB pauses the actual saved-ref getter while commitSave publishes. -/
 import app.Screen
+import engine.core.Exit
 
 open Engine Data
 
@@ -11,7 +12,7 @@ open Engine Data
 @[extern "lq_stop_probe_done"] opaque done : IO Unit
 @[extern "lq_stop_probe_injected"] opaque injected : IO Bool
 
-def main (args : List String) : IO UInt32 := do
+def mainBody (args : List String) : IO UInt32 := do
   let dir := args.headD "out/checkpoint-ack/data"
   IO.FS.createDirAll dir
   let path := dir ++ "/checkpoint.db"
@@ -59,3 +60,7 @@ def main (args : List String) : IO UInt32 := do
     return 1
   IO.println "checkpoint-ack: actual SQLite checkpoint and completion survive SDK overlap; later checkpoint passes"
   return 0
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main (args : List String) : IO UInt32 := Engine.exitAfter (mainBody args)

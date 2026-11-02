@@ -1,7 +1,6 @@
 /-
 Pinned Noto faces and font metrics beneath Text. CJK selection is in Cjk;
-the process-wide, bounded raster cache is in Ttf.Cache/Memo. A font load
-assigns identities, but layout never rasterizes or mutates the cache.
+each face's glyph memo is in Ttf.Memo. Layout never rasterizes.
 -/
 import engine.renderer.Ttf.Memo
 import engine.renderer.Cjk
@@ -47,11 +46,34 @@ def Set.sized (s : Set) (cell : Nat) : Set :=
   { faces := s.faces.map (·.sized cell cell)
     chars := s.chars.map fun _ r => { r with advance := (r.unitsAdvance * cell + r.units / 2) / r.units } }
 
+/-- The same faces with empty glyph memos. -/
+def Set.fresh (s : Set) : Set := { s with faces := s.faces.map (·.fresh) }
+
 /-- Overlay a small typography face while retaining the shared script fallbacks. -/
 def Set.overlay (s added : Set) : Set :=
   { faces := s.faces ++ added.faces
     chars := added.chars.toList.foldl (fun chars (code, r) =>
       chars.insert code { r with face := s.faces.size + r.face }) s.chars }
+
+/-- Noto at every size: the regular faces at each pixel size 1..256, and
+the medium ones over them at `mediumPx`, each made on first use. -/
+structure Sizes where
+  regular : Set := {}
+  medium : Set := {}
+  mediumPx : List Nat := []
+  regularAt : Array (Thunk Set) := #[]
+  mediumAt : Std.HashMap Nat (Thunk Set) := {}
+  deriving Inhabited
+
+def Sizes.make (regular medium : Set) (mediumPx : List Nat) : Sizes :=
+  let regularAt := Array.ofFn (n := 257) fun px => Thunk.mk fun _ => regular.sized px.1
+  { regular, medium, mediumPx, regularAt
+    mediumAt := mediumPx.foldl (fun out px => out.insert px (Thunk.mk fun _ =>
+      ((regularAt[px]?.map (·.get)).getD (regular.sized px)).overlay (medium.sized px))) {} }
+
+/-- The same sizes with empty glyph memos: what the old ones kept is let go
+once nothing holds them. -/
+def Sizes.fresh (s : Sizes) : Sizes := make s.regular.fresh s.medium.fresh s.mediumPx
 
 def medium (dir : String := "assets") : IO Set := do
   let some index := Ttf.Index.read (← IO.FS.readBinFile (dir ++ "/noto-ui-index.bin"))
@@ -62,7 +84,7 @@ def medium (dir : String := "assets") : IO Set := do
   let mut chars := ({} : Std.HashMap UInt32 Ref)
   for (c, g, a) in metrics.chars do
     if g != 0 then chars := chars.insert c.toUInt32 ⟨0, g, a, a, metrics.units⟩
-  return ⟨#[← Ttf.Memo.source bytes 1 1], chars⟩
+  return ⟨#[Ttf.Memo.source bytes 1 1], chars⟩
 
 /-- Layout consumes a compact cmap/hmtx index. Face parsing and outline
 validation are deferred to first paint; file reads measured about 1 ms. -/
@@ -78,7 +100,7 @@ def load (cell : Nat) (dir : String := "assets") : IO Set := do
     let path := dir ++ "/" ++ name ++ ".ttf"
     let bytes ← IO.FS.readBinFile path
     if bytes.size != metrics.bytes then throw (IO.userError s!"{path}: index/font size mismatch")
-    out := { out with faces := out.faces.push (← Ttf.Memo.source bytes cell cell) }
+    out := { out with faces := out.faces.push (Ttf.Memo.source bytes cell cell) }
     for (c,g,a) in metrics.chars do
       if g == 0 then continue
       let take := if i < names.size then supported c && !out.chars.contains c.toUInt32

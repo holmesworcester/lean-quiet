@@ -44,10 +44,15 @@ theorem Connection.removal_reaches_session [Fresh (HeldM Connection.F)]
 -- law NavLaws.back_open
 /-- **Back goes back.** Back after opening a page restores the app's
 state from before it, except for a few fields that belong to the page
-that closed, and an editor counter. -/
+that closed, an editor counter, and the record of the two navigation
+steps. -/
 theorem NavLaws.back_open (p : App.PageId) (s : App.St) (hp : p ≠ s.page) (hs : p ∉ s.backStack)
     (hw : p ≠ .switcher) :
     App.backSt (App.openSt p s) = { s with
       editorEpoch := s.editorEpoch + 1 + 1, field := "", refusal := none, pageKey := none,
-      pageScrollStarted := false, ownSends := {}, presenting := none } := by
+      pageScrollStarted := false, ownSends := {}, presenting := none,
+      eph := Data.placeIn (Data.placeIn s.eph (s.navGen + 1) p.code
+          ((Nav.go p s.nav).stack.map App.PageId.code))
+        (s.navGen + 1 + 1) s.page.code (s.backStack.map App.PageId.code),
+      navGen := s.navGen + 1 + 1 } := by
   sorry

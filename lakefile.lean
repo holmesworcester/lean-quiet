@@ -8,6 +8,7 @@ library is a directory of the tree. A library inside another's directory
 app/connection) is the outer one's too: `lake build Wire` builds mdns.
 `lake build` builds every library but the tests'. -/
 package quiet where
+  license := "AGPL-3.0-or-later"
   -- Native C uses the host's headers. Lean's bundled older glibc linker
   -- stub lacks fcntl64 (SQLite's file locks); resolve against the host libc.
   moreLinkArgs := #["-Wl,--allow-shlib-undefined", "/usr/lib/x86_64-linux-gnu/libc.so.6",
@@ -66,6 +67,9 @@ lean_lib Pic where
 -- the op tree's root: commands over the node, which spans both families
 @[default_target] lean_lib Settings where
   globs := #[.submodules `app.settings]
+
+@[default_target] lean_lib Nav where
+  globs := #[.submodules `app.nav]
 
 @[default_target] lean_lib Node where
   roots := #[`app.Family, `app.Commands]
@@ -231,8 +235,6 @@ lean_exe join_fair where
 lean_exe vacuity_production_bootstrap where
   root := `tests.vacuity.ProductionBootstrapMain
 
-lean_exe vacuity_bootstrap where
-  root := `tests.vacuity.BootstrapMain
 
 lean_exe vacuity_connection_progress where
   root := `tests.vacuity.ConnectionProgressMain
@@ -542,6 +544,9 @@ lean_exe vacuity_contracts where
 
 lean_exe vacuity_crypto_trust where
   root := `tests.vacuity.CryptoTrustMain
+
+lean_exe vacuity_store_trust where
+  root := `tests.vacuity.StoreTrustMain
 
 lean_exe vacuity_identity_lifecycle where
   root := `tests.vacuity.IdentityLifecycleMain

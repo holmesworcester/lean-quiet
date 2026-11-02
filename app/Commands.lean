@@ -7,6 +7,10 @@ import app.connection.Family
 import app.Family
 import app.settings.appearance.View
 import app.settings.appearance.Commands
+import app.nav.View
+import app.nav.Commands
+import app.community.channel.message.draft.Commands
+import app.community.channel.message.draft.View
 import app.connection.connection.Commands
 import app.connection.eph.Commands
 import app.connection.established.Commands
@@ -697,10 +701,43 @@ def Pending.filings (ps : List Pending) : Array Filing :=
 def status (db : Db) (x : Id) : IO (Option (Verdict SF)) :=
   (Store.getStatus (F := SF) (m := SqlM SF) x).run db
 
+/-- This window's place, from the app's ephemeral log: the newest nav op
+(`Nav.current`) and its id; none before any. -/
+def navOf (h : Engine.Sync.Held SF) : Option (Id × Nav.Fact) :=
+  (((Nav.current.liftR.liftR : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The app's ephemeral log with this window placed at `page` over
+`stack`: the nav op at generation `gen` in place of the log's nav ops,
+the log rebuilt from its live ops (`Held.ofOps`). -/
+def placeIn (h : Engine.Sync.Held SF) (gen page : Nat) (stack : List Nat) : Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (h.log.filter (fun o => !Nav.owns o.kind) ++ [Nav.place gen page stack])
+
+/-- Entry `acc`'s draft, from the app's ephemeral log: the newest draft
+op for it (`Draft.current`) and its id; none before any. -/
+def draftOf (h : Engine.Sync.Held SF) (acc : Id) : Option (Id × Draft.Fact) :=
+  ((((Draft.current acc).liftL.liftL : View SF _).run : Engine.Sync.HeldM SF _).run h).1
+
+/-- The ops the log is rebuilt from when entry `acc`'s draft is written:
+the log's ops but that entry's drafts, then the new one if it holds
+anything (an empty composer leaves no draft). -/
+def drafted (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) : List Op :=
+  h.log.filter (fun o => !Draft.isFor acc o) ++
+    (if text.isEmpty && pics.isEmpty then [] else [Draft.write acc gen text pics])
+
+/-- The app's ephemeral log with entry `acc`'s draft written, the log
+rebuilt from its live ops (`Held.ofOps`). -/
+def draftIn (h : Engine.Sync.Held SF) (acc : Id) (gen : Nat) (text : ByteArray) (pics : List ByteArray) :
+    Engine.Sync.Held SF :=
+  Engine.Sync.Held.ofOps fam (drafted h acc gen text pics)
+
+/-- Every draft in the log: its entry, text and photos (the checkpoint's). -/
+def draftsIn (h : Engine.Sync.Held SF) : List (Id × ByteArray × List ByteArray) :=
+  (h.log.filterMap Draft.of).map fun b => (b.acc, b.text, b.pics)
+
 /-- This device's appearance and its revision, from the store: the
 newest appearance op (`Settings.Appearance.current`), System before any. -/
 def appearance (db : Db) : IO (Theme.Setting × Nat) :=
-  (((Settings.Appearance.current.liftR : View SF _).run : SqlM SF _).run db)
+  (((Settings.Appearance.current.liftL.liftR : View SF _).run : SqlM SF _).run db)
 
 /-- The store's answer to q on the read connection, with the outbox. -/
 def Q.run (db : Db) (out : Array Pending) : Q → IO Ans

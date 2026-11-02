@@ -3,6 +3,7 @@ GDB pauses its actual SDK Ref.get between the two exchanges, lets a separate
 Lean task request cancellation, then resumes the original read. The request
 must survive. The C helper coordinates scheduling only; it never sets the flag. -/
 import engine.wire.StopFlag
+import engine.core.Exit
 
 open Engine.Sync
 
@@ -12,7 +13,7 @@ open Engine.Sync
 @[extern "lq_stop_probe_done"] opaque done : IO Unit
 @[extern "lq_stop_probe_injected"] opaque injected : IO Bool
 
-def main : IO UInt32 := do
+def mainBody : IO UInt32 := do
   let flag ← StopFlag.new
   arm flag
   let task ← IO.asTask (prio := .dedicated) do
@@ -33,3 +34,7 @@ def main : IO UInt32 := do
     return 1
   IO.println "stop-flag: deterministic overlapping read/request and repeated stop pass"
   return 0
+
+/-- Leaves by `IO.Process.exit` (Engine.exitAfter): returning from
+`main` with a runner's threads alive would wait for them for good. -/
+def main : IO UInt32 := Engine.exitAfter mainBody
