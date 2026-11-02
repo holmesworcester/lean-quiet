@@ -156,6 +156,76 @@ run alone on `ubuntu:24.04` peaked at 6.2 GB. That run found the missing
 `libx11-dev`: the three xcb packages alone leave `shell.c` without
 `X11/cursorfont.h`.
 
+## make demo
+
+`make demo` shows what `make run` can't on one machine: two devices that
+talk to each other directly. `tools/make/demo.py` opens two copies of
+the app side by side, each with its own database and its own node, on
+two free TCP ports from 47101 (the node's usual 47100 may be taken by an
+installed app). The judge sees:
+
+1. Left, Alice's laptop: the community Quiet with two messages, and its
+   Add members page (the QR code and the link). Right, Bob's laptop: it
+   has opened Alice's link and asks for a name.
+2. In Bob's window: type a name, then Continue and Agree & Join. Bob's
+   node dials the link's address, `127.0.0.1` and Alice's port, and his
+   request goes with the handshake.
+3. Alice's sidebar shows Waiting to join, with a count. Click it, then
+   the purple ✓ (Approve).
+4. Bob is in: Alice's messages arrive in his window. From then on, a
+   message typed in either window shows in the other.
+
+The windows are 940 by 820 at most, side by side from the left. They
+are never narrower than 720, the desktop layout's width (with the
+sidebar), so on a screen under about 1500 pixels wide Bob's window covers
+the right edge of Alice's; click a window to bring it forward.
+
+The terminal says what to do at each step. Close both windows, or press
+Ctrl-C there, to stop. Each run starts afresh in `out/make/demo/`
+(`alice/` and `bob/`: a database, a log and a state file each).
+Pointing at a message shows Add a reaction; a reaction shows in the other
+window too. `make demo ARGS=--auto` does steps 2 and 3 by X input, as a
+person would (it needs `xdotool`); then Bob says hi and Alice reacts ❤️.
+
+What the demo uses of the app, all in `platforms/desktop/Main.lean` and
+`platforms/linux/shell.c`:
+
+- `--port N`: the node's port (1 to 65535; 47100 by default), so two
+  apps can run on one machine. `--loopback`: the invites the app makes
+  dial `127.0.0.1` at that port, not this machine's LAN addresses.
+- `--seed`: an empty database gets `make run`'s two communities, with
+  networking on (`--demo` is `--seed` with networking off). `--name`:
+  your name in them (Alex by default).
+- `--invite FILE`: opens Add members, as its button does, and writes the
+  link it shows to FILE.
+- `QUIET_TITLE`, `QUIET_X`, `QUIET_Y`: the window's title and where it
+  opens (asked of the window manager as the user's choice).
+
+The demo also needed one thing the desktop lacked: a way to see join
+requests. The phones' home lists Waiting to join, but the desktop showed
+it nowhere, though Add members says a new device "appears under Waiting
+to join". The sidebar now shows that row, with a count, while there are
+requests; it opens the same requests page.
+
+| Task | Validation |
+| --- | --- |
+| `make:demo-e2e` | Build, then `make demo` under Xvfb (1920 x 1080, no window manager), driven by X input (xdotool) as a judge does: both windows titled, side by side and on screen; Alice shows her invite and Bob has opened it; Bob's name, Agree & Join; the request reaches Alice; Waiting to join and Approve; Bob gets Alice's history; a message typed in Alice's window is Bob's newest (his `QUIET_STATE`) and is drawn at the bottom of his conversation exactly as at the bottom of Alice's (more than 99.5% of pixels alike, where before the message they were not); Bob's 👍 on it and his reply reach Alice; closing both windows ends `make demo` with 0. Then `make demo ARGS=--auto`: Bob's hi reaches Alice, and her ❤️ on it reaches Bob. Screenshots, logs and `result.txt` (timings) in `out/make/demo-e2e/` |
+| `make:demo-negative` | The control: once Bob is in, his app restarts on his database with `--offline` (no sockets). The e2e must then fail both checks that Alice's message reached him (state and screen) and pass everything before them. In `out/make/demo-negative/` |
+| `make:clean-room` | Also runs `tests/make/demo_e2e.py` from the fresh clone, after `make run` and `make online`; its screenshots stay in `out/make/clean-room/<image>/demo-e2e/` |
+
+`ci/local.sh --full` runs `make:demo-e2e` and `make:demo-negative` (part
+`make:demo`), and the clean room. They need Xvfb, xdotool, ImageMagick's
+`import` and Python's PIL; the clean room installs those in its
+containers as the test's own tools, not as the judge's.
+
+Measured 2026-11-01 at f9e274f, in the clean room's three containers at
+once (8 CPUs each, the shared box at load about 100): the e2e took 11 to
+18 s. The windows opened in under 2 s; Bob's request reached Alice 0.5
+to 1.0 s after Agree & Join; Bob was in 0.2 to 0.8 s after Approve;
+Alice's message reached Bob 1.9 s after its first keystroke (typed at
+50 ms a key); Bob's 👍 took 0.3 to 0.4 s and his reply 0.6 to 0.7 s.
+On the box, `ci/local.sh make:demo` (the e2e and the control) took 65 s.
+
 ## Checking it again
 
 The measurement above predates the joined repository; its modules are
